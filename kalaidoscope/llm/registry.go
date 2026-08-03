@@ -1,0 +1,85 @@
+package llm
+
+import "fmt"
+
+type ModelSet string
+
+const (
+	SetLocal ModelSet = "local"
+	SetCloud ModelSet = "cloud"
+)
+
+type ProviderID string
+
+const (
+	ProviderOllama ProviderID = "ollama"
+	ProviderGemini ProviderID = "gemini"
+)
+
+var modelsBySetRole = map[ModelSet]map[Role]string{
+	SetLocal: {
+		RoleChat:       "gemma4",
+		RoleRefinement: "gemma4",
+		RoleColour:     "gemma4",
+		RoleDistill:    "gemma4",
+		RoleSnapshot:   "gemma4",
+	},
+	SetCloud: {
+		RoleChat:       "gemini-3.5-flash",
+		RoleRefinement: "gemini-3.5-flash",
+		RoleColour:     "gemini-3.5-flash-lite",
+		RoleDistill:    "gemini-3.6-flash",
+		RoleSnapshot:   "gemini-3.6-flash",
+	},
+}
+
+var providerByModel = map[string]ProviderID{
+	"gemma4":                ProviderOllama,
+	"gemini-3.5-flash":      ProviderGemini,
+	"gemini-3.5-flash-lite": ProviderGemini,
+	"gemini-3.6-flash":      ProviderGemini,
+}
+
+var credentialEnv = map[ProviderID]string{
+	ProviderOllama: "",
+	ProviderGemini: "GEMINI_API_KEY",
+}
+
+func ParseModelSet(s string) (ModelSet, error) {
+	switch ModelSet(s) {
+	case SetLocal:
+		return SetLocal, nil
+	case SetCloud:
+		return SetCloud, nil
+	default:
+		return "", fmt.Errorf("llm: unknown model set %q (want %q or %q)", s, SetLocal, SetCloud)
+	}
+}
+
+func ModelFor(s ModelSet, r Role) (string, error) {
+	roles, ok := modelsBySetRole[s]
+	if !ok {
+		return "", fmt.Errorf("llm: unknown model set %q", s)
+	}
+	name, ok := roles[r]
+	if !ok {
+		return "", fmt.Errorf("llm: model set %q has no model for role %q", s, r)
+	}
+	return name, nil
+}
+
+func ProviderFor(model string) (ProviderID, error) {
+	p, ok := providerByModel[model]
+	if !ok {
+		return "", fmt.Errorf("llm: no provider registered for model %q", model)
+	}
+	return p, nil
+}
+
+func CredentialEnv(p ProviderID) string {
+	return credentialEnv[p]
+}
+
+func Roles() []Role {
+	return []Role{RoleChat, RoleRefinement, RoleColour, RoleDistill, RoleSnapshot}
+}

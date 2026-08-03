@@ -1,0 +1,382 @@
+package migrations
+
+import (
+	"github.com/pocketbase/pocketbase/core"
+	m "github.com/pocketbase/pocketbase/migrations"
+)
+
+const fragmentContentMax = 100_000_000
+
+type tableDef struct {
+	Name                   string
+	Type                   string // "base" or "view"
+	ViewQuery              string
+	DisableWriteOperations bool
+	DisableReadOperations  bool
+	Fields                 []core.Field
+	Indexes                []indexDef
+}
+
+type indexDef struct {
+	Name    string
+	Unique  bool
+	Columns string
+	Where   string
+}
+
+var schema = []tableDef{
+	{
+		Name: "fragment",
+		Fields: []core.Field{
+			&core.SelectField{
+				Name:      "type",
+				Required:  true,
+				MaxSelect: 1,
+				Values:    []string{"email", "note", "whatsapp", "sms"},
+			},
+			&core.TextField{Name: "source"},
+			&core.TextField{Name: "content", Required: true, Max: fragmentContentMax},
+			&core.DateField{Name: "source_time"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_fragment_source_time", Columns: "source_time"},
+		},
+	},
+
+	{
+		Name: "ingest",
+		Fields: []core.Field{
+			&core.FileField{Name: "file", MaxSelect: 50, MaxSize: 200 << 20},
+			&core.TextField{Name: "format"},
+			&core.NumberField{Name: "limit"},
+			&core.TextField{Name: "extensions"},
+			&core.BoolField{Name: "skip_duplicates"},
+			&core.TextField{Name: "status"},
+			&core.NumberField{Name: "ingested"},
+			&core.TextField{Name: "error"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
+		Name:                   "colour",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.TextField{Name: "name", Required: true},
+			&core.TextField{Name: "colour_value"},
+			&core.TextField{Name: "criteria"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
+		Name:                   "colour_fragment",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.RelationField{Name: "colour_id", CollectionId: "colour", Required: true, MaxSelect: 1, CascadeDelete: true},
+			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", Required: true, MaxSelect: 1, CascadeDelete: true},
+			&core.SelectField{
+				Name:      "match_type",
+				Required:  true,
+				MaxSelect: 1,
+				Values:    []string{"manual_positive", "manual_negative", "llm_matched_backfill", "llm_matched_tag_on_input"},
+			},
+			// Model that decided an llm_matched_* row. Empty for manual matches
+			// and for rows written before provenance was tracked.
+			&core.TextField{Name: "model"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_colour_fragment_colour", Columns: "colour_id"},
+			{Name: "idx_colour_fragment_fragment", Columns: "fragment_id"},
+			{Name: "idx_colour_fragment_pair", Unique: true, Columns: "colour_id, fragment_id"},
+		},
+	},
+
+	{
+		Name:                   "projection",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.TextField{Name: "name"},
+			&core.JSONField{Name: "current_context_spec"},
+			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
+			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
+		Name:                   "reflection",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.TextField{Name: "name"},
+			&core.JSONField{Name: "current_context_spec"},
+			&core.JSONField{Name: "current_window_spec"},
+			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
+			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
+		Name:                   "lens",
+		DisableWriteOperations: true,
+		DisableReadOperations:  true,
+		Fields: []core.Field{
+			&core.JSONField{Name: "context_spec"},
+			&core.JSONField{Name: "prompt"},
+			&core.RelationField{Name: "created_from_proj_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
+			&core.RelationField{Name: "created_from_refl_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
+			&core.RelationField{Name: "parent_lens_id", CollectionId: "lens", MaxSelect: 1},
+			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+	},
+
+	{
+		Name:                   "projection_snapshot",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.RelationField{Name: "projection_id", CollectionId: "projection", Required: true, MaxSelect: 1, CascadeDelete: true},
+			&core.TextField{Name: "status"},
+			&core.JSONField{Name: "context_spec"},
+			&core.JSONField{Name: "resolved_context"},
+			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
+			&core.JSONField{Name: "output"},
+			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_projection_snapshot_projection", Columns: "projection_id"},
+		},
+	},
+
+	{
+		Name:                   "reflection_snapshot",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", Required: true, MaxSelect: 1, CascadeDelete: true},
+			&core.TextField{Name: "status"},
+			&core.JSONField{Name: "context_spec"},
+			&core.JSONField{Name: "window_spec"},
+			&core.JSONField{Name: "resolved_context"},
+			&core.JSONField{Name: "resolved_window"},
+			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
+			&core.JSONField{Name: "output"},
+			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_reflection_snapshot_reflection", Columns: "reflection_id"},
+		},
+	},
+
+	{
+		Name:                   "refine_proj_snapshot_conversation",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.RelationField{Name: "projection_id", CollectionId: "projection", MaxSelect: 1, CascadeDelete: true},
+			&core.RelationField{Name: "projection_snapshot_id", CollectionId: "projection_snapshot", MaxSelect: 1, CascadeDelete: true},
+			&core.TextField{Name: "external_conversation_id"},
+
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_refine_proj_external", Unique: true, Columns: "external_conversation_id"},
+			{Name: "idx_refine_proj_projection", Columns: "projection_id"},
+			{Name: "idx_refine_proj_snapshot", Columns: "projection_snapshot_id"},
+		},
+	},
+
+	{
+		Name:                   "refine_refl_snapshot_conversation",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", MaxSelect: 1, CascadeDelete: true},
+			&core.RelationField{Name: "reflection_snapshot_id", CollectionId: "reflection_snapshot", MaxSelect: 1, CascadeDelete: true},
+			&core.TextField{Name: "external_conversation_id"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_refine_refl_external", Unique: true, Columns: "external_conversation_id"},
+			{Name: "idx_refine_refl_reflection", Columns: "reflection_id"},
+			{Name: "idx_refine_refl_snapshot", Columns: "reflection_snapshot_id"},
+		},
+	},
+
+	{
+		Name: "chat_conversation",
+
+		Fields: []core.Field{
+			&core.TextField{Name: "external_conversation_id"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_chat_conversation_external", Unique: true, Columns: "external_conversation_id"},
+		},
+	},
+
+	{
+		Name: "chat_message",
+		Fields: []core.Field{
+			&core.RelationField{Name: "chat_conversation_id", CollectionId: "chat_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
+			&core.RelationField{Name: "refine_proj_conversation_id", CollectionId: "refine_proj_snapshot_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
+			&core.RelationField{Name: "refine_refl_conversation_id", CollectionId: "refine_refl_snapshot_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
+			&core.JSONField{Name: "content"},
+			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_chat_message_chat_conv", Columns: "chat_conversation_id"},
+			{Name: "idx_chat_message_refine_proj", Columns: "refine_proj_conversation_id"},
+			{Name: "idx_chat_message_refine_refl", Columns: "refine_refl_conversation_id"},
+		},
+	},
+
+	{
+		Name:                   "usage",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.TextField{Name: "period", Required: true},
+			&core.NumberField{Name: "prompt_tokens"},
+			&core.NumberField{Name: "completion_tokens"},
+			&core.NumberField{Name: "total_tokens"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_usage_period", Unique: true, Columns: "period"},
+		},
+	},
+
+	{
+
+		Name:                   "kalaidoscope_config",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.TextField{Name: "model_set"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
+		Name: "view_stream",
+		Type: "view",
+		ViewQuery: `
+			WITH indexed_colours AS (
+				SELECT id, (row_number() OVER (ORDER BY created) - 1) % 8 as idx
+				FROM colour
+			)
+			SELECT
+				f.id as id,
+				f.type as type,
+				f.content as content,
+				f.source_time as source_time,
+				f.created as created,
+				COALESCE(
+					(SELECT json_group_array(ic.idx)
+					 FROM colour_fragment cf
+					 JOIN indexed_colours ic ON ic.id = cf.colour_id
+					 WHERE cf.fragment_id = f.id),
+					'[]'
+				) as colours
+			FROM fragment f
+		`,
+	},
+}
+
+func ensureField(c *core.Collection, f core.Field) {
+	if c.Fields.GetByName(f.GetName()) == nil {
+		c.Fields.Add(f)
+	}
+}
+
+func ensureCollection(app core.App, def tableDef) error {
+	c, err := app.FindCollectionByNameOrId(def.Name)
+	if err != nil {
+		c = core.NewBaseCollection(def.Name)
+	}
+	rule := "@request.auth.id != ''"
+	var readRule *string = &rule
+	var writeRule *string = &rule
+
+	if def.DisableReadOperations {
+		readRule = nil
+	}
+	if def.DisableWriteOperations {
+		writeRule = nil
+	}
+
+	if def.Type == "view" {
+		c.Type = core.CollectionTypeView
+		c.ViewQuery = def.ViewQuery
+		c.ViewRule = readRule
+		c.ListRule = readRule
+	} else if def.Type == "" || def.Type == "base" {
+		c.Type = core.CollectionTypeBase
+		c.ViewRule = readRule
+		c.ListRule = readRule
+		c.CreateRule = writeRule
+		c.UpdateRule = writeRule
+		c.DeleteRule = writeRule
+	}
+	for _, f := range def.Fields {
+		if relField, ok := f.(*core.RelationField); ok {
+			target, err := app.FindCollectionByNameOrId(relField.CollectionId)
+			if err == nil {
+				relField.CollectionId = target.Id
+			}
+		}
+		ensureField(c, f)
+	}
+	for _, idx := range def.Indexes {
+		c.AddIndex(idx.Name, idx.Unique, idx.Columns, idx.Where)
+	}
+	return app.Save(c)
+}
+
+func init() {
+	m.Register(func(app core.App) error {
+		// First pass: ensure base collections exist so they can be referenced
+		for _, t := range schema {
+			if t.Type == "view" {
+				continue
+			}
+			_, err := app.FindCollectionByNameOrId(t.Name)
+			if err != nil {
+				c := core.NewBaseCollection(t.Name)
+				if err := app.Save(c); err != nil {
+					return err
+				}
+			}
+		}
+		// Second pass: set fields, indexes, rules
+		for _, t := range schema {
+			if err := ensureCollection(app, t); err != nil {
+				return err
+			}
+		}
+		return nil
+	}, func(app core.App) error {
+		// Delete in reverse dependency order; ignore collections already gone.
+		for i := len(schema) - 1; i >= 0; i-- {
+			c, err := app.FindCollectionByNameOrId(schema[i].Name)
+			if err != nil {
+				continue
+			}
+			if err := app.Delete(c); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
