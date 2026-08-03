@@ -1,0 +1,229 @@
+package status
+
+import (
+	stdctx "context"
+	"time"
+
+	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/core"
+
+	"github.com/north-shore-software/kalaido/internal/api"
+	"github.com/north-shore-software/kalaido/internal/engine"
+	"github.com/north-shore-software/kalaido/internal/llmcontext"
+)
+
+type Evaluator struct {
+	app core.App
+	now time.Time
+}
+
+func NewEvaluator(app core.App, now time.Time) *Evaluator {
+	return &Evaluator{app: app, now: now}
+}
+func (e *Evaluator) EvaluateAll(ctx stdctx.Context) ([]api.EntityStatus, error) {
+	projections, err := e.app.FindRecordsByFilter("projection", "1=1", "", 0, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	reflections, err := e.app.FindRecordsByFilter("reflection", "1=1", "", 0, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make(map[string]*node)
+	for _, rec := range projections {
+		nodes[rec.Id] = e.buildNode(rec, "projection")
+	}
+	for _, rec := range reflections {
+		nodes[rec.Id] = e.buildNode(rec, "reflection")
+	}
+
+	// Calculate edges
+	for _, n := range nodes {
+		for _, depID := range n.spec.SourceProjectionIDs {
+			if dep, ok := nodes[depID]; ok {
+				n.deps = append(n.deps, dep)
+				dep.dependents = append(dep.dependents, n)
+			}
+		}
+		for _, depID := range n.spec.SourceReflectionIDs {
+			if dep, ok := nodes[depID]; ok {
+				n.deps = append(n.deps, dep)
+				dep.dependents = append(dep.dependents, n)
+			}
+		}
+	}
+
+	// Topological sort
+	sorted, err := topoSort(nodes)
+	if err != nil {
+		return nil, err // Cycle detected
+	}
+
+	var results []api.EntityStatus
+	for _, n := range sorted {
+		status, err := e.evaluateNode(ctx, n, nodes)
+		if err != nil {
+			return nil, err
+		}
+		n.status = status
+		results = append(results, status)
+	}
+
+	return results, nil
+}
+
+type node struct {
+	record     *core.Record
+	entityType string
+	spec       api.ContextSpec
+	deps       []*node
+	dependents []*node
+	status     api.EntityStatus
+}
+
+func (e *Evaluator) buildNode(rec *core.Record, entityType string) *node {
+	spec := api.ContextSpec{}
+	_ = rec.UnmarshalJSONField("current_context_spec", &spec)
+
+	return &node{
+		record:     rec,
+		entityType: entityType,
+		spec:       spec,
+	}
+}
+
+func topoSort(nodes map[string]*node) ([]*node, error) {
+	var sorted []*node
+	visited := make(map[string]bool)
+	temp := make(map[string]bool)
+
+	var visit func(n *node) error
+	visit = func(n *node) error {
+		if temp[n.record.Id] {
+			return nil // Cycle detected, but let's ignore or return error? We should return error
+		}
+		if !visited[n.record.Id] {
+			temp[n.record.Id] = true
+			for _, dep := range n.deps {
+				if err := visit(dep); err != nil {
+					return err
+				}
+			}
+			temp[n.record.Id] = false
+			visited[n.record.Id] = true
+			sorted = append(sorted, n)
+		}
+		return nil
+	}
+
+	for _, n := range nodes {
+		if !visited[n.record.Id] {
+			if err := visit(n); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return sorted, nil
+}
+
+func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[string]*node) (api.EntityStatus, error) {
+	status := api.EntityStatus{
+		ID:   n.record.Id,
+		Type: n.entityType,
+	}
+
+	snapCollection := "projection_snapshot"
+	foreignKey := "projection_id"
+	if n.entityType == "reflection" {
+		snapCollection = "reflection_snapshot"
+		foreignKey = "reflection_id"
+	}
+
+	recs, err := e.app.FindRecordsByFilter(snapCollection,
+		foreignKey+" = {:id} && (status = 'approved' || status = '')", "-created", 1, 0,
+		dbx.Params{"id": n.record.Id})
+
+	var liveSnapID string
+	var snapRec *core.Record
+	if err == nil && len(recs) > 0 {
+		snapRec = recs[0]
+		liveSnapID = snapRec.Id
+	}
+
+	if liveSnapID == "" {
+		// Draft entity: ignore staleness according to plan.
+		return status, nil
+	}
+
+	var recordedPinned llmcontext.PinnedIDs
+	_ = snapRec.UnmarshalJSONField("resolved_context", &recordedPinned)
+
+	// Resolve the spec to see what it *should* include right now
+	currentPinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec)
+	if err != nil {
+		return status, err
+	}
+
+	// Diff them: what's in current that's not in recorded?
+	diff := currentPinned.Diff(recordedPinned)
+	status.NewFragmentIDs = diff.FragmentIDs
+
+	// If there are new snapshot IDs, it means an upstream dependency got a new snapshot.
+	// We map the new snapshot IDs back to their projection/reflection IDs.
+	staleDeps := make(map[string]bool)
+	for _, sID := range diff.SnapshotIDs {
+		// Try projection snapshot
+		if sr, err := e.app.FindRecordById("projection_snapshot", sID); err == nil {
+			staleDeps[sr.GetString("projection_id")] = true
+		} else if sr, err := e.app.FindRecordById("reflection_snapshot", sID); err == nil {
+			staleDeps[sr.GetString("reflection_id")] = true
+		}
+	}
+
+	// Recursive Check: if any of our dependencies are themselves stale, we are stale.
+	for _, dep := range n.deps {
+		if dep.status.UpToDateSnapshotID == "" {
+			// Check if dep has any snapshots. If it has no snapshots, it's a draft, and we ignore it.
+			depSnapCol := "projection_snapshot"
+			depFK := "projection_id"
+			if dep.entityType == "reflection" {
+				depSnapCol = "reflection_snapshot"
+				depFK = "reflection_id"
+			}
+			c, _ := e.app.FindRecordsByFilter(depSnapCol, depFK+" = {:id} && (status = 'approved' || status = '')", "-created", 1, 0, dbx.Params{"id": dep.record.Id})
+			if len(c) > 0 {
+				staleDeps[dep.record.Id] = true
+			}
+		}
+	}
+
+	for depID := range staleDeps {
+		status.StaleDependencies = append(status.StaleDependencies, depID)
+	}
+
+	// Window evaluation for scheduled entities
+	var currentSpec api.WindowSpec
+	if err := n.record.UnmarshalJSONField("current_window_spec", &currentSpec); err == nil && currentSpec.Period != "" {
+		var lastWindowEnd time.Time
+		if snapRec != nil {
+			var winSpec map[string]string
+			if err := snapRec.UnmarshalJSONField("window_spec", &winSpec); err == nil {
+				if endStr, ok := winSpec["end"]; ok && endStr != "" {
+					if t, err := time.Parse(time.RFC3339, endStr); err == nil {
+						lastWindowEnd = t
+					}
+				}
+			}
+		}
+
+		created := n.record.GetDateTime("created").Time()
+		status.PendingWindows = engine.CalculatePendingWindows(n.record.Id, currentSpec, lastWindowEnd, created, e.now)
+	}
+
+	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 && len(status.PendingWindows) == 0 {
+		status.UpToDateSnapshotID = liveSnapID
+	}
+
+	return status, nil
+}

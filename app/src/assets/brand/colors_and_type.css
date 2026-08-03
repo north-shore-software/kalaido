@@ -1,0 +1,241 @@
+/* =============================================================
+   KALAIDO — colors_and_type.css
+   The portable design-token sheet for the Kalaido brand.
+   Ported 1:1 from the product source (open/app/src/index.css).
+
+   "Converge your chaos." — vibrant CMYK accents over a warm-neutral
+   gray scale. DARK-FIRST: the product ships `.dark` as the default,
+   with `:root` as the light fallback. Apply `.dark` on <html> for the
+   canonical product look.
+
+   Fonts: Geist (sans) + Geist Mono — loaded via Google Fonts in HTML:
+   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+   ============================================================= */
+
+:root {
+  /* === Chrome constants (Tauri desktop window) ==================== */
+  --titlebar-height: 28px;
+  --utility-bar-height: 32px;
+  --chrome-sidebar: 240px;
+  --chrome-sidebar-collapsed: 48px;
+
+  /* === Raw palette (theme-independent) ============================ */
+
+  /* Warm-neutral gray scale, near-black → near-white. The chromatic
+       hint (hue 90, very low chroma) keeps grays from going clinical. */
+  --gray-0: oklch(8% 0.005 90);
+  --gray-1: oklch(12% 0.005 90);
+  --gray-2: oklch(16% 0.005 90);
+  --gray-3: oklch(22% 0.006 90);
+  --gray-4: oklch(30% 0.006 90);
+  --gray-5: oklch(42% 0.006 90);
+  --gray-6: oklch(54% 0.006 90);
+  --gray-7: oklch(68% 0.005 90);
+  --gray-8: oklch(82% 0.004 90);
+  --gray-9: oklch(90% 0.003 90);
+  --gray-10: oklch(95% 0.003 90);
+  --gray-11: oklch(98% 0.002 90);
+
+  /* CMYK accents — the brand's core triad. Each has a base (vivid, for
+       fills on dark), an ink (darkened, for text-on-light) and a wash
+       (~10% tint, for subtle surfaces). */
+  --cyan-base: oklch(72% 0.18 220); /* Process Cyan  — Lens · Action  */
+  --cyan-ink: oklch(50% 0.18 220);
+  --cyan-wash: oklch(72% 0.18 220 / 0.1);
+  --magenta-base: oklch(
+    62% 0.27 350
+  ); /* Vivid Magenta — Snapshot · Truth/Commit */
+  --magenta-ink: oklch(48% 0.27 350);
+  --magenta-wash: oklch(62% 0.27 350 / 0.1);
+  --yellow-base: oklch(86% 0.18 95); /* Electric Yellow — Fragment · Ingest */
+  --yellow-ink: oklch(58% 0.16 80);
+  --yellow-wash: oklch(86% 0.18 95 / 0.12);
+
+  /* Momentum status — three tiers (Stable / Drifting / Critical). */
+  --status-stable: oklch(74% 0.15 155);
+  --status-drifting: var(--yellow-base);
+  --status-critical: oklch(64% 0.22 25);
+  --status-stable-wash: oklch(74% 0.15 155 / 0.12);
+  --status-drifting-wash: oklch(86% 0.18 95 / 0.14);
+  --status-critical-wash: oklch(64% 0.22 25 / 0.14);
+
+  /* === Semantic surfaces — LIGHT theme (:root) ==================== */
+  --bg-0: var(--gray-11); /* app background        */
+  --bg-1: var(--gray-10); /* card / panel          */
+  --bg-2: var(--gray-9); /* raised — menu, popover */
+  --bg-3: var(--gray-8); /* hovered / pressed     */
+  --bg-inset: var(--gray-11); /* input field, code block */
+
+  --fg-1: var(--gray-0); /* primary text          */
+  --fg-2: var(--gray-3); /* secondary text        */
+  --fg-3: var(--gray-5); /* tertiary / icons at rest */
+  --fg-4: var(--gray-7); /* disabled / placeholder */
+
+  --border-subtle: var(--gray-9);
+  --border-strong: var(--gray-7);
+  --border: var(--gray-8); /* 1px hairline (shadcn alias) */
+
+  --accent-action: var(--cyan-base);
+  --accent-action-fg: var(--gray-11);
+  --accent-truth: var(--magenta-base);
+  --accent-truth-fg: var(--gray-11);
+  --accent-ingest: var(--yellow-base);
+  --accent-ingest-fg: var(--gray-0);
+
+  /* === Type families ============================================= */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+  --font-heading: "Geist", sans-serif;
+
+  /* === Type scale (px) =========================================== */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-2xl: 40px;
+  --text-3xl: 64px;
+
+  --leading-display: 1.05;
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-body: 1.55;
+  --tracking-tight: -0.01em;
+  --tracking-caps: 0.08em;
+  --weight-medium: 500;
+  --weight-semi: 600;
+  --weight-bold: 700;
+
+  /* === Spacing scale ============================================= */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --space-11: 80px;
+  --space-12: 96px;
+
+  /* === Radius — kalaido: 2 / 4 / 8px (+ pill). Note the restraint:
+       buttons & inputs are only 4px; cards 8px. Nothing is pill-soft
+       except chips/toggles. ========================================= */
+  --radius-sm: 2px; /* tooltips            */
+  --radius-md: 4px; /* inputs, chips, buttons (the base --radius) */
+  --radius-lg: 8px; /* cards, dialogs      */
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+  --radius: var(--radius-md);
+
+  /* === Elevation ================================================= */
+  --shadow-overlay:
+    0 8px 24px -8px oklch(0% 0 0 / 0.6), 0 2px 6px -2px oklch(0% 0 0 / 0.4);
+
+  /* === Motion — fast, mechanical, single easing ================== */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-1: 90ms;
+  --duration-2: 120ms;
+  --duration-3: 200ms;
+  --duration-4: 400ms;
+}
+
+/* === DARK theme — the product default ============================== */
+.dark {
+  --bg-0: var(--gray-0);
+  --bg-1: var(--gray-1);
+  --bg-2: var(--gray-2);
+  --bg-3: var(--gray-3);
+  --bg-inset: var(--gray-0);
+
+  --fg-1: var(--gray-11);
+  --fg-2: var(--gray-8);
+  --fg-3: var(--gray-7);
+  --fg-4: var(--gray-5);
+
+  --border-subtle: var(--gray-2);
+  --border-strong: var(--gray-4);
+  --border: var(--gray-3);
+
+  --accent-action-fg: var(--gray-0);
+  --accent-ingest-fg: var(--gray-0);
+  --accent-truth-fg: var(--gray-11);
+}
+
+/* =============================================================
+   SEMANTIC TYPOGRAPHY  — ready-to-use element classes.
+   The product is UI-dense, not editorial: headings top out at 28px
+   in-app. The larger display sizes (.k-display / .k-h1) are for
+   marketing / slide surfaces built ON the brand.
+   ============================================================= */
+
+.k-display {
+  /* hero / slide headline */
+  font-family: var(--font-heading);
+  font-size: clamp(40px, 6vw, var(--text-3xl));
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-tight);
+}
+.k-h1 {
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+.k-h2 {
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semi);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+.k-h3 {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semi);
+  line-height: var(--leading-snug);
+}
+.k-title {
+  /* in-app page / card title */
+  font-size: var(--text-md);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
+}
+.k-body {
+  font-size: var(--text-base);
+  font-weight: 400;
+  line-height: var(--leading-body);
+}
+.k-small {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--fg-2);
+}
+.k-label {
+  /* the signature uppercase micro-label */
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-3);
+}
+.k-mono {
+  /* "the voice of raw data" — fragments, paths, timestamps */
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  font-feature-settings: "tnum" 1;
+}
+.k-button-label {
+  /* button text: uppercase, heavy, wide */
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}

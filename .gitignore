@@ -1,0 +1,12 @@
+/.idea/
+/app/src-tauri/target/
+/app/node_modules/
+/app/.claude/
+/app/dist/
+/.schema/
+/kalaidoscope/.claude/
+/app/.env.local
+/app/src-tauri/gen/
+/app/src-tauri/binaries/pocketbase-aarch64-apple-darwin
+/kalaidoscope/pb_data/
+/app/build/*
