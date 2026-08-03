@@ -1,0 +1,112 @@
+import type { ReactNode } from "react";
+import { CheckIcon, RefreshCwIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label, Timeline, type TimelineItem } from "@/components/kalaido";
+import type { ProjectionStatusInfo } from "@/features/projections/status";
+
+export interface ProjectionSideRailProps {
+  readOnly: boolean;
+  rotLoading: boolean;
+  info: ProjectionStatusInfo | undefined;
+  /** Set only while a pending candidate exists; navigates to its review. */
+  onReviewCandidate?: () => void;
+  regenerating: boolean;
+  onRefresh: () => void;
+  onBackToLive: () => void;
+  timeline: TimelineItem[];
+}
+
+/** The right rail: the freshness card (driven by the server's rotation plan)
+ *  and the snapshot timeline. */
+export function ProjectionSideRail({
+  readOnly,
+  rotLoading,
+  info,
+  onReviewCandidate,
+  regenerating,
+  onRefresh,
+  onBackToLive,
+  timeline,
+}: ProjectionSideRailProps) {
+  // The live-view freshness card, chosen from the freshness plan. Null while
+  // the plan is still loading so we never flash a misleading "Up to date".
+  let freshnessCard: ReactNode = null;
+  if (rotLoading && !info) {
+    freshnessCard = null;
+  } else if (info?.status === "pending" && onReviewCandidate) {
+    freshnessCard = (
+      <div className="rounded-lg border border-line p-3.5">
+        <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+          A candidate is awaiting review.
+        </p>
+        <Button size="sm" className="w-full" onClick={onReviewCandidate}>
+          Review candidate
+        </Button>
+      </div>
+    );
+  } else if (info?.status === "stale" || info?.status === "blocked") {
+    freshnessCard = (
+      <div className="rounded-lg border border-ingest-line bg-ingest-wash p-3.5">
+        <div className="mb-2 flex items-center gap-2.5">
+          <RefreshCwIcon className="size-4 text-ingest-ink" />
+          <span className="text-[13px] font-semibold">Refresh</span>
+        </div>
+        <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+          Generate an updated candidate from this projection’s current context,
+          then review it before it goes live.
+        </p>
+        <Button
+          size="sm"
+          className="w-full"
+          onClick={onRefresh}
+          disabled={regenerating}
+        >
+          {regenerating ? "Refreshing…" : "Refresh projection"}
+        </Button>
+      </div>
+    );
+  } else {
+    freshnessCard = (
+      <div className="rounded-lg border border-line p-3.5">
+        <div className="mb-1 flex items-center gap-2.5">
+          <CheckIcon className="size-4 text-fg-3" />
+          <span className="text-[13px] font-semibold">Up to date</span>
+        </div>
+        <p className="text-[11.5px] leading-relaxed text-fg-2">
+          No new context in scope.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <aside className="flex w-[312px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-line p-4">
+      {readOnly ? (
+        <div className="rounded-lg border border-line p-3.5">
+          <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+            You’re viewing a past snapshot. It’s read-only.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={onBackToLive}
+          >
+            Back to live
+          </Button>
+        </div>
+      ) : (
+        freshnessCard
+      )}
+
+      <div className="flex flex-col gap-2.5">
+        <Label>Snapshot timeline</Label>
+        {timeline.length > 0 ? (
+          <Timeline items={timeline} />
+        ) : (
+          <p className="text-[11.5px] text-fg-4">No snapshots yet.</p>
+        )}
+      </div>
+    </aside>
+  );
+}
