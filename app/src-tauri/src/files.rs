@@ -78,7 +78,7 @@ fn classify_fs(path: &Path, out: &mut Vec<FileEntry>) -> Result<(), String> {
 
         let mut valid_entries: Vec<_> = entries.filter_map(|r| r.ok()).collect();
         // Sort in reverse order so we pop them in lexicographical order.
-        valid_entries.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+        valid_entries.sort_by_key(|e| std::cmp::Reverse(e.file_name()));
 
         for entry in valid_entries {
             match entry.file_type() {
@@ -109,15 +109,14 @@ fn classify_reader<R: Read + Seek>(
     let n = read_up_to(&mut reader, &mut magic);
 
     if n == 4 && is_zip_signature(&magic) {
-        if depth <= MAX_ARCHIVE_DEPTH {
-            if reader.seek(SeekFrom::Start(0)).is_ok() {
-                if let Ok(mut archive) = zip::ZipArchive::new(reader) {
-                    expand_archive(&mut archive, &display, out, depth);
-                    return;
-                }
-                // Signature matched but the archive won't open (truncated /
-                // corrupt) — `reader` was consumed, fall through to `other`.
-            }
+        // If the signature matched but the archive won't open (truncated /
+        // corrupt), `reader` was consumed — fall through to `other`.
+        if depth <= MAX_ARCHIVE_DEPTH
+            && reader.seek(SeekFrom::Start(0)).is_ok()
+            && let Ok(mut archive) = zip::ZipArchive::new(reader)
+        {
+            expand_archive(&mut archive, &display, out, depth);
+            return;
         }
         out.push(FileEntry {
             path: display,
