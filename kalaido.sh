@@ -51,6 +51,11 @@ cmd_build_app() {
   (cd "$APP" && pnpm tauri build "$@")
 }
 
+cmd_build_ladle() {
+  say "ladle build"
+  (cd "$APP" && pnpm ladle:build "$@")
+}
+
 cmd_check_ts() {
   say "biome format"
   (cd "$APP" && pnpm exec biome format .)
@@ -89,6 +94,11 @@ cmd_check_rust() {
   (cd "$TAURI" && cargo fmt --check)
   say "cargo clippy"
   (cd "$TAURI" && cargo clippy --all-targets -- -D warnings)
+}
+
+cmd_test_rust() {
+  say "cargo test"
+  (cd "$TAURI" && cargo test)
 }
 
 cmd_check_all() {
@@ -131,13 +141,25 @@ cmd_fmt_rust() {
   (cd "$TAURI" && cargo fmt)
 }
 
-cmd_setup() {
+cmd_setup_ts() {
   say "pnpm install"
   (cd "$APP" && pnpm install --frozen-lockfile)
+}
+
+cmd_setup_go() {
   say "go mod download"
   (cd "$KS" && go mod download)
+}
+
+cmd_setup_rust() {
   say "cargo fetch"
   (cd "$TAURI" && cargo fetch)
+}
+
+cmd_setup() {
+  cmd_setup_ts
+  cmd_setup_go
+  cmd_setup_rust
 }
 
 cmd_clean() {
@@ -296,6 +318,7 @@ usage: ./kalaido.sh <command> [args...]
 
   build:sidecar              build the go sidecar into src-tauri/binaries
   build:app                  tauri build (rebuilds the sidecar first)
+  build:ladle                build the component workbench
 
   check:ts                   biome, nav, routes, build
   check:ts-typecheck-only    tsc --noEmit
@@ -304,11 +327,16 @@ usage: ./kalaido.sh <command> [args...]
   check:all                  ts + go + rust
   check:schema-freshness     types.ts matches the migrations
 
+  test:rust                  cargo test
+
   fmt:ts                     biome format --write
   fmt:go                     gofmt -w
   fmt:rust                   cargo fmt
 
   setup                      install js, go and rust dependencies
+  setup:ts                   pnpm install --frozen-lockfile
+  setup:go                   go mod download
+  setup:rust                 cargo fetch
   clean                      dist, build, binaries, .schema
   clean:tauri                clean + src-tauri/target
   clean:npm                  clean:tauri + node_modules
@@ -322,16 +350,21 @@ case "${1:-}" in
   gen:types) shift; cmd_gen_types "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;
   build:app) shift; cmd_build_app "$@" ;;
+  build:ladle) shift; cmd_build_ladle "$@" ;;
   check:ts) shift; cmd_check_ts "$@" ;;
   check:ts-typecheck-only) shift; cmd_check_ts_typecheck_only "$@" ;;
   check:go) shift; cmd_check_go "$@" ;;
   check:rust) shift; cmd_check_rust "$@" ;;
   check:all) shift; cmd_check_all "$@" ;;
   check:schema-freshness) shift; cmd_check_schema_freshness "$@" ;;
+  test:rust) shift; cmd_test_rust "$@" ;;
   fmt:ts) shift; cmd_fmt_ts "$@" ;;
   fmt:go) shift; cmd_fmt_go "$@" ;;
   fmt:rust) shift; cmd_fmt_rust "$@" ;;
   setup) shift; cmd_setup "$@" ;;
+  setup:ts) shift; cmd_setup_ts "$@" ;;
+  setup:go) shift; cmd_setup_go "$@" ;;
+  setup:rust) shift; cmd_setup_rust "$@" ;;
   clean) shift; cmd_clean "$@" ;;
   clean:tauri) shift; cmd_clean_tauri "$@" ;;
   clean:npm) shift; cmd_clean_npm "$@" ;;

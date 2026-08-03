@@ -1,0 +1,80 @@
+name: pr
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: ./kalaido.sh setup:ts
+      - run: ./kalaido.sh check:ts
+      - run: ./kalaido.sh build:ladle
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kalaidoscope/go.mod
+          cache-dependency-path: kalaidoscope/go.sum
+      - run: ./kalaido.sh setup:go
+      - run: ./kalaido.sh check:go
+      - run: ./kalaido.sh build:sidecar
+
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kalaidoscope/go.mod
+          cache-dependency-path: kalaidoscope/go.sum
+      - run: ./kalaido.sh setup:ts
+      - run: ./kalaido.sh setup:go
+      - run: ./kalaido.sh check:schema-freshness
+
+  rust:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kalaidoscope/go.mod
+          cache-dependency-path: kalaidoscope/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - run: ./kalaido.sh setup:go
+      - run: ./kalaido.sh setup:rust
+      - run: ./kalaido.sh build:sidecar
+      - run: ./kalaido.sh check:rust
+      - run: ./kalaido.sh test:rust
