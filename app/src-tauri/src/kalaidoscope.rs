@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use std::collections::HashMap;
 
-use crate::sidecar::spawn::spawn_sidecar;
+use crate::sidecar::spawn::{SidecarSpec, spawn_sidecar};
 use crate::sidecar::stop::{stop_sidecar, stop_sidecar_blocking};
 use crate::sidecar::types::{SidecarInstance, SidecarStatus};
 
@@ -178,12 +178,12 @@ pub(crate) async fn start_local_kalaidoscope(
         let mut instances = kal_state.instances.lock().unwrap();
         match instances.get(&id_for_sidecar) {
             Some(InstanceEntry::Starting) => return Ok(()),
-            Some(InstanceEntry::Running(existing)) => {
-                if existing.sidecar.status.lock().unwrap().phase == "running" {
-                    return Ok(());
-                }
+            Some(InstanceEntry::Running(existing))
+                if existing.sidecar.status.lock().unwrap().phase == "running" =>
+            {
+                return Ok(());
             }
-            None => {}
+            Some(InstanceEntry::Running(_)) | None => {}
         }
         instances.insert(id_for_sidecar.clone(), InstanceEntry::Starting);
     }
@@ -215,16 +215,18 @@ async fn spawn_and_register(
         app,
         id_for_sidecar,
         "sidecar:pocketbase:status",
-        "pocketbase",
-        vec![
-            "serve".to_string(),
-            "--http=127.0.0.1:0".to_string(),
-            "--dir".to_string(),
-            dir_str,
-            "--dev".to_string(),
-        ],
-        vec![],
-        Some("KALAIDO_"),
+        SidecarSpec {
+            sidecar_name: "pocketbase",
+            args: vec![
+                "serve".to_string(),
+                "--http=127.0.0.1:0".to_string(),
+                "--dir".to_string(),
+                dir_str,
+                "--dev".to_string(),
+            ],
+            envs: vec![],
+            capture_filter: Some("KALAIDO_"),
+        },
         move |captured_lines| {
             let client = health_client.clone();
             async move {
@@ -232,11 +234,11 @@ async fn spawn_and_register(
                 {
                     let lines = captured_lines.lock().unwrap();
                     for line in lines.iter() {
-                        if let Some(p_str) = line.strip_prefix("PORT=") {
-                            if let Ok(p) = p_str.parse::<u16>() {
-                                port = Some(p);
-                                break;
-                            }
+                        if let Some(p_str) = line.strip_prefix("PORT=")
+                            && let Ok(p) = p_str.parse::<u16>()
+                        {
+                            port = Some(p);
+                            break;
                         }
                     }
                 }

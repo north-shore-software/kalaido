@@ -50,12 +50,12 @@ where
         let mut stderr_buf = Vec::new();
 
         let process_line = |line: &str| {
-            if let Some(filter) = capture_filter {
-                if line.starts_with(filter) {
-                    let value = line.strip_prefix(filter).unwrap_or("").to_string();
-                    captured_lines.lock().unwrap().push(value);
-                    return;
-                }
+            if let Some(filter) = capture_filter
+                && line.starts_with(filter)
+            {
+                let value = line.strip_prefix(filter).unwrap_or("").to_string();
+                captured_lines.lock().unwrap().push(value);
+                return;
             }
             eprintln!("[{tag}] {line}");
             log_reader.push(line.to_string());
@@ -157,6 +157,16 @@ fn update_and_emit_status(
     let _ = app.emit(event_name, status);
 }
 
+/// How to launch one sidecar process: which bundled binary, with what
+/// arguments/environment, and which stdout prefix to divert into
+/// `captured_lines` instead of the log (e.g. `KALAIDO_`).
+pub(crate) struct SidecarSpec {
+    pub(crate) sidecar_name: &'static str,
+    pub(crate) args: Vec<String>,
+    pub(crate) envs: Vec<(String, String)>,
+    pub(crate) capture_filter: Option<&'static str>,
+}
+
 /// Generic sidecar spawner.
 /// Emits status transitions throughout (`spawning` → `starting` → `running` on success, or
 /// `failed` at any step) to the given `event_name`. Returns a SidecarInstance.
@@ -164,16 +174,20 @@ pub(crate) async fn spawn_sidecar<F, Fut>(
     app: &AppHandle,
     id: &str,
     event_name: &str,
-    sidecar_name: &'static str,
-    args: Vec<String>,
-    envs: Vec<(String, String)>,
-    capture_filter: Option<&'static str>,
+    spec: SidecarSpec,
     health_check: F,
 ) -> Result<SidecarInstance, String>
 where
     F: Fn(Arc<Mutex<Vec<String>>>) -> Fut + Send + 'static,
     Fut: Future<Output = bool> + Send + 'static,
 {
+    let SidecarSpec {
+        sidecar_name,
+        args,
+        envs,
+        capture_filter,
+    } = spec;
+
     let status_arc = Arc::new(Mutex::new(SidecarStatus::new("spawning", Some(id), None)));
     update_and_emit_status(
         app,
@@ -248,10 +262,10 @@ where
             {
                 let lines = captured_lines.lock().unwrap();
                 for line in lines.iter() {
-                    if let Some(p_str) = line.strip_prefix("PORT=") {
-                        if let Ok(p) = p_str.parse::<u16>() {
-                            port = Some(p);
-                        }
+                    if let Some(p_str) = line.strip_prefix("PORT=")
+                        && let Ok(p) = p_str.parse::<u16>()
+                    {
+                        port = Some(p);
                     }
                 }
             }
