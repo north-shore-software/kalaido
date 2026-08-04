@@ -25,19 +25,20 @@ var modelsBySetRole = map[ModelSet]map[Role]string{
 		RoleSnapshot:   "gemma4",
 	},
 	SetCloud: {
-		RoleChat:       "gemini-3.5-flash",
-		RoleRefinement: "gemini-3.5-flash",
+		RoleChat:       "gemini-3.6-flash",
+		RoleRefinement: "gemini-3.1-pro-preview",
 		RoleColour:     "gemini-3.5-flash-lite",
-		RoleDistill:    "gemini-3.6-flash",
-		RoleSnapshot:   "gemini-3.6-flash",
+		RoleDistill:    "gemini-3.1-pro-preview",
+		RoleSnapshot:   "gemini-3.1-pro-preview",
 	},
 }
 
 var providerByModel = map[string]ProviderID{
-	"gemma4":                ProviderOllama,
-	"gemini-3.5-flash":      ProviderGemini,
-	"gemini-3.5-flash-lite": ProviderGemini,
-	"gemini-3.6-flash":      ProviderGemini,
+	"gemma4":                 ProviderOllama,
+	"gemini-3.5-flash":       ProviderGemini,
+	"gemini-3.5-flash-lite":  ProviderGemini,
+	"gemini-3.6-flash":       ProviderGemini,
+	"gemini-3.1-pro-preview": ProviderGemini,
 }
 
 var credentialEnv = map[ProviderID]string{
