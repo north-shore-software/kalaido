@@ -5,7 +5,7 @@ export const switcherTransitions = defineChromeTransitions(
   "Kalaidoscope Switcher",
   {
     newKalaidoscope: {
-      to: "select-template",
+      to: "kalaidoscope-setup",
       trigger: "Click 'New kalaidoscope' in the switcher menu",
     },
   },

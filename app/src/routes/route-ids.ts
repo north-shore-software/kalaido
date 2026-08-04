@@ -2,7 +2,6 @@
 export const ROUTE_IDS = [
   "splash",
   "boot-error",
-  "select-template",
   "kalaidoscope-setup",
   "settings",
   "main",

@@ -3,7 +3,6 @@ import { buildRoutePath, type RouteDef } from "./route-kit";
 
 import { splashRoute } from "@/features/boot/pages/Splash";
 import { bootErrorRoute } from "@/features/boot/pages/BootError";
-import { selectTemplateRoute } from "@/features/create-kalaidoscope/pages/SelectTemplate";
 import { kalaidoscopeSetupRoute } from "@/features/create-kalaidoscope/pages/KalaidoscopeSetup";
 import { settingsRoute } from "@/features/settings/pages/Settings";
 import { mainRoute } from "@/features/dashboard/pages/Main";
@@ -23,7 +22,6 @@ import { chatRoute } from "@/features/chat/pages/Chat";
 export const appRoutes: RouteDef[] = [
   splashRoute,
   bootErrorRoute,
-  selectTemplateRoute,
   kalaidoscopeSetupRoute,
   settingsRoute,
   mainRoute,
