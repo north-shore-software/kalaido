@@ -10,6 +10,23 @@ import type { TypedPocketBase } from "@/api/kalaidoscope/types";
 import { getActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
 import { toError } from "@/lib/errors.ts";
 
+// Base URL of the cloud kalaidoscope gateway. No default: the cloud domains are
+// written down once, in kalaido.sh, and reach the bundle through the
+// environment. vite.config.ts refuses to build without them, so this throw is
+// the backstop for a build that bypassed it.
+const CLOUD_PB_URL = requireCloudPbUrl();
+
+function requireCloudPbUrl(): string {
+  const url = import.meta.env.VITE_CLOUD_PB_URL;
+  if (!url) {
+    throw new Error(
+      "VITE_CLOUD_PB_URL is not set — build the app through ./kalaido.sh",
+    );
+  }
+  // Every use below appends "/<cloudId>".
+  return url.replace(/\/+$/, "");
+}
+
 export async function createKalaidoscopeClient(
   scope: KalaidoscopeMeta,
 ): Promise<TypedPocketBase> {
@@ -129,9 +146,7 @@ async function createCloudClient(cloudId: string): Promise<TypedPocketBase> {
 }
 
 function resolveCloudUrl(cloudId: string): string {
-  const host = import.meta.env.VITE_CLOUD_PB_HOST;
-  if (!host) throw new Error("VITE_CLOUD_PB_HOST is not configured");
-  return `https://${host}/${cloudId}`;
+  return `${CLOUD_PB_URL}/${cloudId}`;
 }
 
 async function requireCloudJwt(): Promise<string> {
@@ -165,8 +180,7 @@ function attachCloudAuth(pb: TypedPocketBase): void {
 export async function kalaidoscopeAuthHeaders(
   baseURL: string,
 ): Promise<Record<string, string>> {
-  const host = import.meta.env.VITE_CLOUD_PB_HOST;
-  if (host && baseURL.startsWith(`https://${host}/`)) {
+  if (baseURL.startsWith(`${CLOUD_PB_URL}/`)) {
     return (await getCloudRequestAuthHeaders()).unwrapOr({});
   }
 

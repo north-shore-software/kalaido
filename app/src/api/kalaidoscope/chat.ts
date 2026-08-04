@@ -225,7 +225,7 @@ export function createKalaidoChatTransport(options: {
 }): DefaultChatTransport<UIMessage> {
   return new DefaultChatTransport<UIMessage>({
     // api is overridden by the custom fetch below — it always targets the
-    // ACTIVE kalaidoscope (local sidecar or https://s.kalaido.co/<cloudId>) and
+    // ACTIVE kalaidoscope (local sidecar or <cloud gateway>/<cloudId>) and
     // attaches the cloud JWT, so chat works on cloud kalaidoscopes and is metered.
     api: "/api/chat",
     prepareSendMessagesRequest: options.prepareSendMessagesRequest,
