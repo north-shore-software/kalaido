@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/north-shore-software/kalaido/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/internal/prompts"
-	"github.com/north-shore-software/kalaido/internal/usage"
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )

@@ -11,10 +11,10 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/gemini"
-	"github.com/north-shore-software/kalaido/internal/ollama"
-	"github.com/north-shore-software/kalaido/llm"
-	"github.com/north-shore-software/kalaido/server"
+	"github.com/north-shore-software/kalaido/kalaidoscope/gemini"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ollama"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/server"
 )
 
 func main() {

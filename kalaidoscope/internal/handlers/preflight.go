@@ -6,8 +6,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/internal/api"
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 func HandleModelPreflight(app core.App) func(e *core.RequestEvent) error {

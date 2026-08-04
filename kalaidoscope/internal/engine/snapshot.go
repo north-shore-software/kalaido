@@ -8,11 +8,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
-	"github.com/north-shore-software/kalaido/internal/api"
-	"github.com/north-shore-software/kalaido/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/internal/prompts"
-	"github.com/north-shore-software/kalaido/internal/usage"
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 func GenerateOutput(ctx context.Context, app core.App, lensPrompt, sourceBlock string) (string, error) {

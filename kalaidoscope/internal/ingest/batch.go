@@ -10,7 +10,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/internal/ingest/parsers"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
 )
 
 func RegisterHooks(app core.App) {

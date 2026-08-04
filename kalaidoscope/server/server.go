@@ -8,13 +8,13 @@ import (
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 	"github.com/pocketbase/pocketbase/tools/types"
 
-	"github.com/north-shore-software/kalaido/internal/colour"
-	"github.com/north-shore-software/kalaido/internal/handlers"
-	"github.com/north-shore-software/kalaido/internal/ingest"
-	"github.com/north-shore-software/kalaido/internal/usage"
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 
-	_ "github.com/north-shore-software/kalaido/migrations"
+	_ "github.com/north-shore-software/kalaido/kalaidoscope/migrations"
 )
 
 func New(hideStartBanner bool) *pocketbase.PocketBase {
