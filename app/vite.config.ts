@@ -5,6 +5,23 @@ import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
+// The cloud endpoints are written down in exactly one place, kalaido.sh, and
+// reach the bundle through the environment. Failing here rather than defaulting
+// keeps a build that bypassed the script from silently baking in the wrong
+// domains — the app has no fallback to fall back to.
+function requireCloudEnv(): void {
+  const missing = ["VITE_BETTER_AUTH_URL", "VITE_CLOUD_PB_URL"].filter(
+    (key) => !process.env[key],
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `${missing.join(" and ")} not set — run this through ./kalaido.sh (e.g. ./kalaido.sh dev), which supplies them.`,
+    );
+  }
+}
+
+requireCloudEnv();
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],

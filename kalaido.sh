@@ -10,6 +10,15 @@ SCHEMA_DATA="$SCHEMA_ROOT/pb_data"
 SIDECAR_DEST="$TAURI/binaries/pocketbase-aarch64-apple-darwin"
 TYPES_OUT="src/api/kalaidoscope/types.ts"
 
+# Cloud endpoints the app talks to. Vite picks these up from the environment and
+# they take precedence over any .env file, so setting KALAIDO_AUTH_URL /
+# KALAIDO_CLOUD_PB_URL before invoking this script points a dev build or a
+# release build at a different stack without touching the tree. The defaults are
+# production; the app carries the same defaults in code, so building without this
+# script still produces a working binary.
+export VITE_BETTER_AUTH_URL="${KALAIDO_AUTH_URL:-https://auth.kalaido.co}"
+export VITE_CLOUD_PB_URL="${KALAIDO_CLOUD_PB_URL:-https://s.kalaido.co}"
+
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 

@@ -4,8 +4,21 @@ import { jwtDecode } from "jwt-decode";
 import { err, ok, type Result } from "neverthrow";
 import { toError } from "@/lib/errors";
 
-export const AUTH_URL: string =
-  import.meta.env.VITE_BETTER_AUTH_URL ?? "https://auth.kalaido.co";
+// No default: the cloud domains are written down once, in kalaido.sh, and reach
+// the bundle through the environment. vite.config.ts refuses to build without
+// them, so this throw is the backstop for a build that bypassed it.
+export const AUTH_URL: string = requireAuthUrl();
+
+function requireAuthUrl(): string {
+  const url = import.meta.env.VITE_BETTER_AUTH_URL;
+  if (!url) {
+    throw new Error(
+      "VITE_BETTER_AUTH_URL is not set — build the app through ./kalaido.sh",
+    );
+  }
+  // user.ts concatenates this with a leading-slash path.
+  return url.replace(/\/+$/, "");
+}
 
 // Session persistence uses better-auth's bearer pattern instead of cookies:
 // the tauri://localhost origin can't reliably hold cross-origin cookies, so we
