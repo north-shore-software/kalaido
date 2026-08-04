@@ -8,7 +8,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 )
 
 var ErrReflectionNotFound = errors.New("reflection not found")

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/north-shore-software/kalaido/httpx"
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/httpx"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 const geminiBase = "https://generativelanguage.googleapis.com/v1beta"

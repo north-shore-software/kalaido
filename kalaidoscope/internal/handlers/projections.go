@@ -3,7 +3,7 @@ package handlers
 import (
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 )
 
 func HandleCreateProjection(app core.App) func(e *core.RequestEvent) error {

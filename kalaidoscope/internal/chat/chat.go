@@ -10,9 +10,9 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/internal/api"
-	"github.com/north-shore-software/kalaido/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 func ExtractNewMessages(dbMsgs []api.UIMessage, incoming []api.UIMessage) []api.UIMessage {

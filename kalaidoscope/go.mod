@@ -1,4 +1,4 @@
-module github.com/north-shore-software/kalaido
+module github.com/north-shore-software/kalaido/kalaidoscope
 
 go 1.24.1
 

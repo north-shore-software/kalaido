@@ -8,7 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
-	"github.com/north-shore-software/kalaido/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 )
 
 func FindOrCreateConversation(ctx context.Context, app core.App, clientID string) (*core.Record, error) {

@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/north-shore-software/kalaido/httpx"
-	"github.com/north-shore-software/kalaido/internal/api"
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/httpx"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 const defaultModel = "gemma4"

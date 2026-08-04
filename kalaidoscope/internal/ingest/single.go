@@ -6,7 +6,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 )
 
 func IngestSingle(app core.App, m api.IngestMessage) (string, error) {

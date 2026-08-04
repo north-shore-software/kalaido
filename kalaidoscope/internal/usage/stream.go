@@ -6,7 +6,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 func Stream(ctx context.Context, app core.App, role llm.Role, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, error) {

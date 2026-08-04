@@ -11,9 +11,9 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/dbutils"
 
-	"github.com/north-shore-software/kalaido/llm"
-	"github.com/north-shore-software/kalaido/quota"
-	"github.com/north-shore-software/kalaido/timeutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/quota"
+	"github.com/north-shore-software/kalaido/kalaidoscope/timeutil"
 )
 
 var ErrExhausted = errors.New("quota exhausted")

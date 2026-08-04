@@ -9,7 +9,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 )
 
 func RegisterRoutes(app core.App) {
