@@ -25,6 +25,7 @@ jobs:
           cache-dependency-path: app/pnpm-lock.yaml
       - run: ./kalaido.sh setup:ts
       - run: ./kalaido.sh check:ts
+      - run: ./kalaido.sh test:ts
       - run: ./kalaido.sh build:ladle
 
   go:
@@ -37,6 +38,7 @@ jobs:
           cache-dependency-path: kalaidoscope/go.sum
       - run: ./kalaido.sh setup:go
       - run: ./kalaido.sh check:go
+      - run: ./kalaido.sh test:go
       - run: ./kalaido.sh build:sidecar
 
   schema:

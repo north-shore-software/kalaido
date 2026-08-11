@@ -156,6 +156,11 @@ cmd_check_go() {
   (cd "$KS" && go mod tidy -diff)
 }
 
+cmd_test_go() {
+  say "go test"
+  (cd "$KS" && go test ./...)
+}
+
 cmd_check_rust() {
   say "cargo fmt"
   (cd "$TAURI" && cargo fmt --check)
@@ -400,6 +405,7 @@ usage: ./kalaido.sh <command> [args...]
   check:all                  ts + go + rust
   check:schema-freshness     types.ts matches the migrations
 
+  test:go                    go test
   test:rust                  cargo test
   test:ts                    pnpm test run
 
@@ -432,6 +438,7 @@ case "${1:-}" in
   check:rust) shift; cmd_check_rust "$@" ;;
   check:all) shift; cmd_check_all "$@" ;;
   check:schema-freshness) shift; cmd_check_schema_freshness "$@" ;;
+  test:go) shift; cmd_test_go "$@" ;;
   test:rust) shift; cmd_test_rust "$@" ;;
   test:ts) shift; cmd_test_ts "$@" ;;
   fmt:ts) shift; cmd_fmt_ts "$@" ;;
