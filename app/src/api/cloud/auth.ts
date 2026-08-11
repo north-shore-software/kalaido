@@ -7,7 +7,7 @@ import { toError } from "@/lib/errors";
 // No default: the cloud domains are written down once, in kalaido.sh, and reach
 // the bundle through the environment. vite.config.ts refuses to build without
 // them, so this throw is the backstop for a build that bypassed it.
-export const AUTH_URL: string = requireAuthUrl();
+export const AUTH_URL: string = import.meta.env.VITEST ? "" : requireAuthUrl();
 
 function requireAuthUrl(): string {
   const url = import.meta.env.VITE_BETTER_AUTH_URL;

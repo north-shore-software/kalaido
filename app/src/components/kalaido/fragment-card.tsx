@@ -31,6 +31,7 @@ export function FragmentCard({
         rejected && "opacity-50",
         className,
       )}
+      data-testid={"fragment-card"}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">

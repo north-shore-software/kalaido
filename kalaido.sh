@@ -153,6 +153,11 @@ cmd_test_rust() {
   (cd "$TAURI" && cargo test)
 }
 
+cmd_test_ts() {
+  say "pnpm test run"
+  (cd "$APP" && pnpm test run)
+}
+
 cmd_check_all() {
   local failed="" target
   for target in ts go rust; do
@@ -381,6 +386,7 @@ usage: ./kalaido.sh <command> [args...]
   check:schema-freshness     types.ts matches the migrations
 
   test:rust                  cargo test
+  test:ts                    pnpm test run
 
   fmt:ts                     biome format --write
   fmt:go                     gofmt -w
@@ -412,6 +418,7 @@ case "${1:-}" in
   check:all) shift; cmd_check_all "$@" ;;
   check:schema-freshness) shift; cmd_check_schema_freshness "$@" ;;
   test:rust) shift; cmd_test_rust "$@" ;;
+  test:ts) shift; cmd_test_ts "$@" ;;
   fmt:ts) shift; cmd_fmt_ts "$@" ;;
   fmt:go) shift; cmd_fmt_go "$@" ;;
   fmt:rust) shift; cmd_fmt_rust "$@" ;;
