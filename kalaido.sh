@@ -47,6 +47,49 @@ cmd_gen_types() {
   echo "wrote app/$TYPES_OUT"
 }
 
+read_version() {
+  awk -F'"' '/^  "version": / { print $4; exit }' "$TAURI/tauri.conf.json"
+}
+
+edit_inplace() {
+  local file="$1"; shift
+  local tmp
+  tmp="$(mktemp)"
+  "$@" "$file" > "$tmp"
+  cat "$tmp" > "$file"
+  rm -f "$tmp"
+}
+
+cmd_bump() {
+  local current default new f
+  current="$(read_version)"
+  [[ -n "$current" ]] || die "no version in app/src-tauri/tauri.conf.json"
+
+  if [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    default="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+    read -r -p "new version [$default]: " new
+    new="${new:-$default}"
+  else
+    read -r -p "new version (current $current): " new
+  fi
+
+  [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || die "not a version: $new"
+  [[ "$new" != "$current" ]] || die "already at $current"
+
+  for f in "$TAURI/tauri.conf.json" "$APP/package.json"; do
+    edit_inplace "$f" sed '1,/^  "version": /s/^\(  "version": \)"[^"]*"/\1"'"$new"'"/'
+  done
+  edit_inplace "$TAURI/Cargo.toml" sed '1,/^version = /s/^version = "[^"]*"/version = "'"$new"'"/'
+  edit_inplace "$TAURI/Cargo.lock" awk -v v="$new" '
+    /^name = "Kalaido"$/ { armed = 1 }
+    armed && /^version = / { $0 = "version = \"" v "\""; armed = 0 }
+    { print }
+  '
+
+  say "$current -> $new"
+  echo "updated app/src-tauri/tauri.conf.json app/package.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock"
+}
+
 cmd_build_sidecar() {
   say "build sidecar"
   mkdir -p "$(dirname "$SIDECAR_DEST")"
@@ -324,6 +367,7 @@ usage: ./kalaido.sh <command> [args...]
   ladle                      component workbench on :61000
 
   gen:types                  rebuild the schema db, regenerate types.ts
+  bump                       set the app version (prompts, defaults to a patch bump)
 
   build:sidecar              build the go sidecar into src-tauri/binaries
   build:app                  tauri build (rebuilds the sidecar first)
@@ -357,6 +401,7 @@ case "${1:-}" in
   dev) shift; cmd_dev "$@" ;;
   ladle) shift; cmd_ladle "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
+  bump) shift; cmd_bump "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;
   build:app) shift; cmd_build_app "$@" ;;
   build:ladle) shift; cmd_build_ladle "$@" ;;
