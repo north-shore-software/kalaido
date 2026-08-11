@@ -14,8 +14,10 @@ permissions:
   contents: write
 
 jobs:
-  macos:
+  aarch64:
     runs-on: macos-latest
+    outputs:
+      releaseId: ${{ steps.build.outputs.releaseId }}
     env:
       VITE_BETTER_AUTH_URL: https://auth.kalaido.co
       VITE_CLOUD_PB_URL: https://s.kalaido.co
@@ -48,6 +50,7 @@ jobs:
         run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
 
       - uses: tauri-apps/tauri-action@v1
+        id: build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -62,5 +65,57 @@ jobs:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Kalaido ${{ github.ref_name }}
           releaseDraft: true
+          uploadUpdaterJson: false
+          uploadWorkflowArtifacts: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+  x86_64:
+    runs-on: macos-latest
+    needs: aarch64
+    env:
+      VITE_BETTER_AUTH_URL: https://auth.kalaido.co
+      VITE_CLOUD_PB_URL: https://s.kalaido.co
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kalaidoscope/go.mod
+          cache-dependency-path: kalaidoscope/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - run: ./kalaido.sh setup:ts
+      - run: ./kalaido.sh setup:go
+      - run: ./kalaido.sh build:sidecar x86_64-apple-darwin
+
+      - name: write app store connect key
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+        with:
+          projectPath: app
+          args: --target x86_64-apple-darwin
+          releaseId: ${{ needs.aarch64.outputs.releaseId }}
           uploadUpdaterJson: false
           uploadWorkflowArtifacts: ${{ !startsWith(github.ref, 'refs/tags/') }}
