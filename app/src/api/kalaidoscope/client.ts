@@ -14,7 +14,7 @@ import { toError } from "@/lib/errors.ts";
 // written down once, in kalaido.sh, and reach the bundle through the
 // environment. vite.config.ts refuses to build without them, so this throw is
 // the backstop for a build that bypassed it.
-const CLOUD_PB_URL = requireCloudPbUrl();
+const CLOUD_PB_URL = import.meta.env.VITEST ? "" : requireCloudPbUrl();
 
 function requireCloudPbUrl(): string {
   const url = import.meta.env.VITE_CLOUD_PB_URL;
