@@ -69,4 +69,8 @@ Database types in `app/src/api/kalaidoscope/types.ts` are generated from the Go 
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE).
+Copyright (C) 2026 North Shore Software Ltd.
+
+Kalaido is licensed under AGPL-3.0-only — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Contributions require a signed Contributor License Agreement.
