@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "North Shore Software Ltd.",
+    "copyright": "Copyright (C) 2026 North Shore Software Ltd.",
+    "licenseFile": "../../LICENSE",
     "externalBin": ["binaries/pocketbase"],
     "icon": [
       "icons/32x32.png",
