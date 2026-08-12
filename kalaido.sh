@@ -7,7 +7,7 @@ KS="$ROOT/kalaidoscope"
 TAURI="$APP/src-tauri"
 SCHEMA_ROOT="$ROOT/.schema"
 SCHEMA_DATA="$SCHEMA_ROOT/pb_data"
-SIDECAR_DEST="$TAURI/binaries/pocketbase-aarch64-apple-darwin"
+SIDECAR_DIR="$TAURI/binaries"
 TYPES_OUT="src/api/kalaidoscope/types.ts"
 
 # Cloud endpoints the app talks to. Vite picks these up from the environment and
@@ -90,11 +90,26 @@ cmd_bump() {
   echo "updated app/src-tauri/tauri.conf.json app/package.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock"
 }
 
+host_target() {
+  case "$(uname -m)" in
+    x86_64) echo x86_64-apple-darwin ;;
+    *) echo aarch64-apple-darwin ;;
+  esac
+}
+
 cmd_build_sidecar() {
-  say "build sidecar"
-  mkdir -p "$(dirname "$SIDECAR_DEST")"
-  (cd "$KS" && GOOS=darwin GOARCH=arm64 go build -o "$SIDECAR_DEST" ./cmd/sidecar)
-  echo "wrote ${SIDECAR_DEST#"$ROOT"/}"
+  local target goarch dest
+  target="${1:-$(host_target)}"
+  case "$target" in
+    aarch64-apple-darwin) goarch=arm64 ;;
+    x86_64-apple-darwin) goarch=amd64 ;;
+    *) die "unknown target: $target" ;;
+  esac
+  dest="$SIDECAR_DIR/pocketbase-$target"
+  say "build sidecar ($target)"
+  mkdir -p "$SIDECAR_DIR"
+  (cd "$KS" && GOOS=darwin GOARCH="$goarch" go build -o "$dest" ./cmd/sidecar)
+  echo "wrote ${dest#"$ROOT"/}"
 }
 
 cmd_build_app() {
@@ -374,7 +389,7 @@ usage: ./kalaido.sh <command> [args...]
   gen:types                  rebuild the schema db, regenerate types.ts
   bump                       set the app version (prompts, defaults to a patch bump)
 
-  build:sidecar              build the go sidecar into src-tauri/binaries
+  build:sidecar [target]     build the go sidecar into src-tauri/binaries (default: host arch)
   build:app                  tauri build (rebuilds the sidecar first)
   build:ladle                build the component workbench
 
