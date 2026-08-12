@@ -24,6 +24,15 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 		Automigrate: false,
 	})
 
+	// PocketBase's installer opens the OS browser at the superuser dashboard once
+	// the listener binds, and it re-fires on every start because we never create a
+	// _superusers record (the app authenticates as `users`). Nil it out — the
+	// dashboard stays reachable at /_/ for anyone who creates a superuser by hand.
+	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		se.InstallerFunc = nil
+		return se.Next()
+	})
+
 	RegisterTriggers(app)
 	RegisterRoutes(app)
 	usage.Setup(app)
