@@ -10,3 +10,6 @@
 /app/src-tauri/binaries/pocketbase-aarch64-apple-darwin
 /kalaidoscope/pb_data/
 /app/build/*
+/.agents/spec/tla/MC_TTrace*
+/.agents/spec/tla/states/**
+/.agents/spec/tla/tla2tools.jar
