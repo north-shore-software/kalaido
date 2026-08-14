@@ -15,13 +15,13 @@ import {
   windowSpecKey,
 } from "@/api/kalaidoscope/chat.ts";
 import { isQuotaError, QUOTA_MESSAGE } from "@/api/kalaidoscope/cloud/quota";
+import { PaneHeader } from "@/components/layout/page-chrome";
 import { recordInferenceRate } from "@/hooks/app-state-actions.ts";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { cn } from "@/lib/css-utils";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessages } from "./chat-messages";
 import type { ContextItem } from "./context-picker";
-import { Label } from "./text";
 
 interface ChatPanelProps {
   greeting?: string;
@@ -229,11 +229,7 @@ export function ChatPanel({
         className,
       )}
     >
-      {title && (
-        <div className="flex shrink-0 items-center border-b border-line px-4 py-3">
-          <Label>{title}</Label>
-        </div>
-      )}
+      {title && <PaneHeader label={title} />}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         <ChatMessages
           messages={messages}

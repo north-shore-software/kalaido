@@ -27,10 +27,32 @@ export function useLiveCollection<N extends CollectionName>(
   query: CollectionQuery = {},
   config?: SWRConfiguration<CollectionResponses[N][], Error>,
 ): UseCollectionResult<CollectionResponses[N]> {
+  return useLiveCollectionWatching(collection, [collection], query, config);
+}
+
+/**
+ * {@link useLiveCollection} where the events that trigger the revalidation come
+ * from collections other than the one being read. Everything else — the fetch,
+ * the coalescing, the return shape — is identical.
+ *
+ * Required for a *view*, which is never written to and so emits no realtime
+ * events of its own: `watched` names the base collections it selects from.
+ *
+ * A `filter` in `query` always shapes the fetch, but it is only passed to a
+ * subscription on the collection being read — it is written against that
+ * collection's columns and need not hold on a watched one.
+ */
+export function useLiveCollectionWatching<N extends CollectionName>(
+  collection: N,
+  watched: CollectionName[],
+  query: CollectionQuery = {},
+  config?: SWRConfiguration<CollectionResponses[N][], Error>,
+): UseCollectionResult<CollectionResponses[N]> {
   const client = useKalaidoscopeClient();
   const result = useCollection(collection, query, config);
 
   const { enabled = true, filter } = query;
+  const watchedKey = watched.join(",");
 
   // SWR can hand back a fresh `mutate` identity across renders; keep the latest
   // in a ref so the subscription effect doesn't tear down/re-subscribe for it.
@@ -41,7 +63,7 @@ export function useLiveCollection<N extends CollectionName>(
     if (!enabled) return;
 
     let cancelled = false;
-    let unsub: (() => void) | undefined;
+    const unsubs: (() => void)[] = [];
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     // Coalesce bursts (e.g. a snapshot insert + projection update arriving
@@ -54,32 +76,35 @@ export function useLiveCollection<N extends CollectionName>(
       }, 50);
     };
 
-    void (async () => {
-      try {
-        const fn = await client
-          .collection(collection)
-          .subscribe("*", revalidate, filter ? { filter } : undefined);
-        if (cancelled) {
-          void fn();
-          return;
+    for (const name of watchedKey.split(",") as CollectionName[]) {
+      void (async () => {
+        try {
+          const opts = filter && name === collection ? { filter } : undefined;
+          const fn = await client
+            .collection(name)
+            .subscribe("*", revalidate, opts);
+          if (cancelled) {
+            void fn();
+            return;
+          }
+          unsubs.push(fn);
+        } catch (err) {
+          console.error(
+            `useLiveCollectionWatching(${name}): subscribe failed`,
+            err,
+          );
         }
-        unsub = fn;
-      } catch (err) {
-        console.error(
-          `useLiveCollection(${collection}): subscribe failed`,
-          err,
-        );
-      }
-    })();
+      })();
+    }
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      void unsub?.();
+      for (const fn of unsubs) void fn();
     };
     // `client` is stable per kalaidoscope scope; re-subscribe if scope,
-    // collection, filter, or enabled changes.
-  }, [client, collection, filter, enabled]);
+    // watched collections, filter, or enabled changes.
+  }, [client, collection, watchedKey, filter, enabled]);
 
   return result;
 }

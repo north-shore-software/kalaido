@@ -4,8 +4,10 @@ import { toast } from "sonner";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { isPinned } from "@/lib/pins";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
-import { useLiveCollection } from "@/hooks/use-live-collection";
-import { useCollection } from "@/hooks/use-collection";
+import {
+  useLiveCollection,
+  useLiveCollectionWatching,
+} from "@/hooks/use-live-collection";
 import { updateProjection } from "@/api/kalaidoscope/projections";
 import { updateReflection } from "@/api/kalaidoscope/reflections";
 import type { EntityStatus } from "@/api/kalaidoscope/rotation";
@@ -74,9 +76,11 @@ export default function Main() {
     sort: "-created",
     fields: "id,projection_id",
   });
-  const fragments = useCollection("view_stream", {
-    sort: "-source_time,-created",
-  });
+  const fragments = useLiveCollectionWatching(
+    "view_stream",
+    ["fragment", "colour_fragment"],
+    { sort: "-source_time,-created" },
+  );
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>();

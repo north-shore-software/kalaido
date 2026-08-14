@@ -11,7 +11,7 @@ import {
   StreamSkeleton,
 } from "@/features/fragments/components/stream-parts";
 import type { LoadedFragment } from "@/features/fragments/types";
-import { useCollection } from "@/hooks/use-collection";
+import { useLiveCollectionWatching } from "@/hooks/use-live-collection";
 import { cn } from "@/lib/css-utils";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
@@ -26,9 +26,11 @@ const formatType = (type: string) => {
 export default function Stream() {
   const { go } = useAppNavigate();
   const { id: selectedId } = useParams<{ id?: string }>();
-  const { records, isLoading } = useCollection("view_stream", {
-    sort: "-source_time,-created",
-  });
+  const { records, isLoading } = useLiveCollectionWatching(
+    "view_stream",
+    ["fragment", "colour_fragment"],
+    { sort: "-source_time,-created" },
+  );
 
   const filteredFragments = useMemo<LoadedFragment[]>(
     () =>

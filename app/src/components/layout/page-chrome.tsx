@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronRightIcon } from "lucide-react";
-import { Label } from "@/components/kalaido";
+import { Label } from "@/components/kalaido/text";
 import { cn } from "@/lib/css-utils";
 
 interface PageHeaderProps {
@@ -119,7 +119,7 @@ export function PaneHeader({ label, status, className }: PaneHeaderProps) {
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-b border-line px-4 py-3",
+        "flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line px-4",
         className,
       )}
     >

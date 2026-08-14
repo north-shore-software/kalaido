@@ -10,7 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ColourSwatch, fragmentTypeIcon, Mono } from "@/components/kalaido";
-import { useCollection } from "@/hooks/use-collection";
+import { useLiveCollectionWatching } from "@/hooks/use-live-collection";
 import { formatShortDateTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types.ts";
@@ -39,10 +39,11 @@ export function FragmentDrawer({
   id?: string;
   onClose: () => void;
 }) {
-  const { records, isLoading } = useCollection("view_stream", {
-    filter: id ? `id="${id}"` : undefined,
-    enabled: !!id,
-  });
+  const { records, isLoading } = useLiveCollectionWatching(
+    "view_stream",
+    ["fragment", "colour_fragment"],
+    { filter: id ? `id="${id}"` : undefined, enabled: !!id },
+  );
 
   const fragment = records[0];
   const colours = useMemo(

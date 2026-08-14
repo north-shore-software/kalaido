@@ -7,6 +7,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/css-utils";
+import { PaneHeader } from "@/components/layout/page-chrome";
 import {
   Command,
   CommandEmpty,
@@ -293,9 +294,7 @@ export function ContextPicker({
         className,
       )}
     >
-      <div className="flex items-center justify-between border-b border-line px-4 py-3">
-        <Label>Context</Label>
-      </div>
+      <PaneHeader label="Context" />
       <div className="flex-1 overflow-y-auto p-4">
         <Mono className="mb-2.5 block text-[10.5px] text-fg-4">
           inputs feeding this context
