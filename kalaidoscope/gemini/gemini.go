@@ -20,6 +20,10 @@ const geminiBase = "https://generativelanguage.googleapis.com/v1beta"
 
 type Provider struct {
 	Model string
+	// APIKey is the workspace's own BYOK credential. When empty the process
+	// environment is used instead, which is how the managed cloud deployment
+	// and any pre-BYOK workspace still authenticate.
+	APIKey string
 }
 
 func (p *Provider) model() string {
@@ -71,9 +75,17 @@ type geminiStreamChunk struct {
 }
 
 func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
-	apiKey := os.Getenv("GEMINI_API_KEY")
+	apiKey := p.APIKey
 	if apiKey == "" {
-		return nil, fmt.Errorf("gemini: GEMINI_API_KEY not set")
+		apiKey = os.Getenv("GEMINI_API_KEY")
+	}
+	if apiKey == "" {
+		return nil, &llm.ProviderError{
+			Provider: llm.ProviderGemini,
+			Kind:     llm.ErrKindAuth,
+			Model:    p.Model,
+			Body:     "no API key configured (workspace key unset and GEMINI_API_KEY unset)",
+		}
 	}
 	if p.Model == "" {
 		return nil, fmt.Errorf("gemini: no model set")
@@ -137,13 +149,29 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 
 	resp, err := httpx.Streaming().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("gemini: request: %w", err)
+		// A cancelled request is the caller going away, not a provider fault —
+		// leave it unclassified so it can't be mistaken for an auth failure.
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, &llm.ProviderError{
+			Provider: llm.ProviderGemini,
+			Kind:     llm.ErrKindTransient,
+			Model:    p.model(),
+			Body:     err.Error(),
+		}
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, fmt.Errorf("gemini: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, &llm.ProviderError{
+			Provider:   llm.ProviderGemini,
+			Kind:       classify(resp.StatusCode, body),
+			StatusCode: resp.StatusCode,
+			Model:      p.model(),
+			Body:       strings.TrimSpace(string(body)),
+		}
 	}
 
 	ch := make(chan llm.StreamEvent)

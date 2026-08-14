@@ -95,6 +95,9 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 				return usage.WriteExhausted(e, app)
 			case err != nil:
 				log.Printf("%s.generate: %v", strat.TargetType(), err)
+				if usage.WriteProviderError(e, err) {
+					return nil
+				}
 				if strings.Contains(err.Error(), "not found") {
 					return e.NotFoundError(strat.TargetType()+" not found", err)
 				}

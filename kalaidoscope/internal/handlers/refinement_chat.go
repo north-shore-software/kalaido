@@ -71,6 +71,9 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		if errors.Is(err, usage.ErrExhausted) {
 			return usage.WriteExhausted(e, app)
 		}
+		if usage.WriteProviderError(e, err) {
+			return nil
+		}
 		if err != nil {
 			return e.InternalServerError("llm stream failed", err)
 		}

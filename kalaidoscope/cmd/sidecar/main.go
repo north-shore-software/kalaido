@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/gemini"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ollama"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/server"
@@ -21,8 +22,22 @@ func main() {
 	a := server.New(true)
 
 	resolveModelSet(a)
+	config.LoadAtBoot(a)
 
-	llm.SetProviderFactory(func(model string) llm.Provider {
+	// The one place a provider gets wired up. A workspace that chose its own
+	// provider dispatches on that choice — note this path never consults the
+	// static providerByModel table, which is what lets a BYOK workspace use a
+	// free-text model name the table has never heard of.
+	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
+		switch cfg.Provider {
+		case llm.ProviderGemini:
+			return &gemini.Provider{Model: model, APIKey: cfg.APIKey}
+		case llm.ProviderOllama:
+			return &ollama.OllamaProvider{Model: model}
+		}
+
+		// Unconfigured: the pre-BYOK path, resolved from the env-seeded model
+		// set with credentials from the environment.
 		provider, err := llm.ProviderFor(model)
 		if err != nil {
 			return llm.ErrorProvider(err)

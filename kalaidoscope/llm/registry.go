@@ -81,6 +81,14 @@ func CredentialEnv(p ProviderID) string {
 	return credentialEnv[p]
 }
 
+// RequiresCredential reports whether a provider authenticates with a key the
+// user supplies. Backed by the same table as CredentialEnv so registering a new
+// provider stays a one-place change. Providers without one (Ollama, a local
+// service) are never key-validated.
+func RequiresCredential(p ProviderID) bool {
+	return credentialEnv[p] != ""
+}
+
 func Roles() []Role {
 	return []Role{RoleChat, RoleRefinement, RoleColour, RoleDistill, RoleSnapshot}
 }

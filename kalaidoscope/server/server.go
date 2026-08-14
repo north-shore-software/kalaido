@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
@@ -66,6 +67,7 @@ func RegisterTriggers(app core.App) {
 	})
 
 	ingest.RegisterHooks(app)
+	config.RegisterHooks(app)
 }
 
 func RegisterRoutes(app core.App) {
@@ -77,6 +79,8 @@ func RegisterRoutes(app core.App) {
 		se.Router.POST("/api/context/tokens", handlers.HandleResolveTokens(app))
 
 		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
+
+		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))
 
 		// Projections
 		se.Router.POST("/api/projections", handlers.HandleCreateProjection(app))

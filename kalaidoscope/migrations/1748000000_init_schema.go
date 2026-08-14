@@ -11,10 +11,15 @@ type tableDef struct {
 	Name                   string
 	Type                   string // "base" or "view"
 	ViewQuery              string
-	DisableWriteOperations bool
+	DisableWriteOperations bool // shorthand for create+update+delete
 	DisableReadOperations  bool
-	Fields                 []core.Field
-	Indexes                []indexDef
+	// Per-operation overrides, for collections that are writable in one
+	// direction only. Each is OR-ed with DisableWriteOperations.
+	DisableCreate bool
+	DisableUpdate bool
+	DisableDelete bool
+	Fields        []core.Field
+	Indexes       []indexDef
 }
 
 type indexDef struct {
@@ -69,6 +74,10 @@ var schema = []tableDef{
 			&core.TextField{Name: "name", Required: true},
 			&core.TextField{Name: "colour_value"},
 			&core.TextField{Name: "criteria"},
+			// Last durable provider failure seen by the background evaluation
+			// worker ("auth"/"quota"), cleared on the next success. The worker
+			// has no request to fail, so this is how it surfaces a stuck key.
+			&core.TextField{Name: "last_provider_error_kind"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -271,10 +280,23 @@ var schema = []tableDef{
 
 	{
 
-		Name:                   "kalaidoscope_config",
-		DisableWriteOperations: true,
+		// The singleton row is seeded server-side and never created or deleted
+		// by a client, but the provider fields below are user-editable — so
+		// update is the one operation left open. model_set stays superuser-only
+		// via a hook, since PocketBase rules can't be scoped to a field.
+		Name:          "kalaidoscope_config",
+		DisableCreate: true,
+		DisableDelete: true,
 		Fields: []core.Field{
 			&core.TextField{Name: "model_set"},
+			// Provider selection for this workspace. Empty means unconfigured,
+			// which falls back to the env-seeded model set. Deliberately not
+			// namespaced per provider — a workspace has exactly one at a time,
+			// so a second provider needs no new columns.
+			&core.TextField{Name: "provider"},
+			&core.TextField{Name: "api_key"},
+			&core.TextField{Name: "default_model"},
+			&core.JSONField{Name: "role_models"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -320,13 +342,19 @@ func ensureCollection(app core.App, def tableDef) error {
 	}
 	rule := "@request.auth.id != ''"
 	var readRule *string = &rule
-	var writeRule *string = &rule
+	createRule, updateRule, deleteRule := &rule, &rule, &rule
 
 	if def.DisableReadOperations {
 		readRule = nil
 	}
-	if def.DisableWriteOperations {
-		writeRule = nil
+	if def.DisableWriteOperations || def.DisableCreate {
+		createRule = nil
+	}
+	if def.DisableWriteOperations || def.DisableUpdate {
+		updateRule = nil
+	}
+	if def.DisableWriteOperations || def.DisableDelete {
+		deleteRule = nil
 	}
 
 	if def.Type == "view" {
@@ -338,9 +366,9 @@ func ensureCollection(app core.App, def tableDef) error {
 		c.Type = core.CollectionTypeBase
 		c.ViewRule = readRule
 		c.ListRule = readRule
-		c.CreateRule = writeRule
-		c.UpdateRule = writeRule
-		c.DeleteRule = writeRule
+		c.CreateRule = createRule
+		c.UpdateRule = updateRule
+		c.DeleteRule = deleteRule
 	}
 	for _, f := range def.Fields {
 		if relField, ok := f.(*core.RelationField); ok {
