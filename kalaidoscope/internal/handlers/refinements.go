@@ -15,6 +15,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 )
 
 func HandleCreateProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
@@ -219,6 +220,11 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 		newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, output, req.UpdateLensAndContext, pinned, spec, winSpec, refRec.Id, targetCol)
 		if err != nil {
 			log.Printf("refinement.commit: %v", err)
+			// Lens distillation runs inside the commit, so a provider failure
+			// can surface here rather than as a generic commit error.
+			if usage.WriteProviderError(e, err) {
+				return nil
+			}
 			return e.InternalServerError("failed to commit refinement", err)
 		}
 

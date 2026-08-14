@@ -2,6 +2,7 @@ package colour
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strings"
 	"time"
@@ -80,6 +81,37 @@ func workerLoop() {
 	}
 }
 
+// recordProviderErrorKind marks a colour whose evaluation is failing for a
+// reason the user has to act on. The worker has no request to return an error
+// on, so a durable marker on the record is how a stuck key becomes visible.
+// Transient failures are left unmarked — the next queued fragment retries.
+func recordProviderErrorKind(colourRec *core.Record, err error) {
+	var perr *llm.ProviderError
+	if !errors.As(err, &perr) {
+		return
+	}
+	if perr.Kind != llm.ErrKindAuth && perr.Kind != llm.ErrKindQuota {
+		return
+	}
+	if colourRec.GetString("last_provider_error_kind") == string(perr.Kind) {
+		return
+	}
+	colourRec.Set("last_provider_error_kind", string(perr.Kind))
+	if err := workerApp.Save(colourRec); err != nil {
+		log.Printf("colour eval worker: failed to record provider error kind: %v", err)
+	}
+}
+
+func clearProviderErrorKind(colourRec *core.Record) {
+	if colourRec.GetString("last_provider_error_kind") == "" {
+		return
+	}
+	colourRec.Set("last_provider_error_kind", "")
+	if err := workerApp.Save(colourRec); err != nil {
+		log.Printf("colour eval worker: failed to clear provider error kind: %v", err)
+	}
+}
+
 func evaluateTask(task evalTask) {
 
 	colourRec, err := workerApp.FindRecordById("colour", task.colourID)
@@ -129,8 +161,10 @@ func evaluateTask(task evalTask) {
 	out, err := usage.GenerateOnce(ctx, workerApp, prompt, llm.RoleColour, nil)
 	if err != nil {
 		log.Printf("colour eval worker: evaluation failed for fragment %s: %v", task.fragmentID, err)
+		recordProviderErrorKind(colourRec, err)
 		return
 	}
+	clearProviderErrorKind(colourRec)
 
 	if !strings.Contains(strings.ToUpper(out), "YES") {
 		return
