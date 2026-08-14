@@ -36,8 +36,4 @@ A clear description of what you expected to happen.
 
 ## Observed Behavior
 What actually happened (including error messages, HTTP status codes, or stack traces).
-
-## Context / Relevant Code
-- Affected files: `internal/...`
-- Relevant tests or logs: `...`
 ```

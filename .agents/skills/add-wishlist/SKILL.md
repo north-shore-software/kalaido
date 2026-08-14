@@ -1,27 +1,38 @@
 ---
 name: add-wishlist
-description: Creates a structured wishlist item in .agents/wishlist/ with summary, motivation, proposed concept, and open questions. Use when capturing feature requests, product ideas, or backlog items.
+description: Captures a human braindump into a structured wishlist item in .agents/wishlist/. Focuses strictly on extracting and clarifying human context without agent expansion, decision-making, or code diving.
 ---
 
 # Skill: Add Wishlist Item
 
-Use this skill when a user asks to add an idea, feature request, or item to the wishlist.
+Use this skill when a user wants to braindump an idea, feature request, or backlog item.
+
+## Core Directives
+
+1. **Extract Human Context**: Capture as much human context as possible, as quickly as possible.
+2. **No Extrapolation or Expansion**: Record ONLY what the user expresses. Never add hypothetical concepts, extra open questions, or features the user did not mention.
+3. **No Agent Decision-Making**: Never make product, design, or technical decisions for the user. Preserve the user's intent as stated.
+4. **No Unsolicited Code Diving**: Do NOT search or inspect the codebase unless strictly necessary to understand a term or reference the user explicitly used.
+5. **Clarify Unclear Points**: If something in the braindump is ambiguous or unclear, ask short, focused clarifying questions to extract details directly from the user.
 
 ## Workflow
 
-1. **Gather Details**:
-   Extract details from the user prompt or conversation:
-   - **Title**: Short feature name.
-   - **Summary**: What the feature or capability is.
-   - **Motivation / Use Case**: Why it is valuable and what user/system need it serves.
-   - **Proposed Concept**: High-level conceptual approach (focusing on product/conceptual behavior rather than low-level code).
-   - **Open Questions**: Any unresolved points to consider later.
+1. **Extract Information**:
+   Extract details directly from the user's prompt or braindump:
+   - **Title**: Short summary title derived from user input.
+   - **Summary**: What the feature or idea is, as described by the user.
+   - **Motivation / Use Case**: Why it is valuable, as stated by the user.
+   - **Proposed Concept**: High-level behavior or concept described by the user.
+   - **Open Questions**: Unresolved points explicitly raised or mentioned by the user (do not invent new ones).
 
-2. **Generate Filename**:
-   Format: `.agents/wishlist/YYYY-MM-DD-short-slug.md` (e.g., `.agents/wishlist/2025-08-12-streaming-refinements.md`).
+2. **Clarify if Unclear**:
+   If key details are missing or ambiguous, ask concise clarifying questions. Once clarified, proceed immediately.
 
-3. **Write Wishlist File**:
-   Create the file with the following markdown structure:
+3. **Generate Filename**:
+   Format: `.agents/wishlist/YYYY-MM-DD-short-slug.md`.
+
+4. **Write Wishlist File**:
+   Create the file with the following markdown structure, populated using ONLY human-provided context:
 
 ```markdown
 ---
@@ -32,18 +43,17 @@ created: "YYYY-MM-DD"
 ---
 
 ## Summary
-<High-level summary of the idea>
+<Summary as described by user>
 
 ## Motivation / Use Case
-<Why this is valuable>
+<Motivation as stated by user>
 
 ## Proposed Concept
-<Conceptual approach or behavior>
+<Concept as described by user>
 
 ## Open Questions
-- <Question 1>
-- <Question 2>
+- <Open questions explicitly raised by user>
 ```
 
-4. **Confirm**:
+5. **Confirm**:
    Display a brief confirmation showing the created file path.
