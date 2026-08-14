@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from "react";
 import { SendIcon } from "lucide-react";
-import { Label } from "./text";
+import { PaneHeader } from "@/components/layout/page-chrome";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/css-utils";
@@ -53,11 +53,7 @@ export function RefineComposer({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {title && (
-        <div className="flex shrink-0 items-center border-b border-line px-4 py-3">
-          <Label>{title}</Label>
-        </div>
-      )}
+      {title && <PaneHeader label={title} />}
       {helperText && (
         <div className="flex flex-1 items-center justify-center px-4 py-2">
           <p
