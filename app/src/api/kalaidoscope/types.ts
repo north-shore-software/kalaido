@@ -161,6 +161,7 @@ export type FragmentTypeOptions = typeof FragmentTypeOptions[keyof typeof Fragme
 export type FragmentRecord = {
 	content: string
 	created: IsoAutoDateString
+	deleted_at?: IsoDateString
 	id: string
 	source?: string
 	source_time?: IsoDateString
@@ -210,8 +211,11 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 }
 
 export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
+	approval_sequence_number?: number
+	approval_timestamp?: IsoDateString
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
+	generation_timestamp?: IsoDateString
 	id: string
 	lens_id?: RecordIdString
 	model?: string
@@ -238,20 +242,23 @@ export type RefineReflSnapshotConversationRecord = {
 	reflection_snapshot_id?: RecordIdString
 }
 
-export type ReflectionRecord<Tcurrent_context_spec = unknown, Tcurrent_window_spec = unknown> = {
+export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown> = {
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
-	current_window_spec?: null | Tcurrent_window_spec
 	id: string
 	name?: string
 	pinned_by?: RecordIdString
 	updated: IsoAutoDateString
+	window_spec_versions?: null | Twindow_spec_versions
 }
 
 export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown> = {
+	approval_sequence_number?: number
+	approval_timestamp?: IsoDateString
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
+	generation_timestamp?: IsoDateString
 	id: string
 	lens_id?: RecordIdString
 	model?: string
@@ -261,7 +268,9 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	resolved_window?: null | Tresolved_window
 	status?: string
 	updated: IsoAutoDateString
+	window_key?: string
 	window_spec?: null | Twindow_spec
+	window_spec_version_number?: number
 }
 
 export type UsageRecord = {
@@ -321,7 +330,7 @@ export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknow
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
 export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
 export type RefineReflSnapshotConversationResponse<Texpand = unknown> = Required<RefineReflSnapshotConversationRecord> & BaseSystemFields<Texpand>
-export type ReflectionResponse<Tcurrent_context_spec = unknown, Tcurrent_window_spec = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Tcurrent_window_spec>> & BaseSystemFields<Texpand>
+export type ReflectionResponse<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Twindow_spec_versions>> & BaseSystemFields<Texpand>
 export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context, Tresolved_window, Twindow_spec>> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>

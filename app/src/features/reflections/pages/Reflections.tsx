@@ -18,7 +18,10 @@ import {
 } from "@/components/kalaido";
 import { ReflectionDetailPanel } from "../components/reflection-detail-panel";
 import { swatchIndex } from "@/lib/colors";
-import { describeWindow } from "@/features/reflections/schedule";
+import {
+  currentWindowSpec,
+  describeWindow,
+} from "@/features/reflections/schedule";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { isPinned } from "@/lib/pins";
 import { updateReflection } from "@/api/kalaidoscope/reflections";
@@ -66,7 +69,9 @@ export default function Reflections() {
               </EmptyState>
             ) : (
               reflections.map((r) => {
-                const { freq, win } = describeWindow(r.current_window_spec);
+                const { freq, win } = describeWindow(
+                  currentWindowSpec(r.window_spec_versions),
+                );
                 return (
                   <ListRow
                     key={r.id}

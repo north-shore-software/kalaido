@@ -141,7 +141,7 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	}
 
 	recs, err := e.app.FindRecordsByFilter(snapCollection,
-		foreignKey+" = {:id} && (status = 'approved' || status = '')", "-created", 1, 0,
+		foreignKey+" = {:id} && status = 'approved'", "-approval_sequence_number", 1, 0,
 		dbx.Params{"id": n.record.Id})
 
 	var liveSnapID string
@@ -191,7 +191,7 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 				depSnapCol = "reflection_snapshot"
 				depFK = "reflection_id"
 			}
-			c, _ := e.app.FindRecordsByFilter(depSnapCol, depFK+" = {:id} && (status = 'approved' || status = '')", "-created", 1, 0, dbx.Params{"id": dep.record.Id})
+			c, _ := e.app.FindRecordsByFilter(depSnapCol, depFK+" = {:id} && status = 'approved'", "-approval_sequence_number", 1, 0, dbx.Params{"id": dep.record.Id})
 			if len(c) > 0 {
 				staleDeps[dep.record.Id] = true
 			}
@@ -203,8 +203,9 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	}
 
 	// Window evaluation for scheduled entities
-	var currentSpec api.WindowSpec
-	if err := n.record.UnmarshalJSONField("current_window_spec", &currentSpec); err == nil && currentSpec.Period != "" {
+	version, ok := engine.GoverningVersion(engine.LoadWindowSpecVersions(n.record), e.now)
+	if ok && version.Spec.Period != "" {
+		currentSpec := version.Spec
 		var lastWindowEnd time.Time
 		if snapRec != nil {
 			var winSpec map[string]string

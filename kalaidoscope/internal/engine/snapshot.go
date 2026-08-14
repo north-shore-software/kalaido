@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -57,29 +58,35 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 
 	var winSpec, resWin any
+	var winKey string
+	var specVersionNumber int
 	if strat.TargetType() == "reflection" {
-		var currentWindowSpec api.WindowSpec
-		_ = rec.UnmarshalJSONField("current_window_spec", &currentWindowSpec)
-		winSpec = currentWindowSpec
+		if version, ok := GoverningVersion(LoadWindowSpecVersions(rec), time.Now()); ok {
+			winSpec = version.Spec
+			specVersionNumber = version.VersionNumber
+		}
 
 		if window != nil {
 			resWin = map[string]string{
 				"start": window.Start,
 				"end":   window.End,
 			}
+			winKey = window.Start + "_" + window.End
 		}
 	}
 
 	snapID, err := AppendSnapshot(ctx, app, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
-		SourceID:        rec.Id,
-		LensID:          rec.GetString("current_lens_id"),
-		Output:          outputStr,
-		ContextSpec:     lensSpec,
-		ResolvedContext: pinnedCtx,
-		WindowSpec:      winSpec,
-		ResolvedWindow:  resWin,
-		Status:          status,
-		Model:           outputModel,
+		SourceID:                rec.Id,
+		LensID:                  rec.GetString("current_lens_id"),
+		Output:                  outputStr,
+		ContextSpec:             lensSpec,
+		ResolvedContext:         pinnedCtx,
+		WindowSpec:              winSpec,
+		ResolvedWindow:          resWin,
+		Status:                  status,
+		Model:                   outputModel,
+		WindowKey:               winKey,
+		WindowSpecVersionNumber: specVersionNumber,
 	})
 	if err != nil {
 		return "", fmt.Errorf("snapshot save: %w", err)

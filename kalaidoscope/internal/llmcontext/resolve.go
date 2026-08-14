@@ -36,7 +36,7 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec) (P
 func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec) ([]string, error) {
 	var ids []string
 	if spec.WholeScope {
-		recs, err := app.FindRecordsByFilter("fragment", "1=1", "", 0, 0, nil)
+		recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "", 0, 0, nil)
 		if err != nil {
 			return nil, fmt.Errorf("resolve WholeScope fragments: %w", err)
 		}
@@ -62,7 +62,7 @@ func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec) ([
 	}
 
 	if len(ors) > 0 {
-		recs, err := app.FindRecordsByFilter("fragment", strings.Join(ors, " || "), "", 0, 0, params)
+		recs, err := app.FindRecordsByFilter("fragment", "("+strings.Join(ors, " || ")+") && deleted_at = ''", "", 0, 0, params)
 		if err != nil {
 			return nil, fmt.Errorf("resolve specific fragments: %w", err)
 		}
@@ -85,8 +85,8 @@ func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		ors = append(ors, "projection_id = {:"+key+"}")
 		params[key] = pid
 	}
-	filter := "(" + strings.Join(ors, " || ") + ") && (status = 'approved' || status = '')"
-	if recs, err := app.FindRecordsByFilter("projection_snapshot", filter, "-created", 0, 0, params); err == nil {
+	filter := "(" + strings.Join(ors, " || ") + ") && status = 'approved'"
+	if recs, err := app.FindRecordsByFilter("projection_snapshot", filter, "-approval_sequence_number", 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
 			pid := r.GetString("projection_id")
@@ -111,8 +111,8 @@ func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		ors = append(ors, "reflection_id = {:"+key+"}")
 		params[key] = rid
 	}
-	filter := "(" + strings.Join(ors, " || ") + ") && (status = 'approved' || status = '')"
-	if recs, err := app.FindRecordsByFilter("reflection_snapshot", filter, "-created", 0, 0, params); err == nil {
+	filter := "(" + strings.Join(ors, " || ") + ") && status = 'approved'"
+	if recs, err := app.FindRecordsByFilter("reflection_snapshot", filter, "-approval_sequence_number", 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
 			rid := r.GetString("reflection_id")

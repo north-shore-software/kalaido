@@ -3,8 +3,8 @@ import { parseWindowSpec, type WindowSpec } from "@/api/kalaidoscope/chat";
 // Reflection schedule UI options, shared by NewReflection (authoring) and the
 // reflection detail view (editing). Frequency = how often it regenerates;
 // lookback = the data window each run summarizes. A reflection's schedule lives
-// on `current_window_spec` (api.WindowSpec) and is set/updated by committing a
-// refinement that carried a `window_spec` — there is no direct write path.
+// on `window_spec_versions`, an append-only list, and is updated by PATCHing the
+// reflection — committing a refinement no longer writes it.
 export const FREQ = ["Hourly", "Daily", "Weekly", "Monthly"] as const;
 export const FREQ_DAYS = [1 / 24, 1, 7, 30];
 export const WIN = ["1h", "24h", "7 days", "30 days", "7 months"] as const;
@@ -46,8 +46,24 @@ function nearestIndex(days: number, table: number[]): number {
   return best;
 }
 
+export function currentWindowSpec(raw: unknown): unknown {
+  let versions: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      versions = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(versions) || versions.length === 0) return null;
+  const latest = versions.reduce((a, b) =>
+    (b?.versionNumber ?? 0) > (a?.versionNumber ?? 0) ? b : a,
+  );
+  return latest?.spec ?? null;
+}
+
 /**
- * Reverse-map a reflection's `current_window_spec` (raw JSON field) to the
+ * Reverse-map a reflection's `window_spec_versions` (raw JSON field) to the
  * nearest freq/lookback chip indices, so the detail view can seed its editable
  * controls. Falls back to defaults when the reflection isn't scheduled yet.
  */

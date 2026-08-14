@@ -37,10 +37,12 @@ var schema = []tableDef{
 			&core.TextField{Name: "source"},
 			&core.TextField{Name: "content", Required: true, Max: fragmentContentMax},
 			&core.DateField{Name: "source_time"},
+			&core.DateField{Name: "deleted_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_fragment_source_time", Columns: "source_time"},
+			{Name: "idx_fragment_deleted_at", Columns: "deleted_at"},
 		},
 	},
 
@@ -115,7 +117,7 @@ var schema = []tableDef{
 		Fields: []core.Field{
 			&core.TextField{Name: "name"},
 			&core.JSONField{Name: "current_context_spec"},
-			&core.JSONField{Name: "current_window_spec"},
+			&core.JSONField{Name: "window_spec_versions"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
 			&core.AutodateField{Name: "created", OnCreate: true},
@@ -149,11 +151,15 @@ var schema = []tableDef{
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.NumberField{Name: "approval_sequence_number"},
+			&core.DateField{Name: "approval_timestamp"},
+			&core.DateField{Name: "generation_timestamp"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_projection_snapshot_projection", Columns: "projection_id"},
+			{Name: "idx_projection_snapshot_approval_seq", Unique: true, Columns: "projection_id, approval_sequence_number", Where: "status = 'approved'"},
 		},
 	},
 
@@ -170,11 +176,17 @@ var schema = []tableDef{
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.NumberField{Name: "approval_sequence_number"},
+			&core.DateField{Name: "approval_timestamp"},
+			&core.DateField{Name: "generation_timestamp"},
+			&core.TextField{Name: "window_key"},
+			&core.NumberField{Name: "window_spec_version_number"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_reflection_snapshot_reflection", Columns: "reflection_id"},
+			{Name: "idx_reflection_snapshot_approval_seq", Unique: true, Columns: "reflection_id, window_key, approval_sequence_number", Where: "status = 'approved'"},
 		},
 	},
 
@@ -290,6 +302,7 @@ var schema = []tableDef{
 					'[]'
 				) as colours
 			FROM fragment f
+			WHERE f.deleted_at = ''
 		`,
 	},
 }
