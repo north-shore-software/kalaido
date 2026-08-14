@@ -25,7 +25,10 @@ import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { ProviderFields } from "../components/provider-fields";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
-import { CloudIdentityPanel } from "../components/cloud-identity-panel";
+import {
+  CloudIdentityPanel,
+  CloudSignInNotice,
+} from "../components/cloud-identity-panel";
 import { IconPicker } from "../components/icon-picker.tsx";
 import {
   StorageOptionCards,
@@ -98,6 +101,11 @@ export default function KalaidoscopeSetup() {
 
   const byokSelected =
     snap.storage === "local_file" && snap.llmProvider === "gemini";
+
+  // Submitting this path opens the sign-in gate before anything is created, so
+  // promising "Create Kalaidoscope" would misdescribe what the button does.
+  const needsSignIn = snap.storage === "cloud" && !signedIn;
+  const submitLabel = needsSignIn ? "Sign in & create" : "Create Kalaidoscope";
 
   const canCreate =
     !!snap.name.trim() &&
@@ -177,7 +185,7 @@ export default function KalaidoscopeSetup() {
     e.preventDefault();
     if (!canCreate || state.isPending) return;
 
-    if (state.storage === "cloud" && !signedIn) {
+    if (needsSignIn) {
       state.gateOpen = true;
       return;
     }
@@ -282,13 +290,18 @@ export default function KalaidoscopeSetup() {
                 aria-labelledby={storageLabelId}
               />
 
-              {snap.storage === "cloud" && signedIn && user && (
-                <CloudIdentityPanel
-                  name={user.name ?? undefined}
-                  email={user.email}
-                  onSignOut={() => void signOutOfCloud()}
-                />
-              )}
+              {snap.storage === "cloud" &&
+                (signedIn && user ? (
+                  <CloudIdentityPanel
+                    name={user.name ?? undefined}
+                    email={user.email}
+                    onSignOut={() => void signOutOfCloud()}
+                  />
+                ) : (
+                  <CloudSignInNotice
+                    onSignIn={() => (state.gateOpen = true)}
+                  />
+                ))}
             </div>
 
             {snap.storage === "local_file" && (
@@ -320,7 +333,7 @@ export default function KalaidoscopeSetup() {
                 type="submit"
                 disabled={!canCreate || snap.isPending}
               >
-                {snap.isPending ? "Creating…" : "Create Kalaidoscope"}
+                {snap.isPending ? "Creating…" : submitLabel}
               </Button>
             </div>
           </form>
