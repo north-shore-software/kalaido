@@ -5,11 +5,13 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 )
 
@@ -149,6 +151,10 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			}
 			rec := core.NewRecord(col)
 			rec.Set("name", req.Name)
+			if strat.TargetType() == "reflection" {
+				versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{}, time.Now())
+				rec.Set("window_spec_versions", pbutil.JSONObject(versions))
+			}
 			if err := txApp.Save(rec); err != nil {
 				return err
 			}
@@ -180,8 +186,9 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 		}
 
 		type reqBody struct {
-			Name   *string `json:"name,omitempty"`
-			Pinned *bool   `json:"pinned,omitempty"`
+			Name       *string         `json:"name,omitempty"`
+			Pinned     *bool           `json:"pinned,omitempty"`
+			WindowSpec *api.WindowSpec `json:"windowSpec,omitempty"`
 		}
 		var req reqBody
 		if err := e.BindBody(&req); err != nil {
@@ -195,6 +202,15 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 
 		if req.Name != nil {
 			rec.Set("name", *req.Name)
+		}
+
+		if req.WindowSpec != nil {
+			if strat.TargetType() != "reflection" {
+				return e.BadRequestError("windowSpec is only valid for reflections", nil)
+			}
+			versions := engine.AppendWindowSpecVersion(
+				engine.LoadWindowSpecVersions(rec), *req.WindowSpec, time.Now())
+			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 		}
 
 		if req.Pinned != nil {

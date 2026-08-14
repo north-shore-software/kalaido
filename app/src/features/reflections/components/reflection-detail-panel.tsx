@@ -5,6 +5,7 @@ import { parseContextSpec, specToItems } from "@/api/kalaidoscope/chat";
 import { useRefineSession } from "@/hooks/use-refine-session";
 import {
   buildWindowSpec,
+  currentWindowSpec,
   DEFAULT_FREQ,
   DEFAULT_WIN,
   describeWindow,
@@ -94,7 +95,9 @@ export function ReflectionDetailPanel({
     initedFor.current = reflection.id;
     const spec = parseContextSpec(reflection.current_context_spec);
     setContext(spec ? specToItems(spec) : []);
-    const chips = windowSpecToChips(reflection.current_window_spec);
+    const chips = windowSpecToChips(
+      currentWindowSpec(reflection.window_spec_versions),
+    );
     setFreq(chips.freq);
     setWin(chips.win);
     setPickerEpoch((e) => e + 1);
@@ -200,7 +203,9 @@ export function ReflectionDetailPanel({
     };
   });
 
-  const schedDisplay = describeWindow(reflection?.current_window_spec);
+  const schedDisplay = describeWindow(
+    currentWindowSpec(reflection?.window_spec_versions),
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

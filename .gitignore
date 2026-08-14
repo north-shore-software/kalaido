@@ -16,3 +16,4 @@
 /.agents/spec/tla/view_diagrams.html
 /.agents/spec/tla/view_autodiagram*.html
 /.agents/spec/tla/*.dot
+/.pnpm-store/

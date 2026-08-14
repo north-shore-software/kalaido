@@ -69,13 +69,14 @@ func GetPendingWindows(app core.App, reflectionID string) ([]api.Window, error) 
 		return nil, err
 	}
 
-	var currentSpec api.WindowSpec
-	if err := rec.UnmarshalJSONField("current_window_spec", &currentSpec); err != nil || currentSpec.Period == "" {
-		return nil, nil // Not scheduled
+	version, ok := GoverningVersion(LoadWindowSpecVersions(rec), time.Now())
+	if !ok || version.Spec.Period == "" {
+		return nil, nil
 	}
+	currentSpec := version.Spec
 
 	recs, _ := app.FindRecordsByFilter("reflection_snapshot",
-		"reflection_id = {:id} && (status = 'approved' || status = '')", "-created", 1, 0,
+		"reflection_id = {:id} && status = 'approved'", "-approval_sequence_number", 1, 0,
 		map[string]any{"id": reflectionID})
 
 	var lastWindowEnd time.Time

@@ -11,9 +11,17 @@ type ContextSpec struct {
 }
 
 type WindowSpec struct {
-	StartTime string `json:"startTime"` // e.g., RFC3339 string "2023-01-01T00:00:00Z"
-	Period    string `json:"period"`    // e.g., "168h", "24h"
-	Duration  string `json:"duration"`  // e.g., "168h", "24h"
+	Mode      string `json:"mode,omitempty"`
+	StartTime string `json:"startTime"`
+	EndTime   string `json:"endTime,omitempty"`
+	Period    string `json:"period"`
+	Duration  string `json:"duration"`
+}
+
+type WindowSpecVersion struct {
+	VersionNumber int        `json:"versionNumber"`
+	EffectiveFrom string     `json:"effectiveFrom"`
+	Spec          WindowSpec `json:"spec"`
 }
 
 type TokenResolutionResponse struct {

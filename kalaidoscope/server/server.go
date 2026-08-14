@@ -2,6 +2,7 @@ package server
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -52,6 +53,16 @@ func RegisterTriggers(app core.App) {
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
 		colour.EnqueueNewFragmentEvaluation(app, e.Record.Id)
 		return e.Next()
+	})
+
+	app.OnRecordDeleteRequest("fragment").BindFunc(func(e *core.RecordRequestEvent) error {
+		if e.Record.GetDateTime("deleted_at").IsZero() {
+			e.Record.Set("deleted_at", types.NowDateTime())
+			if err := e.App.Save(e.Record); err != nil {
+				return err
+			}
+		}
+		return e.NoContent(http.StatusNoContent)
 	})
 
 	ingest.RegisterHooks(app)
