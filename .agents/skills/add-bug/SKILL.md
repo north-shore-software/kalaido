@@ -1,27 +1,39 @@
 ---
 name: add-bug
-description: Creates a structured bug report in .agents/bugs/ with reproduction steps, expected vs observed behavior, and relevant code context. Use when reporting or logging a bug in the codebase.
+description: Captures a human bug braindump into a structured bug report in .agents/bugs/. Focuses strictly on extracting human context without agent expansion, decision-making, or unsolicited code inspection.
 ---
 
 # Skill: Add Bug
 
-Use this skill when a user asks to log, record, or report a bug.
+Use this skill when a user wants to report or braindump a bug.
+
+## Core Directives
+
+1. **Extract Human Context**: Capture as much human context as possible, as quickly as possible.
+2. **No Extrapolation or Expansion**: Record ONLY what the user expresses. Do not invent steps to reproduce, expected behaviors, or root causes the user did not mention.
+3. **No Agent Decision-Making**: Never make decisions about fix approaches, severity, or implementation details. Preserve the user's report as stated.
+4. **No Unsolicited Code Diving**: Do NOT search or inspect the codebase unless strictly necessary to understand a file or term the user explicitly mentioned.
+5. **Clarify Unclear Points**: If something in the braindump is ambiguous or incomplete, ask short, focused clarifying questions to extract details directly from the user.
 
 ## Workflow
 
-1. **Gather Details**:
-   If the user has provided details in their prompt, extract them. If details are missing, ask or infer from recent context:
-   - **Title**: Concise summary of the issue.
-   - **Steps to Reproduce**: 1-3 concrete steps to trigger the bug.
-   - **Expected Behavior**: What should happen.
-   - **Observed Behavior**: What actually happened (errors, wrong status codes, logs).
-   - **Context**: Affected packages/files or endpoints (e.g. `kalaidoscope/internal/...`).
+1. **Extract Information**:
+   Extract details directly from the user's prompt or braindump:
+   - **Title**: Short summary title derived from user input.
+   - **Description**: Problem description as stated by the user.
+   - **Steps to Reproduce**: Steps provided or described by the user.
+   - **Expected Behavior**: What the user expected to happen.
+   - **Observed Behavior**: What the user observed happening.
+   - **Context / Relevant Code**: Files, components, or context specifically named by the user.
 
-2. **Generate Filename**:
-   Format: `.agents/bugs/YYYY-MM-DD-short-slug.md` (e.g., `.agents/bugs/2025-08-12-colour-eval-timeout.md`).
+2. **Clarify if Unclear**:
+   If key details are missing or ambiguous, ask concise clarifying questions. Once clarified, proceed immediately.
 
-3. **Write Bug File**:
-   Create the file with the following markdown structure:
+3. **Generate Filename**:
+   Format: `.agents/bugs/YYYY-MM-DD-short-slug.md`.
+
+4. **Write Bug File**:
+   Create the file with the following markdown structure, populated using ONLY human-provided context:
 
 ```markdown
 ---
@@ -32,23 +44,22 @@ created: "YYYY-MM-DD"
 ---
 
 ## Description
-<Clear description of the problem>
+<Clear description as stated by user>
 
 ## Steps to Reproduce
-1. <Step 1>
-2. <Step 2>
-3. <Step 3>
+1. <Step 1 provided by user>
+2. <Step 2 provided by user>
 
 ## Expected Behavior
-<Description of expected behavior>
+<Expected behavior described by user>
 
 ## Observed Behavior
-<Description of observed behavior / error messages>
+<Observed behavior described by user>
 
 ## Context / Relevant Code
-- Affected files: `<path/to/file>`
-- Notes: <Any additional context>
+- Affected files: `<files named by user>`
+- Notes: <Context provided by user>
 ```
 
-4. **Confirm**:
+5. **Confirm**:
    Display a brief confirmation showing the created file path.
