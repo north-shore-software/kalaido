@@ -1,33 +1,47 @@
-import { TriangleAlert } from "lucide-react";
+import { useSnapshot } from "valtio/react";
+import { reloadAppWindow } from "@/api/app/os-integrations.ts";
+import { appState } from "@/hooks/use-app-state.ts";
+import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { defineRoute } from "@/routes/route-kit";
+import { RecoveryScreen } from "../components/recovery-screen";
 import { bootErrorTransitions } from "./BootError.transitions";
 
-/**
- * Full-screen fallback shown when the active kalaidoscope's local backend (the
- * PocketBase sidecar) fails to start — e.g. a failed migration. Without this the
- * app renders nothing, so this is the user's only way back to a working state.
- */
 export default function BootError() {
-  return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-background">
-      <div className="flex flex-1 items-center justify-center p-8">
-        <div className="w-full max-w-lg">
-          <div className="mb-4 flex items-center gap-3">
-            <TriangleAlert className="size-6 text-destructive" />
-            <h1 className="text-lg font-semibold tracking-tight">
-              This kalaidoscope failed to start
-            </h1>
-          </div>
+  const { appStage } = useSnapshot(appState);
 
-          <p className="text-sm text-muted-foreground">
-            Kalaido couldn&apos;t start the local backend for this kalaidoscope,
-            so it can&apos;t load your data. This usually means the
-            kalaidoscope&apos;s database is in a bad state. You can try again,
-            or reset the app to start fresh.
-          </p>
-        </div>
-      </div>
-    </div>
+  if (appStage.stage === "bootstrap_error") {
+    return (
+      <RecoveryScreen
+        title="Kalaido couldn't load its settings"
+        description="Kalaido keeps your kalaidoscopes and preferences in a settings file, and that file couldn't be read. Trying again often works; resetting clears the file and starts fresh."
+        error={appStage.error}
+        onRetry={() => reloadAppWindow()}
+      />
+    );
+  }
+
+  const targetId =
+    appStage.stage === "kalaidoscope_load_error"
+      ? appStage.retryKalaidoscopeId
+      : appStage.stage === "kalaidoscope_open"
+        ? appStage.selectedKalaidoscopeId
+        : undefined;
+
+  return (
+    <RecoveryScreen
+      title="This kalaidoscope failed to start"
+      description="Kalaido couldn't start the local backend for this kalaidoscope, so it can't load your data. You can try again, open a different kalaidoscope, or reset the app to start fresh."
+      error={
+        appStage.stage === "kalaidoscope_load_error"
+          ? appStage.error
+          : undefined
+      }
+      onRetry={
+        targetId ? () => void switchLocalKalaidoscope(targetId) : undefined
+      }
+      allowSwitch
+      excludeKalaidoscopeId={targetId}
+    />
   );
 }
 

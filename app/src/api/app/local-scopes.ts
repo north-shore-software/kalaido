@@ -49,6 +49,12 @@ export function startLocalKalaidoscope(
   return tauriResult(invoke<void>("start_local_kalaidoscope", { dataDir }));
 }
 
+export function deleteLocalKalaidoscope(
+  dataDir: string,
+): Promise<Result<void, Error>> {
+  return tauriResult(invoke<void>("delete_local_kalaidoscope", { dataDir }));
+}
+
 export function stopLocalKalaidoscope(
   kalaidoscopeId: string,
 ): Promise<Result<void, Error>> {

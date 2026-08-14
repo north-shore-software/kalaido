@@ -1,15 +1,28 @@
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { proxy } from "valtio";
 import { getAllSettings } from "@/api/app/settings.ts";
+import { toError } from "@/lib/errors.ts";
+
+export type StageError = {
+  message: string;
+  detail?: string;
+};
 
 export type AppStage =
   | {
       stage:
         | "bootstrap"
-        | "bootstrap_error"
         | "kalaidoscope_loading"
-        | "kalaidoscope_load_error"
         | "no_kalaidoscopes_available";
+    }
+  | {
+      stage: "bootstrap_error";
+      error?: StageError;
+    }
+  | {
+      stage: "kalaidoscope_load_error";
+      error?: StageError;
+      retryKalaidoscopeId?: string;
     }
   | {
       stage: "kalaidoscope_open";
@@ -19,6 +32,11 @@ export type AppStage =
       stage: "kalaidoscope_load_requested";
       loadKalaidoscopeId: string;
     };
+
+export function stageError(e: unknown): StageError {
+  const error = toError(e);
+  return { message: error.message, detail: error.stack };
+}
 
 export type AppState = {
   appStage: AppStage;
@@ -38,26 +56,22 @@ const DEFAULT_STATE: AppState = {
 export const loadStoredState = async (): Promise<Partial<AppState> | null> => {
   const storedState = await getAllSettings();
 
-  let appStage: AppStage = { stage: "bootstrap_error" };
-
-  if (storedState.isOk()) {
-    if (storedState.value.lastOpenedKalaidoscopeId) {
-      appStage = {
-        stage: "kalaidoscope_load_requested",
-        loadKalaidoscopeId: storedState.value.lastOpenedKalaidoscopeId,
-      };
-    } else if (
-      !storedState.value.availableKalaidoscopes ||
-      storedState.value.availableKalaidoscopes.length === 0
-    ) {
-      appStage = { stage: "no_kalaidoscopes_available" };
-    }
-
-    return { ...storedState.value, appStage };
-  } else {
-    console.log("couldn't load stored state: ", storedState.error);
-    return { appStage };
+  if (storedState.isErr()) {
+    console.error("couldn't load stored state: ", storedState.error);
+    return {
+      appStage: {
+        stage: "bootstrap_error",
+        error: stageError(storedState.error),
+      },
+    };
   }
+
+  const lastOpenedId = storedState.value.lastOpenedKalaidoscopeId;
+  const appStage: AppStage = lastOpenedId
+    ? { stage: "kalaidoscope_load_requested", loadKalaidoscopeId: lastOpenedId }
+    : { stage: "no_kalaidoscopes_available" };
+
+  return { ...storedState.value, appStage };
 };
 
 export const appState = proxy<AppState>(DEFAULT_STATE);

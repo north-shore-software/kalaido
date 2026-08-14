@@ -14,10 +14,11 @@ import {
 import { getActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
 import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client";
 import { BootError } from "@/features/boot";
+import { RootErrorBoundary } from "@/components/error-boundary";
 
 export function AppRouter() {
   return (
-    <>
+    <RootErrorBoundary>
       <TitleBar />
       <MemoryRouter>
         <StateNavigationListener />
@@ -34,7 +35,7 @@ export function AppRouter() {
           )}
         </Routes>
       </MemoryRouter>
-    </>
+    </RootErrorBoundary>
   );
 }
 
@@ -81,7 +82,11 @@ function RouteGatekeeper({ def }: { def: RouteDef }) {
 function KalaidoscopeContainer({ children }: { children: React.ReactNode }) {
   const { appStage } = useSnapshot(appState);
 
-  if (appStage.stage !== "kalaidoscope_open") throw "wtf";
+  if (appStage.stage !== "kalaidoscope_open") {
+    throw new Error(
+      `KalaidoscopeContainer mounted in stage "${appStage.stage}" — expected "kalaidoscope_open".`,
+    );
+  }
 
   // Set by switchLocalKalaidoscope before the stage flips to
   // `kalaidoscope_open`, so it's always present here.

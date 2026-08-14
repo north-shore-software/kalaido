@@ -7,9 +7,9 @@ use tauri::RunEvent;
 
 use crate::files::{classify_path, read_file_bytes};
 use crate::kalaidoscope::{
-    KalaidoscopeState, create_local_kalaidoscope, get_local_kalaidoscope_auth_token,
-    get_local_kalaidoscope_status, start_local_kalaidoscope, stop_all_kalaidoscopes_on_exit,
-    stop_local_kalaidoscope,
+    KalaidoscopeState, create_local_kalaidoscope, delete_local_kalaidoscope,
+    get_local_kalaidoscope_auth_token, get_local_kalaidoscope_status, start_local_kalaidoscope,
+    stop_all_kalaidoscopes_on_exit, stop_local_kalaidoscope,
 };
 use crate::menu::{build_menu, handle_menu_event};
 
@@ -28,6 +28,7 @@ pub fn run() {
             get_local_kalaidoscope_auth_token,
             get_local_kalaidoscope_status,
             stop_local_kalaidoscope,
+            delete_local_kalaidoscope,
             read_file_bytes,
             classify_path,
         ])
