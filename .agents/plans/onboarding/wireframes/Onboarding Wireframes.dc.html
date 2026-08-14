@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics=""><meta name="design_doc_mode" content="canvas"><link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet"><style>body{margin:0;background:#f0eee9;font-family:'Architects Daughter',system-ui,sans-serif}a{color:#2a78d6}a:hover{color:#1b5ba8}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px 'JetBrains Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;min-width:max-content;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px 'JetBrains Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style></helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Remaining screens + states, in <a class="dv-oid" href="#1b">1b</a>'s vocabulary (hard offset shadow on the primary block, dashed outline for secondary, mono for infrastructure)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Workspace Setup — name, icon, storage mode</div>
+<div class="dv-card" style="width:1280px">
+<div style="width:1280px;height:800px;background:#fbfaf7;box-sizing:border-box;padding:34px 140px 60px;display:flex;flex-direction:column;gap:30px">
+<div style="display:flex;align-items:center;gap:10px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730"><span style="border:2px solid #2a2a2a;padding:7px 14px">← BACK</span><span style="color:#b9b5ab">TO LANDING</span></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#b9b5ab">NEW WORKSPACE</div>
+<div style="font-size:34px;color:#1a1a1a">Set up your workspace</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:26px;max-width:760px">
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#6f6a5e">WORKSPACE NAME</div>
+<div style="border:2px solid #2a2a2a;background:#fff;padding:15px 16px;font-size:17px;color:#b9b5ab">e.g. My Research Workspace</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#6f6a5e">STORAGE</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div style="border:2px solid #2a2a2a;background:#fff;padding:18px;display:flex;gap:14px;align-items:flex-start">
+<div style="width:18px;height:18px;border:2px solid #2a2a2a;border-radius:50%;flex:none;margin-top:3px;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;background:#2a2a2a;border-radius:50%"></div></div>
+<div style="display:flex;flex-direction:column;gap:7px"><div style="font-size:18px;color:#1a1a1a">Local storage</div><div style="font-size:14px;color:#8a8579">Stored on this device only.</div></div>
+</div>
+<div style="border:2px solid #b5b1a6;padding:18px;display:flex;gap:14px;align-items:flex-start">
+<div style="width:18px;height:18px;border:2px solid #b5b1a6;border-radius:50%;flex:none;margin-top:3px"></div>
+<div style="display:flex;flex-direction:column;gap:7px"><div style="font-size:18px;color:#3a3730">Cloud storage</div><div style="font-size:14px;color:#8a8579">Synced to Kalaido Cloud.</div></div>
+</div>
+</div>
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#b9b5ab">↳ PICKING CLOUD WHILE SIGNED OUT OPENS THE INLINE GATE (<a class="dv-oid" href="#2b" style="text-decoration:none">2b</a>)</div>
+</div>
+</div>
+<div style="border:2px solid #2a2a2a;background:#2a2a2a;color:#fff;padding:15px 30px;align-self:flex-start;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);box-shadow:6px 6px 0 #d8d5cd">CREATE WORKSPACE</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2b">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Inline sign-in gate — form values above stay put</div>
+<div class="dv-card" style="width:1280px">
+<div style="width:1280px;height:800px;background:#fbfaf7;box-sizing:border-box;padding:34px 140px 60px;display:flex;flex-direction:column;gap:26px">
+<div style="display:flex;align-items:center;gap:10px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730"><span style="border:2px solid #2a2a2a;padding:7px 14px">← BACK</span><span style="color:#b9b5ab">TO LANDING</span></div>
+<div style="font-size:30px;color:#1a1a1a">Set up your workspace</div>
+<div style="display:flex;flex-direction:column;gap:14px;max-width:760px;opacity:.5">
+<div style="display:flex;gap:12px;align-items:center">
+<div style="flex:1;border:2px solid #2a2a2a;background:#fff;padding:13px 16px;font-size:16px;color:#1a1a1a">Research Workspace</div>
+<div style="width:42px;height:42px;border:2px solid #2a2a2a;background:#2a2a2a;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)"></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="border:2px solid #b5b1a6;padding:12px 16px;font-size:15px;color:#8a8579">Local storage</div>
+<div style="border:2px solid #2a2a2a;padding:12px 16px;font-size:15px;color:#1a1a1a">Cloud storage ●</div>
+</div>
+</div>
+
+<div style="border:2px solid #2a2a2a;background:#fff;padding:30px 32px;max-width:760px;display:flex;flex-direction:column;gap:20px;box-shadow:6px 6px 0 #2a2a2a">
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#b9b5ab">SIGN IN REQUIRED</div>
+<div style="font-size:23px;color:#1a1a1a">Sign in to store this workspace in the cloud</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="border:2px solid #b5b1a6;padding:13px 16px;font-size:16px;color:#b9b5ab">Email</div>
+<div style="border:2px solid #b5b1a6;padding:13px 16px;font-size:16px;color:#b9b5ab">Password</div>
+</div>
+<div style="display:flex;align-items:center;gap:16px">
+<div style="border:2px solid #2a2a2a;background:#2a2a2a;color:#fff;padding:13px 26px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)">SIGN IN &amp; CREATE</div>
+<div style="font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#8a8579;border-bottom:2px solid #b5b1a6;padding-bottom:2px">CANCEL — BACK TO SETUP</div>
+</div>
+<div style="display:flex;align-items:center;gap:12px"><div style="flex:1;height:1px;background:#ddd9cf"></div><div style="font:600 10px 'JetBrains Mono',monospace;color:#b9b5ab">OR</div><div style="flex:1;height:1px;background:#ddd9cf"></div></div>
+<div style="display:flex;gap:12px">
+<div style="flex:1;border:2px dashed #b5b1a6;padding:12px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6f6a5e">GOOGLE</div>
+<div style="flex:1;border:2px dashed #b5b1a6;padding:12px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6f6a5e">GITHUB</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2c">
+<div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Dedicated login screen — inline credential error, text preserved</div>
+<div class="dv-card" style="width:1280px">
+<div style="width:1280px;height:800px;background:#fbfaf7;box-sizing:border-box;padding:34px 0 0;display:flex;flex-direction:column">
+<div style="padding:0 40px;display:flex;align-items:center;gap:10px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730"><span style="border:2px solid #2a2a2a;padding:7px 14px">← BACK</span><span style="color:#b9b5ab">TO LANDING</span></div>
+<div style="flex:1;display:flex;align-items:center;justify-content:center">
+<div style="width:480px;border:2px solid #2a2a2a;background:#fff;padding:34px 34px;display:flex;flex-direction:column;gap:20px;box-shadow:6px 6px 0 #2a2a2a">
+<div style="font-size:25px;color:#1a1a1a">Sign in to Kalaido Cloud</div>
+<div style="display:flex;gap:0;border:2px solid #2a2a2a">
+<div style="flex:1;background:#2a2a2a;color:#fff;padding:11px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em">SIGN IN</div>
+<div style="flex:1;padding:11px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#6f6a5e">SIGN UP</div>
+</div>
+<div style="border:2px solid #d8543c;background:#fdf0ec;padding:11px 14px;font-size:14px;color:#8e3a28">Invalid email or password</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="border:2px solid #b5b1a6;padding:13px 16px;font-size:16px;color:#1a1a1a">you@studio.com</div>
+<div style="border:2px solid #d8543c;padding:13px 16px;font-size:16px;color:#1a1a1a">••••••••••</div>
+</div>
+<div style="border:2px solid #2a2a2a;background:#2a2a2a;color:#fff;padding:14px;text-align:center;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)">SIGN IN</div>
+<div style="display:flex;align-items:center;gap:12px"><div style="flex:1;height:1px;background:#ddd9cf"></div><div style="font:600 10px 'JetBrains Mono',monospace;color:#b9b5ab">OR</div><div style="flex:1;height:1px;background:#ddd9cf"></div></div>
+<div style="display:flex;gap:12px">
+<div style="flex:1;border:2px dashed #b5b1a6;padding:12px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6f6a5e">GOOGLE</div>
+<div style="flex:1;border:2px dashed #b5b1a6;padding:12px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6f6a5e">GITHUB</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2d">
+<div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Cloud workspaces list — loading skeleton</div>
+<div class="dv-card" style="width:1280px">
+<div style="width:1280px;height:800px;background:#fbfaf7;box-sizing:border-box;padding:34px 100px 60px;display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;align-items:center;gap:10px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730"><span style="border:2px solid #2a2a2a;padding:7px 14px">← BACK</span><span style="color:#b9b5ab">TO LANDING</span></div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#b9b5ab">LOADING · LISTCLOUDKALAIDOSCOPES()</div>
+<div style="font-size:32px;color:#1a1a1a">Your cloud workspaces</div>
+<div style="font-size:16px;color:#8a8579">Select a workspace to open, or create a new one.</div>
+</div>
+<div style="border:2px solid #2a2a2a;padding:13px 22px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)">+ CREATE NEW WORKSPACE</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+<div style="border:2px dashed #ddd9cf;background:#f5f3ec;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px"><div style="width:40px;height:40px;background:#e6e3db"></div><div style="height:11px;width:70%;background:#e6e3db"></div><div style="height:8px;width:45%;background:#eceae2"></div></div>
+<div style="border:2px dashed #ddd9cf;background:#f5f3ec;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px"><div style="width:40px;height:40px;background:#e6e3db"></div><div style="height:11px;width:55%;background:#e6e3db"></div><div style="height:8px;width:40%;background:#eceae2"></div></div>
+<div style="border:2px dashed #ddd9cf;background:#f5f3ec;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px"><div style="width:40px;height:40px;background:#e6e3db"></div><div style="height:11px;width:64%;background:#e6e3db"></div><div style="height:8px;width:38%;background:#eceae2"></div></div>
+<div style="border:2px dashed #ddd9cf;background:#f5f3ec;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;opacity:.6"><div style="width:40px;height:40px;background:#e6e3db"></div><div style="height:11px;width:60%;background:#e6e3db"></div><div style="height:8px;width:42%;background:#eceae2"></div></div>
+<div style="border:2px dashed #ddd9cf;background:#f5f3ec;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;opacity:.35"><div style="width:40px;height:40px;background:#e6e3db"></div><div style="height:11px;width:52%;background:#e6e3db"></div><div style="height:8px;width:36%;background:#eceae2"></div></div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2e">
+<div class="dv-olabel"><a class="dv-oid" href="#2e">2e</a>Cloud workspaces list — loaded, with offline error banner</div>
+<div class="dv-card" style="width:1280px">
+<div style="width:1280px;height:800px;background:#fbfaf7;box-sizing:border-box;padding:34px 100px 60px;display:flex;flex-direction:column;gap:24px">
+<div style="display:flex;align-items:center;gap:10px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730"><span style="border:2px solid #2a2a2a;padding:7px 14px">← BACK</span><span style="color:#b9b5ab">TO LANDING</span></div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#b9b5ab">4 WORKSPACES · SIGNED IN</div>
+<div style="font-size:32px;color:#1a1a1a">Your cloud workspaces</div>
+</div>
+<div style="border:2px solid #2a2a2a;padding:13px 22px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)">+ CREATE NEW WORKSPACE</div>
+</div>
+<div style="display:flex;align-items:center;gap:14px;border:2px solid #d8543c;background:#fdf0ec;padding:12px 16px">
+<div style="width:20px;height:20px;border:2px solid #d8543c;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:#d8543c">!</div>
+<div style="flex:1;font-size:15px;color:#8e3a28">Unable to connect. Please check your internet connection and try again.</div>
+<div style="font:600 11px 'JetBrains Mono',monospace;color:#b06552">RETRY</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+<div style="border:2px solid #2a2a2a;background:#fff;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px"><div style="width:40px;height:40px;border:2px solid #2a2a2a;background:#2a2a2a;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%)"></div><div style="font-size:19px;color:#1a1a1a">Research</div><div style="margin-top:auto;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#b9b5ab">MODIFIED 2H AGO</div></div>
+<div style="border:2px solid #2a2a2a;background:#fff;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;box-shadow:5px 5px 0 #e6e3db"><div style="width:40px;height:40px;border:2px solid #2a2a2a;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%)"></div><div style="font-size:19px;color:#1a1a1a">Journal</div><div style="margin-top:auto;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#b9b5ab">MODIFIED YESTERDAY · HOVER</div></div>
+<div style="border:2px solid #2a2a2a;background:#fff;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px"><div style="width:40px;height:40px;border:2px solid #2a2a2a;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%)"></div><div style="font-size:19px;color:#1a1a1a">Client work</div><div style="margin-top:auto;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#b9b5ab">MODIFIED 3 DAYS AGO</div></div>
+<div style="border:2px solid #2a2a2a;background:#fff;padding:22px;height:150px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px"><div style="width:40px;height:40px;border:2px solid #2a2a2a;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%)"></div><div style="font-size:19px;color:#1a1a1a">Archive 2025</div><div style="margin-top:auto;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#b9b5ab">MODIFIED APR 2</div></div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2f">
+<div class="dv-olabel"><a class="dv-oid" href="#2f">2f</a>Local storage needs a model — same inline gate slot as <a class="dv-oid" href="#2b">2b</a></div>
+<div class="dv-card" style="width:1280px">
+<div style="width:1280px;height:800px;background:#fbfaf7;box-sizing:border-box;padding:34px 140px 60px;display:flex;flex-direction:column;gap:26px">
+<div style="display:flex;align-items:center;gap:10px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#3a3730"><span style="border:2px solid #2a2a2a;padding:7px 14px">← BACK</span><span style="color:#b9b5ab">TO LANDING</span></div>
+<div style="font-size:30px;color:#1a1a1a">Set up your workspace</div>
+<div style="display:flex;flex-direction:column;gap:14px;max-width:760px;opacity:.5">
+<div style="display:flex;gap:12px;align-items:center">
+<div style="flex:1;border:2px solid #2a2a2a;background:#fff;padding:13px 16px;font-size:16px;color:#1a1a1a">Research Workspace</div>
+<div style="width:42px;height:42px;border:2px solid #2a2a2a;background:#2a2a2a;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)"></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="border:2px solid #2a2a2a;padding:12px 16px;font-size:15px;color:#1a1a1a">Local storage ●</div>
+<div style="border:2px solid #b5b1a6;padding:12px 16px;font-size:15px;color:#8a8579">Cloud storage</div>
+</div>
+</div>
+<div style="border:2px solid #2a2a2a;background:#fff;padding:30px 32px;max-width:760px;display:flex;flex-direction:column;gap:20px;box-shadow:6px 6px 0 #2a2a2a">
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#b9b5ab">MODEL REQUIRED</div>
+<div style="font-size:23px;color:#1a1a1a">Connect a model to run this workspace locally</div>
+<div style="font-size:15px;color:#8a8579">Nothing leaves this device unless you paste a hosted key.</div>
+</div>
+<div style="display:flex;gap:0;border:2px solid #2a2a2a">
+<div style="flex:1;background:#2a2a2a;color:#fff;padding:11px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em">LOCAL OLLAMA</div>
+<div style="flex:1;padding:11px;text-align:center;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#6f6a5e">API KEY</div>
+</div>
+<div style="border:2px dashed #b5b1a6;padding:18px;display:flex;align-items:center;gap:16px">
+<div style="width:12px;height:12px;background:#d8543c;flex:none"></div>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px">
+<div style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#3a3730">NOT DETECTED · LOCALHOST:11434</div>
+<div style="font-size:14px;color:#8a8579">Start Ollama, or paste an API key instead.</div>
+</div>
+<div style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#3a3730;border:2px solid #2a2a2a;padding:9px 14px">RECHECK</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#6f6a5e">MODEL</div>
+<div style="border:2px solid #b5b1a6;padding:13px 16px;font-size:16px;color:#b9b5ab;display:flex;justify-content:space-between"><span>Select a pulled model</span><span style="font:600 11px 'JetBrains Mono',monospace">▾</span></div>
+</div>
+<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+<div style="border:2px solid #b5b1a6;background:#e6e3db;color:#8a8579;padding:13px 26px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)">CONNECT &amp; CREATE</div>
+<div style="font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#8a8579;border-bottom:2px solid #b5b1a6;padding-bottom:2px">CANCEL — BACK TO SETUP</div>
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#b9b5ab">↳ DISABLED UNTIL A MODEL RESOLVES</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+
+<p class="dv-next">Try next: "wireframe the duplicate-workspace modal and the settings kebab menu" · "show <a class="dv-oid" href="#2a">2a</a> reached from the cloud list (back goes to the list, not landing)" · "tighten <a class="dv-oid" href="#2b">2b</a> so the gate replaces the form instead of sitting under it"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Landing screen — four layout directions (1280×800, bare content area)</span></div>
+<div class="dv-opts">
+
+
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>One dominant primary + two quiet secondaries</div>
+<div class="dv-card" style="width:1280px">
+<div style="width:1280px;height:800px;background:#fbfaf7;box-sizing:border-box;padding:70px 140px;display:flex;flex-direction:column;justify-content:center;gap:36px;position:relative">
+<div style="position:absolute;top:22px;left:24px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#b9b5ab">NO ACTIVE WORKSPACE</div>
+
+<div style="display:flex;align-items:flex-end;justify-content:space-between">
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="width:130px;height:30px;border:2px solid #2a2a2a;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);display:flex;align-items:center;justify-content:center;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#2a2a2a">KALAIDO</div>
+<div style="font-size:38px;color:#1a1a1a">Get started with Kalaido</div>
+</div>
+<div style="font-size:16px;color:#8a8579;max-width:300px;text-align:right">Choose how you'd like to set up your workspace.</div>
+</div>
+
+<div style="border:2px solid #2a2a2a;background:#fff;padding:34px 34px;display:flex;align-items:center;gap:28px;box-shadow:6px 6px 0 #2a2a2a">
+<div style="width:52px;height:52px;border:2px solid #2a2a2a;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;color:#4a4638">+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:26px;color:#1a1a1a">Create New Workspace</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:520px">
+<div style="height:8px;background:#e2dfd6"></div><div style="height:8px;width:70%;background:#e2dfd6"></div>
+</div>
+</div>
+<div style="border:2px solid #2a2a2a;background:#2a2a2a;color:#fff;padding:13px 24px;font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)">START →</div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+<div style="border:2px dashed #b5b1a6;background:transparent;padding:22px 24px;display:flex;align-items:center;gap:18px">
+<div style="width:32px;height:32px;border:2px solid #8a8579;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8a8579">☁</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:9px">
+<div style="font-size:18px;color:#3a3730">Log in to Cloud</div>
+<div style="height:7px;width:80%;background:#e2dfd6"></div>
+</div>
+<div style="font:600 11px 'JetBrains Mono',monospace;color:#8a8579">→</div>
+</div>
+<div style="border:2px dashed #b5b1a6;background:transparent;padding:22px 24px;display:flex;align-items:center;gap:18px">
+<div style="width:32px;height:32px;border:2px solid #8a8579;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:#8a8579">▥</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:9px">
+<div style="font-size:18px;color:#3a3730">Restore Workspace</div>
+<div style="height:7px;width:88%;background:#e2dfd6"></div>
+</div>
+<div style="font:600 11px 'JetBrains Mono',monospace;color:#8a8579">→</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+
+
+
+
+</div>
+<p class="dv-next">Try next: "take <a class="dv-oid" href="#1c">1c</a> forward into Workspace Setup + the inline auth gate" · "merge <a class="dv-oid" href="#1a">1a</a>'s cards into <a class="dv-oid" href="#1d">1d</a>'s split layout" · "show the login error and cloud-list loading states"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>
