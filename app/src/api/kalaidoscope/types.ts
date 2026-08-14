@@ -131,6 +131,7 @@ export type ColourRecord = {
 	created: IsoAutoDateString
 	criteria?: string
 	id: string
+	last_provider_error_kind?: string
 	name: string
 	updated: IsoAutoDateString
 }
@@ -182,10 +183,14 @@ export type IngestRecord = {
 	updated: IsoAutoDateString
 }
 
-export type KalaidoscopeConfigRecord = {
+export type KalaidoscopeConfigRecord<Trole_models = unknown> = {
+	api_key?: string
 	created: IsoAutoDateString
+	default_model?: string
 	id: string
 	model_set?: string
+	provider?: string
+	role_models?: null | Trole_models
 	updated: IsoAutoDateString
 }
 
@@ -324,7 +329,7 @@ export type ColourResponse<Texpand = unknown> = Required<ColourRecord> & BaseSys
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
-export type KalaidoscopeConfigResponse<Texpand = unknown> = Required<KalaidoscopeConfigRecord> & BaseSystemFields<Texpand>
+export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
