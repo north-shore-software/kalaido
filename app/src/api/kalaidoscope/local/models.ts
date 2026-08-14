@@ -23,7 +23,6 @@ export interface PullProgress {
   done?: boolean;
 }
 
-export const RECOMMENDED_MODEL = "gemma4";
 
 export async function getLocalAiStatus(): Promise<
   Result<LocalAiStatus, Error>

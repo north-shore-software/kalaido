@@ -1,5 +1,6 @@
 mod files;
 mod kalaidoscope;
+mod llm;
 mod menu;
 mod sidecar;
 
@@ -11,6 +12,7 @@ use crate::kalaidoscope::{
     get_local_kalaidoscope_auth_token, get_local_kalaidoscope_status, start_local_kalaidoscope,
     stop_all_kalaidoscopes_on_exit, stop_local_kalaidoscope,
 };
+use crate::llm::{check_ollama_status, validate_llm_key};
 use crate::menu::{build_menu, handle_menu_event};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -31,6 +33,8 @@ pub fn run() {
             delete_local_kalaidoscope,
             read_file_bytes,
             classify_path,
+            check_ollama_status,
+            validate_llm_key,
         ])
         .menu(build_menu)
         .on_menu_event(handle_menu_event)

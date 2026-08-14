@@ -8,8 +8,13 @@ import { OAuthButtons } from "@/features/settings/components/oauth-buttons";
 const MODE_LABELS = ["Sign in", "Sign up"] as const;
 type ModeLabel = (typeof MODE_LABELS)[number];
 
+export interface AuthOutcome {
+  /** True when this was a registration rather than a returning sign-in. */
+  isNewAccount: boolean;
+}
+
 interface CloudAuthPanelProps {
-  onAuthenticated?: () => void;
+  onAuthenticated?: (outcome: AuthOutcome) => void;
 }
 
 export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
@@ -47,7 +52,7 @@ export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
       return;
     }
 
-    onAuthenticated?.();
+    onAuthenticated?.({ isNewAccount: mode === "signup" });
   }
 
   async function handleOAuth(provider: "google" | "github") {

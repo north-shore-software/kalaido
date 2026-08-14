@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/layout/section";
 import { authClient } from "@/api/cloud/auth";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
+import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 
 import { AccountCard } from "./account-card";
 import { AuthForm } from "./auth-form";
@@ -73,7 +74,7 @@ export function CloudAccountSection() {
         <AccountCard
           name={session.user.name ?? ""}
           email={session.user.email}
-          onSignOut={() => void authClient.signOut()}
+          onSignOut={() => void signOutOfCloud()}
         />
       </div>
     );

@@ -6,8 +6,8 @@ import {
   type LocalAiStatus,
   modelMatches,
   pullModel,
-  RECOMMENDED_MODEL,
 } from "@/api/kalaidoscope/local/models";
+import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/llm-config";
 import { useOllamaModel } from "@/hooks/use-ollama-model";
 
 import { OllamaStatusCard } from "./ollama-status-card";
@@ -48,7 +48,7 @@ export function LocalAISection() {
   }, [refresh]);
 
   const models = status?.models ?? [];
-  const gemma3Installed = models.some((m) =>
+  const recommendedInstalled = models.some((m) =>
     modelMatches(m.name, RECOMMENDED_MODEL),
   );
   const usingRecommended = modelMatches(model, RECOMMENDED_MODEL);
@@ -108,7 +108,7 @@ export function LocalAISection() {
 
           {status?.reachable && (
             <>
-              {!gemma3Installed && (
+              {!recommendedInstalled && (
                 <ModelDownloadCard
                   modelName={RECOMMENDED_MODEL}
                   pulling={pulling}
@@ -135,7 +135,7 @@ export function LocalAISection() {
                   {!usingRecommended && <QualityWarning />}
                 </div>
               ) : (
-                !gemma3Installed && (
+                !recommendedInstalled && (
                   <p className="text-sm text-muted-foreground">
                     No models installed yet. Download {RECOMMENDED_MODEL} to get
                     started.

@@ -14,6 +14,7 @@ import {
   LLM_ROLE_LABELS,
   LLM_ROLES,
 } from "@/api/kalaidoscope/llm-config";
+import { OllamaSetupStatus } from "./ollama-setup-status";
 
 const PROVIDER_LABELS = ["Local Ollama", "Google Gemini"] as const;
 type ProviderLabel = (typeof PROVIDER_LABELS)[number];
@@ -61,10 +62,13 @@ export function ProviderFields({
       />
 
       {provider === "ollama" ? (
-        <p className="text-xs text-muted-foreground">
-          Runs models on this device through Ollama. Nothing is sent to a hosted
-          provider.
-        </p>
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground">
+            Runs models on this device through Ollama. Nothing is sent to a
+            hosted provider.
+          </p>
+          <OllamaSetupStatus />
+        </div>
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-xs text-muted-foreground">

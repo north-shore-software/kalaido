@@ -2,7 +2,7 @@ import { useId } from "react";
 import { cn } from "@/lib/css-utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Pill, surfaceCardClass } from "@/components/kalaido";
-import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/local/models";
+import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/llm-config";
 
 function formatModelSize(bytes: number): string {
   if (!bytes) return "";

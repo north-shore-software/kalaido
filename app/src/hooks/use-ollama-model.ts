@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSetting, setSetting } from "@/api/app/settings.ts";
-import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/local/models";
+import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/llm-config";
 
 /**
  * App-wide selected Ollama model, persisted in `kalaido-settings.json`. Defaults

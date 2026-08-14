@@ -3,14 +3,29 @@ import { useCallback, useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { setSetting } from "@/api/app/settings.ts";
 import { listCloudKalaidoscopes } from "@/api/cloud/user.ts";
+import { Mark } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { upsertAvailableKalaidoscopes } from "@/hooks/app-state-actions.ts";
 import { appState } from "@/hooks/use-app-state.ts";
+import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { cloudWorkspacesTransitions as transitions } from "./CloudWorkspaces.transitions";
+
+const CREATE_CLOUD_WORKSPACE: KalaidoscopeSetupState = {
+  defaultStorage: "cloud",
+};
 
 export default function CloudWorkspaces() {
   const { go } = useAppNavigate();
@@ -53,6 +68,11 @@ export default function CloudWorkspaces() {
   const workspaces = availableKalaidoscopes.filter((k) => k.type === "cloud");
   const banner = openError ?? listError;
 
+  // Only a confirmed-empty account gets the hero. A failed list is also
+  // zero-length, and dressing that up as "create your first" would tell an
+  // offline user their workspaces don't exist.
+  const isEmpty = !loading && !listError && workspaces.length === 0;
+
   return (
     <div
       className="flex flex-col overflow-auto bg-background"
@@ -78,15 +98,21 @@ export default function CloudWorkspaces() {
               Select a workspace to open, or create a new one.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="shrink-0 gap-1.5"
-            onClick={() => go(transitions.createWorkspace)}
-          >
-            <PlusIcon />
-            Create New Workspace
-          </Button>
+          {!isEmpty && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              onClick={() =>
+                go(transitions.createWorkspace, {
+                  state: CREATE_CLOUD_WORKSPACE,
+                })
+              }
+            >
+              <PlusIcon />
+              Create New Workspace
+            </Button>
+          )}
         </header>
 
         {banner && (
@@ -112,11 +138,42 @@ export default function CloudWorkspaces() {
               <Skeleton key={i} className="h-28 w-full rounded-lg" />
             ))}
           </div>
+        ) : isEmpty ? (
+          <Empty className="rounded-lg border">
+            <EmptyHeader>
+              <EmptyMedia>
+                <Mark className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No cloud workspaces yet</EmptyTitle>
+              <EmptyDescription>
+                Create one to sync your work across every device you sign in on.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                size="lg"
+                className="gap-1.5"
+                onClick={() =>
+                  go(transitions.createWorkspace, {
+                    state: CREATE_CLOUD_WORKSPACE,
+                  })
+                }
+              >
+                <PlusIcon />
+                Create New Workspace
+              </Button>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => void signOutOfCloud()}
+              >
+                Not you? Sign out
+              </button>
+            </EmptyContent>
+          </Empty>
         ) : workspaces.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {listError
-              ? "Your cloud workspaces couldn't be loaded."
-              : "You don't have any cloud workspaces yet."}
+            Your cloud workspaces couldn&apos;t be loaded.
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

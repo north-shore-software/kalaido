@@ -21,6 +21,14 @@ export const LLM_ROLE_LABELS: Record<LlmRole, string> = {
   snapshot: "Projections & reflections",
 };
 
+/**
+ * The local model Kalaido is tuned for. The backend seeds the same name for
+ * every role of the local model set and preloads it at boot
+ * (`kalaidoscope/llm/registry.go`, `internal/ollama/ollama.go`), so a workspace
+ * that records anything else is choosing to differ from the default.
+ */
+export const RECOMMENDED_MODEL = "gemma4";
+
 export const GEMINI_SUGGESTED_MODELS = [
   "gemini-3.6-flash",
   "gemini-3.5-flash",

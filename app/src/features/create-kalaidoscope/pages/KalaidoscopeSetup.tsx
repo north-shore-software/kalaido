@@ -1,5 +1,6 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { proxy, useSnapshot } from "valtio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,21 +12,26 @@ import {
   validateWorkspaceLlmConfig,
   validationMessage,
 } from "@/api/app/llm-validate.ts";
-import type {
-  LlmProvider,
-  LlmRole,
-  WorkspaceLlmConfig,
+import {
+  LLM_ROLES,
+  RECOMMENDED_MODEL,
+  type LlmProvider,
+  type LlmRole,
+  type WorkspaceLlmConfig,
 } from "@/api/kalaidoscope/llm-config.ts";
 import { CloudAuthPanel } from "@/features/onboarding/components/cloud-auth-panel";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
+import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { ProviderFields } from "../components/provider-fields";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { CloudIdentityPanel } from "../components/cloud-identity-panel";
 import { IconPicker } from "../components/icon-picker.tsx";
 import {
   StorageOptionCards,
   type StorageType,
 } from "../components/storage-option-cards";
+import type { KalaidoscopeSetupState } from "../types";
 import { kalaidoscopeSetupTransitions } from "./KalaidoscopeSetup.transitions";
 
 function deriveCloudId(name: string): string {
@@ -38,11 +44,17 @@ function deriveCloudId(name: string): string {
 export default function KalaidoscopeSetup() {
   const { goBack } = useAppNavigate();
 
+  const routeState = (useLocation().state ?? {}) as KalaidoscopeSetupState;
+  const { user, signedIn } = useCloudSession();
+
   const [state] = useState(() =>
     proxy({
       name: "",
       icon: undefined as string | undefined,
-      storage: "local_file" as StorageType,
+      storage: (routeState.defaultStorage ??
+        (signedIn ? "cloud" : "local_file")) as StorageType,
+      /** Once the user picks a card themselves, a late session must not move it. */
+      storageTouched: routeState.defaultStorage !== undefined,
       locationInput: "",
       cloudId: "",
       cloudIdEdited: false,
@@ -61,7 +73,18 @@ export default function KalaidoscopeSetup() {
   const nameFieldId = useId();
   const storageLabelId = useId();
 
-  const { signedIn } = useCloudSession();
+  // `useCloudSession` resolves asynchronously, and the proxy above is built
+  // once, so a session that lands after first paint would otherwise leave a
+  // signed-in user looking at "Local". Only applies while the storage cards are
+  // still untouched — never fights a deliberate choice.
+  useEffect(() => {
+    if (signedIn && !state.storageTouched) state.storage = "cloud";
+  }, [signedIn, state]);
+
+  function handleStorageChange(value: StorageType) {
+    state.storage = value;
+    state.storageTouched = true;
+  }
 
   function handleNameChange(value: string) {
     state.name = value;
@@ -82,10 +105,30 @@ export default function KalaidoscopeSetup() {
     (snap.storage === "local_file" || !!snap.cloudId.trim()) &&
     (!byokSelected || (!!snap.apiKey.trim() && !!snap.defaultModel.trim()));
 
+  /**
+   * The provider config to write into the new workspace.
+   *
+   * Cloud workspaces get none: their AI is provided and not configurable.
+   * Ollama records itself explicitly rather than being left blank — an unwritten
+   * provider is indistinguishable from a workspace that predates provider
+   * config, and leaves the choice as a label rather than saved state. The model
+   * is not optional: the backend rejects a configured provider with no model,
+   * so every role is pinned to the recommended one, which is exactly what the
+   * local model set already resolves to.
+   */
   function llmConfig(): WorkspaceLlmConfig | undefined {
-    if (state.storage !== "local_file" || state.llmProvider !== "gemini") {
-      return undefined;
+    if (state.storage !== "local_file") return undefined;
+
+    if (state.llmProvider === "ollama") {
+      return {
+        provider: "ollama",
+        defaultModel: RECOMMENDED_MODEL,
+        roleModels: Object.fromEntries(
+          LLM_ROLES.map((role) => [role, RECOMMENDED_MODEL]),
+        ),
+      };
     }
+
     return {
       provider: "gemini",
       apiKey: state.apiKey.trim(),
@@ -192,6 +235,17 @@ export default function KalaidoscopeSetup() {
             onSubmit={handleSubmit}
             className="w-full max-w-md flex flex-col gap-8 mt-12"
           >
+            {routeState.firstWorkspace && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  New workspace
+                </span>
+                <h1 className="text-lg font-semibold tracking-tight">
+                  Welcome — create your first kalaidoscope
+                </h1>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
               <label
                 htmlFor={nameFieldId}
@@ -224,9 +278,17 @@ export default function KalaidoscopeSetup() {
               </span>
               <StorageOptionCards
                 value={snap.storage}
-                onChange={(v) => (state.storage = v)}
+                onChange={handleStorageChange}
                 aria-labelledby={storageLabelId}
               />
+
+              {snap.storage === "cloud" && signedIn && user && (
+                <CloudIdentityPanel
+                  name={user.name ?? undefined}
+                  email={user.email}
+                  onSignOut={() => void signOutOfCloud()}
+                />
+              )}
             </div>
 
             {snap.storage === "local_file" && (

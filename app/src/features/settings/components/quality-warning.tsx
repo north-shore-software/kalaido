@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/local/models";
+import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/llm-config";
 
 export function QualityWarning() {
   return (
