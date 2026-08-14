@@ -1,8 +1,6 @@
 import { ArrowLeftIcon, PlusIcon, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
-import { setSetting } from "@/api/app/settings.ts";
-import { listCloudKalaidoscopes } from "@/api/cloud/user.ts";
 import { Mark } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +13,9 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
-import { upsertAvailableKalaidoscopes } from "@/hooks/app-state-actions.ts";
 import { appState } from "@/hooks/use-app-state.ts";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
+import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -39,17 +37,9 @@ export default function CloudWorkspaces() {
     setLoading(true);
     setListError(null);
 
-    const result = await listCloudKalaidoscopes();
-    if (result.isErr()) {
-      setListError(result.error.message);
-      setLoading(false);
-      return;
-    }
+    const result = await syncCloudWorkspaces();
+    if (result.isErr()) setListError(result.error.message);
 
-    upsertAvailableKalaidoscopes(result.value);
-    await setSetting("availableKalaidoscopes", [
-      ...appState.availableKalaidoscopes,
-    ]);
     setLoading(false);
   }, []);
 

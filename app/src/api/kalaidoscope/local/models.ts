@@ -23,7 +23,6 @@ export interface PullProgress {
   done?: boolean;
 }
 
-
 export async function getLocalAiStatus(): Promise<
   Result<LocalAiStatus, Error>
 > {

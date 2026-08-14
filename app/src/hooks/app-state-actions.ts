@@ -22,15 +22,6 @@ export function setAvailableKalaidoscopes(list: KalaidoscopeMeta[]) {
   appState.availableKalaidoscopes = list;
 }
 
-export function upsertAvailableKalaidoscopes(incoming: KalaidoscopeMeta[]) {
-  const byId = new Map(appState.availableKalaidoscopes.map((k) => [k.id, k]));
-  for (const meta of incoming) {
-    const existing = byId.get(meta.id);
-    byId.set(meta.id, existing ? { ...existing, ...meta } : meta);
-  }
-  appState.availableKalaidoscopes = [...byId.values()];
-}
-
 export function setAppStage(stage: AppStage) {
   appState.appStage = stage;
 }

@@ -298,9 +298,7 @@ export default function KalaidoscopeSetup() {
                     onSignOut={() => void signOutOfCloud()}
                   />
                 ) : (
-                  <CloudSignInNotice
-                    onSignIn={() => (state.gateOpen = true)}
-                  />
+                  <CloudSignInNotice onSignIn={() => (state.gateOpen = true)} />
                 ))}
             </div>
 

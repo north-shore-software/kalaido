@@ -7,38 +7,32 @@ export interface AuthFormProps {
   mode: "signin" | "signup";
   error?: string | null;
   busy?: boolean;
-  onSubmit: (input: { email: string; password: string; name?: string }) => void;
-  onToggleMode: () => void;
+  onSubmit: (input: { email: string; password: string }) => void;
 }
 
-export function AuthForm({
-  mode,
-  error,
-  busy,
-  onSubmit,
-  onToggleMode,
-}: AuthFormProps) {
+/**
+ * Email and password, and nothing else.
+ *
+ * Mode is chosen entirely by the caller's `<Segmented>` control — this form has
+ * no toggle of its own. Two controls for one piece of state is how a user ends
+ * up watching the top switch say "Sign in" while the button below says "Create
+ * account".
+ *
+ * There is no name field: an account needs an email to be addressable and a
+ * password to be secured, and nothing about a display name is load-bearing for
+ * either. Where a name would have been shown, the email is.
+ */
+export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ email, password, name: mode === "signup" ? name : undefined });
+    onSubmit({ email, password });
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 max-w-sm">
-      {mode === "signup" && (
-        <Input
-          type="text"
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          disabled={busy}
-        />
-      )}
       <Input
         type="email"
         placeholder="Email"
@@ -59,16 +53,6 @@ export function AuthForm({
       <Button type="submit" size="sm" disabled={busy}>
         {busy ? <Spinner /> : mode === "signin" ? "Sign in" : "Create account"}
       </Button>
-      <button
-        type="button"
-        className="text-xs text-muted-foreground hover:text-foreground text-center"
-        onClick={onToggleMode}
-        disabled={busy}
-      >
-        {mode === "signin"
-          ? "Don't have an account? Sign up"
-          : "Already have an account? Sign in"}
-      </button>
     </form>
   );
 }

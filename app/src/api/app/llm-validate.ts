@@ -55,7 +55,10 @@ export function validateKey(
  * so the model a failure is reported against is the same one either side.
  */
 function configuredModels(config: WorkspaceLlmConfig): string[] {
-  const models = [config.defaultModel, ...LLM_ROLES.map((r) => config.roleModels?.[r])]
+  const models = [
+    config.defaultModel,
+    ...LLM_ROLES.map((r) => config.roleModels?.[r]),
+  ]
     .map((m) => m?.trim())
     .filter((m): m is string => !!m);
 

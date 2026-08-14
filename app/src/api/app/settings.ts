@@ -56,6 +56,17 @@ export function setSetting<K extends keyof PersistentAppSetting>(
   );
 }
 
+export function deleteSetting(
+  key: keyof PersistentAppSetting,
+): Promise<Result<void, Error>> {
+  return tauriResult(
+    getStore().then(async (s) => {
+      await s.delete(key);
+      await s.save();
+    }),
+  );
+}
+
 export function resetAppSettings(): Promise<Result<void, Error>> {
   return tauriResult(
     getStore().then(async (s) => {

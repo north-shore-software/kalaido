@@ -80,15 +80,16 @@ fn classify_status(code: u16) -> ValidateErrorKind {
 /// not being installed.
 #[tauri::command]
 pub(crate) async fn check_ollama_status() -> Result<OllamaStatus, String> {
-    let client = match reqwest::Client::builder().timeout(OLLAMA_TIMEOUT).build() {
-        Ok(c) => c,
-        Err(e) => return Err(e.to_string()),
-    };
+    let client = reqwest::Client::builder()
+        .timeout(OLLAMA_TIMEOUT)
+        .build()
+        .map_err(|e| e.to_string())?;
 
-    let reachable = match client.get(format!("{OLLAMA_BASE}/api/tags")).send().await {
-        Ok(r) => r.status().is_success(),
-        Err(_) => false,
-    };
+    let reachable = client
+        .get(format!("{OLLAMA_BASE}/api/tags"))
+        .send()
+        .await
+        .is_ok_and(|r| r.status().is_success());
 
     Ok(OllamaStatus { reachable })
 }
@@ -207,16 +208,19 @@ struct GeminiErrorDetail {
 /// decides where it can, and status is the fallback.
 fn classify_gemini(status: u16, error: Option<&GeminiError>) -> ValidateErrorKind {
     if let Some(error) = error {
-        for detail in &error.details {
-            match detail.reason.as_deref() {
+        let credential_rejected = error.details.iter().any(|detail| {
+            matches!(
+                detail.reason.as_deref(),
                 Some(
                     "API_KEY_INVALID"
-                    | "API_KEY_SERVICE_BLOCKED"
-                    | "ACCOUNT_STATE_INVALID"
-                    | "SERVICE_DISABLED",
-                ) => return ValidateErrorKind::Auth,
-                _ => {}
-            }
+                        | "API_KEY_SERVICE_BLOCKED"
+                        | "ACCOUNT_STATE_INVALID"
+                        | "SERVICE_DISABLED"
+                )
+            )
+        });
+        if credential_rejected {
+            return ValidateErrorKind::Auth;
         }
 
         match error.status.as_deref() {
@@ -242,12 +246,7 @@ fn ok_result() -> ValidateResult {
     }
 }
 
-fn failure(
-    kind: ValidateErrorKind,
-    provider: &str,
-    model: &str,
-    detail: String,
-) -> ValidateResult {
+fn failure(kind: ValidateErrorKind, provider: &str, model: &str, detail: String) -> ValidateResult {
     ValidateResult {
         ok: false,
         kind: Some(kind),

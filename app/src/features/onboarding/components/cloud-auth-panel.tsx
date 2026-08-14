@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { openSystemBrowser } from "@/api/app/os-integrations.ts";
 import { authClient } from "@/api/cloud/auth";
 import { Segmented } from "@/components/kalaido";
 import { AuthForm } from "@/features/settings/components/auth-form";
 import { OAuthButtons } from "@/features/settings/components/oauth-buttons";
+import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
 
 const MODE_LABELS = ["Sign in", "Sign up"] as const;
 type ModeLabel = (typeof MODE_LABELS)[number];
@@ -17,16 +17,22 @@ interface CloudAuthPanelProps {
   onAuthenticated?: (outcome: AuthOutcome) => void;
 }
 
+/**
+ * The one place email/password auth is composed, shared by onboarding and
+ * Settings. Mode is owned by the `<Segmented>` control above the form, which is
+ * why {@link AuthForm} has no toggle of its own.
+ *
+ * What happens *after* a successful auth is the caller's to decide — this panel
+ * only restores the account's workspaces, which every caller wants, and then
+ * hands over. Onboarding routes a new account onward to workspace setup;
+ * Settings stays exactly where it is.
+ */
 export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleEmailAuth(input: {
-    email: string;
-    password: string;
-    name?: string;
-  }) {
+  async function handleEmailAuth(input: { email: string; password: string }) {
     setBusy(true);
     setError(null);
 
@@ -37,14 +43,14 @@ export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
             password: input.password,
           })
         : await authClient.signUp.email({
+            // Accounts are identified by email; there is no name to collect.
             email: input.email,
             password: input.password,
-            name: input.name ?? "",
+            name: "",
           });
 
-    setBusy(false);
-
     if (err) {
+      setBusy(false);
       setError(
         err.message ??
           (mode === "signin" ? "Sign in failed" : "Sign up failed"),
@@ -52,20 +58,14 @@ export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
       return;
     }
 
-    onAuthenticated?.({ isNewAccount: mode === "signup" });
-  }
+    // Whatever the caller does next, the account's workspaces have to be in
+    // app state for the switcher and the cloud list to be right. A brand-new
+    // account has none, and a failure here is not worth blocking auth over —
+    // the cloud list surfaces its own load errors.
+    await syncCloudWorkspaces();
 
-  async function handleOAuth(provider: "google" | "github") {
-    setError(null);
-    const { data, error: err } = await authClient.signIn.social({
-      provider,
-      callbackURL: "/",
-    });
-    if (err) {
-      setError(err.message ?? "OAuth failed");
-      return;
-    }
-    if (data?.url) await openSystemBrowser(data.url);
+    setBusy(false);
+    onAuthenticated?.({ isNewAccount: mode === "signup" });
   }
 
   return (
@@ -85,10 +85,6 @@ export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
         error={error}
         busy={busy}
         onSubmit={(input) => void handleEmailAuth(input)}
-        onToggleMode={() => {
-          setMode(mode === "signin" ? "signup" : "signin");
-          setError(null);
-        }}
       />
 
       <div className="flex max-w-sm items-center gap-3">
@@ -97,10 +93,7 @@ export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
         <div className="flex-1 border-t" />
       </div>
 
-      <OAuthButtons
-        onProvider={(provider) => void handleOAuth(provider)}
-        disabled={busy}
-      />
+      <OAuthButtons />
     </div>
   );
 }

@@ -45,7 +45,9 @@ export function OllamaSetupStatus() {
           </span>
         )}
 
-        {status === "reachable" && <span className="text-xs">Ollama running</span>}
+        {status === "reachable" && (
+          <span className="text-xs">Ollama running</span>
+        )}
 
         {status === "unreachable" && (
           <>
@@ -89,6 +91,9 @@ function StatusDot({ status }: { status: Status }) {
   }
 
   return (
-    <span className="mt-1 size-2 shrink-0 rounded-full bg-critical" aria-hidden />
+    <span
+      className="mt-1 size-2 shrink-0 rounded-full bg-critical"
+      aria-hidden
+    />
   );
 }

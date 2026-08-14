@@ -1,6 +1,6 @@
 ---
 title: "Cloud workspace list is never pruned — deleted and other-account workspaces linger"
-status: "open"
+status: "resolved"
 author: "human"
 created: "2026-08-14"
 ---
@@ -51,3 +51,16 @@ A pruning `setAvailableKalaidoscopes` on successful load would fix both cases an
 make `cloud-sign-out.ts`'s clearing step a belt-and-braces measure rather than
 the only defence. Care needed: prune only on a *successful* list, never on an
 error, or an offline launch would wipe the user's workspaces from the list.
+
+## Resolution (2026-08-14)
+Fixed alongside the sign-in/sign-up composite. `upsertAvailableKalaidoscopes` is
+gone; `app/src/lib/cloud-workspaces.ts` holds `syncCloudWorkspaces()`, which
+treats the registry response as authoritative for `type === "cloud"` — surviving
+workspaces keep their position and any locally-held `icon`, absent ones are
+dropped, and local workspaces are untouched. Pruning runs only on a successful
+list, so an offline launch leaves the list alone.
+
+It is called from `CloudWorkspaces` on mount and from `CloudAuthPanel` after
+every successful sign-in or sign-up, which is also what makes the switcher
+repopulate when the user authenticates from Settings rather than from the cloud
+list.
