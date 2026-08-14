@@ -13,3 +13,6 @@
 /.agents/spec/tla/MC_TTrace*
 /.agents/spec/tla/states/**
 /.agents/spec/tla/tla2tools.jar
+/.agents/spec/tla/view_diagrams.html
+/.agents/spec/tla/view_autodiagram*.html
+/.agents/spec/tla/*.dot
