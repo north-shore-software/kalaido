@@ -1,60 +1,91 @@
 ---
 title: "Composite Bug Report: Settings & Scope Management"
-status: "open"
+status: "expanded"
 author: "human"
 created: "2026-08-14"
 ---
 
 ## Description
 This composite bug report covers issues identified across Settings and Scope Management:
-1. **Missing Scope Actions on 'Manage Kaleidoscopes' Page**: The "Manage Kaleidoscopes" page lacks any functionality to remove/delete scopes or perform other scope management tasks.
-2. **Misplaced 'Local AI' Settings Tab**: The "Local AI" tab in settings feels misplaced now that AI provider configuration is managed per scope. Local AI settings should be inlined directly into individual "Manage Kaleidoscope" items.
-3. **Cannot Add Account Scopes from Settings Sign-In**: When signing in from the settings page, there is no mechanism or option to add the signed-in account's scopes to the local dropdown selection.
-4. **Outdated Content on Connections Page**: The "Connections" page contains a confusing mix ("mishmash") of controls and elements for features and concepts that no longer exist in the app.
-5. **Gemini Model Selector & Advanced Settings Toggle**: The Gemini "model select" box is currently a plain text box instead of a dropdown. Model selection and advanced options should be hidden behind an "Advanced" section toggle, asking only for the API key by default.
+1. **Missing Scope Actions on 'Manage Kaleidoscopes' Page**: The "Manage Kaleidoscopes" page lacks actions to remove/delete scopes or perform other scope management tasks.
+2. **Misplaced 'Local AI' Settings Tab**: The "Local AI" tab in global settings is misplaced now that AI provider configuration is managed per scope. Local AI settings must be inlined directly into individual "Manage Kaleidoscope" scope items, and the global tab removed.
+3. **Cannot Add Account Scopes from Settings Sign-In**: When signing in from settings, there is no option or automated flow to sync or add the signed-in account's cloud scopes to the local scope selection.
+4. **Outdated Content on Connections Page**: The "Connections" page contains outdated/deprecated controls (e.g., Export stub) alongside active integrations.
+5. **Gemini Model Selector & Advanced Settings Toggle**: The Gemini "model select" box is currently a plain text box instead of a dropdown. Model selection and per-role models should be hidden behind an "Advanced" section toggle, showing only the API key input by default.
 
-## Steps to Reproduce
+---
 
-### 1. Scope Removal & Management Actions
-1. Navigate to "Manage Kaleidoscopes".
-2. Attempt to find options to delete or manage individual scopes.
+## Verified Codebase Constraints
+* **Scope Storage & State**: Local and cloud scopes are stored in `availableKalaidoscopes` in persistent settings (`kalaido-settings.json`) and held in `appState.availableKalaidoscopes` via Valtio proxy.
+* **Scope Sidecar Lifecycle**: Deleting local scopes uses `deleteLocalKalaidoscope(dataDir)` via Tauri IPC in `src/api/app/local-scopes.ts`.
+* **Cloud Registry API**: Cloud scopes owned by an account are retrieved using `listCloudKalaidoscopes()` against the auth gateway (`src/api/cloud/user.ts`).
+* **Settings Routing**: Settings section routes are defined in `src/features/settings/pages/Settings.tsx` (`/settings/:section?`).
+* **Provider Fields**: Provider configuration UI lives in `src/features/create-kalaidoscope/components/provider-fields.tsx` and uses `GEMINI_SUGGESTED_MODELS` from `src/api/kalaidoscope/llm-config.ts`.
 
-### 2. Misplaced Local AI Tab
-1. Open settings.
-2. Observe the standalone "Local AI" tab alongside per-scope provider settings.
+---
 
-### 3. Account Scope Import via Settings
-1. Open settings while signed out/local.
-2. Sign into an account from settings.
-3. Look for a way to import/add account scopes to the local scope dropdown.
+## Target Working End State
 
-### 4. Obsolete Connections Page Content
-1. Navigate to the "Connections" page.
-2. Review the displayed feature controls and integrations.
+### Sub-Issue 1: Scope Management Actions on 'Manage Kaleidoscopes' Page
+* **Inlined Scope Information & Actions**: Each scope item on `/settings/kalaidoscopes` displays:
+  * **Inline Display Name Editing**: Clickable text / input field to rename the scope in place.
+  * **AI Provider Overview**: Badge or indicator showing current provider (e.g., `Local: Ollama`, `Local: Gemini`, or `Cloud: Kalaido Cloud`).
+  * **API Key Management**: An inline field to view/update the API key for local scopes configured with an API-key provider (e.g., Gemini).
+  * **Ollama Status Integration**: For scopes using Local Ollama, render Ollama connection status, active model, and download/reachability alerts on that row.
+  * **Backup Action**: A `[Backup]` button that triggers an export/backup zip file for that scope.
+  * **Remove / Delete Action**: A `[Remove]` or `[Delete]` button that triggers a confirmation dialog.
+* **Delete Confirmation Dialog**:
+  * Features a prominent warning message.
+  * Includes a checkbox: *"Also delete scope files from disk"* (default: **unchecked**).
+  * If checked on a local scope, calls `deleteLocalKalaidoscope` to clean up disk storage. If unchecked (or on cloud scopes), removes the scope entry from `availableKalaidoscopes` without deleting remote/disk data.
+* **Active Scope Deletion Handling**:
+  * Switching active scopes directly from this page is **disabled** (must be done via the top-left sidebar switcher).
+  * If the currently active scope is deleted, navigate the user to the initial Onboarding screen (which lists all remaining known scopes) upon exiting Settings or on next app launch.
 
-### 5. Gemini Model Selector & Advanced Layout
-1. Open Gemini provider configuration settings.
-2. Observe the "model select" input type and field visibility.
+### Sub-Issue 2: Inlined Local AI Settings
+* **Global Navigation Clean-up**: Remove the "Local AI" sidebar tab (`/settings/local-ai`) and route from the global Settings navigation.
+* **Inlined Configuration**: All Local AI configurations (Ollama status checks, recommended model download cards, active model radio list, and quality warnings) are embedded into each individual scope item row/card on the "Manage Kaleidoscopes" page.
 
-## Expected Behavior
-- **Scope Management**: Provide controls to remove scopes and manage scope-level settings.
-- **Local AI Settings**: Inline Local AI settings into the individual "Manage Kaleidoscope" scope items; remove standalone "Local AI" tab.
-- **Settings Sign-In Flow**: Allow users signing in from settings to easily add account scopes to the local scope dropdown.
-- **Connections Page**: Clean up outdated/deprecated controls and display only active features.
-- **Gemini Configuration**: Convert model select to a dropdown menu and place model configuration behind an "Advanced" section toggle (show API key prompt by default).
+### Sub-Issue 3: Cloud Account Scopes Management
+* **Automatic Sync on Sign-In**: When a user signs in via `/settings/cloud-account`, automatically invoke `listCloudKalaidoscopes()` and merge all discovered account cloud workspaces into `availableKalaidoscopes` so they immediately appear in the local scope switcher.
+* **"Account Workspaces" Section**: Below the signed-in user card on `/settings/cloud-account`, render an **Account Workspaces** list displaying all cloud scopes owned by the account.
+* **Workspace Action Controls**:
+  * **`[Add to App Menu]` / `[Remove from App Menu]`**: Toggles whether the cloud scope appears in `availableKalaidoscopes` / top-left scope switcher dropdown.
+  * **`[Delete Scope]`**: Permanently deletes the cloud workspace from both the cloud server and local app menu (requires a confirmation dialog).
+  * Removing a cloud scope from "Manage Kaleidoscopes" removes it from `availableKalaidoscopes` but leaves it visible in "Account Workspaces" on the Cloud Account page for easy re-adding.
 
-## Observed Behavior
-- **Scope Management**: No way to remove scopes or perform scope management.
-- **Local AI Settings**: Separate "Local AI" tab exists in global settings despite per-scope provider structure.
-- **Settings Sign-In Flow**: No option to add account scopes to local dropdown after sign-in.
-- **Connections Page**: Contains outdated options for non-existent features.
-- **Gemini Configuration**: Model selection is a plain text box and shown by default alongside API key.
+### Sub-Issue 4: Cleaned Up Connections Page
+* **Retained Features**:
+  * **Import**: Retained as an active, functional connection row (`/connections` -> `/import`).
+  * **Live Sync**: Retained as a "Coming Soon" stub row.
+* **Removed Features**:
+  * **Export**: Permanently removed from the Connections page (`Connections.tsx`).
 
-## Context / Relevant Code
-- Affected files: None explicitly named by user
-- Human Context / User Braindumps:
-  - *"manage kalaidoscopes page doesn't have any way to remove a scope, or anyting else."*
-  - *"the "local AI" tab in settings feels misplaced now that provider is per scope. it probably should just get inlined into the manage kalaidoscope items"*
-  - *"if you sign in from settings, there's no way to then add the scopes in your account to the local dropdown"*
-  - *"the conections page is a weird mishmash of stuff that doesn't exist really any more?"*
-  - *"the gemini "model select" box is just a textbox - we need a dropdown. also, let's put all of that behind "advanced" - by default let's just ask for api key"*
+### Sub-Issue 5: Gemini Provider Configuration & Advanced Layout
+* **Default Simple Form**: When Gemini provider is selected, display **only** the API Key input field by default.
+* **Advanced Section Toggle**: Place default model selection and task/role model overrides inside an expandable **"Advanced"** section toggle (`Collapsible`).
+* **Dropdown Model Selector**: Replace the plain text `<Input list="...">` for Model selection with a proper `<Select>` dropdown menu featuring preset suggested Gemini models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash-lite`, etc.) with support for custom model name input.
+
+---
+
+## Acceptance Criteria
+1. **Manage Kaleidoscopes**:
+   - Scope rows allow inline renaming, API key updates, backup exports, and scope deletion.
+   - Deleting a scope displays a confirmation modal with an unchecked *"Also delete files from disk"* checkbox.
+   - Deleting the active scope routes the user to Onboarding screen upon leaving Settings.
+2. **Local AI Inlining**:
+   - The global "Local AI" tab is gone from the `/settings` navigation sidebar.
+   - Scope cards in "Manage Kaleidoscopes" display Ollama status and model selectors inline.
+3. **Cloud Account Sync**:
+   - Signing in automatically adds cloud workspaces to the local scope dropdown.
+   - The Cloud Account page lists all account workspaces with `[Add/Remove from App]` and `[Delete Scope]` buttons.
+4. **Connections Page**:
+   - "Export" card is deleted. "Import" and "Live Sync" remain.
+5. **Gemini Config**:
+   - Gemini settings show only API Key by default. Model select is converted to a dropdown and hidden inside an "Advanced" collapsible toggle.
+
+---
+
+## Edge Cases & Scope Limits
+* **Offline Cloud Sync**: If `listCloudKalaidoscopes()` fails during sign-in due to network errors, display an inline warning with a `[Retry]` button on the Cloud Account page without blocking authentication.
+* **Deleting Active Cloud Scope**: Deleting a cloud scope that is currently open removes it from `availableKalaidoscopes` and routes to Onboarding upon exiting settings.
