@@ -2,6 +2,9 @@
 export const ROUTE_IDS = [
   "splash",
   "boot-error",
+  "onboarding-landing",
+  "onboarding-login",
+  "cloud-workspaces",
   "kalaidoscope-setup",
   "settings",
   "main",

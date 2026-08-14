@@ -107,6 +107,24 @@ pub(crate) fn create_local_kalaidoscope(
     })
 }
 
+#[tauri::command]
+pub(crate) fn delete_local_kalaidoscope(data_dir: String) -> Result<(), String> {
+    let path = PathBuf::from(&data_dir);
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    if !path.join("pb_data").is_dir() {
+        return Err(format!(
+            "Refusing to delete '{}': it does not look like a Kalaidoscope data directory (missing pb_data).",
+            path.display()
+        ));
+    }
+
+    std::fs::remove_dir_all(&path).map_err(|e| e.to_string())
+}
+
 async fn check_health(client: &reqwest::Client, port: u16) -> bool {
     let url = format!("http://127.0.0.1:{port}/api/health");
 

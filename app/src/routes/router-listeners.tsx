@@ -34,9 +34,15 @@ export function StateNavigationListener() {
     // Only act on genuine stage transitions. `appStage` is reassigned to fresh
     // objects (e.g. StrictMode replays `switchLocalKalaidoscope`, writing a
     // second `kalaidoscope_open` after boot), and re-navigating to `/main` on
-    // those duplicates yanks the user back from their first nav click.
-    if (handledStage.current === appStage.stage) return;
-    handledStage.current = appStage.stage;
+    // those duplicates yanks the user back from their first nav click. The key
+    // carries the open kalaidoscope's id so that opening a *different* one from
+    // an already-open stage still counts as a transition.
+    const stageKey =
+      appStage.stage === "kalaidoscope_open"
+        ? `${appStage.stage}:${appStage.selectedKalaidoscopeId}`
+        : appStage.stage;
+    if (handledStage.current === stageKey) return;
+    handledStage.current = stageKey;
 
     if (appStage.stage === "kalaidoscope_load_requested") {
       switchLocalKalaidoscope(appStage.loadKalaidoscopeId);

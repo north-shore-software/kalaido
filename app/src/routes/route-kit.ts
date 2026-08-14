@@ -92,7 +92,7 @@ export function stageEntryRoute(stage: AppStage): RouteId {
     case "kalaidoscope_load_error":
       return "boot-error";
     case "no_kalaidoscopes_available":
-      return "kalaidoscope-setup";
+      return "onboarding-landing";
   }
 }
 

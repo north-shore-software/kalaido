@@ -6,7 +6,19 @@ import {
   setAppStage,
 } from "@/hooks/app-state-actions.ts";
 import { setSetting } from "@/api/app/settings.ts";
-import { createLocalKalaidoscope } from "@/api/app/local-scopes.ts";
+import {
+  createLocalKalaidoscope,
+  deleteLocalKalaidoscope,
+  startLocalKalaidoscope,
+  stopLocalKalaidoscope,
+} from "@/api/app/local-scopes.ts";
+import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
+import {
+  type WorkspaceLlmConfig,
+  writeWorkspaceLlmConfig,
+} from "@/api/kalaidoscope/llm-config.ts";
+import { setActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
+import { openKalaidoscope } from "@/hooks/app-state-actions.ts";
 import {
   formatLocalNetLocator,
   isLoopbackHostname,
@@ -20,6 +32,7 @@ export interface CreateKalaidoscopeInput {
   storage: "local_file" | "cloud";
   cloudId: string;
   locationInput: string;
+  llmConfig?: WorkspaceLlmConfig;
 }
 
 export type LocationResult =
@@ -64,6 +77,48 @@ function classifyNetLocation(url: URL): LocationResult {
     };
   }
   return { kind: "dev", url: formatLocalNetLocator(url) };
+}
+
+async function rollbackLocalKalaidoscope(meta: KalaidoscopeMeta) {
+  setActiveKalaidoscopeClient(null);
+
+  const stopped = await stopLocalKalaidoscope(meta.id);
+  if (stopped.isErr()) {
+    console.error("Rollback: failed to stop sidecar:", stopped.error);
+  }
+
+  const deleted = await deleteLocalKalaidoscope(meta.locator);
+  if (deleted.isErr()) {
+    console.error("Rollback: failed to delete data directory:", deleted.error);
+  }
+}
+
+async function startAndConfigure(
+  meta: KalaidoscopeMeta,
+  llmConfig: WorkspaceLlmConfig | undefined,
+): Promise<Result<void, Error>> {
+  const startResult = await startLocalKalaidoscope(meta.locator);
+  if (startResult.isErr()) {
+    await rollbackLocalKalaidoscope(meta);
+    return err(startResult.error);
+  }
+
+  try {
+    setActiveKalaidoscopeClient(await createKalaidoscopeClient(meta));
+  } catch (e) {
+    await rollbackLocalKalaidoscope(meta);
+    return err(toError(e));
+  }
+
+  if (!llmConfig) return ok(undefined);
+
+  const written = await writeWorkspaceLlmConfig(llmConfig);
+  if (written.isErr()) {
+    await rollbackLocalKalaidoscope(meta);
+    return err(written.error);
+  }
+
+  return ok(undefined);
 }
 
 export async function createKalaidoscope(
@@ -116,6 +171,11 @@ export async function createKalaidoscope(
       icon: input.icon,
     };
 
+    if (type === "local_file") {
+      const started = await startAndConfigure(newKalaidoscope, input.llmConfig);
+      if (started.isErr()) return err(started.error);
+    }
+
     addAvailableKalaidoscope(newKalaidoscope);
 
     await setSetting("availableKalaidoscopes", [
@@ -123,10 +183,14 @@ export async function createKalaidoscope(
     ]);
     await setSetting("lastOpenedKalaidoscopeId", id);
 
-    setAppStage({
-      stage: "kalaidoscope_load_requested",
-      loadKalaidoscopeId: id,
-    });
+    if (type === "local_file") {
+      openKalaidoscope(id);
+    } else {
+      setAppStage({
+        stage: "kalaidoscope_load_requested",
+        loadKalaidoscopeId: id,
+      });
+    }
 
     return ok(newKalaidoscope);
   } catch (e) {

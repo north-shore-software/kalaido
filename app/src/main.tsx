@@ -2,7 +2,11 @@ import "./index.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { snapshot, subscribe } from "valtio";
-import { appState, loadStoredState } from "@/hooks/use-app-state.ts";
+import {
+  appState,
+  loadStoredState,
+  stageError,
+} from "@/hooks/use-app-state.ts";
 import { AppProviders } from "@/providers/app-providers";
 import { AppRouter } from "@/routes/app-router";
 
@@ -23,9 +27,14 @@ subscribe(appState, () => {
 console.log("Loading stored state.");
 
 void (async () => {
-  const state = await loadStoredState();
-  console.log("Stored state loaded: ", state);
-  if (state) Object.assign(appState, state);
+  try {
+    const state = await loadStoredState();
+    console.log("Stored state loaded: ", state);
+    if (state) Object.assign(appState, state);
+  } catch (e) {
+    console.error("Failed to load stored state:", e);
+    appState.appStage = { stage: "bootstrap_error", error: stageError(e) };
+  }
   console.log("Calling render()");
   render();
 })();
