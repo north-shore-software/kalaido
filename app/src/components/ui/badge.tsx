@@ -5,17 +5,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/css-utils";
 
 const badgeVariants = cva(
-  "group/badge inline-flex w-fit shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-md border-0 bg-transparent px-0 py-0 text-[0.625rem] font-semibold tracking-widest whitespace-nowrap uppercase transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-0 has-data-[icon=inline-start]:pl-0 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+  "group/badge inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-none border px-1.5 py-[3px] font-mono text-pill whitespace-nowrap uppercase transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&>svg]:pointer-events-none [&>svg]:size-2.5!",
   {
     variants: {
       variant: {
-        default: "text-foreground [a]:hover:text-foreground/70",
-        secondary: "text-muted-foreground [a]:hover:text-foreground",
+        default: "border-line-strong text-fg-3 tracking-[0.08em]",
+        secondary: "border-line text-fg-4 tracking-[0.08em]",
         destructive:
-          "text-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:text-destructive/70",
-        outline: "text-foreground [a]:hover:text-foreground/70",
-        ghost: "text-muted-foreground hover:text-foreground",
-        link: "text-foreground underline-offset-4 hover:underline",
+          "border-critical/45 bg-critical-wash text-critical-ink focus-visible:ring-destructive/40",
+        outline: "border-line-strong text-fg-3 tracking-[0.08em]",
+        ghost: "border-transparent text-fg-4 hover:text-fg-2",
+        link: "border-transparent text-cyan-ink underline-offset-4 hover:underline",
       },
     },
     defaultVariants: {

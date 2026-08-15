@@ -204,10 +204,15 @@ The logo mark uses a deeper variant, `polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0
 
 Hard offsets, no blur, accent-tinted:
 
-| Token | Value | Used on |
-|---|---|---|
-| `shadow-magenta` | `4px 4px 0 0 rgba(240,24,156,0.5)` | the primary action button |
-| `shadow-cyan` | `4px 4px 0 0 rgba(34,211,238,0.28)` | the active scope card |
+| Token | Value | Mechanism | Used on |
+|---|---|---|---|
+| `drop-shadow-magenta` | `4px 4px 0 rgba(240,24,156,0.5)` | `filter` | the primary action button |
+| `shadow-cyan` | `4px 4px 0 0 rgba(34,211,238,0.28)` | `box-shadow` | the active scope card |
+
+The magenta one is a filter, not a box-shadow, because its target is chamfered: `clip-path`
+clips an element's whole rendering, box-shadow included, so a `box-shadow` on a chamfered
+button draws nothing. `drop-shadow` follows the clipped outline, which is the intent — the
+offset should be chamfered too.
 
 These are decoration tied to an accent, not elevation. Two per screen at most. Popovers and
 dialogs do **not** get them — they sit on `bg-2` with a `line` border.
