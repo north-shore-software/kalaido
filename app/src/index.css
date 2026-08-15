@@ -3,8 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/archivo/wght.css";
 @import "@fontsource-variable/jetbrains-mono/wght.css";
-@import "@fontsource/instrument-serif/400.css";
-@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource-variable/source-serif-4/opsz.css";
 
 /* Tailwind must scan our sources for class names regardless of which tool
    hosts Vite. Ladle sets the Vite root to its own internal app, so without
@@ -199,7 +198,7 @@
   --font-sans:
     "Archivo Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-display: "Source Serif 4 Variable", ui-serif, Georgia, serif;
   --font-heading: "Archivo Variable", sans-serif;
 
   --default-transition-duration: 120ms;
@@ -210,7 +209,7 @@
        Weight is left to call sites; the roles carry size, leading, tracking. */
   --text-display: 36px;
   --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.015em;
+  --text-display--letter-spacing: 0em;
   --text-card-title: 16px;
   --text-card-title--line-height: 1.4;
   --text-card-title--letter-spacing: -0.01em;
