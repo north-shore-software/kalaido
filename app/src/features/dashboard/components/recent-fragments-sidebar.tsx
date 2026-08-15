@@ -14,7 +14,7 @@ export function RecentFragmentsSidebar({
   let lastDay: string | null = null;
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-line p-4 pt-5">
+    <aside className="flex w-[300px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-line bg-surface-1 p-4">
       <Label>Recent fragments</Label>
       {fragments.length === 0 ? (
         <EmptyState>{loading ? "Loading…" : "No fragments yet."}</EmptyState>
@@ -25,7 +25,7 @@ export function RecentFragmentsSidebar({
           return (
             <F key={f.id}>
               {head && (
-                <Mono className="mt-1 text-[10.5px] tracking-[0.08em] text-fg-4 uppercase">
+                <Mono className="mt-1 text-label font-semibold text-fg-4 uppercase">
                   {f.day}
                 </Mono>
               )}

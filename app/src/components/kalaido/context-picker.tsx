@@ -75,16 +75,16 @@ export function ContextItems({
         <div
           key={`${it.kind}:${it.id}`}
           className={cn(
-            "group flex items-center gap-2.5 rounded-md border bg-card px-3 py-2.5 text-left",
+            "group flex items-center gap-2.5 rounded-none border bg-surface-1 px-3 py-2.5 text-left",
             it.focus ? "border-magenta-ink/40 bg-magenta/5" : "border-line",
           )}
         >
           {itemIcon(it)}
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate text-[12.5px] font-semibold">
+            <span className="truncate text-body-sm font-semibold">
               {it.label}
             </span>
-            <Label className="text-[9.5px]">
+            <Label className="font-mono text-pill">
               {it.focus ? `${it.kind} · Focus` : it.kind}
             </Label>
           </div>
@@ -99,7 +99,7 @@ export function ContextItems({
               }
               aria-pressed={it.focus ?? false}
               className={cn(
-                "shrink-0 rounded p-0.5",
+                "shrink-0 rounded-none p-0.5",
                 it.focus
                   ? "text-magenta-ink"
                   : "text-fg-4 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-fg-2",
@@ -112,7 +112,7 @@ export function ContextItems({
             type="button"
             onClick={() => onRemove(it)}
             title="Remove from context"
-            className="shrink-0 rounded p-0.5 text-fg-4 hover:text-fg-2"
+            className="shrink-0 rounded-none p-0.5 text-fg-4 hover:text-fg-2"
           >
             <XIcon className="size-3.5" />
           </button>
@@ -129,11 +129,11 @@ export function ContextItems({
  */
 export function ContextEmptyState() {
   return (
-    <div className="flex items-start gap-2.5 rounded-md border border-dashed border-line bg-surface-2/40 px-3 py-2.5">
+    <div className="flex items-start gap-2.5 rounded-none border border-dashed border-line bg-surface-2/40 px-3 py-2.5">
       <GlobeIcon className="mt-0.5 size-3.5 shrink-0 text-fg-3" />
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-[12.5px] font-semibold">Everything</span>
-        <span className="text-[10.5px] leading-snug text-fg-4">
+        <span className="text-body-sm font-semibold">Everything</span>
+        <span className="text-meta text-fg-4">
           Searching your whole kalaidoscope, unfiltered
         </span>
       </div>
@@ -327,7 +327,7 @@ export function ContextPicker({
 
   const addControl = (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="mt-2.5 w-full rounded-md border border-dashed border-border p-3 text-center text-[11.5px] text-fg-4 hover:border-fg-4 hover:text-fg-2">
+      <PopoverTrigger className="mt-2.5 w-full rounded-none border border-dashed border-line p-3 text-center text-meta text-fg-4 hover:border-fg-4 hover:text-fg-2">
         + Colour · Type · Projection · Reflection
       </PopoverTrigger>
       <PopoverContent align="start" className="overflow-hidden p-0">
@@ -391,7 +391,7 @@ export function ContextPicker({
     >
       <PaneHeader label="Context" />
       <div className="flex-1 overflow-y-auto p-4">
-        <Mono className="mb-2.5 block text-[10.5px] text-fg-4">
+        <Mono className="mb-2.5 block text-mono-sm text-fg-4">
           inputs feeding this context
         </Mono>
         {labelled.length === 0 ? (
@@ -405,10 +405,10 @@ export function ContextPicker({
         )}
         {addControl}
         {resolvedTokens != null && (
-          <div className="mt-3.5 rounded-md bg-surface-2 p-2.5">
+          <div className="mt-3.5 rounded-none bg-surface-2 p-2.5">
             <div className="flex items-center gap-2">
               <WavesIcon className="size-3.5 text-fg-3" />
-              <Mono className="text-[11px] text-fg-2">
+              <Mono className="text-mono-sm text-fg-2">
                 resolves to ~{resolvedTokens} tokens
               </Mono>
             </div>
