@@ -14,9 +14,9 @@ const KIND: Record<StatusKind, string> = {
   stable: "bg-stable-wash text-stable-ink",
   drifting: "bg-drifting-wash text-drifting-ink",
   critical: "bg-critical-wash text-critical-ink",
-  ingest: "bg-ingest-wash text-ingest-ink",
-  truth: "bg-truth-wash text-truth-ink",
-  action: "bg-action-wash text-action-ink",
+  ingest: "bg-yellow-wash text-yellow-ink",
+  truth: "bg-magenta-wash text-magenta-ink",
+  action: "bg-cyan-wash text-cyan-ink",
   neutral: "bg-muted text-muted-foreground",
 };
 

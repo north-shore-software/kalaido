@@ -6,7 +6,7 @@ export default { title: "Kalaido / Text" };
 export const MicroLabel: Story = () => (
   <div className="flex flex-col gap-1 p-4">
     <Label>system status</Label>
-    <Label className="text-action-ink">action requested</Label>
+    <Label className="text-cyan-ink">action requested</Label>
   </div>
 );
 

@@ -26,7 +26,7 @@ export function FragmentCard({
   return (
     <div
       className={cn(
-        "rounded-lg border border-line border-l-2 border-l-ingest-line bg-card",
+        "rounded-lg border border-line border-l-2 border-l-yellow-line bg-card",
         compact ? "p-3" : "p-3.5",
         rejected && "opacity-50",
         className,

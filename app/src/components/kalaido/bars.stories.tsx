@@ -7,7 +7,7 @@ export const SingleBar: Story = () => (
   <div className="flex flex-col gap-4 p-4">
     <Bar w="100%" h={9} />
     <Bar w="75%" h={12} className="bg-surface-2" />
-    <Bar w={120} h={16} className="bg-action-wash" />
+    <Bar w={120} h={16} className="bg-cyan-wash" />
   </div>
 );
 

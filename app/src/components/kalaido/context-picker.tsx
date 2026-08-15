@@ -44,7 +44,7 @@ function itemIcon(it: ContextItem) {
     case "Colour":
       return <ColourSwatch value={it.value} size={12} />;
     case "Projection":
-      return <FileTextIcon className="size-3.5 text-truth-ink" />;
+      return <FileTextIcon className="size-3.5 text-magenta-ink" />;
     case "Reflection":
       return <WavesIcon className="size-3.5 text-fg-3" />;
     case "Fragment":
@@ -76,7 +76,7 @@ export function ContextItems({
           key={`${it.kind}:${it.id}`}
           className={cn(
             "group flex items-center gap-2.5 rounded-md border bg-card px-3 py-2.5 text-left",
-            it.focus ? "border-truth-ink/40 bg-truth/5" : "border-line",
+            it.focus ? "border-magenta-ink/40 bg-magenta/5" : "border-line",
           )}
         >
           {itemIcon(it)}
@@ -101,7 +101,7 @@ export function ContextItems({
               className={cn(
                 "shrink-0 rounded p-0.5",
                 it.focus
-                  ? "text-truth-ink"
+                  ? "text-magenta-ink"
                   : "text-fg-4 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-fg-2",
               )}
             >

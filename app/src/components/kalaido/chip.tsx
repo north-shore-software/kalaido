@@ -24,7 +24,7 @@ export function Chip({
         "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
         active
           ? accent === "cyan"
-            ? "border-action-ink text-action-ink"
+            ? "border-cyan-ink text-cyan-ink"
             : "border-fg-3 bg-surface-2 text-foreground"
           : "border-border text-fg-3 hover:text-foreground",
       )}

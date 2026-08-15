@@ -24,8 +24,8 @@ export function Timeline({
   items: TimelineItem[];
   tone?: "truth" | "stable";
 }) {
-  const ring = tone === "stable" ? "border-stable" : "border-truth";
-  const fill = tone === "stable" ? "bg-stable" : "bg-truth";
+  const ring = tone === "stable" ? "border-stable" : "border-magenta";
+  const fill = tone === "stable" ? "bg-stable" : "bg-magenta";
   return (
     <div className="flex flex-col">
       {items.map((it, i) => (

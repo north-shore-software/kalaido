@@ -58,9 +58,9 @@
   --status-critical-wash: rgb(255 90 60 / 0.14);
 
   /* Ink is the accent itself: text on a wash is the accent colour. */
-  --accent-action-ink: var(--cyan-base);
-  --accent-truth-ink: var(--magenta-base);
-  --accent-ingest-ink: var(--yellow-base);
+  --accent-cyan-ink: var(--cyan-base);
+  --accent-magenta-ink: var(--magenta-base);
+  --accent-yellow-ink: var(--yellow-base);
   --status-stable-ink: var(--status-stable);
   --status-drifting-ink: var(--status-drifting);
   --status-critical-ink: var(--status-critical);
@@ -92,12 +92,12 @@
   --border-subtle: var(--gray-8);
   --border-strong: var(--gray-7);
 
-  --accent-action: var(--cyan-base);
-  --accent-action-fg: var(--gray-0);
-  --accent-truth: var(--magenta-base);
-  --accent-truth-fg: var(--gray-0);
-  --accent-ingest: var(--yellow-base);
-  --accent-ingest-fg: var(--gray-0);
+  --accent-cyan: var(--cyan-base);
+  --accent-cyan-fg: var(--gray-0);
+  --accent-magenta: var(--magenta-base);
+  --accent-magenta-fg: var(--gray-0);
+  --accent-yellow: var(--yellow-base);
+  --accent-yellow-fg: var(--gray-0);
 
   /* === shadcn semantic aliases → kalaido tokens =================== */
   --background: var(--bg-0);
@@ -107,8 +107,8 @@
   --popover: var(--bg-2);
   --popover-foreground: var(--fg-1);
 
-  --primary: var(--accent-action);
-  --primary-foreground: var(--accent-action-fg);
+  --primary: var(--accent-cyan);
+  --primary-foreground: var(--accent-cyan-fg);
 
   --secondary: var(--bg-2);
   --secondary-foreground: var(--fg-1);
@@ -123,7 +123,7 @@
 
   --border: var(--border-subtle);
   --input: var(--border-strong);
-  --ring: var(--accent-action);
+  --ring: var(--accent-cyan);
 
   --chart-1: var(--cyan-base);
   --chart-2: var(--magenta-base);
@@ -135,12 +135,12 @@
 
   --sidebar: var(--bg-1);
   --sidebar-foreground: var(--fg-2);
-  --sidebar-primary: var(--accent-action);
-  --sidebar-primary-foreground: var(--accent-action-fg);
+  --sidebar-primary: var(--accent-cyan);
+  --sidebar-primary-foreground: var(--accent-cyan-fg);
   --sidebar-accent: var(--cyan-wash);
-  --sidebar-accent-foreground: var(--accent-action);
+  --sidebar-accent-foreground: var(--accent-cyan);
   --sidebar-border: var(--border-subtle);
-  --sidebar-ring: var(--accent-action);
+  --sidebar-ring: var(--accent-cyan);
 
   /* === Spacing / motion (additive, for direct var() use) ===
        The type scale lives in @theme below — declaring `--text-*` here would
@@ -300,32 +300,32 @@
 
   /* Kalaido brand accents + status — named utilities
        (e.g. bg-action, text-truth, border-ingest, text-stable) */
-  --color-action: var(--accent-action);
-  --color-action-foreground: var(--accent-action-fg);
-  --color-truth: var(--accent-truth);
-  --color-truth-foreground: var(--accent-truth-fg);
-  --color-ingest: var(--accent-ingest);
-  --color-ingest-foreground: var(--accent-ingest-fg);
-  --color-action-wash: var(--cyan-wash);
-  --color-truth-wash: var(--magenta-wash);
-  --color-ingest-wash: var(--yellow-wash);
-  --color-action-edge: var(--cyan-edge);
-  --color-truth-edge: var(--magenta-edge);
-  --color-action-veil: var(--cyan-veil);
-  --color-truth-veil: var(--magenta-veil);
+  --color-cyan: var(--accent-cyan);
+  --color-cyan-foreground: var(--accent-cyan-fg);
+  --color-magenta: var(--accent-magenta);
+  --color-magenta-foreground: var(--accent-magenta-fg);
+  --color-yellow: var(--accent-yellow);
+  --color-yellow-foreground: var(--accent-yellow-fg);
+  --color-cyan-wash: var(--cyan-wash);
+  --color-magenta-wash: var(--magenta-wash);
+  --color-yellow-wash: var(--yellow-wash);
+  --color-cyan-edge: var(--cyan-edge);
+  --color-magenta-edge: var(--magenta-edge);
+  --color-cyan-veil: var(--cyan-veil);
+  --color-magenta-veil: var(--magenta-veil);
   --color-stable: var(--status-stable);
   --color-drifting: var(--status-drifting);
   --color-critical: var(--status-critical);
-  --color-action-ink: var(--accent-action-ink);
-  --color-truth-ink: var(--accent-truth-ink);
-  --color-ingest-ink: var(--accent-ingest-ink);
+  --color-cyan-ink: var(--accent-cyan-ink);
+  --color-magenta-ink: var(--accent-magenta-ink);
+  --color-yellow-ink: var(--accent-yellow-ink);
   --color-stable-ink: var(--status-stable-ink);
   --color-drifting-ink: var(--status-drifting-ink);
   --color-critical-ink: var(--status-critical-ink);
   --color-stable-wash: var(--status-stable-wash);
   --color-drifting-wash: var(--status-drifting-wash);
   --color-critical-wash: var(--status-critical-wash);
-  --color-ingest-line: var(--yellow-line);
+  --color-yellow-line: var(--yellow-line);
 
   /* Content colour palette → utilities: bg-content-1 … text-content-8 */
   --color-content-1: var(--content-1);
@@ -353,8 +353,8 @@
   --color-line-strong: var(--border-strong);
 
   /* Hard offset shadows, accent-tinted. Decoration, not elevation. */
-  --shadow-truth: 4px 4px 0 0 rgb(240 24 156 / 0.5);
-  --shadow-action: 4px 4px 0 0 rgb(34 211 238 / 0.28);
+  --shadow-magenta: 4px 4px 0 0 rgb(240 24 156 / 0.5);
+  --shadow-cyan: 4px 4px 0 0 rgb(34 211 238 / 0.28);
 
   /* Nothing is rounded. `full` survives for the 5px status dots. */
   --radius-sm: 0;

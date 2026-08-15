@@ -69,9 +69,9 @@ export function ProjectionSideRail({
     );
   } else if (info?.status === "stale") {
     freshnessCard = (
-      <div className="rounded-lg border border-ingest-line bg-ingest-wash p-3.5">
+      <div className="rounded-lg border border-yellow-line bg-yellow-wash p-3.5">
         <div className="mb-2 flex items-center gap-2.5">
-          <RefreshCwIcon className="size-4 text-ingest-ink" />
+          <RefreshCwIcon className="size-4 text-yellow-ink" />
           <span className="text-[13px] font-semibold">Refresh</span>
         </div>
         <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">

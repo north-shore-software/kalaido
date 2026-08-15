@@ -10,7 +10,7 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         commit:
-          "bg-truth text-truth-foreground hover:bg-truth/80 focus-visible:ring-truth/30",
+          "bg-magenta text-magenta-foreground hover:bg-magenta/80 focus-visible:ring-magenta/30",
         outline:
           "border-border bg-transparent hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-input/30",
         secondary:
