@@ -265,6 +265,12 @@ so it is widened to clear them. The rail item follows the rail rather than holdi
 fixed box, which would leave the active marker stranded mid-gutter. Everything else in this
 table is the mock's.
 
+The rail ships collapsed. Its expanded state stays wired — the toggle component, the stored
+preference and the keyboard shortcut all still work — but the toggle control is hidden the
+same way the Appearance control is (§9), so expanded is unreachable in the shipped UI. The
+expanded column of the table above is therefore not a shipping surface; it exists so the
+mechanism cannot rot. Do not design against it.
+
 ### Containers
 
 | | |

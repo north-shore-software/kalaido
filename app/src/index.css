@@ -410,3 +410,6 @@
 [data-settings-section="appearance"] {
   display: none;
 }
+[data-sidebar-control="toggle"] {
+  display: none;
+}

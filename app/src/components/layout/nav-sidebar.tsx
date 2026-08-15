@@ -165,7 +165,7 @@ function SidebarToggleButton() {
   const { toggleSidebar, state } = useSidebar();
   const label = state === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem data-sidebar-control="toggle">
       <SidebarMenuButton onClick={toggleSidebar} tooltip={label}>
         <PanelLeftIcon />
         <span>{label}</span>
