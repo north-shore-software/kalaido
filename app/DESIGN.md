@@ -248,8 +248,8 @@ slides.
 
 | | |
 |---|---|
-| icon rail | 48px wide, `bg-1`, `line` right border, 12px vertical padding, 16px gap |
-| rail item | 28px box, 16px icon, `border-left: 2px` accent when active |
+| icon rail | 76px wide, `bg-1`, `line` right border, 12px vertical padding, 16px gap |
+| rail item | fills the rail between 8px gutters, 28px tall, 16px icon centred, `border-left: 2px` accent when active |
 | logo mark | 24px, clipped, `fg-1` |
 | settings nav | 216px wide, `bg-1`, 14px/10px padding, 2px gap between items |
 | settings nav item | 8px/10px padding, `border-left: 2px` (transparent when inactive) |
@@ -258,6 +258,12 @@ slides.
 | column / pane header | 44px tall, 20px horizontal (16px in panels), `line` bottom border |
 | content area | 20px padding, 16px block gap |
 | settings main | 32px / 32px / 48px padding, max-width 1000px |
+
+The rail is the one dimension here that is deliberately not the mock's. The mock draws it at
+48px, but the window is frameless and the macOS traffic lights float over the rail's top edge —
+so it is widened to clear them. The rail item follows the rail rather than holding the mock's
+fixed box, which would leave the active marker stranded mid-gutter. Everything else in this
+table is the mock's.
 
 ### Containers
 
