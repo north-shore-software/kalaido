@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { AppStage } from "@/hooks/use-app-state.ts";
+import type { FeatureFlag } from "@/lib/feature-flags";
 import type { RouteId } from "./route-ids";
 
 /**
@@ -36,6 +37,13 @@ export type RouteDef = {
   /** Canvas swimlane, e.g. "Projections". Use the feature directory name, title-cased. */
   feature: string;
   requiredScope: ScopeKey[];
+  /**
+   * Gates the screen on a build-time flag. The route stays registered — so the
+   * registry invariants and `pathFor` keep working — but the gatekeeper refuses
+   * to mount it while the flag is off, which is what makes the feature
+   * genuinely unreachable rather than merely unlinked.
+   */
+  featureFlag?: FeatureFlag;
   transitions: Record<string, TransitionDef>;
   Component: ComponentType;
 };

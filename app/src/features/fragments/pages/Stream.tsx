@@ -62,7 +62,7 @@ export default function Stream() {
 
   return (
     <PageLayout>
-      <PageHeader title="Stream" crumb={["Kalaidoscope"]} />
+      <PageHeader title="Stream" />
       <div className="min-h-0 flex-1 overflow-y-auto py-6">
         <div className="mx-auto max-w-[720px] px-8">
           {isLoading && (

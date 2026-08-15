@@ -8,6 +8,7 @@ import {
   NotebookPenIcon,
   PaletteIcon,
   PanelLeftIcon,
+  SettingsIcon,
   WavesIcon,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
@@ -33,15 +34,23 @@ import {
   SidebarNav,
   type SidebarNavItem,
 } from "@/components/layout/sidebar-nav";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 
-const DASH_NAV: readonly SidebarNavItem[] = [
+/** Where you start: the two destinations you return to, not places you browse. */
+const MAIN_NAV: readonly SidebarNavItem[] = [
   {
     title: "Dashboard",
     transition: navSidebarTransitions.transitions.openDashboard,
     icon: LayoutDashboardIcon,
   },
+  {
+    title: "Chat",
+    transition: navSidebarTransitions.transitions.openChat,
+    icon: MessagesSquareIcon,
+  },
 ];
 
+/** The entity sections — browsing what the workspace already holds. */
 const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   {
     title: "Projections",
@@ -65,47 +74,28 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   },
 ];
 
-/** Accent treatment shared by the write-actions so they read as deliberate
- *  action buttons rather than navigation links. */
+/** Accent treatment for the shell's one creation action. Reserved for Capture:
+ *  the accent means "this makes something", and nothing else in the shell does. */
 const ACTION_CLASS =
   "text-action-ink hover:bg-action-wash hover:text-action-ink active:bg-action-wash active:text-action-ink data-active:bg-action-wash data-active:text-action-ink";
 
 /**
- * Write-actions create new data in the workspace, grouped together and
- * accented so they stay visually distinct from the read-only navigation above
- * the separator.
+ * Capture sits above the navigation and alone in its zone — getting a thought
+ * out of your head is the shell's first job, and it must not read as a
+ * destination.
  */
-function NavActions() {
-  const { pathname } = useLocation();
-  const openAddNote = () => {
-    openAddFragmentModal();
-  };
+function NavCapture() {
   return (
     <SidebarGroup className="py-1">
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
-            tooltip="Chat"
-            isActive={pathname.startsWith("/chat")}
+            tooltip="Capture"
             className={ACTION_CLASS}
-            render={
-              <RouteLink
-                transition={navSidebarTransitions.transitions.openChat}
-              />
-            }
-          >
-            <MessagesSquareIcon />
-            <span>Chat</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            tooltip="Add Note"
-            className={ACTION_CLASS}
-            onClick={openAddNote}
+            onClick={() => openAddFragmentModal()}
           >
             <NotebookPenIcon />
-            <span>Add Note</span>
+            <span>Capture</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
@@ -115,43 +105,71 @@ function NavActions() {
 
 /**
  * Connections — the outward-facing hub (import today; export and live sync
- * later). A neutral destination kept low-prominence beneath the action cluster.
+ * later). Gated with the rest of the feature: while the flag is off the route
+ * is unreachable too, so there is nothing to link to.
  */
 function NavConnections() {
   const { pathname } = useLocation();
   return (
-    <SidebarGroup className="py-1">
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            tooltip="Connections"
-            isActive={pathname.startsWith("/connections")}
-            render={
-              <RouteLink
-                transition={navSidebarTransitions.transitions.openConnections}
-              />
-            }
-          >
-            <ArrowLeftRightIcon />
-            <span>Connections</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    </SidebarGroup>
+    <>
+      <SidebarSeparator />
+      <SidebarGroup className="py-1">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Connections"
+              isActive={pathname.startsWith("/connections")}
+              render={
+                <RouteLink
+                  transition={navSidebarTransitions.transitions.openConnections}
+                />
+              }
+            >
+              <ArrowLeftRightIcon />
+              <span>Connections</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroup>
+    </>
   );
 }
 
-function SidebarToggleButton() {
-  const { toggleSidebar } = useSidebar();
+function SettingsButton() {
+  const { pathname } = useLocation();
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton onClick={toggleSidebar} tooltip="Toggle sidebar">
-          <PanelLeftIcon />
-          <span>Collapse</span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Settings"
+        isActive={pathname.startsWith("/settings")}
+        render={
+          <RouteLink
+            transition={navSidebarTransitions.transitions.openSettings}
+          />
+        }
+      >
+        <SettingsIcon />
+        <span>Settings</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+/**
+ * The rail opens collapsed, so this is the only visible way back to the labels
+ * — it has to stay on screen, and its label has to describe what the click
+ * does rather than what the sidebar currently is.
+ */
+function SidebarToggleButton() {
+  const { toggleSidebar, state } = useSidebar();
+  const label = state === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton onClick={toggleSidebar} tooltip={label}>
+        <PanelLeftIcon />
+        <span>{label}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -162,16 +180,18 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <NavKalaidoscopeSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarNav items={DASH_NAV} />
+        <NavCapture />
         <SidebarSeparator />
-        <NavActions />
+        <SidebarNav items={MAIN_NAV} />
         <SidebarSeparator />
         <SidebarNav items={WORKSPACE_NAV} />
-        <SidebarSeparator />
-        <NavConnections />
+        {isFeatureEnabled("connections") && <NavConnections />}
       </SidebarContent>
       <SidebarFooter>
-        <SidebarToggleButton />
+        <SidebarMenu>
+          <SettingsButton />
+          <SidebarToggleButton />
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );

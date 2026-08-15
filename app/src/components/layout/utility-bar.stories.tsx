@@ -37,10 +37,12 @@ export const SidecarStatusDotStory: Story = () => {
 SidecarStatusDotStory.storyName = "SidecarStatusDot";
 
 export const ThemeToggleStory: Story = () => {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("system");
   return (
     <div className="p-4 bg-background border border-line rounded-lg flex flex-col gap-4">
-      <h3 className="text-sm font-semibold mb-2">Controlled Theme Toggle</h3>
+      <h3 className="text-sm font-semibold mb-2">
+        Appearance control (Settings › Appearance)
+      </h3>
       <div className="flex items-center gap-4">
         <ThemeToggle theme={theme} onChange={setTheme} />
         <span className="text-xs text-muted-foreground">

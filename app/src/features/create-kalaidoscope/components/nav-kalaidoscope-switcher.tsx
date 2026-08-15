@@ -51,6 +51,9 @@ export function NavKalaidoscopeSwitcher() {
             render={
               <SidebarMenuButton
                 size="lg"
+                // Collapsed, the name beside the mark is gone and the mark
+                // alone doesn't say which kalaidoscope you're in.
+                tooltip={current?.displayName ?? "Kalaidoscope"}
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <Mark className="size-7" />

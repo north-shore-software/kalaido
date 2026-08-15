@@ -10,6 +10,10 @@ export const navSidebarTransitions = defineChromeTransitions(
       trigger: "Click 'Connections' in the sidebar",
     },
     openDashboard: { to: "main", trigger: "Click 'Dashboard' in the sidebar" },
+    openSettings: {
+      to: "settings",
+      trigger: "Click 'Settings' in the sidebar",
+    },
     openProjections: {
       to: "projections",
       trigger: "Click 'Projections' in the sidebar",

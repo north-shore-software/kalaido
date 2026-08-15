@@ -1,6 +1,6 @@
 ---
 title: "App shell: navigation and page chrome — product spec"
-status: "draft"
+status: "implemented"
 author: "claude"
 created: "2026-08-15"
 ---
@@ -108,19 +108,21 @@ For the build, each needs an explicit outcome: **ship it, remove it, or gate it 
 7. The utility bar is status-only: sidecar state and inference rate, no controls, no locator.
 8. Nothing ships hidden by CSS.
 
-## 8. Open questions
+## 8. Questions, and how they were answered
 
-1. **Sidebar persistence** — A, B, or C from §3. Blocks the sidebar work.
-2. **Capture vs Fragment vocabulary** — does the rename carry through to the modal and the Fragments section? Blocks the label.
-3. **Theme's new home** — build the Appearance section now, or keep the toggle in the bar until it exists? Blocks removing the toggle.
-4. **Connections** — ship, remove, or flag? Blocks removing the `hidden`.
-5. **Scope-less header** — what does the trail show outside a workspace scope?
-6. **First-run discoverability** — if the answer to §3 is A, what teaches the icons?
+These were open when the spec was written. They were settled during the build rather than before it, so each is recorded here with the call that was made — all six are reversible, and the reasoning is here to argue with.
+
+1. **Sidebar persistence** — **B.** Collapsed default, a visible toggle in the footer, state persisted. Persistence moved from the never-read cookie to `localStorage`, read on init. `Cmd/Ctrl+B` and the button now agree.
+2. **Capture vs Fragment vocabulary** — **verb/noun split, no further renames.** "Capture" is the action, "Fragment" is the thing; the modal's "New Fragment" title and the Fragments section already read correctly against it. Revisit only if "fragment" itself is the wrong noun.
+3. **Theme's new home** — **built now**, as Settings › Appearance, because the alternative was shipping a regression. This turned out larger than the spec implied: `persistTheme` was an empty function and `getInitialTheme` always returned `"light"`, so theme had never persisted at all. Appearance now offers light / dark / **match system**, defaults to system, persists the *choice* rather than the resolved value, and follows the OS while the app is open.
+4. **Connections** — **flagged.** `lib/feature-flags.ts` plus a `featureFlag` field on `RouteDef` enforced in the route gatekeeper, so the flag withholds the destination as well as the link.
+5. **Scope-less header** — **the page's own trail stands alone**, with no root prepended. No literal placeholder name is ever shown.
+6. **First-run discoverability** — moot under B: the toggle is visible, so the labels are one click away.
 
 ## 9. Deferred slices
 
 Named here so the shape of the whole is visible; not built.
 
-- **Slice 2 — Manage Kalaidoscopes page.** Active-scope panel, local/cloud grouping, per-row actions (switch, backup, delete), and Settings section ordering. Depends on this slice for the Settings entry point, and owes it the relocated locator (§5).
+- **Slice 2 — Manage Kalaidoscopes page.** Active-scope panel, local/cloud grouping, per-row actions (switch, backup, delete), and Settings section ordering. Depends on this slice for the Settings entry point, and owes it the relocated locator — **the utility bar still shows the locator** and cannot stop until this page shows it instead (§5).
 - **Slice 3 — Provider identity.** The prototype adds a `provider` field (`ollama` / `gemini` / `api`) and a badge that only renders two of the three states. What a provider *is* at the workspace level, where it is set, and how it is displayed — this is a data-model question wearing a badge, and it overlaps the existing BYOK plan.
 - **Slice 4 — Implementation plan.** Build sequence and step breakdown, once slices 1–3 are agreed and the §8 questions are closed.

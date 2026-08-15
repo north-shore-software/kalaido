@@ -1,10 +1,15 @@
 import type { ReactNode } from "react";
 import { ChevronRightIcon } from "lucide-react";
 import { Label } from "@/components/kalaido/text";
+import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
 import { cn } from "@/lib/css-utils";
 
 interface PageHeaderProps {
   title: string;
+  /**
+   * The trail *below* the workspace, e.g. `["Projections", title, "Draft"]`.
+   * The header supplies the workspace root itself — pages must not name it.
+   */
   crumb?: string[];
   description?: ReactNode;
   actions?: ReactNode;
@@ -24,15 +29,25 @@ export function PageHeader({
   tabs,
   className,
 }: PageHeaderProps) {
+  // With the sidebar collapsed to icons, the switcher no longer names the open
+  // workspace — so the page does. Every in-scope page is rooted at it, which
+  // makes reading the wrong workspace's data harder to do by accident. Outside
+  // a workspace scope there is no root, and the page's own trail stands alone.
+  const activeKalaidoscope = useActiveKalaidoscope();
+  const displayCrumbs = [
+    ...(activeKalaidoscope ? [activeKalaidoscope.displayName] : []),
+    ...(crumb ?? []),
+  ];
+
   return (
     <header
       className={cn("shrink-0 border-b border-line bg-background", className)}
     >
       <div className="flex min-h-[60px] items-center justify-between gap-4 px-6 py-3">
         <div className="min-w-0">
-          {crumb && crumb.length > 0 && (
+          {displayCrumbs.length > 0 && (
             <div className="mb-1 flex items-center gap-1.5">
-              {crumb
+              {displayCrumbs
                 .map((c, i) => ({ c, i, key: `${i}-${c}` }))
                 .map((seg) => (
                   <span key={seg.key} className="flex items-center gap-1.5">

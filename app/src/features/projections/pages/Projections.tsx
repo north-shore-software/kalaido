@@ -52,7 +52,6 @@ export default function Projections() {
     <PageLayout>
       <PageHeader
         title="Projections"
-        crumb={["Kalaidoscope"]}
         actions={
           <Button
             size="sm"

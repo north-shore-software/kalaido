@@ -98,7 +98,6 @@ export default function Colours() {
     <PageLayout>
       <PageHeader
         title="Colours"
-        crumb={["Kalaidoscope"]}
         actions={
           <Button size="sm" onClick={openComposer}>
             <PlusIcon />
