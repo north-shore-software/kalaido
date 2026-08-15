@@ -54,7 +54,7 @@ Use these rather than a t-shirt scale. Each is a `--text-*` token with its leadi
 | Role | Size / leading | Weight | Tracking | Case | Family |
 |---|---|---|---|---|---|
 | `display` | 36px / 1.05 | 400 | -0.015em | none | Instrument Serif |
-| `card` | 16px / 1.4 | 700 | -0.01em | none | Archivo |
+| `card-title` | 16px / 1.4 | 700 | -0.01em | none | Archivo |
 | `body` | 14.5px / 1.62 | 400 | — | none | Archivo |
 | `row` | 13.5px / 1.5 | 600 | — | none | Archivo |
 | `item` | 13px / 1.5 | 400–600 | — | none | Archivo |
