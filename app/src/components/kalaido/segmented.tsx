@@ -16,7 +16,7 @@ export function Segmented<T extends string>({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5",
+        "inline-flex items-center gap-0.5 rounded-none border border-line-strong p-0.5",
         className,
       )}
     >
@@ -29,10 +29,8 @@ export function Segmented<T extends string>({
             onClick={onChange ? () => onChange(it) : undefined}
             aria-pressed={active}
             className={cn(
-              "rounded-[3px] px-3 py-1 text-xs font-semibold tracking-[0.02em] transition-colors",
-              active
-                ? "bg-fg-2 text-background"
-                : "text-fg-3 hover:text-foreground",
+              "rounded-none px-3 py-1 text-btn-sm font-semibold uppercase transition-colors",
+              active ? "bg-fg-2 text-background" : "text-fg-3 hover:text-fg-1",
               !onChange && "cursor-default",
             )}
           >

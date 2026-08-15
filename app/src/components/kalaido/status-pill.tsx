@@ -11,13 +11,13 @@ export type StatusKind =
   | "neutral";
 
 const KIND: Record<StatusKind, string> = {
-  stable: "bg-stable-wash text-stable-ink",
-  drifting: "bg-drifting-wash text-drifting-ink",
-  critical: "bg-critical-wash text-critical-ink",
-  yellow: "bg-yellow-wash text-yellow-ink",
-  magenta: "bg-magenta-wash text-magenta-ink",
-  cyan: "bg-cyan-wash text-cyan-ink",
-  neutral: "bg-muted text-muted-foreground",
+  stable: "border-stable/45 bg-stable-wash text-stable-ink",
+  drifting: "border-drifting/45 bg-drifting-wash text-drifting-ink",
+  critical: "border-critical/45 bg-critical-wash text-critical-ink",
+  yellow: "border-yellow/45 bg-yellow-wash text-yellow-ink",
+  magenta: "border-magenta/45 bg-magenta-wash text-magenta-ink",
+  cyan: "border-cyan/45 bg-cyan-wash text-cyan-ink",
+  neutral: "border-line-strong text-fg-3 tracking-[0.08em]",
 };
 
 /**
@@ -38,12 +38,12 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-[0.06em] uppercase",
+        "inline-flex items-center gap-1 rounded-none border px-1.5 py-[3px] font-mono text-pill font-semibold uppercase",
         KIND[kind],
         className,
       )}
     >
-      {dot && <span className="size-1.5 rounded-full bg-current" />}
+      {dot && <span className="size-[5px] rounded-full bg-current" />}
       {children}
     </span>
   );

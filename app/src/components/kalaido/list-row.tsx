@@ -35,7 +35,7 @@ export function ListRow({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span
           className={cn(
-            "truncate text-[13px]",
+            "truncate text-row",
             variant === "card" || selected ? "font-semibold" : "font-medium",
           )}
         >
@@ -44,8 +44,8 @@ export function ListRow({
         {subtitle != null && (
           <Mono
             className={cn(
-              "text-[10.5px] text-fg-4",
-              variant === "card" && "text-[11px] text-fg-3",
+              "text-mono-sm",
+              variant === "card" ? "text-fg-3" : "text-fg-4",
             )}
           >
             {subtitle}
@@ -57,10 +57,10 @@ export function ListRow({
   );
 
   const classes = cn(
-    "flex items-center gap-3 rounded-md",
+    "flex items-center gap-4 rounded-none",
     variant === "card"
-      ? "border border-line bg-card px-3.5 py-3"
-      : "px-3 py-3 text-left transition-colors",
+      ? "border border-line bg-surface-1 px-4 py-3 transition-colors hover:border-line-strong"
+      : "px-4 py-3 text-left transition-colors",
     variant === "list" && (selected ? "bg-surface-2" : "hover:bg-surface-2/50"),
     className,
   );

@@ -24,7 +24,7 @@ export function EmptyState({
           className,
         )}
       >
-        <p className="max-w-[60%] text-center text-[13px] text-fg-2">
+        <p className="max-w-[60%] text-center text-body-sm text-fg-2">
           {children}
         </p>
         {action}
@@ -34,10 +34,10 @@ export function EmptyState({
   if (action) {
     return (
       <div className={cn("flex flex-col items-start gap-3", className)}>
-        <p className="text-[13px] text-fg-2">{children}</p>
+        <p className="text-body-sm text-fg-2">{children}</p>
         {action}
       </div>
     );
   }
-  return <p className={cn("text-[13px] text-fg-2", className)}>{children}</p>;
+  return <p className={cn("text-body-sm text-fg-2", className)}>{children}</p>;
 }

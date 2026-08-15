@@ -14,10 +14,10 @@ export function Pill({ tone = "primary", className, ...props }: PillProps) {
   return (
     <span
       className={cn(
-        "rounded px-1.5 py-0.5 text-[0.625rem] uppercase",
+        "rounded-none border px-1.5 py-[3px] font-mono text-pill font-semibold uppercase",
         tone === "primary"
-          ? "border border-primary/30 bg-primary/10 font-semibold tracking-widest text-primary"
-          : "bg-surface-2 tracking-wide text-fg-4",
+          ? "border-cyan-edge bg-cyan-wash text-cyan-ink"
+          : "border-line-strong text-fg-3 tracking-[0.08em]",
         className,
       )}
       {...props}
