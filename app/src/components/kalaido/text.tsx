@@ -11,7 +11,7 @@ export function Label({
   return (
     <span
       className={cn(
-        "text-[11px] font-semibold tracking-[0.1em] text-fg-3 uppercase",
+        "text-label font-semibold text-fg-3 uppercase",
         className,
       )}
     >

@@ -84,7 +84,7 @@ export function UtilityBar() {
           truncate={isLocal}
         />
       ) : (
-        <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/70">
+        <span className="min-w-0 truncate font-mono text-mono-sm text-fg-4">
           —
         </span>
       )}
@@ -92,7 +92,7 @@ export function UtilityBar() {
       <div className="flex items-center gap-3 shrink-0">
         {isLocal && (
           <span
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70"
+            className="flex items-center gap-1.5 font-mono text-mono-sm text-fg-4"
             title={`Database: ${sidecarStatus.message ?? phaseLabel(sidecarStatus.phase)}`}
           >
             <SidecarStatusDot phase={sidecarStatus.phase} />
@@ -101,7 +101,7 @@ export function UtilityBar() {
         )}
 
         {showRate && (
-          <span className="text-[11px] text-muted-foreground/70">
+          <span className="font-mono text-mono-sm text-fg-4">
             {latestInferenceRate.tokensPerSecond.toFixed(1)} tok/s
           </span>
         )}
