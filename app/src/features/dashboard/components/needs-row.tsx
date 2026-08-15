@@ -2,14 +2,24 @@ import { ClockIcon, FileTextIcon } from "lucide-react";
 import { ListRow } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
-import type { NeedItem } from "../types";
+import type { NeedAction, NeedItem } from "../types";
 
 export interface NeedsRowProps {
   item: NeedItem;
   onAction: (item: NeedItem) => void;
+  /** This row is generating its candidate. */
+  busy?: boolean;
+  /** Another row is, so this one can't be started yet. */
+  disabled?: boolean;
 }
 
-export function NeedsRow({ item, onAction }: NeedsRowProps) {
+const actionLabel: Record<NeedAction, string> = {
+  review: "Review",
+  refresh: "Refresh",
+  open: "Open",
+};
+
+export function NeedsRow({ item, onAction, busy, disabled }: NeedsRowProps) {
   return (
     <ListRow
       variant="card"
@@ -30,8 +40,13 @@ export function NeedsRow({ item, onAction }: NeedsRowProps) {
       title={item.name}
       subtitle={item.meta}
       trailing={
-        <Button size="sm" variant="outline" onClick={() => onAction(item)}>
-          {item.candidateId ? "Review" : "Open"}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy || disabled}
+          onClick={() => onAction(item)}
+        >
+          {busy ? "Refreshing…" : actionLabel[item.action]}
         </Button>
       }
     />

@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 )
 
@@ -25,6 +26,21 @@ func resolveCandidate(e *core.RequestEvent, app core.App, strat engine.Strategy)
 		return "", e.BadRequestError("candidate id required", nil)
 	}
 	return snapID, nil
+}
+
+// blockedUpstream reports whether `id` is waiting on a dependency that is not
+// itself up to date, per the same evaluation `GET /api/rotation` serves.
+func blockedUpstream(e *core.RequestEvent, app core.App, id string) (bool, error) {
+	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(e.Request.Context())
+	if err != nil {
+		return false, err
+	}
+	for _, s := range statuses {
+		if s.ID == id {
+			return len(s.BlockedBy) > 0, nil
+		}
+	}
+	return false, nil
 }
 
 func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
@@ -47,6 +63,18 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 		rec, err := app.FindRecordById(strat.CollectionName(), id)
 		if err != nil {
 			return e.NotFoundError(strat.TargetType()+" not found", err)
+		}
+
+		// A candidate generated while an upstream is still awaiting approval is
+		// stale the moment that upstream lands: its resolved context is frozen
+		// at generation time, so approving it would not settle anything. Refuse
+		// rather than burn a model call on output that cannot clear the entity.
+		if blocked, err := blockedUpstream(e, app, id); err != nil {
+			// Never let the freshness check itself stop a requested generation.
+			log.Printf("%s.generate: staleness check: %v", strat.TargetType(), err)
+		} else if blocked {
+			return e.Error(http.StatusConflict,
+				"upstream dependencies are not up to date; approve them first", nil)
 		}
 
 		var windowsToGenerate []*api.Window

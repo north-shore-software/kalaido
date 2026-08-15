@@ -61,6 +61,27 @@ export async function updateProjection(
   );
 }
 
+/**
+ * The newest pending candidate for a projection, or null if it has none.
+ * Lets a caller about to review a projection find out whether a candidate is
+ * already waiting, rather than generating a second one for nothing.
+ */
+export async function getPendingCandidate(
+  projectionId: string,
+): Promise<Result<{ id: string } | null, Error>> {
+  return withActiveClient(async (client) => {
+    const recs = await client.collection("projection_snapshot").getFullList({
+      filter: client.filter('projection_id = {:id} && status = "pending"', {
+        id: projectionId,
+      }),
+      sort: "-created",
+      fields: "id",
+      requestKey: null,
+    });
+    return recs.length > 0 ? { id: recs[0].id } : null;
+  });
+}
+
 /** Approve a projection's pending candidate (`snapshotId`) → live. */
 export async function approveProjectionCandidate(
   projectionId: string,

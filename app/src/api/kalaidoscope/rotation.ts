@@ -20,14 +20,41 @@ export interface EntityStatus {
   upToDateSnapshotId?: string;
   /** Fragments the lens resolves to now but the live snapshot didn't consume. */
   newFragmentIds?: string[];
-  /** Upstream projection/reflection ids whose output has moved on / is stale. */
+  /**
+   * Upstreams that have published newer output than the live snapshot consumed.
+   * Actionable now: regenerating picks their new output up.
+   */
   staleDependencies?: string[];
+  /**
+   * Upstreams that are not themselves up to date. Not actionable yet —
+   * regenerating would consume output that is about to be superseded.
+   */
+  blockedBy?: string[];
   /** Elapsed schedule windows awaiting generation (scheduled entities). */
   pendingWindows?: Window[];
 }
 
 export interface StatusResponse {
   statuses: EntityStatus[];
+}
+
+/** True when the entity has any outstanding delta — i.e. it needs action. */
+export function hasDelta(s: EntityStatus): boolean {
+  return (
+    (s.newFragmentIds?.length ?? 0) > 0 ||
+    (s.staleDependencies?.length ?? 0) > 0 ||
+    (s.blockedBy?.length ?? 0) > 0 ||
+    (s.pendingWindows?.length ?? 0) > 0
+  );
+}
+
+/**
+ * True when the entity can be worked on right now: it has a delta and nothing
+ * upstream is still pending. Callers walking the plan in its (topological)
+ * order can take the first match as the next thing to do.
+ */
+export function isActionable(s: EntityStatus): boolean {
+  return hasDelta(s) && (s.blockedBy?.length ?? 0) === 0;
 }
 
 /**
