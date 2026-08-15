@@ -396,9 +396,15 @@
 }
 
 /* Unlayered — beats all @layer rules including Tailwind utilities */
+/* The sidebar owns the title bar region over its own width, so it starts at the
+   window's top edge and reserves that strip as padding rather than sitting below
+   it. The colour goes on the container because the padding box is outside the
+   inner `bg-sidebar` wrapper. */
 [data-slot="sidebar-container"] {
-  top: var(--titlebar-height);
-  height: calc(100svh - var(--titlebar-height) - var(--utility-bar-height));
+  top: 0;
+  height: calc(100svh - var(--utility-bar-height));
+  padding-top: var(--titlebar-height);
+  background: var(--sidebar);
 }
 [data-slot="sidebar-wrapper"] {
   flex: 1;
