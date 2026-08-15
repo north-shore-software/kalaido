@@ -5,7 +5,9 @@ import {
   commitRefinement,
   createRefinement,
   extractDraftFromMessages,
+  normalizeRefinementMessages,
 } from "@/api/kalaidoscope/refinements";
+import type { ContextSpec } from "@/api/kalaidoscope/chat";
 
 /**
  * The shared lifecycle of a "refine via chat" session, used by every surface
@@ -48,11 +50,19 @@ export interface RefineSession {
    * auto-sent first message; `snapshotId` scopes the session to an existing
    * snapshot (its context/window spec seeds the conversation). Returns whether it
    * succeeded (errors are toasted).
+   *
+   * `contextSpec` and `seedDraft` open a session that already has a context
+   * and/or a draft — how authoring flows that start from something existing
+   * (graduating a fragment, forking a projection) avoid spending a model call to
+   * produce what they already have. Whatever the server seeds comes back as the
+   * session's history, so the draft is in the preview immediately.
    */
   start: (args: {
     parentId: string;
     prompt?: string;
     snapshotId?: string;
+    contextSpec?: ContextSpec;
+    seedDraft?: string;
   }) => Promise<boolean>;
   /** Adopt an already-persisted refinement, seeding the chat with its history. */
   resume: (args: {
@@ -93,7 +103,7 @@ export function useRefineSession({
   const started = refinementId != null;
 
   const start = useCallback<RefineSession["start"]>(
-    async ({ parentId, prompt, snapshotId }) => {
+    async ({ parentId, prompt, snapshotId, contextSpec, seedDraft }) => {
       if (creating) return false;
       setCreating(true);
       // Mint a fresh chat id per session so re-opening (e.g. re-targeting a new
@@ -104,6 +114,8 @@ export function useRefineSession({
         parentId,
         clientId: newClientId,
         snapshotId,
+        contextSpec,
+        seedDraft,
       });
       setCreating(false);
       if (res.isErr()) {
@@ -112,9 +124,17 @@ export function useRefineSession({
         });
         return false;
       }
+      // Adopt whatever the server seeded, normalised into the shape the live
+      // stream produces so the drafted preview picks it up. These carry the
+      // server's own message ids, so the next turn recognises them as history
+      // rather than persisting a second copy.
+      const seeded = res.value.messages ?? [];
+      const history = seeded.length
+        ? normalizeRefinementMessages(seeded)
+        : undefined;
       setClientId(newClientId);
-      setInitialMessages(undefined);
-      setMessages([]);
+      setInitialMessages(history);
+      setMessages(history ?? []);
       setFirstPrompt(prompt ?? null);
       setRefinementId(res.value.refinementId);
       return true;

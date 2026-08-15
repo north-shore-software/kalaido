@@ -37,7 +37,11 @@ var schema = []tableDef{
 				Name:      "type",
 				Required:  true,
 				MaxSelect: 1,
-				Values:    []string{"email", "note", "whatsapp", "sms"},
+				// "chat" marks output captured from a chat rather than ingested
+				// from outside. It is an ordinary fragment in every other respect;
+				// the distinct type is what lets these be selected — or excluded —
+				// as a group once a workspace accumulates them.
+				Values: []string{"email", "note", "whatsapp", "sms", "chat"},
 			},
 			&core.TextField{Name: "source"},
 			&core.TextField{Name: "content", Required: true, Max: fragmentContentMax},

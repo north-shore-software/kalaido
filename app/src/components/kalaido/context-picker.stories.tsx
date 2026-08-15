@@ -29,6 +29,13 @@ const fixtureItems: ContextItem[] = [
     id: "refl-1",
     label: "Weekly Sync Reflection",
   },
+  // An explicitly pinned fragment. Fragments have no names, so the label is a
+  // line of their own content — resolved by the picker, not stored in the spec.
+  {
+    kind: "Fragment",
+    id: "frag-1",
+    label: "Checkout redesign: the three open questions",
+  },
 ];
 
 export const Items: Story = () => (
@@ -36,6 +43,20 @@ export const Items: Story = () => (
     <ContextItems
       items={fixtureItems}
       onRemove={(item) => console.log("Remove item:", item)}
+    />
+  </div>
+);
+
+// One item promoted to the subject of the conversation; everything else in the
+// list is background around it.
+export const WithFocus: Story = () => (
+  <div className="max-w-xs p-4 bg-background border border-line rounded-lg">
+    <ContextItems
+      items={fixtureItems.map((it) =>
+        it.kind === "Fragment" ? { ...it, focus: true } : it,
+      )}
+      onRemove={(item) => console.log("Remove item:", item)}
+      onToggleFocus={(item) => console.log("Toggle focus:", item)}
     />
   </div>
 );

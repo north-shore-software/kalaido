@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  CrosshairIcon,
   FileTextIcon,
   GlobeIcon,
+  PinIcon,
   SquareIcon,
   WavesIcon,
   XIcon,
@@ -22,6 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useContextSources } from "@/hooks/use-context-sources";
+import { useFragmentLabels } from "@/hooks/use-fragment-labels";
 import { resolveContextTokens } from "@/api/kalaidoscope/context";
 import { itemsToSpec } from "@/api/kalaidoscope/chat";
 import { ColourSwatch } from "./colour";
@@ -44,6 +47,8 @@ function itemIcon(it: ContextItem) {
       return <FileTextIcon className="size-3.5 text-truth-ink" />;
     case "Reflection":
       return <WavesIcon className="size-3.5 text-fg-3" />;
+    case "Fragment":
+      return <PinIcon className="size-3.5 text-fg-3" />;
     default:
       return <SquareIcon className="size-3.5 text-fg-3" />;
   }
@@ -52,30 +57,66 @@ function itemIcon(it: ContextItem) {
 export function ContextItems({
   items,
   onRemove,
+  onToggleFocus,
   className,
 }: {
   items: ContextItem[];
   onRemove: (it: ContextItem) => void;
+  /**
+   * Promote/demote an item between subject and background. Omit to render the
+   * list without the control — every item is then ordinary context.
+   */
+  onToggleFocus?: (it: ContextItem) => void;
   className?: string;
 }) {
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       {items.map((it) => (
-        <button
-          type="button"
+        <div
           key={`${it.kind}:${it.id}`}
-          onClick={() => onRemove(it)}
-          className="group flex items-center gap-2.5 rounded-md border border-line bg-card px-3 py-2.5 text-left"
+          className={cn(
+            "group flex items-center gap-2.5 rounded-md border bg-card px-3 py-2.5 text-left",
+            it.focus ? "border-truth-ink/40 bg-truth/5" : "border-line",
+          )}
         >
           {itemIcon(it)}
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="truncate text-[12.5px] font-semibold">
               {it.label}
             </span>
-            <Label className="text-[9.5px]">{it.kind}</Label>
+            <Label className="text-[9.5px]">
+              {it.focus ? `${it.kind} · Focus` : it.kind}
+            </Label>
           </div>
-          <XIcon className="size-3.5 text-fg-4 group-hover:text-fg-2" />
-        </button>
+          {onToggleFocus && (
+            <button
+              type="button"
+              onClick={() => onToggleFocus(it)}
+              title={
+                it.focus
+                  ? "Demote to background context"
+                  : "Make this the focus of the conversation"
+              }
+              aria-pressed={it.focus ?? false}
+              className={cn(
+                "shrink-0 rounded p-0.5",
+                it.focus
+                  ? "text-truth-ink"
+                  : "text-fg-4 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-fg-2",
+              )}
+            >
+              <CrosshairIcon className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onRemove(it)}
+            title="Remove from context"
+            className="shrink-0 rounded p-0.5 text-fg-4 hover:text-fg-2"
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
       ))}
     </div>
   );
@@ -183,6 +224,10 @@ export function ContextPicker({
   };
   const remove = (it: ContextItem) =>
     commit(selected.filter((s) => !sameItem(s, it)));
+  const toggleFocus = (it: ContextItem) =>
+    commit(
+      selected.map((s) => (sameItem(s, it) ? { ...s, focus: !s.focus } : s)),
+    );
   const toggle = (it: ContextItem) =>
     commit(
       selected.some((s) => sameItem(s, it))
@@ -253,9 +298,31 @@ export function ContextPicker({
     return m;
   }, [groups]);
 
+  /**
+   * Explicitly pinned fragments are the one kind this picker can't browse — the
+   * collection is unbounded and its rows have no names — so they never appear in
+   * `groups`, and hence never in the catalogue above. They arrive pinned from
+   * elsewhere and are resolved to a readable line of their own content here.
+   */
+  const fragmentIds = useMemo(
+    () => selected.filter((s) => s.kind === "Fragment").map((s) => s.id),
+    [selected],
+  );
+  const fragmentLabels = useFragmentLabels(fragmentIds);
+
   const labelled = useMemo(
-    () => selected.map((it) => catalogue.get(`${it.kind}:${it.id}`) ?? it),
-    [selected, catalogue],
+    () =>
+      selected.map((it) => {
+        if (it.kind === "Fragment") {
+          const label = fragmentLabels.get(it.id);
+          return label ? { ...it, label } : it;
+        }
+        // The catalogue supplies presentation only (name, swatch), so the
+        // selection's own state — `focus` — has to survive the lookup.
+        const known = catalogue.get(`${it.kind}:${it.id}`);
+        return known ? { ...known, focus: it.focus } : it;
+      }),
+    [selected, catalogue, fragmentLabels],
   );
 
   const addControl = (
@@ -304,7 +371,11 @@ export function ContextPicker({
         {labelled.length === 0 ? (
           <ContextEmptyState />
         ) : (
-          <ContextItems items={labelled} onRemove={remove} />
+          <ContextItems
+            items={labelled}
+            onRemove={remove}
+            onToggleFocus={toggleFocus}
+          />
         )}
         {addControl}
       </div>
@@ -326,7 +397,11 @@ export function ContextPicker({
         {labelled.length === 0 ? (
           <ContextEmptyState />
         ) : (
-          <ContextItems items={labelled} onRemove={remove} />
+          <ContextItems
+            items={labelled}
+            onRemove={remove}
+            onToggleFocus={toggleFocus}
+          />
         )}
         {addControl}
         {resolvedTokens != null && (

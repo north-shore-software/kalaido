@@ -5,6 +5,7 @@ const FRAGMENT_TYPE_LABELS: Record<FragmentTypeOptions, string> = {
   note: "Note",
   whatsapp: "WhatsApp",
   sms: "SMS",
+  chat: "Chat",
 };
 
 export function fragmentTypeLabel(type: string): string {

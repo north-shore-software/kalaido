@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { specToItems } from "@/api/kalaidoscope/chat";
+import type { ContextSpec } from "@/api/kalaidoscope/chat";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { defineRoute } from "@/routes/route-kit";
 import { newProjectionTransitions } from "./NewProjection.transitions";
@@ -26,10 +29,33 @@ function deriveName(prompt: string): string {
   return t.length > 60 ? `${t.slice(0, 60)}…` : t;
 }
 
+/**
+ * A projection that starts from something that already exists — a fragment being
+ * graduated, or a projection being forked — rather than from a typed prompt.
+ * Passed as router state; see {@link ProjectionSeed} consumers for who sends it.
+ */
+export interface ProjectionSeed {
+  name: string;
+  /** Text to open the draft with. Committing distils it into the lens. */
+  draft: string;
+  /** Inputs the new projection reads. Seeds both the picker and the chat. */
+  contextSpec?: ContextSpec;
+}
+
 export default function NewProjection() {
   const { go } = useAppNavigate();
 
-  const [context, setContext] = useState<ContextItem[]>([]);
+  const location = useLocation();
+  // Captured once: navigating away and back must not re-run the seeding.
+  const seedRef = useRef(
+    ((location.state ?? {}) as { seed?: ProjectionSeed }).seed,
+  );
+
+  const [context, setContext] = useState<ContextItem[]>(
+    seedRef.current?.contextSpec
+      ? specToItems(seedRef.current.contextSpec)
+      : [],
+  );
   const [projectionId, setProjectionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [creating, setCreating] = useState(false);
@@ -63,6 +89,45 @@ export default function NewProjection() {
     if (ok) setProjectionId(newProjectionId);
   }
 
+  /**
+   * The same flow, minus the model call: the draft is text we already have, so
+   * the session opens with it in hand and the editor lands straight on a
+   * reviewable draft. Approving distils it into the lens exactly as if the chat
+   * had produced it.
+   */
+  const startFromSeed = useCallback(
+    async (seed: ProjectionSeed) => {
+      setCreating(true);
+      const created = await createProjection(seed.name);
+      if (created.isErr()) {
+        setCreating(false);
+        toast.error("Failed to create projection", {
+          description: created.error.message,
+        });
+        go(newProjectionTransitions.cancel);
+        return;
+      }
+      const newProjectionId = created.value.projectionId;
+
+      const ok = await session.start({
+        parentId: newProjectionId,
+        contextSpec: seed.contextSpec,
+        seedDraft: seed.draft,
+      });
+      setCreating(false);
+      if (ok) setProjectionId(newProjectionId);
+    },
+    [session, go],
+  );
+
+  const seedStarted = useRef(false);
+  useEffect(() => {
+    const seed = seedRef.current;
+    if (!seed || seedStarted.current) return;
+    seedStarted.current = true;
+    void startFromSeed(seed);
+  }, [startFromSeed]);
+
   // Once the projection + refinement exist, hand off to the shared editor (chat,
   // live preview, Approve) — identical to resuming an uncommitted draft from the
   // projection detail page.
@@ -71,7 +136,7 @@ export default function NewProjection() {
       <ProjectionDraftEditor
         session={session}
         projectionId={projectionId}
-        title="New Projection"
+        title={seedRef.current ? seedRef.current.name : "New Projection"}
         crumb={["Projections", "New"]}
         initialContext={context}
         onCancel={() => go(newProjectionTransitions.cancel)}
@@ -81,6 +146,25 @@ export default function NewProjection() {
           })
         }
       />
+    );
+  }
+
+  // A seeded projection never shows the composer — there is no prompt to type,
+  // the draft already exists. Hold the frame while the container and session are
+  // created rather than flashing a form the user can't use.
+  if (seedRef.current) {
+    return (
+      <PageLayout>
+        <PageHeader
+          title={seedRef.current.name}
+          crumb={["Projections", "New"]}
+        />
+        <PageCard>
+          <div className="flex flex-1 items-center justify-center">
+            <p className="text-[13px] text-fg-2">Preparing the draft…</p>
+          </div>
+        </PageCard>
+      </PageLayout>
     );
   }
 

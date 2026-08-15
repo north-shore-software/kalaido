@@ -1,15 +1,25 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/css-utils";
 import type { UIMessage } from "ai";
 
 export interface MessageBubbleProps {
   role: string;
   content: string;
+  /**
+   * Controls shown beneath the bubble, revealed on hover. Kept as an opaque
+   * slot so this component stays presentational — what can be *done* with a
+   * message is the caller's business, not the transcript's.
+   */
+  actions?: ReactNode;
 }
 
-export function MessageBubble({ role, content }: MessageBubbleProps) {
+export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
   return (
     <div
-      className={cn("flex", role === "user" ? "justify-end" : "justify-start")}
+      className={cn(
+        "group/message flex flex-col gap-1",
+        role === "user" ? "items-end" : "items-start",
+      )}
     >
       <div
         className={cn(
@@ -21,6 +31,11 @@ export function MessageBubble({ role, content }: MessageBubbleProps) {
       >
         {content}
       </div>
+      {actions && (
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
@@ -47,12 +62,21 @@ export interface ChatMessagesProps {
   messages: UIMessage[];
   greeting?: string;
   pending?: boolean;
+  /**
+   * Controls to attach under each assistant message that produced text — e.g.
+   * capturing the answer as a fragment. Omit to render a plain transcript.
+   */
+  assistantActions?: (args: {
+    message: UIMessage;
+    content: string;
+  }) => ReactNode;
 }
 
 export function ChatMessages({
   messages,
   greeting = "Hello! How can I help you today?",
   pending,
+  assistantActions,
 }: ChatMessagesProps) {
   // Persisted history can include the `pinned_ids`/`context_spec` system
   // messages the backend uses to track context over time; they carry no chat
@@ -89,7 +113,18 @@ export function ChatMessages({
           .map((part) => (part.type === "text" ? part.text : ""))
           .join("");
 
-        return <MessageBubble key={msg.id} role={msg.role} content={content} />;
+        return (
+          <MessageBubble
+            key={msg.id}
+            role={msg.role}
+            content={content}
+            actions={
+              msg.role === "assistant"
+                ? assistantActions?.({ message: msg, content })
+                : undefined
+            }
+          />
+        );
       })}
 
       {pending && (

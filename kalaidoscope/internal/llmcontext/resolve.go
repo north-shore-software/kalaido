@@ -11,9 +11,40 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
+// ResolveSpecToIDs evaluates a spec into the concrete set of fragments and
+// upstream snapshots it names right now.
+//
+// A spec's Focus is resolved too, and lands in PinnedIDs.Focus: anything named
+// by both the focus and the outer spec belongs to the focus, so nothing is
+// counted twice. The resolved set as a whole (PinnedIDs.All) is identical
+// whether a focus was declared or not.
 func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec) (PinnedIDs, error) {
+	pinned, err := resolveOneSpec(ctx, app, spec)
+	if err != nil {
+		return pinned, err
+	}
+	if spec.Focus == nil {
+		return pinned, nil
+	}
+
+	// The nested spec's own Focus is ignored, so this cannot recurse.
+	focus, err := resolveOneSpec(ctx, app, *spec.Focus)
+	if err != nil {
+		return pinned, err
+	}
+	if focus.IsEmpty() {
+		return pinned, nil
+	}
+
+	background := pinned.Without(focus)
+	background.Focus = &focus
+	return background, nil
+}
+
+func resolveOneSpec(ctx stdctx.Context, app core.App, spec api.ContextSpec) (PinnedIDs, error) {
 	var pinned PinnedIDs
 
 	fragIDs, err := resolveFragments(ctx, app, spec)
@@ -48,6 +79,14 @@ func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec) ([
 
 	var ors []string
 	params := dbx.Params{}
+	// Explicitly pinned fragments join the union on equal terms with the rules;
+	// the shared `deleted_at = ''` clause below is what drops a pinned fragment
+	// once it has been deleted.
+	for i, id := range spec.FragmentIDs {
+		key := fmt.Sprintf("ef%d", i)
+		ors = append(ors, "id = {:"+key+"}")
+		params[key] = id
+	}
 	for i, t := range spec.FragmentTypes {
 		key := fmt.Sprintf("ft%d", i)
 		ors = append(ors, "type = {:"+key+"}")
@@ -125,7 +164,28 @@ func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 	return ids
 }
 
+// HydrateIDsToText renders a resolved context as prompt text. Where a focus is
+// declared the two parts are labelled and separated, so the model is told what
+// the subject is rather than handed one undifferentiated pile.
 func HydrateIDsToText(ctx stdctx.Context, app core.App, pinned PinnedIDs) (string, error) {
+	focus := pinned.FocusOrEmpty()
+	if focus.IsEmpty() {
+		return hydrateFlat(ctx, app, pinned.Background()), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(prompts.FocusHeading + "\n\n")
+	sb.WriteString(hydrateFlat(ctx, app, focus))
+
+	if background := hydrateFlat(ctx, app, pinned.Background()); background != "" {
+		sb.WriteString(prompts.BackgroundHeading + "\n\n")
+		sb.WriteString(background)
+	}
+
+	return sb.String(), nil
+}
+
+func hydrateFlat(ctx stdctx.Context, app core.App, pinned PinnedIDs) string {
 	var sb strings.Builder
 
 	if len(pinned.FragmentIDs) > 0 {
@@ -138,7 +198,7 @@ func HydrateIDsToText(ctx stdctx.Context, app core.App, pinned PinnedIDs) (strin
 		hydrateReflectionSnapshots(ctx, app, pinned.SnapshotIDs, &sb)
 	}
 
-	return sb.String(), nil
+	return sb.String()
 }
 
 func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, sb *strings.Builder) {
@@ -221,7 +281,12 @@ func LatestPinnedAndSpec(msgs []api.UIMessage) (PinnedIDs, api.ContextSpec, api.
 	return pinned, spec, winSpec
 }
 
+// DiffPinnedIDs reports what entered and left the context between two states.
+// Both sides are flattened first: focus is about presentation, so moving an
+// item into or out of the focus is not a change to what the context contains.
 func DiffPinnedIDs(old, new PinnedIDs) (added, removed PinnedIDs) {
+	old, new = old.All(), new.All()
+
 	oldFrags := make(map[string]bool)
 	for _, id := range old.FragmentIDs {
 		oldFrags[id] = true

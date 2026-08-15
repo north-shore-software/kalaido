@@ -1,9 +1,17 @@
 import type { Result } from "neverthrow";
 import type { UIMessage } from "ai";
+import type { ContextSpec } from "./chat";
 import { withActiveClient } from "./_active";
 
 export interface CreateRefinementResult {
   refinementId: string;
+  /**
+   * Messages the server seeded onto the new conversation, with the ids it
+   * persisted them under. Display these as-is — reconstructing an equivalent
+   * message client-side would give it an id the server has never seen, and the
+   * next turn would persist a duplicate.
+   */
+  messages?: UIMessage[];
 }
 
 export interface CommitRefinementResult {
@@ -29,6 +37,18 @@ export async function createRefinement(input: {
   parentId: string;
   clientId: string;
   snapshotId?: string;
+  /**
+   * Open the session against this context instead of a snapshot's. Takes
+   * precedence over `snapshotId`'s own spec — it's how a session starts from a
+   * context nothing has been generated against yet (a fork's new inputs).
+   */
+  contextSpec?: ContextSpec;
+  /**
+   * Open the session with this text already drafted, recorded as though the
+   * assistant had produced it. Committing distills it into a lens like any other
+   * draft, so existing text can become a projection with no model call.
+   */
+  seedDraft?: string;
 }): Promise<Result<CreateRefinementResult, Error>> {
   return withActiveClient((client) =>
     client.send<CreateRefinementResult>(
@@ -38,6 +58,8 @@ export async function createRefinement(input: {
         body: {
           clientId: input.clientId,
           ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
+          ...(input.contextSpec ? { contextSpec: input.contextSpec } : {}),
+          ...(input.seedDraft ? { seedDraft: input.seedDraft } : {}),
         },
       },
     ),

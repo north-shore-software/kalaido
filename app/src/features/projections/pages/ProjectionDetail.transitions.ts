@@ -21,4 +21,12 @@ export const projectionDetailTransitions = defineTransitions({
     to: "projection-detail",
     trigger: "Navigate to a specific projection detail",
   },
+  /**
+   * Start a new projection derived from this one — either reading its output
+   * (a further stage) or its inputs (a different view of the same material).
+   */
+  fork: {
+    to: "new-projection",
+    trigger: "Choose a Fork option in the projection header",
+  },
 });

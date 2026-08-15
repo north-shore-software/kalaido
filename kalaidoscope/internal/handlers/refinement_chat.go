@@ -26,8 +26,13 @@ You have access to the "update_draft" tool. You MUST call "update_draft" to crea
 - When you call "update_draft", keep your accompanying message to at most one short sentence, and NEVER repeat the draft text in that message — the draft belongs only inside the tool call, which renders in a separate preview pane.
 - When you are instead asking a clarifying question (no tool call), a normal, focused question is fine.`
 
+// The tool a refinement emits its draft through. It is persisted as a part of
+// type "tool-"+updateDraftToolName, which the commit-time extraction, the
+// seeding path, and the client's preview all have to agree on.
+const updateDraftToolName = "update_draft"
+
 var updateDraftTool = llm.Tool{
-	Name:        "update_draft",
+	Name:        updateDraftToolName,
 	Description: "Updates the live draft preview of the projection snapshot with the full updated content.",
 	Parameters: json.RawMessage(`{
 		"type": "object",

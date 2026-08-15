@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { generateId, type UIMessage } from "ai";
 import { HistoryIcon, SquarePenIcon } from "lucide-react";
+import { toast } from "sonner";
 import {
   PageCard,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { ConversationList } from "@/features/chat";
+import { ChatAnswerActions, ConversationList } from "@/features/chat";
+import { refocusedContext } from "@/features/chat/refocus";
 import {
   ChatPanel,
   type ContextItem,
@@ -27,12 +29,16 @@ import { useConversations } from "@/features/chat/hooks/use-conversations.ts";
 import {
   type Conversation,
   getConversationMessages,
+  itemsToSpec,
 } from "@/api/kalaidoscope/chat.ts";
+import { fragmentLabel } from "@/hooks/use-fragment-labels";
+import { useAppNavigate } from "@/routes/use-app-navigate";
 import { defineRoute } from "@/routes/route-kit";
 import { chatTransitions } from "./Chat.transitions";
 
 export default function Chat() {
   const client = useKalaidoscopeClient();
+  const { go } = useAppNavigate();
 
   // A conversation can be seeded from another page (e.g. Home's composer):
   // `initialPrompt` is auto-sent on mount.
@@ -97,6 +103,50 @@ export default function Chat() {
     setHistoryOpen(false);
   }
 
+  /**
+   * Narrow onto one answer: a fresh chat whose subject is the fragment just
+   * saved, with whatever the last chat was working from carried across as
+   * background.
+   *
+   * This is a "new chat" in every sense — same reset as {@link handleNew}, so no
+   * navigation and no route state — differing only in what it seeds the context
+   * with. The prior messages are deliberately dropped: the fragment is what was
+   * worth keeping from them.
+   */
+  function refocusOn(fragmentId: string) {
+    setSelected(null);
+    setNewChatId(generateId());
+    setSyncedClientId(null);
+    setContext((prev) => refocusedContext(prev, fragmentId));
+    setPickerEpoch((e) => e + 1);
+    setHistoryOpen(false);
+    toast.success("New chat focused on that answer");
+  }
+
+  /**
+   * Graduate an answer into a projection: its text becomes the projection's
+   * first draft, which approving distils into the lens — "keep producing
+   * something shaped like this".
+   *
+   * The chat's own context becomes the projection's inputs, since that is the
+   * material the answer was derived from and the material a living version
+   * should keep reading. The focus marker is dropped on the way: a projection
+   * has inputs, not a conversational subject.
+   */
+  function graduate({ content }: { content: string }) {
+    go(chatTransitions.graduateToProjection, {
+      state: {
+        seed: {
+          name: fragmentLabel(content),
+          draft: content,
+          contextSpec: itemsToSpec(
+            context.map((it) => ({ ...it, focus: false })),
+          ),
+        },
+      },
+    });
+  }
+
   // The AI SDK chat id: a resumed conversation's client id (to resume it
   // server-side), or the pending new chat's id.
   const activeClientId = selected?.clientId ?? newChatId;
@@ -144,6 +194,14 @@ export default function Chat() {
                 : undefined
             }
             context={context}
+            assistantActions={({ content }) => (
+              <ChatAnswerActions
+                content={content}
+                clientId={activeClientId}
+                onRefocus={refocusOn}
+                onGraduate={graduate}
+              />
+            )}
             onTurnComplete={() => {
               refresh();
             }}

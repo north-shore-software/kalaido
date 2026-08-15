@@ -5,58 +5,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
-
-	_ "github.com/north-shore-software/kalaido/kalaidoscope/migrations"
 )
-
-// newTestApp boots a throwaway PocketBase against a temp data dir and applies
-// the schema migration, so tests run against the real collections.
-func newTestApp(t *testing.T) core.App {
-	t.Helper()
-
-	app := pocketbase.NewWithConfig(pocketbase.Config{
-		DefaultDataDir:  t.TempDir(),
-		HideStartBanner: true,
-	})
-	if err := app.Bootstrap(); err != nil {
-		t.Fatalf("bootstrap: %v", err)
-	}
-	t.Cleanup(func() { _ = app.ResetBootstrapState() })
-
-	if err := app.RunAppMigrations(); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return app
-}
-
-func newRecord(t *testing.T, app core.App, collection string, values map[string]any) *core.Record {
-	t.Helper()
-
-	col, err := app.FindCollectionByNameOrId(collection)
-	if err != nil {
-		t.Fatalf("find collection %q: %v", collection, err)
-	}
-	rec := core.NewRecord(col)
-	for k, v := range values {
-		rec.Set(k, v)
-	}
-	if err := app.Save(rec); err != nil {
-		t.Fatalf("save %s: %v", collection, err)
-	}
-	return rec
-}
 
 func addFragment(t *testing.T, app core.App, content string) *core.Record {
 	t.Helper()
-	return newRecord(t, app, "fragment", map[string]any{
+	return pbtest.NewRecord(t, app, "fragment", map[string]any{
 		"type":    "note",
 		"content": content,
 	})
@@ -66,7 +27,7 @@ func addFragment(t *testing.T, app core.App, content string) *core.Record {
 // exactly what it consumed as its resolved context.
 func approveSnapshot(t *testing.T, app core.App, projectionID string, seq int, pinned llmcontext.PinnedIDs) *core.Record {
 	t.Helper()
-	return newRecord(t, app, "projection_snapshot", map[string]any{
+	return pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":            projectionID,
 		"status":                   "approved",
 		"approval_sequence_number": seq,
@@ -93,7 +54,7 @@ func evaluate(t *testing.T, app core.App) map[string]api.EntityStatus {
 // generated against.
 func pendingSnapshot(t *testing.T, app core.App, projectionID string, pinned llmcontext.PinnedIDs) *core.Record {
 	t.Helper()
-	return newRecord(t, app, "projection_snapshot", map[string]any{
+	return pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":    projectionID,
 		"status":           "pending",
 		"resolved_context": pbutil.JSONObject(pinned),
@@ -107,13 +68,13 @@ func pendingSnapshot(t *testing.T, app core.App, projectionID string, pinned llm
 // and approving it settles nothing. This is why candidate generation refuses to
 // run while an upstream is still awaiting approval.
 func TestApprovingACandidateGeneratedAgainstOldContext(t *testing.T) {
-	app := newTestApp(t)
+	app := pbtest.NewApp(t)
 
-	upstream := newRecord(t, app, "projection", map[string]any{
+	upstream := pbtest.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "upstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
 	})
-	downstream := newRecord(t, app, "projection", map[string]any{
+	downstream := pbtest.NewRecord(t, app, "projection", map[string]any{
 		"name": "downstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{
 			SourceProjectionIDs: []string{upstream.Id},
@@ -165,9 +126,9 @@ func TestApprovingACandidateGeneratedAgainstOldContext(t *testing.T) {
 // Nothing can prevent this one — the world moves while you review — so the UI
 // has to report it rather than swallow it.
 func TestApprovingACandidateAfterAFragmentLands(t *testing.T) {
-	app := newTestApp(t)
+	app := pbtest.NewApp(t)
 
-	proj := newRecord(t, app, "projection", map[string]any{
+	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "notes",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
 	})
@@ -204,13 +165,13 @@ func TestApprovingACandidateAfterAFragmentLands(t *testing.T) {
 // into StaleDependencies: its upstream has published something new (stale —
 // regenerate now) versus its upstream is not itself up to date (blocked — wait).
 func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
-	app := newTestApp(t)
+	app := pbtest.NewApp(t)
 
-	upstream := newRecord(t, app, "projection", map[string]any{
+	upstream := pbtest.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "upstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
 	})
-	downstream := newRecord(t, app, "projection", map[string]any{
+	downstream := pbtest.NewRecord(t, app, "projection", map[string]any{
 		"name": "downstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{
 			SourceProjectionIDs: []string{upstream.Id},
@@ -280,6 +241,95 @@ func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
 		}
 		if len(down.BlockedBy) != 0 {
 			t.Errorf("downstream blockedBy = %v, want empty", down.BlockedBy)
+		}
+	})
+}
+
+// A spec that pins fragments explicitly is a *static* set — unlike a colour or
+// type rule it never grows as fragments arrive, so a projection built only on
+// pins stays up to date no matter what else lands. It goes stale when the pinned
+// set itself is edited, which is the only way it can change.
+func TestExplicitlyPinnedFragmentsDoNotGoStaleOnTheirOwn(t *testing.T) {
+	app := pbtest.NewApp(t)
+
+	f1 := addFragment(t, app, "pinned")
+
+	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
+		"name": "pinned only",
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{
+			FragmentIDs: []string{f1.Id},
+		}),
+	})
+	approveSnapshot(t, app, proj.Id, 1, llmcontext.PinnedIDs{
+		FragmentIDs: []string{f1.Id},
+	})
+
+	// A fragment of the same type arrives. A type or whole-scope rule would pick
+	// it up; a pin must not.
+	f2 := addFragment(t, app, "not pinned")
+
+	t.Run("an unpinned fragment is not new input", func(t *testing.T) {
+		got := evaluate(t, app)[proj.Id]
+		if len(got.NewFragmentIDs) != 0 {
+			t.Errorf("newFragmentIds = %v, want empty — the pinned set is static", got.NewFragmentIDs)
+		}
+		if got.UpToDateSnapshotID == "" {
+			t.Errorf("projection should be up to date, got %+v", got)
+		}
+	})
+
+	t.Run("pinning it makes the projection stale", func(t *testing.T) {
+		proj.Set("current_context_spec", pbutil.JSONObject(api.ContextSpec{
+			FragmentIDs: []string{f1.Id, f2.Id},
+		}))
+		if err := app.Save(proj); err != nil {
+			t.Fatalf("save spec: %v", err)
+		}
+
+		got := evaluate(t, app)[proj.Id]
+		if len(got.NewFragmentIDs) != 1 || got.NewFragmentIDs[0] != f2.Id {
+			t.Errorf("newFragmentIds = %v, want [%s]", got.NewFragmentIDs, f2.Id)
+		}
+	})
+}
+
+// Declaring a focus changes how a context is presented to the model, not what
+// it contains — so staleness must be blind to it. This exercises the whole round
+// trip, including the nested resolved_context through JSON storage.
+func TestFocusIsInvisibleToStaleness(t *testing.T) {
+	app := pbtest.NewApp(t)
+
+	subject := addFragment(t, app, "the subject")
+
+	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
+		"name": "focused",
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{
+			FragmentTypes: []string{"note"},
+			Focus:         &api.ContextSpec{FragmentIDs: []string{subject.Id}},
+		}),
+	})
+	// Stored exactly as generation would record it: split, with the subject
+	// under focus and the rest as background.
+	approveSnapshot(t, app, proj.Id, 1, llmcontext.PinnedIDs{
+		Focus: &llmcontext.PinnedIDs{FragmentIDs: []string{subject.Id}},
+	})
+
+	t.Run("a split receipt still matches an equal context", func(t *testing.T) {
+		got := evaluate(t, app)[proj.Id]
+		if len(got.NewFragmentIDs) != 0 {
+			t.Errorf("newFragmentIds = %v, want empty — the focused fragment was already consumed",
+				got.NewFragmentIDs)
+		}
+		if got.UpToDateSnapshotID == "" {
+			t.Errorf("projection should be up to date, got %+v", got)
+		}
+	})
+
+	t.Run("background material still triggers staleness", func(t *testing.T) {
+		f2 := addFragment(t, app, "a new note")
+		got := evaluate(t, app)[proj.Id]
+		if len(got.NewFragmentIDs) != 1 || got.NewFragmentIDs[0] != f2.Id {
+			t.Errorf("newFragmentIds = %v, want [%s]", got.NewFragmentIDs, f2.Id)
 		}
 	})
 }

@@ -1,4 +1,6 @@
 import type { Story } from "@ladle/react";
+import { PinIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ChatMessages } from "./chat-messages";
 import { fixtureMessages } from "../../features/chat/fixtures";
 
@@ -19,5 +21,21 @@ export const Conversation: Story = () => (
 export const Streaming: Story = () => (
   <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
     <ChatMessages messages={fixtureMessages} pending />
+  </div>
+);
+
+// Assistant answers can carry actions — capturing one as a fragment is the
+// first. They sit under the bubble and reveal on hover.
+export const WithAssistantActions: Story = () => (
+  <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
+    <ChatMessages
+      messages={fixtureMessages}
+      assistantActions={() => (
+        <Button variant="ghost" size="xs" className="text-fg-3">
+          <PinIcon />
+          Save as fragment
+        </Button>
+      )}
+    />
   </div>
 );
