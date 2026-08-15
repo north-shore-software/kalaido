@@ -11,6 +11,7 @@ import {
   type RouteDef,
   stageEntryRoute,
 } from "./route-kit";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { getActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
 import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client";
 import { BootError } from "@/features/boot";
@@ -44,9 +45,22 @@ export function AppRouter() {
  * trustworthy: no matter how a navigation happened (transition, OS menu event,
  * back button), a page whose requiredScope is unmet cannot render — the user is
  * redirected to the entry route for the current stage.
+ *
+ * The same gate enforces feature flags, so a withheld feature is unreachable by
+ * any route into it, not just unlinked from the sidebar.
  */
 function RouteGatekeeper({ def }: { def: RouteDef }) {
   const snap = useSnapshot(appState);
+
+  if (def.featureFlag && !isFeatureEnabled(def.featureFlag)) {
+    return (
+      <Navigate
+        to={pathFor(stageEntryRoute(snap.appStage as AppStage))}
+        replace
+      />
+    );
+  }
+
   const missing = missingScope(
     def,
     currentScope({ appStage: snap.appStage as AppStage }),

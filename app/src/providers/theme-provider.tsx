@@ -1,9 +1,16 @@
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import {
   applyTheme,
   getInitialTheme,
   persistTheme,
   type Theme,
+  watchSystemTheme,
 } from "@/lib/theme";
 
 interface ThemeContextValue {
@@ -32,6 +39,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     persistTheme(t);
     setTheme(t);
   };
+
+  // On "system", the OS can change the answer while the app is open.
+  useEffect(() => {
+    if (theme !== "system") return;
+    return watchSystemTheme(() => applyTheme("system"));
+  }, [theme]);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme: setThemeValue }}>

@@ -110,7 +110,6 @@ export default function Connections() {
     <PageLayout>
       <PageHeader
         title="Connections"
-        crumb={["Kalaidoscope"]}
         description="Move data between this kalaidoscope and the outside world."
       />
       <PageBody>
@@ -132,6 +131,7 @@ export const connectionsRoute = defineRoute({
   path: "/connections",
   feature: "Connections",
   requiredScope: ["kalaidoscope"],
+  featureFlag: "connections",
   transitions: connectionsTransitions,
   Component: Connections,
 });

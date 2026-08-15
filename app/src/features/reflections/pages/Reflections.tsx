@@ -49,7 +49,6 @@ export default function Reflections() {
     <PageLayout>
       <PageHeader
         title="Reflections"
-        crumb={["Kalaidoscope"]}
         actions={
           <Button
             size="sm"

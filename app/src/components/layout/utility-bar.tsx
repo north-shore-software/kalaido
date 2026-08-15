@@ -1,21 +1,26 @@
 import { useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
 import type { UnlistenFn } from "@/api/app/os-integrations.ts";
-import { useTheme } from "@/providers/theme-provider";
 import { appState } from "@/hooks/use-app-state.ts";
+import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
 import {
   getLocalKalaidoscopeStatus,
   registerSidecarStatusChangeListener,
   type SidecarStatus,
 } from "@/api/app/local-scopes";
 import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
-import { ThemeToggle } from "./theme-toggle";
 import { LocationLabel } from "./location-label";
 
+/**
+ * Status only — the bar reports what the workspace is doing and holds no
+ * controls (appearance moved to Settings › Appearance).
+ *
+ * The locator stays for now: it is the only place the active workspace's path
+ * is visible, and it can't be dropped until the Manage Kalaidoscopes page shows
+ * it instead.
+ */
 export function UtilityBar() {
-  const { theme, setTheme } = useTheme();
-  const { appStage, availableKalaidoscopes, latestInferenceRate } =
-    useSnapshot(appState);
+  const { latestInferenceRate } = useSnapshot(appState);
 
   // Hide the inference rate 5s after the last measurement. Valtio won't
   // re-render on elapsed time alone, so schedule a tick to force the hide.
@@ -30,12 +35,8 @@ export function UtilityBar() {
     latestInferenceRate !== undefined &&
     Date.now() - latestInferenceRate.at < 5000;
 
-  const currentKalaidoscopeId =
-    appStage.stage === "kalaidoscope_open"
-      ? appStage.selectedKalaidoscopeId
-      : null;
-  const currentKalaidoscope =
-    availableKalaidoscopes.find((k) => k.id === currentKalaidoscopeId) ?? null;
+  const currentKalaidoscope = useActiveKalaidoscope();
+  const currentKalaidoscopeId = currentKalaidoscope?.id ?? null;
   const isLocal = currentKalaidoscope?.type === "local_file";
 
   const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus>({
@@ -104,8 +105,6 @@ export function UtilityBar() {
             {latestInferenceRate.tokensPerSecond.toFixed(1)} tok/s
           </span>
         )}
-
-        <ThemeToggle theme={theme} onChange={setTheme} />
       </div>
     </div>
   );

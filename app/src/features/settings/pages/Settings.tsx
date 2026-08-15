@@ -7,6 +7,7 @@ import { KalaidoscopesSection } from "../components/kalaidoscopes-section";
 import { DangerZoneSection } from "../components/danger-zone-section";
 import { CloudAccountSection } from "../components/cloud-account-section";
 import { LocalAISection } from "../components/local-ai-section";
+import { AppearanceSection } from "../components/appearance-section";
 import { defineRoute } from "@/routes/route-kit";
 import { settingsTransitions } from "./Settings.transitions";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -16,6 +17,7 @@ const sections = [
   { id: "cloud-account", label: "Cloud Account" },
   { id: "local-ai", label: "Local AI" },
   { id: "kalaidoscopes", label: "Manage Kalaidoscopes" },
+  { id: "appearance", label: "Appearance" },
   { id: "danger", label: "Danger Zone" },
 ];
 
@@ -30,10 +32,6 @@ const placeholderContent: Record<
   account: {
     title: "Account",
     description: "Update your account details and personal information.",
-  },
-  appearance: {
-    title: "Appearance",
-    description: "Customize the look and feel of the application.",
   },
   billing: {
     title: "Billing",
@@ -89,6 +87,8 @@ export default function Settings() {
           <CloudAccountSection />
         ) : section === "local-ai" ? (
           <LocalAISection />
+        ) : section === "appearance" ? (
+          <AppearanceSection />
         ) : (
           (() => {
             const content =

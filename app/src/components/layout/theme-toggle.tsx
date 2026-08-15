@@ -1,4 +1,5 @@
-import { MoonIcon, SunIcon } from "lucide-react";
+import { useId } from "react";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/css-utils";
 
@@ -7,32 +8,53 @@ interface ThemeToggleProps {
   onChange: (theme: Theme) => void;
 }
 
+const OPTIONS: readonly {
+  value: Theme;
+  label: string;
+  Icon: typeof SunIcon;
+}[] = [
+  { value: "light", label: "Light", Icon: SunIcon },
+  { value: "dark", label: "Dark", Icon: MoonIcon },
+  { value: "system", label: "Match system", Icon: MonitorIcon },
+];
+
+/**
+ * Segmented appearance control. Lives in Settings rather than the app chrome:
+ * the utility bar reports status and holds no controls.
+ *
+ * Built on real radio inputs — visually hidden, with the segment styled from
+ * the checked state — so arrow-key navigation and screen reader semantics come
+ * from the platform rather than being reimplemented.
+ */
 export function ThemeToggle({ theme, onChange }: ThemeToggleProps) {
+  const groupName = useId();
+
   return (
-    <div className="flex items-center rounded-full border border-border bg-muted p-0.5">
-      {(
-        [
-          { value: "light", label: "Light mode", Icon: SunIcon },
-          { value: "dark", label: "Dark mode", Icon: MoonIcon },
-        ] as const
-      ).map(({ value, label, Icon }) => (
-        <button
+    <fieldset className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted p-1">
+      <legend className="sr-only">Appearance</legend>
+      {OPTIONS.map(({ value, label, Icon }) => (
+        <label
           key={value}
-          type="button"
-          onClick={() => onChange(value)}
-          aria-label={label}
-          aria-pressed={theme === value}
-          tabIndex={-1}
           className={cn(
-            "flex size-5 items-center justify-center rounded-full transition-colors",
+            "flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+            "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/30",
             theme === value
-              ? "bg-background text-foreground"
+              ? "bg-background text-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Icon className="size-3" />
-        </button>
+          <input
+            type="radio"
+            name={groupName}
+            value={value}
+            checked={theme === value}
+            onChange={() => onChange(value)}
+            className="sr-only"
+          />
+          <Icon className="size-3.5" />
+          {label}
+        </label>
       ))}
-    </div>
+    </fieldset>
   );
 }
