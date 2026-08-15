@@ -265,22 +265,22 @@ function ProjectionReviewPage() {
               // candidate here any more. Preparing the next one runs a model,
               // which takes a while — say what is happening rather than let the
               // "not found" state below read as a failure.
-              <div className="flex flex-1 flex-col items-center justify-center gap-1.5">
-                <p className="text-[13px] text-fg-2">Approved.</p>
-                <p className="text-[12px] text-fg-3">
+              <div className="flex flex-1 flex-col items-center justify-center gap-2">
+                <p className="text-body-sm text-fg-2">Approved.</p>
+                <p className="text-meta text-fg-3">
                   Working out what's next and generating its candidate…
                 </p>
               </div>
             ) : (
               <div className="flex flex-1 items-center justify-center">
-                <p className="text-[13px] text-fg-2">
+                <p className="text-body-sm text-fg-2">
                   Candidate not found — it may have already been approved.
                 </p>
               </div>
             )}
           </div>
-          <div className="flex w-[340px] shrink-0 flex-col border-l border-line">
-            <div className="flex max-h-[40%] shrink-0 flex-col gap-1.5 overflow-y-auto border-b border-line p-3">
+          <div className="flex w-[300px] shrink-0 flex-col border-l border-line bg-surface-1">
+            <div className="flex max-h-[40%] shrink-0 flex-col gap-2 overflow-y-auto border-b border-line p-4">
               <Label>Context</Label>
               <ContextPicker
                 key={pickerEpoch}
@@ -300,7 +300,7 @@ function ProjectionReviewPage() {
               <RefineComposer
                 title="Refine with chat"
                 helperText="Tell Kalaido what to change about this candidate to refine it before approving."
-                helperTextClassName="max-w-[80%] text-[12px] text-fg-2"
+                helperTextClassName="max-w-[80%]"
                 value={refineInput}
                 onChange={setRefineInput}
                 placeholder="Tell Kalaido what to change…"
