@@ -40,14 +40,14 @@ func FindOrCreateConversation(ctx context.Context, app core.App, clientID string
 	return rec, nil
 }
 
-func PersistMessage(ctx context.Context, app core.App, conversation *core.Record, msg api.UIMessage, model string) error {
+func PersistMessage(ctx context.Context, app core.App, conversation *core.Record, msg api.UIMessage, model string) (*core.Record, error) {
 	col, err := app.FindCollectionByNameOrId("chat_message")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	b, err := json.Marshal(msg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rec := core.NewRecord(col)
 
@@ -62,6 +62,18 @@ func PersistMessage(ctx context.Context, app core.App, conversation *core.Record
 
 	rec.Set("content", types.JSONRaw(b))
 	rec.Set("model", model)
+	if err := app.Save(rec); err != nil {
+		return nil, err
+	}
+	return rec, nil
+}
+
+func RewriteMessage(app core.App, rec *core.Record, msg api.UIMessage) error {
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	rec.Set("content", types.JSONRaw(b))
 	return app.Save(rec)
 }
 

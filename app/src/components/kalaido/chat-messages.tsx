@@ -25,6 +25,24 @@ export function MessageBubble({ role, content }: MessageBubbleProps) {
   );
 }
 
+const TOOL_MESSAGES: Record<string, string> = {
+  update_draft: "Updated the draft.",
+};
+
+function toolNoticeFor(msg: UIMessage): string | null {
+  for (const part of msg.parts) {
+    const p = part as { type?: string; toolName?: string };
+    const name =
+      p.type === "dynamic-tool"
+        ? p.toolName
+        : p.type?.startsWith("tool-")
+          ? p.type.slice("tool-".length)
+          : undefined;
+    if (name) return TOOL_MESSAGES[name] ?? `Called ${name}.`;
+  }
+  return null;
+}
+
 export interface ChatMessagesProps {
   messages: UIMessage[];
   greeting?: string;
@@ -51,11 +69,21 @@ export function ChatMessages({
         </div>
       )}
       {visibleMessages.map((msg) => {
-        // Skip messages that do not contain any renderable text (e.g., pure tool call turns).
         const hasText = msg.parts.some(
           (part) => part.type === "text" && part.text?.trim(),
         );
-        if (!hasText) return null;
+
+        if (!hasText) {
+          const notice = toolNoticeFor(msg);
+          if (!notice) return null;
+          return (
+            <div key={msg.id} className="flex justify-start">
+              <div className="max-w-[70%] rounded-md px-4 py-2.5 text-sm italic leading-relaxed text-muted-foreground">
+                {notice}
+              </div>
+            </div>
+          );
+        }
 
         const content = msg.parts
           .map((part) => (part.type === "text" ? part.text : ""))

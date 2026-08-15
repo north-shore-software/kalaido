@@ -104,7 +104,7 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 						Role:  "system",
 						Parts: parts,
 					}
-					if err := chat.PersistMessage(context.Background(), txApp, rec, msg, ""); err != nil {
+					if _, err := chat.PersistMessage(context.Background(), txApp, rec, msg, ""); err != nil {
 						return err
 					}
 				}
@@ -147,6 +147,16 @@ func ExtractDraftedSnapshotAndSpec(app core.App, refRec *core.Record) (string, l
 			}
 		}
 	}
+
+	scanned := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		for _, p := range m.Parts {
+			scanned = append(scanned, m.Role+"/"+p.Type)
+		}
+	}
+	log.Printf("refinement.extract: no draft in %s (%d messages: %s)",
+		refRec.Id, len(msgs), strings.Join(scanned, ", "))
+
 	return "", pinned, spec, winSpec, nil
 }
 
