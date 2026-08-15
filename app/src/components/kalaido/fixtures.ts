@@ -9,9 +9,9 @@ export interface MockDocument {
     | "stable"
     | "drifting"
     | "critical"
-    | "ingest"
-    | "truth"
-    | "action"
+    | "yellow"
+    | "magenta"
+    | "cyan"
     | "neutral";
   statusText: string;
 }
@@ -32,9 +32,9 @@ export interface MockListRow {
     | "stable"
     | "drifting"
     | "critical"
-    | "ingest"
-    | "truth"
-    | "action"
+    | "yellow"
+    | "magenta"
+    | "cyan"
     | "neutral";
   statusText: string;
 }
@@ -111,15 +111,15 @@ export const LIST_ROW_FIXTURES: MockListRow[] = [
     title: "Kalaido core color palette",
     subtitle: "cmyk-semantic-palette",
     colours: [1, 2, 3, 4],
-    status: "truth",
-    statusText: "truth",
+    status: "magenta",
+    statusText: "magenta",
   },
   {
     title: "Secondary brand accents",
     subtitle: "warm-neutral-tones",
     colours: [5, 6, 7],
-    status: "action",
-    statusText: "action",
+    status: "cyan",
+    statusText: "cyan",
   },
   {
     title: "Legacy fallback colors",

@@ -57,12 +57,12 @@ export function ActiveRotationCard({
         </div>
         {isReflection
           ? windows.length > 0 && (
-              <StatusPill kind="ingest">
+              <StatusPill kind="yellow">
                 {windows.length} window
                 {windows.length > 1 ? "s" : ""}
               </StatusPill>
             )
-          : entropy > 0 && <StatusPill kind="ingest">{entropy} new</StatusPill>}
+          : entropy > 0 && <StatusPill kind="yellow">{entropy} new</StatusPill>}
       </div>
 
       {isReflection ? (

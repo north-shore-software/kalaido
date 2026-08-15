@@ -28,7 +28,7 @@ export function SnapshotPreview({
       {readOnly ? (
         <>
           <div className="mb-4 flex items-center gap-2.5">
-            <StatusPill kind="truth">
+            <StatusPill kind="magenta">
               {historicalVersion ? `v${historicalVersion}` : "snapshot"}
               {historical?.status ? ` · ${historical.status}` : ""}
             </StatusPill>
@@ -76,7 +76,7 @@ export function SnapshotPreview({
           {state.status === "ready" && (
             <>
               <div className="mb-4 flex items-center gap-2.5">
-                <StatusPill kind="truth" dot>
+                <StatusPill kind="magenta" dot>
                   plan of record
                 </StatusPill>
               </div>

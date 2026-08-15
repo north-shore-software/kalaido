@@ -82,7 +82,7 @@ export const PaneHeaderDefault: Story = () => (
     <PaneHeader
       label="Source Snapshot Code"
       status={
-        <StatusPill kind="truth" dot>
+        <StatusPill kind="magenta" dot>
           Validated
         </StatusPill>
       }

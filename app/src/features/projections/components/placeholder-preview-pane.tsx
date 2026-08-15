@@ -6,7 +6,7 @@ export function PlaceholderPreviewPane() {
     <div className="flex min-w-0 flex-[1.1] flex-col">
       <PaneHeader
         label="Live draft preview"
-        status={<StatusPill kind="truth">pending</StatusPill>}
+        status={<StatusPill kind="magenta">pending</StatusPill>}
       />
       <div className="flex-1 overflow-y-auto p-5">
         <p className="text-[13px] text-fg-2">

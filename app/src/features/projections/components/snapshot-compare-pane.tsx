@@ -15,7 +15,7 @@ export function SnapshotComparePane({
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col border-r border-line">
         <div className="flex items-center border-b border-line px-5 py-2.5">
-          <StatusPill kind="truth" dot>
+          <StatusPill kind="magenta" dot>
             current
           </StatusPill>
         </div>
@@ -27,7 +27,7 @@ export function SnapshotComparePane({
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center border-b border-line bg-magenta-wash px-5 py-2.5">
-          <StatusPill kind="truth">
+          <StatusPill kind="magenta">
             {refining ? "refined" : "pending"}
           </StatusPill>
         </div>

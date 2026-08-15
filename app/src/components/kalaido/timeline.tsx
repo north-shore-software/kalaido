@@ -14,15 +14,15 @@ export interface TimelineItem {
 }
 
 /**
- * Vertical node-and-connector timeline. `truth` (magenta) for snapshot
- * histories; `stable` (green) for auto-approved reflection runs.
+ * Vertical node-and-connector timeline. `magenta` for snapshot histories;
+ * `stable` for auto-approved reflection runs.
  */
 export function Timeline({
   items,
-  tone = "truth",
+  tone = "magenta",
 }: {
   items: TimelineItem[];
-  tone?: "truth" | "stable";
+  tone?: "magenta" | "stable";
 }) {
   const ring = tone === "stable" ? "border-stable" : "border-magenta";
   const fill = tone === "stable" ? "bg-stable" : "bg-magenta";
@@ -64,7 +64,7 @@ function TimelineEntry({ item }: { item: TimelineItem }) {
         >
           {item.label}
         </Mono>
-        {item.pending && <StatusPill kind="truth">pending</StatusPill>}
+        {item.pending && <StatusPill kind="magenta">pending</StatusPill>}
       </div>
       {item.note && (
         <span className="font-mono text-[10.5px] text-fg-4">{item.note}</span>

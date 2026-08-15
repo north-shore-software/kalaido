@@ -5,24 +5,24 @@ export type StatusKind =
   | "stable"
   | "drifting"
   | "critical"
-  | "ingest"
-  | "truth"
-  | "action"
+  | "yellow"
+  | "magenta"
+  | "cyan"
   | "neutral";
 
 const KIND: Record<StatusKind, string> = {
   stable: "bg-stable-wash text-stable-ink",
   drifting: "bg-drifting-wash text-drifting-ink",
   critical: "bg-critical-wash text-critical-ink",
-  ingest: "bg-yellow-wash text-yellow-ink",
-  truth: "bg-magenta-wash text-magenta-ink",
-  action: "bg-cyan-wash text-cyan-ink",
+  yellow: "bg-yellow-wash text-yellow-ink",
+  magenta: "bg-magenta-wash text-magenta-ink",
+  cyan: "bg-cyan-wash text-cyan-ink",
   neutral: "bg-muted text-muted-foreground",
 };
 
 /**
- * Wash-filled status pill. The CMYK-semantic kinds (ingest/truth/action) and
- * the momentum kinds (stable/drifting/critical) share one shape.
+ * Wash-filled status pill. The accent kinds (yellow/magenta/cyan) and the
+ * momentum kinds (stable/drifting/critical) share one shape.
  */
 export function StatusPill({
   kind = "neutral",

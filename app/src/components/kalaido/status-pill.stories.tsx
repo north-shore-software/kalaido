@@ -7,9 +7,9 @@ const KINDS: StatusKind[] = [
   "stable",
   "drifting",
   "critical",
-  "ingest",
-  "truth",
-  "action",
+  "yellow",
+  "magenta",
+  "cyan",
   "neutral",
 ];
 

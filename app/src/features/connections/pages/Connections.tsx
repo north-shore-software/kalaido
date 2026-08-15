@@ -74,7 +74,7 @@ function ConnectionRow({ c }: { c: AvailableConnection }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">{c.title}</h3>
-          <StatusPill kind="ingest">Available</StatusPill>
+          <StatusPill kind="yellow">Available</StatusPill>
         </div>
         <p className="mt-0.5 text-xs leading-relaxed text-fg-3">
           {c.description}
