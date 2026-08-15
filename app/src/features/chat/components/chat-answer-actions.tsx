@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  CheckIcon,
-  CrosshairIcon,
-  FileTextIcon,
-  PinIcon,
-} from "lucide-react";
+import { CheckIcon, CrosshairIcon, FileTextIcon, PinIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";

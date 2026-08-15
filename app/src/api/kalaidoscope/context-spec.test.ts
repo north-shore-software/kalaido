@@ -1,9 +1,4 @@
-import {
-  type ContextItem,
-  itemsToSpec,
-  specKey,
-  specToItems,
-} from "./chat";
+import { type ContextItem, itemsToSpec, specKey, specToItems } from "./chat";
 
 describe("itemsToSpec", () => {
   test("maps pinned fragments to fragmentIds", () => {
@@ -31,7 +26,9 @@ describe("itemsToSpec", () => {
 
   // An empty selection still means "everything", and a pin is a selection.
   test("a lone pin is not whole scope", () => {
-    const spec = itemsToSpec([{ kind: "Fragment", id: "f1", label: "A draft" }]);
+    const spec = itemsToSpec([
+      { kind: "Fragment", id: "f1", label: "A draft" },
+    ]);
     expect(spec.wholeScope).toBeUndefined();
   });
 });

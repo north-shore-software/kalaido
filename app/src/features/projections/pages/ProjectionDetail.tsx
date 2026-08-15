@@ -157,8 +157,9 @@ export default function ProjectionDetail() {
             draft: liveSnapshot
               ? parseProjectionOutput(liveSnapshot.output).content
               : "",
-            contextSpec: (parseContextSpec(parentSpec) ??
-              undefined) as ContextSpec | undefined,
+            contextSpec: (parseContextSpec(parentSpec) ?? undefined) as
+              | ContextSpec
+              | undefined,
           };
     go(projectionDetailTransitions.fork, { state: { seed } });
   }
