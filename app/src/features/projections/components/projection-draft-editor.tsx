@@ -91,7 +91,7 @@ export function ProjectionDraftEditor({
             <PaneHeader
               label="Live draft preview"
               status={
-                <StatusPill kind="truth" dot={session.preview.length > 0}>
+                <StatusPill kind="magenta" dot={session.preview.length > 0}>
                   {session.preview.length > 0 ? "draft" : "pending"}
                 </StatusPill>
               }

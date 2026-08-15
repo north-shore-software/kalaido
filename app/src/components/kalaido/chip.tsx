@@ -21,12 +21,12 @@ export function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "rounded-none border px-2.5 py-1 text-meta font-medium transition-colors",
         active
           ? accent === "cyan"
-            ? "border-action-ink text-action-ink"
-            : "border-fg-3 bg-surface-2 text-foreground"
-          : "border-border text-fg-3 hover:text-foreground",
+            ? "border-cyan-edge bg-cyan-wash text-cyan-ink"
+            : "border-fg-3 bg-surface-2 text-fg-1"
+          : "border-line-strong text-fg-3 hover:border-fg-3 hover:text-fg-1",
       )}
     >
       {children}

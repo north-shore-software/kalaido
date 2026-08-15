@@ -26,7 +26,7 @@ export function ReflectionBody({
     return (
       <div className="min-w-0 flex-1 overflow-y-auto px-8 py-6">
         <div className="mb-4 flex items-center gap-2.5">
-          <StatusPill kind="truth">
+          <StatusPill kind="magenta">
             past snapshot
             {historical?.status ? ` · ${historical.status}` : ""}
           </StatusPill>

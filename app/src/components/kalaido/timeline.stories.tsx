@@ -12,7 +12,7 @@ export const TruthTone: Story = () => (
     <h3 className="text-xs font-semibold uppercase mb-4 text-fg-3">
       Snapshot History
     </h3>
-    <Timeline items={TIMELINE_TRUTH_FIXTURES} tone="truth" />
+    <Timeline items={TIMELINE_TRUTH_FIXTURES} tone="magenta" />
   </div>
 );
 
@@ -37,7 +37,7 @@ export const ClickableTimeline: Story = () => {
       <h3 className="text-xs font-semibold uppercase mb-4 text-fg-3">
         Interactive Log
       </h3>
-      <Timeline items={clickableItems} tone="truth" />
+      <Timeline items={clickableItems} tone="magenta" />
     </div>
   );
 };

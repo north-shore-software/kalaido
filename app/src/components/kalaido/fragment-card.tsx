@@ -26,7 +26,7 @@ export function FragmentCard({
   return (
     <div
       className={cn(
-        "rounded-lg border border-line border-l-2 border-l-ingest-line bg-card",
+        "rounded-none border border-line border-l-2 border-l-yellow-line bg-surface-1",
         compact ? "p-3" : "p-3.5",
         rejected && "opacity-50",
         className,
@@ -35,21 +35,21 @@ export function FragmentCard({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-2">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-none bg-surface-2">
             <Icon className="size-3.5 text-fg-3" />
           </span>
-          <span className="truncate text-[12.5px] font-semibold">{type}</span>
+          <span className="truncate text-body-sm font-semibold">{type}</span>
         </div>
         {rejected ? (
           <StatusPill kind="critical">rejected</StatusPill>
         ) : (
           time != null && (
-            <Mono className="shrink-0 text-[11px] text-fg-4">{time}</Mono>
+            <Mono className="shrink-0 text-mono-sm text-fg-4">{time}</Mono>
           )
         )}
       </div>
       {preview && (
-        <p className="mt-2 font-mono text-xs leading-relaxed text-muted-foreground">
+        <p className="mt-2 font-mono text-mono-sm leading-relaxed text-fg-4">
           {preview}
         </p>
       )}

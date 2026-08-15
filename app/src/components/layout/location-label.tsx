@@ -19,7 +19,7 @@ export function LocationLabel({
   const displayLocation = truncate ? truncatePath(location) : location;
   return (
     <span
-      className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/70"
+      className="min-w-0 truncate font-mono text-mono-sm text-fg-4"
       title={title ?? location}
     >
       {displayLocation}

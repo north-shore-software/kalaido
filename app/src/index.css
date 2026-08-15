@@ -1,8 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/archivo/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
 
 /* Tailwind must scan our sources for class names regardless of which tool
    hosts Vite. Ladle sets the Vite root to its own internal app, so without
@@ -13,9 +15,7 @@
 
 /* =============================================================
    Kalaido — design tokens
-   Source of truth: /DESIGN.md + /design-system/colors_and_type.css
-   Vibrant CMYK accents over a warm-neutral gray scale. Dark-first;
-   the app toggles `.dark` (default) — `:root` is the light fallback.
+   Source of truth: app/DESIGN.md
    ============================================================= */
 :root {
   /* Chrome heights */
@@ -24,53 +24,49 @@
 
   /* === Raw palette (theme-independent) ============================= */
 
-  /* Warm-neutral gray scale, near-black → near-white */
-  --gray-0: oklch(8% 0.005 90);
-  --gray-1: oklch(12% 0.005 90);
-  --gray-2: oklch(16% 0.005 90);
-  --gray-3: oklch(22% 0.006 90);
-  --gray-4: oklch(30% 0.006 90);
-  --gray-5: oklch(42% 0.006 90);
-  --gray-6: oklch(54% 0.006 90);
-  --gray-7: oklch(68% 0.005 90);
-  --gray-8: oklch(82% 0.004 90);
-  --gray-9: oklch(90% 0.003 90);
-  --gray-10: oklch(95% 0.003 90);
-  --gray-11: oklch(98% 0.002 90);
+  --gray-0: #16171a;
+  --gray-1: #252628;
+  --gray-2: #2d2f31;
+  --gray-3: #37393c;
+  --gray-4: #3a3c3f;
+  --gray-5: #4e5155;
+  --gray-6: #64666a;
+  --gray-7: #84868a;
+  --gray-8: #a3a5a7;
+  --gray-9: #d6d8d9;
+  --gray-10: #f5f6f6;
+  --gray-11: #ffffff;
 
-  /* CMYK accents — base / ink (text-on-light) / wash (~10% tint) */
-  --cyan-base: oklch(72% 0.18 220); /* Process Cyan — Lens, action */
-  --cyan-ink: oklch(50% 0.18 220);
-  --cyan-wash: oklch(72% 0.18 220 / 0.1);
-  --magenta-base: oklch(62% 0.27 350); /* Vivid Magenta — Snapshot, commit */
-  --magenta-ink: oklch(48% 0.27 350);
-  --magenta-wash: oklch(62% 0.27 350 / 0.1);
-  --yellow-base: oklch(86% 0.18 95); /* Electric Yellow — Fragment, ingest */
-  --yellow-ink: oklch(58% 0.16 80);
-  --yellow-wash: oklch(86% 0.18 95 / 0.12);
+  --cyan-base: #22d3ee;
+  --cyan-wash: rgb(34 211 238 / 0.12);
+  --cyan-edge: rgb(34 211 238 / 0.4);
+  --cyan-veil: rgb(34 211 238 / 0.04);
+  --magenta-base: #f0189c;
+  --magenta-wash: rgb(240 24 156 / 0.14);
+  --magenta-edge: rgb(240 24 156 / 0.45);
+  --magenta-veil: rgb(240 24 156 / 0.05);
+  --yellow-base: #f5d90a;
+  --yellow-wash: rgb(245 217 10 / 0.12);
+  --yellow-line: rgb(245 217 10 / 0.4);
 
   /* Status — three momentum tiers */
-  --status-stable: oklch(74% 0.15 155);
-  --status-drifting: var(--yellow-base);
-  --status-critical: oklch(64% 0.22 25);
-  --status-stable-wash: oklch(74% 0.15 155 / 0.12);
-  --status-drifting-wash: oklch(86% 0.18 95 / 0.14);
-  --status-critical-wash: oklch(64% 0.22 25 / 0.14);
+  --status-stable: #22d3ee;
+  --status-drifting: #f5d90a;
+  --status-critical: #ff5a3c;
+  --status-stable-wash: rgb(34 211 238 / 0.12);
+  --status-drifting-wash: rgb(245 217 10 / 0.14);
+  --status-critical-wash: rgb(255 90 60 / 0.14);
 
-  /* Accent "ink" (text/icon on light wash) + status ink. Kept as their own
-       semantic tokens (not the raw `*-ink`) so the dark theme can lift them
-       for legibility on dark washes without disturbing other usages. */
-  --accent-action-ink: var(--cyan-ink);
-  --accent-truth-ink: var(--magenta-ink);
-  --accent-ingest-ink: var(--yellow-ink);
-  --status-stable-ink: oklch(48% 0.13 155);
-  --status-drifting-ink: var(--yellow-ink);
-  --status-critical-ink: oklch(54% 0.22 25);
-  /* Hairline for fragment/ingest left-borders (the mock's `yellowLine`). */
-  --yellow-line: oklch(80% 0.17 90);
+  /* Ink is the accent itself: text on a wash is the accent colour. */
+  --accent-cyan-ink: var(--cyan-base);
+  --accent-magenta-ink: var(--magenta-base);
+  --accent-yellow-ink: var(--yellow-base);
+  --status-stable-ink: var(--status-stable);
+  --status-drifting-ink: var(--status-drifting);
+  --status-critical-ink: var(--status-critical);
 
   /* Content colour palette — the user's own "Colours", distinct from the
-       brand CMYK chrome. Vivid mid-tones that read on either theme. */
+       brand chrome. Vivid mid-tones that read on either theme. */
   --content-1: oklch(66% 0.18 220);
   --content-2: oklch(60% 0.27 350);
   --content-3: oklch(72% 0.17 85);
@@ -80,27 +76,28 @@
   --content-7: oklch(58% 0.19 300);
   --content-8: oklch(62% 0.13 190);
 
-  /* === Semantic surfaces — LIGHT theme (`:root`) =================== */
-  --bg-0: var(--gray-11); /* app background */
-  --bg-1: var(--gray-10); /* card / panel */
-  --bg-2: var(--gray-9); /* raised — menu, popover */
-  --bg-3: var(--gray-8); /* hovered / pressed */
-  --bg-inset: var(--gray-11); /* input field, code block */
+  /* === Semantic surfaces — LIGHT (derived, never shipped) ========== */
+  --bg-0: var(--gray-10);
+  --bg-1: var(--gray-9);
+  --bg-2: var(--gray-8);
+  --bg-3: var(--gray-8);
+  --bg-inset: var(--gray-10);
 
-  --fg-1: var(--gray-0); /* primary text */
-  --fg-2: var(--gray-3); /* secondary text */
-  --fg-3: var(--gray-5); /* tertiary / icons at rest */
-  --fg-4: var(--gray-7); /* disabled / placeholder */
+  --fg-1: var(--gray-0);
+  --fg-2: var(--gray-1);
+  --fg-3: var(--gray-3);
+  --fg-4: var(--gray-5);
+  --fg-5: var(--gray-6);
 
-  --border-subtle: var(--gray-9);
+  --border-subtle: var(--gray-8);
   --border-strong: var(--gray-7);
 
-  --accent-action: var(--cyan-base);
-  --accent-action-fg: var(--gray-11);
-  --accent-truth: var(--magenta-base);
-  --accent-truth-fg: var(--gray-11);
-  --accent-ingest: var(--yellow-base);
-  --accent-ingest-fg: var(--gray-0);
+  --accent-cyan: var(--cyan-base);
+  --accent-cyan-fg: var(--gray-0);
+  --accent-magenta: var(--magenta-base);
+  --accent-magenta-fg: var(--gray-0);
+  --accent-yellow: var(--yellow-base);
+  --accent-yellow-fg: var(--gray-0);
 
   /* === shadcn semantic aliases → kalaido tokens =================== */
   --background: var(--bg-0);
@@ -110,43 +107,40 @@
   --popover: var(--bg-2);
   --popover-foreground: var(--fg-1);
 
-  --primary: var(--accent-action); /* Cyan */
-  --primary-foreground: var(--accent-action-fg);
+  --primary: var(--accent-cyan);
+  --primary-foreground: var(--accent-cyan-fg);
 
   --secondary: var(--bg-2);
   --secondary-foreground: var(--fg-1);
 
   --muted: var(--bg-1);
-  --muted-foreground: var(--fg-2);
+  --muted-foreground: var(--fg-4);
 
-  --accent: var(--bg-3); /* interactive hover surface */
+  --accent: var(--bg-2);
   --accent-foreground: var(--fg-1);
 
   --destructive: var(--status-critical);
 
-  --border: var(--gray-8); /* 1-px hairline */
-  --input: var(--gray-8);
-  --ring: var(--accent-action);
+  --border: var(--border-subtle);
+  --input: var(--border-strong);
+  --ring: var(--accent-cyan);
 
-  /* Charts — vibrant CMYK + status */
   --chart-1: var(--cyan-base);
   --chart-2: var(--magenta-base);
   --chart-3: var(--yellow-base);
   --chart-4: var(--status-stable);
   --chart-5: var(--status-critical);
 
-  /* Radius base — kalaido radius-2 (inputs/buttons/chips) */
-  --radius: 0.25rem;
+  --radius: 0;
 
-  /* Sidebar — bg-1 panel, cyan-wash active item */
   --sidebar: var(--bg-1);
   --sidebar-foreground: var(--fg-2);
-  --sidebar-primary: var(--accent-action);
-  --sidebar-primary-foreground: var(--accent-action-fg);
+  --sidebar-primary: var(--accent-cyan);
+  --sidebar-primary-foreground: var(--accent-cyan-fg);
   --sidebar-accent: var(--cyan-wash);
-  --sidebar-accent-foreground: var(--accent-action);
+  --sidebar-accent-foreground: var(--accent-cyan);
   --sidebar-border: var(--border-subtle);
-  --sidebar-ring: var(--accent-action);
+  --sidebar-ring: var(--accent-cyan);
 
   /* === Spacing / motion (additive, for direct var() use) ===
        The type scale lives in @theme below — declaring `--text-*` here would
@@ -171,13 +165,12 @@
   --shadow-overlay:
     0 8px 24px -8px oklch(0% 0 0 / 0.6), 0 2px 6px -2px oklch(0% 0 0 / 0.4);
 
-  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --duration-1: 90ms;
   --duration-2: 120ms;
   --duration-3: 200ms;
   --duration-4: 400ms;
 
-  /* Kalaido chrome constants (reference — see DESIGN.md §12) */
   --chrome-titlebar: 28px;
   --chrome-sidebar: 240px;
   --chrome-sidebar-collapsed: 48px;
@@ -186,47 +179,71 @@
 
 /* === Dark theme — the default (app applies `.dark`) ================= */
 .dark {
-  --bg-0: var(--gray-0);
-  --bg-1: var(--gray-1);
-  --bg-2: var(--gray-2);
+  --bg-0: var(--gray-1);
+  --bg-1: var(--gray-2);
+  --bg-2: var(--gray-3);
   --bg-3: var(--gray-3);
-  --bg-inset: var(--gray-0);
+  --bg-inset: var(--gray-1);
 
-  --fg-1: var(--gray-11);
-  --fg-2: var(--gray-8);
-  --fg-3: var(--gray-7);
-  --fg-4: var(--gray-5);
+  --fg-1: var(--gray-10);
+  --fg-2: var(--gray-9);
+  --fg-3: var(--gray-8);
+  --fg-4: var(--gray-7);
+  --fg-5: var(--gray-6);
 
-  --border-subtle: var(--gray-2);
-  --border-strong: var(--gray-4);
-
-  --accent-action-fg: var(--gray-0);
-  --accent-ingest-fg: var(--gray-0);
-  --accent-truth-fg: var(--gray-11);
-
-  /* Lift inks so wash-filled pills/labels stay legible on dark surfaces. */
-  --accent-action-ink: oklch(74% 0.15 220);
-  --accent-truth-ink: oklch(76% 0.2 350);
-  --accent-ingest-ink: oklch(86% 0.15 92);
-  --status-stable-ink: oklch(80% 0.14 155);
-  --status-drifting-ink: oklch(86% 0.16 92);
-  --status-critical-ink: oklch(76% 0.17 25);
-
-  /* shadcn border/input don't simply track a flipped surface step */
-  --border: var(--gray-3);
-  --input: var(--gray-3);
+  --border-subtle: var(--gray-4);
+  --border-strong: var(--gray-5);
 }
 
 @theme inline {
-  /* Typography — Geist Sans + Geist Mono */
   --font-sans:
-    "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
-  --font-heading: "Geist Variable", sans-serif;
+    "Archivo Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-heading: "Archivo Variable", sans-serif;
 
-  /* Type scale — the kalaido ramp (DESIGN.md). Replaces Tailwind's default
-       text-* sizes; each size carries a matched line-height so the large steps
-       don't inherit the default (too-small) leading. */
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Mock-derived type roles (DESIGN.md §2). `label` covers both the Archivo
+       and mono micro-labels — they share the recipe and differ only by family.
+       Weight is left to call sites; the roles carry size, leading, tracking. */
+  --text-display: 36px;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.015em;
+  --text-card-title: 16px;
+  --text-card-title--line-height: 1.4;
+  --text-card-title--letter-spacing: -0.01em;
+  --text-body: 14.5px;
+  --text-body--line-height: 1.62;
+  --text-row: 13.5px;
+  --text-row--line-height: 1.5;
+  --text-item: 13px;
+  --text-item--line-height: 1.5;
+  --text-body-sm: 12.5px;
+  --text-body-sm--line-height: 1.55;
+  --text-btn: 12px;
+  --text-btn--line-height: 1;
+  --text-btn--letter-spacing: 0.06em;
+  --text-meta: 11.5px;
+  --text-meta--line-height: 1.45;
+  --text-btn-sm: 11px;
+  --text-btn-sm--line-height: 1;
+  --text-btn-sm--letter-spacing: 0.06em;
+  --text-mono-sm: 11px;
+  --text-mono-sm--line-height: 1.45;
+  --text-label: 10px;
+  --text-label--line-height: 1.4;
+  --text-label--letter-spacing: 0.14em;
+  --text-crumb: 10px;
+  --text-crumb--line-height: 1.4;
+  --text-crumb--letter-spacing: 0.12em;
+  --text-pill: 9.5px;
+  --text-pill--line-height: 1.4;
+  --text-pill--letter-spacing: 0.12em;
+
+  /* Legacy t-shirt scale — retained for the screens that have no mock yet.
+       Deprecated: new work uses the roles above. */
   --text-xs: 11px;
   --text-xs--line-height: 1.45;
   --text-sm: 12px;
@@ -244,7 +261,6 @@
   --text-3xl: 64px;
   --text-3xl--line-height: 1.05;
 
-  /* Leading / tracking tokens → utilities (leading-body, tracking-caps, …) */
   --leading-display: 1.05;
   --leading-tight: 1.2;
   --leading-snug: 1.35;
@@ -287,29 +303,32 @@
 
   /* Kalaido brand accents + status — named utilities
        (e.g. bg-action, text-truth, border-ingest, text-stable) */
-  --color-action: var(--accent-action);
-  --color-action-foreground: var(--accent-action-fg);
-  --color-truth: var(--accent-truth);
-  --color-truth-foreground: var(--accent-truth-fg);
-  --color-ingest: var(--accent-ingest);
-  --color-ingest-foreground: var(--accent-ingest-fg);
-  --color-action-wash: var(--cyan-wash);
-  --color-truth-wash: var(--magenta-wash);
-  --color-ingest-wash: var(--yellow-wash);
+  --color-cyan: var(--accent-cyan);
+  --color-cyan-foreground: var(--accent-cyan-fg);
+  --color-magenta: var(--accent-magenta);
+  --color-magenta-foreground: var(--accent-magenta-fg);
+  --color-yellow: var(--accent-yellow);
+  --color-yellow-foreground: var(--accent-yellow-fg);
+  --color-cyan-wash: var(--cyan-wash);
+  --color-magenta-wash: var(--magenta-wash);
+  --color-yellow-wash: var(--yellow-wash);
+  --color-cyan-edge: var(--cyan-edge);
+  --color-magenta-edge: var(--magenta-edge);
+  --color-cyan-veil: var(--cyan-veil);
+  --color-magenta-veil: var(--magenta-veil);
   --color-stable: var(--status-stable);
   --color-drifting: var(--status-drifting);
   --color-critical: var(--status-critical);
-  /* ink (text-on-wash) + status washes + ingest hairline */
-  --color-action-ink: var(--accent-action-ink);
-  --color-truth-ink: var(--accent-truth-ink);
-  --color-ingest-ink: var(--accent-ingest-ink);
+  --color-cyan-ink: var(--accent-cyan-ink);
+  --color-magenta-ink: var(--accent-magenta-ink);
+  --color-yellow-ink: var(--accent-yellow-ink);
   --color-stable-ink: var(--status-stable-ink);
   --color-drifting-ink: var(--status-drifting-ink);
   --color-critical-ink: var(--status-critical-ink);
   --color-stable-wash: var(--status-stable-wash);
   --color-drifting-wash: var(--status-drifting-wash);
   --color-critical-wash: var(--status-critical-wash);
-  --color-ingest-line: var(--yellow-line);
+  --color-yellow-line: var(--yellow-line);
 
   /* Content colour palette → utilities: bg-content-1 … text-content-8 */
   --color-content-1: var(--content-1);
@@ -332,18 +351,31 @@
   --color-fg-2: var(--fg-2);
   --color-fg-3: var(--fg-3);
   --color-fg-4: var(--fg-4);
+  --color-fg-5: var(--fg-5);
   --color-line: var(--border-subtle);
   --color-line-strong: var(--border-strong);
 
-  /* Radius scale — kalaido: 2 / 4 / 8 px (+ pill) */
-  --radius-sm: 0.125rem; /* 2px  — tooltips */
-  --radius-md: 0.25rem; /* 4px  — inputs, chips, buttons */
-  --radius-lg: 0.5rem; /* 8px  — cards, dialogs */
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-3xl: 1.5rem;
-  --radius-4xl: 2rem;
+  /* Hard offset shadows, accent-tinted. Decoration, not elevation. */
+  --drop-shadow-magenta: 4px 4px 0 rgb(240 24 156 / 0.5);
+  --shadow-cyan: 4px 4px 0 0 rgb(34 211 238 / 0.28);
+
+  /* Nothing is rounded. `full` survives for the 5px status dots. */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-4xl: 0;
   --radius-full: 9999px;
+}
+
+@utility clip-chamfer {
+  clip-path: polygon(0 0, 100% 0, 100% 68%, 88% 100%, 0 100%);
+}
+
+@utility clip-mark {
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%);
 }
 
 @layer base {
@@ -357,7 +389,6 @@
   html {
     @apply font-sans;
   }
-  /* Selection — uses the action accent (Cyan). */
   ::selection {
     background: var(--cyan-base);
     color: var(--gray-0);
@@ -372,4 +403,13 @@
 [data-slot="sidebar-wrapper"] {
   flex: 1;
   min-height: 0;
+}
+.rounded {
+  border-radius: 0;
+}
+[data-settings-section="appearance"] {
+  display: none;
+}
+[data-sidebar-control="toggle"] {
+  display: none;
 }

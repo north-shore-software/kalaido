@@ -42,7 +42,7 @@ export interface StreamCardProps {
 export function StreamCard({ f }: StreamCardProps) {
   const Icon = fragmentTypeIcon(f.type);
   return (
-    <div className="mb-3.5 flex-1 rounded-lg border border-line border-l-2 border-l-ingest-line bg-card p-3.5 transition-all hover:border-line-strong">
+    <div className="mb-3.5 flex-1 rounded-lg border border-line border-l-2 border-l-yellow-line bg-card p-3.5 transition-all hover:border-line-strong">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="flex size-6 items-center justify-center rounded-md bg-surface-2">

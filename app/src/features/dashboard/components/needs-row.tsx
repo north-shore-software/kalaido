@@ -27,13 +27,13 @@ export function NeedsRow({ item, onAction, busy, disabled }: NeedsRowProps) {
         <span
           className={cn(
             "flex size-[30px] shrink-0 items-center justify-center rounded-md",
-            item.kind === "reflection" ? "bg-ingest-wash" : "bg-drifting-wash",
+            item.kind === "reflection" ? "bg-yellow-wash" : "bg-drifting-wash",
           )}
         >
           {item.kind === "reflection" ? (
-            <ClockIcon className="size-4 text-ingest-ink" />
+            <ClockIcon className="size-4 text-yellow-ink" />
           ) : (
-            <FileTextIcon className="size-4 text-ingest-ink" />
+            <FileTextIcon className="size-4 text-yellow-ink" />
           )}
         </span>
       }

@@ -16,6 +16,8 @@ export interface SidebarNavItem {
   icon: LucideIcon;
 }
 
+export const RAIL_ICON_CLASS = "size-4 group-data-[collapsible=icon]:size-7";
+
 /**
  * A group of sidebar nav links. `/main` is matched exactly (it's the root); the
  * rest match their subtree so detail pages keep their nav item lit.
@@ -39,7 +41,7 @@ export function SidebarNav({ items }: { items: readonly SidebarNavItem[] }) {
                 isActive={isActive(item.transition)}
                 render={<RouteLink transition={item.transition} />}
               >
-                <Icon />
+                <Icon className={RAIL_ICON_CLASS} />
                 <span>{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>

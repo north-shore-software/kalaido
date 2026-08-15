@@ -19,7 +19,7 @@ export function StatusBadge({ info }: StatusBadgeProps) {
   switch (info.status) {
     case "stale":
       return (
-        <Mono className="text-[10.5px] text-ingest-ink">
+        <Mono className="text-[10.5px] text-yellow-ink">
           {info.entropy > 0 ? `${info.entropy} new · stale` : "stale"}
         </Mono>
       );

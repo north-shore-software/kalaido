@@ -1,24 +1,13 @@
 import { useSnapshot } from "valtio/react";
-import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { ListRow } from "@/components/kalaido";
 import { appState } from "@/hooks/use-app-state.ts";
+import { kalaidoscopeTypeLabel } from "@/lib/labels";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 
 interface KalaidoscopeListProps {
   excludeId?: string;
   className?: string;
   onSwitched?: () => void;
-}
-
-export function kalaidoscopeTypeLabel(type: KalaidoscopeMeta["type"]): string {
-  switch (type) {
-    case "local_file":
-      return "On this device";
-    case "cloud":
-      return "Kalaido Cloud";
-    case "local_net":
-      return "Local network";
-  }
 }
 
 export function KalaidoscopeList({

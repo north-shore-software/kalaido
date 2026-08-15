@@ -67,7 +67,7 @@ export default function Stream() {
         <div className="mx-auto max-w-[720px] px-8">
           {isLoading && (
             <div className="mb-5 flex items-center gap-2.5">
-              <StatusPill kind="ingest" dot>
+              <StatusPill kind="yellow" dot>
                 Loading...
               </StatusPill>
             </div>

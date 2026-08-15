@@ -1,4 +1,16 @@
 import { FragmentTypeOptions } from "@/api/kalaidoscope/types";
+import type { KalaidoscopeMeta } from "@/api/app/types";
+
+export function kalaidoscopeTypeLabel(type: KalaidoscopeMeta["type"]): string {
+  switch (type) {
+    case "local_file":
+      return "On this device";
+    case "cloud":
+      return "Kalaido Cloud";
+    case "local_net":
+      return "Local network";
+  }
+}
 
 const FRAGMENT_TYPE_LABELS: Record<FragmentTypeOptions, string> = {
   email: "Email",

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import {
+  RAIL_ICON_CLASS,
   SidebarNav,
   type SidebarNavItem,
 } from "@/components/layout/sidebar-nav";
@@ -77,7 +78,7 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
 /** Accent treatment for the shell's one creation action. Reserved for Capture:
  *  the accent means "this makes something", and nothing else in the shell does. */
 const ACTION_CLASS =
-  "text-action-ink hover:bg-action-wash hover:text-action-ink active:bg-action-wash active:text-action-ink data-active:bg-action-wash data-active:text-action-ink";
+  "text-cyan-ink hover:bg-cyan-wash hover:text-cyan-ink active:bg-cyan-wash active:text-cyan-ink data-active:bg-cyan-wash data-active:text-cyan-ink";
 
 /**
  * Capture sits above the navigation and alone in its zone — getting a thought
@@ -94,7 +95,7 @@ function NavCapture() {
             className={ACTION_CLASS}
             onClick={() => openAddFragmentModal()}
           >
-            <NotebookPenIcon />
+            <NotebookPenIcon className={RAIL_ICON_CLASS} />
             <span>Capture</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -125,7 +126,7 @@ function NavConnections() {
                 />
               }
             >
-              <ArrowLeftRightIcon />
+              <ArrowLeftRightIcon className={RAIL_ICON_CLASS} />
               <span>Connections</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -164,7 +165,7 @@ function SidebarToggleButton() {
   const { toggleSidebar, state } = useSidebar();
   const label = state === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem data-sidebar-control="toggle">
       <SidebarMenuButton onClick={toggleSidebar} tooltip={label}>
         <PanelLeftIcon />
         <span>{label}</span>

@@ -17,7 +17,7 @@ export function QNode({ state, n, last }: QNodeProps) {
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full",
           state === "done" && "bg-stable",
-          state === "current" && "border-2 border-action-ink",
+          state === "current" && "border-2 border-cyan-ink",
           state === "todo" && "border-2 border-fg-4",
         )}
       >
@@ -27,7 +27,7 @@ export function QNode({ state, n, last }: QNodeProps) {
           <Mono
             className={cn(
               "text-xs font-semibold",
-              state === "current" ? "text-action-ink" : "text-fg-4",
+              state === "current" ? "text-cyan-ink" : "text-fg-4",
             )}
           >
             {n}

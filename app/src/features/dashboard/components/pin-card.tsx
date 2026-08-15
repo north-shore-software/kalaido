@@ -13,7 +13,7 @@ function PinIcon({ kind }: { kind: EntityKind }) {
   return (
     <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-surface-2">
       {kind === "projection" ? (
-        <FileTextIcon className="size-3.5 text-truth-ink" />
+        <FileTextIcon className="size-3.5 text-magenta-ink" />
       ) : (
         <ClockIcon className="size-3.5 text-fg-3" />
       )}
