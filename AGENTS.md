@@ -79,6 +79,9 @@ This is not terseness for its own sake. Never drop signal to save tokens — dro
 - **Code is the only source of truth.** Comments and stray markdown are stale, aspirational, or
   wrong. Do not trust them, cite them, or reason from them — read the code and find out. This file
   is the only exception.
+- **Verify behaviour by running it.** Reading a dependency's source is not verification — its
+  defaults, its config and your overrides all change the outcome. Write the three-line script and
+  observe the result. Never report behaviour you have only inferred.
 
 ## Out-of-scope discoveries
 

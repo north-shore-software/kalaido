@@ -158,11 +158,15 @@ scope. The active settings section. "Active & Running". The API pill. The send b
 it has something to send. Cyan is reassurance — it reports, it does not ask.
 
 **Magenta is your decision is required.** The pending column and its badge. The inset edge
-marking unreviewed content. The primary approve action. The active rail item while a review
-is open. The final breadcrumb on a review screen. Magenta is a demand.
+marking unreviewed content. The primary approve action. Magenta is a demand.
 
 Consequences:
 
+- **Position is not attention.** Where you *are* is cyan; what *needs you* is magenta. They
+  are independent channels and may appear on the same element at once. The shell — rail,
+  breadcrumbs, page header — reports position only, so it is never magenta on its own.
+  Magenta enters the shell only where a component has been given the content state that
+  justifies it.
 - **A screen with nothing awaiting the user contains no magenta at all.** If you are
   reaching for magenta to make something prominent, you are using it wrong — reach for
   `line-strong` or `fg-1` instead.
@@ -312,6 +316,9 @@ Mono, 9.5px, 600–700, `0.12em`, uppercase, 3px/6px padding, 1px border, zero r
 - **state pill** (Active scope, Pending): accent `edge` border, accent `wash` fill, accent text
 - **type pill** (API, Ollama): `line-strong` border, no fill, `fg-3` text, `0.08em` tracking
 
+A state pill with no accent — a plain count, a neutral tag — collapses to the type-pill
+recipe.
+
 A pill may carry a 10px leading icon.
 
 ### Labels
@@ -351,6 +358,16 @@ Equal columns split by a `line` border. Left is current: `fg-2` body, a dotted `
 header. Right is pending: `magenta veil` fill, `inset 3px 0 0 magenta` left edge, a
 `magenta edge` header underline with a bordered Pending pill, and `fg-1` body — the
 candidate reads brighter than what it would replace.
+
+### Not specified
+
+The mocks do not cover these. What ships is a working guess, not a rule — treat it as open,
+and do not extend from it.
+
+- **Segmented control** — zero radius, `btn-sm` uppercase, `line-strong` container. The
+  selected segment carries a near-white `fg-2` fill that appears nowhere else in the system.
+- **Settings main pane alignment** — the 1000px max-width is specified; whether it hugs the
+  nav or centres in the window is not. It currently hugs.
 
 ---
 
