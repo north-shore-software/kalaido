@@ -407,3 +407,6 @@
 .rounded {
   border-radius: 0;
 }
+[data-settings-section="appearance"] {
+  display: none;
+}
