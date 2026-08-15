@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -54,7 +53,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		// Persist new messages
 		if conv != nil {
 			for _, m := range newMsgs {
-				if err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
+				if _, err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
 					log.Printf("chat persist: message %s: %v", m.ID, err)
 				}
 			}
@@ -85,7 +84,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 
 		textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
 
-		turn := chat.StreamAssistantResponse(e.Response, comp, textID)
+		turn := chat.StreamAssistantResponse(e.Response, comp, textID, nil)
 
 		// Persist the assistant turn once the stream has fully drained.
 		if conv != nil {
@@ -94,16 +93,8 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 				parts = append(parts, api.UIMessagePart{Type: "text", Text: turn.Text})
 			}
 			for _, tc := range turn.ToolCalls {
-				dataBytes, err := json.Marshal(map[string]any{
-					"toolCallId": tc.ID,
-					"toolName":   tc.Name,
-					"input":      tc.Args,
-				})
-				if err == nil {
-					parts = append(parts, api.UIMessagePart{
-						Type: "tool-" + tc.Name,
-						Data: dataBytes,
-					})
+				if part, ok := toolCallPart(tc); ok {
+					parts = append(parts, part)
 				}
 			}
 			if len(parts) > 0 {
@@ -112,7 +103,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 					Role:  "assistant",
 					Parts: parts,
 				}
-				if err := chat.PersistMessage(ctx, app, conv, aMsg, assistantModel); err != nil {
+				if _, err := chat.PersistMessage(ctx, app, conv, aMsg, assistantModel); err != nil {
 					log.Printf("chat persist: assistant message: %v", err)
 				}
 			}

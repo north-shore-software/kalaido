@@ -41,7 +41,7 @@ type AssistantTurn struct {
 	ToolCalls []llm.ToolCall `json:"toolCalls"`
 }
 
-func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID string) AssistantTurn {
+func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID string, onToolCall func(llm.ToolCall)) AssistantTurn {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("x-vercel-ai-ui-message-stream", "v1")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -107,11 +107,12 @@ func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID
 				"inputTextDelta": ev.Text,
 			})
 		case llm.EventToolEnd:
-			toolCalls = append(toolCalls, llm.ToolCall{
+			tc := llm.ToolCall{
 				ID:   ev.ToolCallID,
 				Name: ev.ToolName,
 				Args: ev.Args,
-			})
+			}
+			toolCalls = append(toolCalls, tc)
 			send(map[string]any{
 				"type":       "tool-input-available",
 				"toolCallId": ev.ToolCallID,
@@ -119,6 +120,9 @@ func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID
 				"input":      ev.Args,
 				"dynamic":    true,
 			})
+			if onToolCall != nil {
+				onToolCall(tc)
+			}
 		}
 	}
 	if textStarted {

@@ -41,6 +41,18 @@ var updateDraftTool = llm.Tool{
 	}`),
 }
 
+func toolCallPart(tc llm.ToolCall) (api.UIMessagePart, bool) {
+	dataBytes, err := json.Marshal(map[string]any{
+		"toolCallId": tc.ID,
+		"toolName":   tc.Name,
+		"input":      tc.Args,
+	})
+	if err != nil {
+		return api.UIMessagePart{}, false
+	}
+	return api.UIMessagePart{Type: "tool-" + tc.Name, Data: dataBytes}, true
+}
+
 func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		ctx := e.Request.Context()
@@ -51,7 +63,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		chat.ResolveContextSpecs(ctx, app, newMsgs)
 
 		for _, m := range newMsgs {
-			if err := chat.PersistMessage(ctx, app, refRec, m, ""); err != nil {
+			if _, err := chat.PersistMessage(ctx, app, refRec, m, ""); err != nil {
 				log.Printf("refinement persist: message %s: %v", m.ID, err)
 			}
 		}
@@ -82,34 +94,49 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 
 		textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
 
-		turn := chat.StreamAssistantResponse(e.Response, comp, textID)
+		var draftRec *core.Record
+		var streamed []api.UIMessagePart
+
+		writeTurn := func(parts []api.UIMessagePart) {
+			aMsg := api.UIMessage{
+				ID:    textID,
+				Role:  "assistant",
+				Parts: parts,
+			}
+			if draftRec != nil {
+				if err := chat.RewriteMessage(app, draftRec, aMsg); err != nil {
+					log.Printf("refinement persist: assistant message: %v", err)
+				}
+				return
+			}
+			rec, err := chat.PersistMessage(ctx, app, refRec, aMsg, assistantModel)
+			if err != nil {
+				log.Printf("refinement persist: assistant message: %v", err)
+				return
+			}
+			draftRec = rec
+		}
+
+		turn := chat.StreamAssistantResponse(e.Response, comp, textID, func(tc llm.ToolCall) {
+			part, ok := toolCallPart(tc)
+			if !ok {
+				return
+			}
+			streamed = append(streamed, part)
+			writeTurn(streamed)
+		})
 
 		var parts []api.UIMessagePart
 		if len(turn.Text) > 0 {
 			parts = append(parts, api.UIMessagePart{Type: "text", Text: turn.Text})
 		}
 		for _, tc := range turn.ToolCalls {
-			dataBytes, err := json.Marshal(map[string]any{
-				"toolCallId": tc.ID,
-				"toolName":   tc.Name,
-				"input":      tc.Args,
-			})
-			if err == nil {
-				parts = append(parts, api.UIMessagePart{
-					Type: "tool-" + tc.Name,
-					Data: dataBytes,
-				})
+			if part, ok := toolCallPart(tc); ok {
+				parts = append(parts, part)
 			}
 		}
 		if len(parts) > 0 {
-			aMsg := api.UIMessage{
-				ID:    textID,
-				Role:  "assistant",
-				Parts: parts,
-			}
-			if err := chat.PersistMessage(ctx, app, refRec, aMsg, assistantModel); err != nil {
-				log.Printf("refinement persist: assistant message: %v", err)
-			}
+			writeTurn(parts)
 		}
 
 		return nil
