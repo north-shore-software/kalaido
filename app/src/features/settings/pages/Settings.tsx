@@ -2,7 +2,6 @@ import { useParams } from "react-router-dom";
 import { ArrowLeftIcon } from "lucide-react";
 import { cn } from "../../../lib/css-utils";
 import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/layout/section";
 import { KalaidoscopesSection } from "../components/kalaidoscopes-section";
 import { DangerZoneSection } from "../components/danger-zone-section";
 import { CloudAccountSection } from "../components/cloud-account-section";
@@ -14,34 +13,16 @@ import { useAppNavigate } from "@/routes/use-app-navigate";
 import { RouteLink } from "@/routes/route-link";
 
 const sections = [
+  { id: "kalaidoscopes", label: "Manage Kalaidoscopes" },
   { id: "cloud-account", label: "Cloud Account" },
   { id: "local-ai", label: "Local AI" },
-  { id: "kalaidoscopes", label: "Manage Kalaidoscopes" },
   { id: "appearance", label: "Appearance" },
   { id: "danger", label: "Danger Zone" },
 ];
 
-const placeholderContent: Record<
-  string,
-  { title: string; description: string }
-> = {
-  general: {
-    title: "General",
-    description: "Manage your general preferences and application settings.",
-  },
-  account: {
-    title: "Account",
-    description: "Update your account details and personal information.",
-  },
-  billing: {
-    title: "Billing",
-    description: "View your subscription, usage, and payment information.",
-  },
-};
-
 export default function Settings() {
   const { go } = useAppNavigate();
-  const { section = "general" } = useParams<{ section: string }>();
+  const { section = "kalaidoscopes" } = useParams<{ section: string }>();
 
   return (
     <div
@@ -81,9 +62,7 @@ export default function Settings() {
       </nav>
       <main className="flex-1 overflow-auto px-8 pt-8 pb-12">
         <div className="max-w-[1000px]">
-          {section === "kalaidoscopes" ? (
-            <KalaidoscopesSection />
-          ) : section === "danger" ? (
+          {section === "danger" ? (
             <DangerZoneSection />
           ) : section === "cloud-account" ? (
             <CloudAccountSection />
@@ -92,16 +71,7 @@ export default function Settings() {
           ) : section === "appearance" ? (
             <AppearanceSection />
           ) : (
-            (() => {
-              const content =
-                placeholderContent[section] ?? placeholderContent.general;
-              return (
-                <SectionHeader
-                  title={content.title}
-                  description={content.description}
-                />
-              );
-            })()
+            <KalaidoscopesSection />
           )}
         </div>
       </main>
