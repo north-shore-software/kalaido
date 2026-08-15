@@ -11,8 +11,8 @@ import (
 )
 
 // RegisterHooks guards the config singleton: model_set stays superuser-only,
-// the provider is permanent once chosen, and no credential or model reaches the
-// database without a live call proving it works.
+// and no credential or model reaches the database without a live call proving
+// it works.
 func RegisterHooks(app core.App) {
 	// Update is open to the authenticated app user so the provider fields can
 	// be edited, but model_set decides which artifacts this workspace stamps
@@ -36,15 +36,12 @@ func RegisterHooks(app core.App) {
 		orig := Read(e.Record.Original())
 		next := Read(e.Record)
 
-		if orig.Configured() && next.Provider != orig.Provider {
-			return apis.NewBadRequestError(
-				"provider is permanent for this workspace and cannot be changed once set",
-				map[string]any{"provider": validation.NewError(
-					"provider_immutable",
-					"provider is permanent for this workspace and cannot be changed once set",
-				)},
-			)
-		}
+		// The provider is deliberately changeable. Pinning it for the workspace's
+		// lifetime meant the setup form could not record "ollama" at all without
+		// locking the choice in, so it recorded nothing — leaving the selection a
+		// label rather than saved state. Switching between providers is validated
+		// like any other change: the credential and models below have to prove
+		// themselves before the row is written.
 
 		if next.Configured() {
 			if len(next.Models()) == 0 {

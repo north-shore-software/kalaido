@@ -78,6 +78,35 @@ This composite bug report covers issues identified on the Sign In / Sign Up page
 
 ---
 
+## Implementation Status (2026-08-14)
+
+**Sub-issues 1 and 3 are done. Sub-issue 2 (OAuth) is deliberately not.**
+
+* `<AuthForm>` lost the Name field and the bottom toggle link; `onToggleMode` was
+  removed from its props rather than left dead, so mode is structurally the
+  caller's `<Segmented>` control and cannot drift. `signUp.email` sends
+  `name: ""`, and the account card and setup identity panel fall back to the
+  email — no display name is invented from the address.
+* Settings renders the same `<CloudAuthPanel>` as onboarding. It passes no
+  `onAuthenticated`: the panel restores the account's workspaces itself, and the
+  section swaps to the account card because `authClient.useSession()` is
+  reactive. Signing up from Settings never navigates.
+* `OAuthButtons` renders both providers disabled with a "Coming soon" badge, and
+  no longer calls `authClient.signIn.social` — which failed against a server with
+  no providers configured, so the buttons produced a raw backend error. The three
+  open questions in sub-issue 2 are unanswered and still gate the work.
+* Sign-out purges cloud workspaces from state and settings (the "logged out
+  badge" alternative below was considered and rejected), and now also clears
+  `lastOpenedKalaidoscopeId` when it names one of them.
+* `switchLocalKalaidoscope` now persists `lastOpenedKalaidoscopeId`. It was
+  previously written only by `createKalaidoscope`, so the setting meant "last
+  *created*" — a pre-existing bug in its own right (switch workspaces, restart,
+  return to the wrong one), and the reason sign-out could not otherwise tell
+  whether the workspace being reopened was the one it had just made unreachable.
+* Re-authentication repopulates the switcher from anywhere via
+  `syncCloudWorkspaces()`, which also closed
+  `.agents/bugs/2026-08-14-stale-cloud-workspace-list.md`.
+
 ## Edge Cases & Scope Limits
 * **Offline Sign-Out**: If the device is offline during sign-out, local session tokens and cloud scope entries must still be purged locally from app state and settings.
 * **No Remaining Local Scopes**: If a user with zero local scopes signs out of a cloud scope, the app transitions to `no_kalaidoscopes_available` state, rendering the Onboarding Landing screen.

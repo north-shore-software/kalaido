@@ -1,6 +1,7 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -11,9 +12,31 @@ export default function OnboardingLogin() {
   const { go } = useAppNavigate();
   const { signedIn } = useCloudSession();
 
+  // A successful sign-up navigates from its own callback. `signedIn` flips true
+  // in the same beat, so without this the effect below would race it and win,
+  // dumping a brand-new account on a list it cannot have anything in.
+  const handledHere = useRef(false);
+
   useEffect(() => {
-    if (signedIn) go(transitions.signedIn, { replace: true });
+    if (signedIn && !handledHere.current) {
+      go(transitions.signedIn, { replace: true });
+    }
   }, [signedIn, go]);
+
+  function handleAuthenticated({ isNewAccount }: { isNewAccount: boolean }) {
+    handledHere.current = true;
+
+    if (!isNewAccount) {
+      go(transitions.signedIn, { replace: true });
+      return;
+    }
+
+    const state: KalaidoscopeSetupState = {
+      defaultStorage: "cloud",
+      firstWorkspace: true,
+    };
+    go(transitions.signedUp, { replace: true, state });
+  }
 
   return (
     <div
@@ -35,9 +58,7 @@ export default function OnboardingLogin() {
           <h1 className="text-xl font-semibold tracking-tight">
             Sign in to Kalaido Cloud
           </h1>
-          <CloudAuthPanel
-            onAuthenticated={() => go(transitions.signedIn, { replace: true })}
-          />
+          <CloudAuthPanel onAuthenticated={handleAuthenticated} />
         </div>
       </main>
     </div>
