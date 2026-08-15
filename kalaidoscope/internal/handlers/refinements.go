@@ -28,11 +28,7 @@ func HandleCreateReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 
 func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetRefinementCol string) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		type reqBody struct {
-			ClientID   string `json:"clientId"`
-			SnapshotID string `json:"snapshotId"`
-		}
-		var req reqBody
+		var req api.CreateRefinementRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
@@ -45,6 +41,7 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 		}
 
 		var refID string
+		var seeded []api.UIMessage
 		err := app.RunInTransaction(func(txApp core.App) error {
 			col, err := txApp.FindCollectionByNameOrId(targetRefinementCol)
 			if err != nil {
@@ -70,43 +67,73 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			}
 			refID = rec.Id
 
+			var snap *core.Record
 			if req.SnapshotID != "" {
-				snap, err := txApp.FindRecordById(snapColName, req.SnapshotID)
+				snap, err = txApp.FindRecordById(snapColName, req.SnapshotID)
 				if err != nil {
 					return err
 				}
+			}
 
-				var parts []api.UIMessagePart
-				var ctxSpec api.ContextSpec
-				if err := snap.UnmarshalJSONField("context_spec", &ctxSpec); err == nil {
-					data, _ := json.Marshal(ctxSpec)
+			// An explicit spec wins: it is how a session starts from a context no
+			// snapshot has ever been generated against (a fork's new inputs, a
+			// graduated fragment). Otherwise inherit the snapshot's.
+			var ctxSpec *api.ContextSpec
+			if req.ContextSpec != nil {
+				ctxSpec = req.ContextSpec
+			} else if snap != nil {
+				var fromSnap api.ContextSpec
+				if err := snap.UnmarshalJSONField("context_spec", &fromSnap); err == nil {
+					ctxSpec = &fromSnap
+				}
+			}
+
+			var parts []api.UIMessagePart
+			if ctxSpec != nil {
+				data, _ := json.Marshal(*ctxSpec)
+				parts = append(parts, api.UIMessagePart{Type: "context_spec", Data: data})
+
+				// Resolve it now, as a chat turn would (chat.ResolveContextSpecs).
+				// A seeded session can be committed without a single message being
+				// sent — graduating a fragment, then approving it as-is — and the
+				// commit reads its resolved context straight off the transcript. No
+				// pinned_ids here would mean a snapshot whose receipt claims nothing
+				// went into it, and which is therefore stale the moment it exists.
+				if pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), txApp, *ctxSpec); err == nil {
+					data, _ := json.Marshal(pinned)
+					parts = append(parts, api.UIMessagePart{Type: "pinned_ids", Data: data})
+				}
+			}
+
+			if targetCol == "reflection" && snap != nil {
+				var winSpec api.WindowSpec
+				if err := snap.UnmarshalJSONField("window_spec", &winSpec); err == nil && winSpec.Period != "" {
+					data, _ := json.Marshal(winSpec)
 					parts = append(parts, api.UIMessagePart{
-						Type: "context_spec",
+						Type: "window_spec",
 						Data: data,
 					})
 				}
+			}
 
-				if targetCol == "reflection" {
-					var winSpec api.WindowSpec
-					if err := snap.UnmarshalJSONField("window_spec", &winSpec); err == nil && winSpec.Period != "" {
-						data, _ := json.Marshal(winSpec)
-						parts = append(parts, api.UIMessagePart{
-							Type: "window_spec",
-							Data: data,
-						})
-					}
+			if len(parts) > 0 {
+				msg := api.UIMessage{
+					ID:    fmt.Sprintf("ctx-%d", time.Now().UnixNano()),
+					Role:  "system",
+					Parts: parts,
 				}
+				if _, err := chat.PersistMessage(context.Background(), txApp, rec, msg, ""); err != nil {
+					return err
+				}
+				seeded = append(seeded, msg)
+			}
 
-				if len(parts) > 0 {
-					msg := api.UIMessage{
-						ID:    fmt.Sprintf("ctx-%d", time.Now().UnixNano()),
-						Role:  "system",
-						Parts: parts,
-					}
-					if _, err := chat.PersistMessage(context.Background(), txApp, rec, msg, ""); err != nil {
-						return err
-					}
+			if draft := strings.TrimSpace(req.SeedDraft); draft != "" {
+				msg := seedDraftMessage(draft)
+				if _, err := chat.PersistMessage(context.Background(), txApp, rec, msg, ""); err != nil {
+					return err
 				}
+				seeded = append(seeded, msg)
 			}
 
 			return nil
@@ -117,7 +144,31 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			return e.InternalServerError("failed to create refinement", err)
 		}
 
-		return e.JSON(http.StatusCreated, map[string]string{"refinementId": refID})
+		return e.JSON(http.StatusCreated, api.CreateRefinementResponse{
+			RefinementID: refID,
+			Messages:     seeded,
+		})
+	}
+}
+
+// seedDraftMessage records a draft the assistant did not actually produce, in
+// exactly the shape a real `update_draft` tool call is persisted in (see
+// toolCallPart). Everything downstream — the commit-time extraction below, the
+// client's preview pane, resumed-session normalisation — then treats it as an
+// ordinary drafted snapshot, because it is indistinguishable from one.
+func seedDraftMessage(draft string) api.UIMessage {
+	id := fmt.Sprintf("seed-%d", time.Now().UnixNano())
+	data, _ := json.Marshal(map[string]any{
+		"toolCallId": id,
+		"toolName":   updateDraftToolName,
+		"input":      map[string]string{"draft": draft},
+	})
+	return api.UIMessage{
+		ID:   id,
+		Role: "assistant",
+		Parts: []api.UIMessagePart{
+			{Type: "tool-" + updateDraftToolName, Data: data},
+		},
 	}
 }
 
@@ -133,7 +184,7 @@ func ExtractDraftedSnapshotAndSpec(app core.App, refRec *core.Record) (string, l
 		m := msgs[i]
 		if m.Role == "assistant" {
 			for _, p := range m.Parts {
-				if p.Type == "tool-update_draft" {
+				if p.Type == "tool-"+updateDraftToolName {
 					var data struct {
 						Input struct {
 							Draft string `json:"draft"`

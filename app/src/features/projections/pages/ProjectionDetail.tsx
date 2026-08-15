@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { GitForkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { regenerateProjection } from "@/api/kalaidoscope/projections";
+import { parseContextSpec } from "@/api/kalaidoscope/chat";
+import type { ContextSpec } from "@/api/kalaidoscope/chat";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { TimelineItem } from "@/components/kalaido";
 import {
   PageCard,
@@ -117,6 +127,42 @@ export default function ProjectionDetail() {
     return info.blockedBy.map((dep) => byId.get(dep) ?? "an upstream input");
   }, [info?.blockedBy, sources.projections, sources.reflections]);
 
+  /**
+   * Fork this projection into a new one. The two modes differ only in what the
+   * child reads:
+   *
+   * - `refine` — it reads *this projection's output*, i.e. a further stage in a
+   *   pipeline. Its draft starts empty: a refining stage is a different document,
+   *   so there is nothing sensible to pre-fill.
+   * - `orthogonal` — it reads *this projection's inputs*, i.e. a sibling view of
+   *   the same material under a different lens. Its draft starts from the current
+   *   output, which is the closest thing to "like this, but…".
+   *
+   * Neither writes anything here: the fork is born blank and its context is
+   * committed from the refinement, exactly like any other new projection. An
+   * abandoned fork is just an empty projection.
+   */
+  function fork(mode: "refine" | "orthogonal") {
+    if (!id) return;
+    const parentSpec = projection?.current_context_spec;
+    const seed =
+      mode === "refine"
+        ? {
+            name: `${title} — next stage`,
+            draft: "",
+            contextSpec: { sourceProjectionIds: [id] },
+          }
+        : {
+            name: `${title} (fork)`,
+            draft: liveSnapshot
+              ? parseProjectionOutput(liveSnapshot.output).content
+              : "",
+            contextSpec: (parseContextSpec(parentSpec) ??
+              undefined) as ContextSpec | undefined,
+          };
+    go(projectionDetailTransitions.fork, { state: { seed } });
+  }
+
   const liveId = liveSnapshot?.id;
   const history = snapshots.filter((s) => s.status !== "discarded");
   const historicalVersionIndex = history.findIndex((s) => s.id === snapshotId);
@@ -178,6 +224,38 @@ export default function ProjectionDetail() {
             ? [historicalVersion ? `v${historicalVersion}` : "snapshot"]
             : []),
         ]}
+        actions={
+          !readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button size="sm" variant="outline">
+                    <GitForkIcon />
+                    Fork
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuItem onClick={() => fork("refine")}>
+                  <div className="flex flex-col gap-0.5">
+                    <span>Refine into a further stage</span>
+                    <span className="text-[11px] text-fg-3">
+                      Reads this projection's output
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fork("orthogonal")}>
+                  <div className="flex flex-col gap-0.5">
+                    <span>Another view of the same material</span>
+                    <span className="text-[11px] text-fg-3">
+                      Reads this projection's inputs
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        }
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">

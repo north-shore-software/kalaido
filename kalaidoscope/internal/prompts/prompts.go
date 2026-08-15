@@ -12,9 +12,11 @@ import (
 const (
 	FocusHeading      = "PRIMARY FOCUS — the subject of this conversation. This is what you are working on:"
 	BackgroundHeading = "BACKGROUND — supporting material only. Use it to inform your answer, but do not treat it as the subject:"
-	// Stated when a focus is declared mid-conversation, where the background is
-	// already in the transcript above rather than repeated underneath.
-	BackgroundNotice = "Everything else already in the active context is BACKGROUND — reference only, not the subject."
+	// Stated when a focus is declared during a conversation. The background it
+	// refers to may be earlier in the transcript (an established chat that has
+	// just been refocused) or listed immediately below (a fresh chat that opened
+	// focused), so the wording has to cover both.
+	BackgroundNotice = "Everything else in the active context — already established above, or listed below — is BACKGROUND: reference only, never the subject."
 )
 
 const (

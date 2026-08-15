@@ -47,6 +47,20 @@ export const Items: Story = () => (
   </div>
 );
 
+// One item promoted to the subject of the conversation; everything else in the
+// list is background around it.
+export const WithFocus: Story = () => (
+  <div className="max-w-xs p-4 bg-background border border-line rounded-lg">
+    <ContextItems
+      items={fixtureItems.map((it) =>
+        it.kind === "Fragment" ? { ...it, focus: true } : it,
+      )}
+      onRemove={(item) => console.log("Remove item:", item)}
+      onToggleFocus={(item) => console.log("Toggle focus:", item)}
+    />
+  </div>
+);
+
 export const EmptyState: Story = () => (
   <div className="max-w-xs p-4 bg-background border border-line rounded-lg">
     <ContextEmptyState />
