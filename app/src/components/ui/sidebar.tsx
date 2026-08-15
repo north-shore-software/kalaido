@@ -438,7 +438,10 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
     <ul
       data-slot="sidebar-menu"
       data-sidebar="menu"
-      className={cn("flex w-full min-w-0 flex-col gap-0.5", className)}
+      className={cn(
+        "flex w-full min-w-0 flex-col gap-0.5 group-data-[collapsible=icon]:gap-2",
+        className,
+      )}
       {...props}
     />
   );
@@ -465,7 +468,8 @@ const sidebarMenuButtonVariants = cva(
           "bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:bg-surface-2 hover:text-fg-1 hover:shadow-[0_0_0_1px_var(--sidebar-accent)]",
       },
       size: {
-        default: "h-7 text-item",
+        default:
+          "h-7 text-item group-data-[collapsible=icon]:h-auto! group-data-[collapsible=icon]:aspect-square",
         sm: "h-8 text-xs",
         lg: "h-14 px-3 text-sm group-data-[collapsible=icon]:p-0!",
       },

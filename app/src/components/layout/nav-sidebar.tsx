@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import {
+  RAIL_ICON_CLASS,
   SidebarNav,
   type SidebarNavItem,
 } from "@/components/layout/sidebar-nav";
@@ -94,7 +95,7 @@ function NavCapture() {
             className={ACTION_CLASS}
             onClick={() => openAddFragmentModal()}
           >
-            <NotebookPenIcon />
+            <NotebookPenIcon className={RAIL_ICON_CLASS} />
             <span>Capture</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -125,7 +126,7 @@ function NavConnections() {
                 />
               }
             >
-              <ArrowLeftRightIcon />
+              <ArrowLeftRightIcon className={RAIL_ICON_CLASS} />
               <span>Connections</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

@@ -249,7 +249,7 @@ slides.
 | | |
 |---|---|
 | icon rail | 76px wide, `bg-1`, `line` right border, 12px vertical padding, 16px gap |
-| rail item | fills the rail between 8px gutters, 28px tall, 16px icon centred, `border-left: 2px` accent when active |
+| rail item | collapsed, a square filling the rail between its 8px gutters, icon centred, stacked 8px apart so the space around every item is equal on all four sides; expanded, a 28px row. `border-left: 2px` accent when active |
 | logo mark | 24px, clipped, `fg-1` |
 | settings nav | 216px wide, `bg-1`, 14px/10px padding, 2px gap between items |
 | settings nav item | 8px/10px padding, `border-left: 2px` (transparent when inactive) |
@@ -287,7 +287,8 @@ Lucide throughout.
 
 | Size | Where |
 |---|---|
-| 16px | icon rail |
+| 28px | icon rail, collapsed — matched to the brand mark, which the rail sets at the same size |
+| 16px | icon rail, expanded (and the rail's settings and collapse controls in both states) |
 | 15px | panel and card titles |
 | 14px | buttons |
 | 13px | section labels |
