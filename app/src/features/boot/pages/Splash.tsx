@@ -1,5 +1,5 @@
+import wordmarkSrc from "@/assets/brand/kalaido-wordmark.png";
 import { cn } from "@/lib/css-utils.ts";
-import wordmarkSrc from "@/assets/brand/kalaido-wordmark-colour-outline-on-white.png";
 import { defineRoute } from "@/routes/route-kit";
 import { splashTransitions } from "./Splash.transitions";
 
