@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { defineRoute } from "@/routes/route-kit";
 import { projectionReviewTransitions } from "./ProjectionReview.transitions";
 import { toast } from "sonner";
 import { approveProjectionCandidate } from "@/api/kalaidoscope/projections";
+import { findNextTarget } from "@/features/rotation/next-target";
 import { parseContextSpec, specToItems } from "@/api/kalaidoscope/chat";
 import { useRefineSession } from "@/hooks/use-refine-session";
 import { useResumeRefinement } from "@/hooks/use-resume-refinement";
@@ -29,10 +30,26 @@ import {
   useProjectionSnapshot,
 } from "@/hooks/use-projection-snapshot";
 
+/**
+ * "Approve & next" moves between projections without leaving this route, so
+ * React would otherwise keep the page mounted and carry its state across. That
+ * state is per-candidate — an open refine session, its chat history, and the
+ * drafted preview that decides whether Approve commits a refinement — so
+ * carrying it would offer one projection's draft as another's. Key the page on
+ * the projection to force a clean mount.
+ */
 export default function ProjectionReview() {
+  const { id } = useParams<{ id: string }>();
+  return <ProjectionReviewPage key={id} />;
+}
+
+function ProjectionReviewPage() {
   const { id, snapshotId } = useParams<{ id: string; snapshotId: string }>();
   const { go } = useAppNavigate();
   const [busy, setBusy] = useState(false);
+  // An "approve & next" is in flight: approving, then working out and preparing
+  // whatever comes after it.
+  const [advancing, setAdvancing] = useState(false);
 
   const { projection, snapshots, liveSnapshot } = useProjectionSnapshot(id);
 
@@ -123,15 +140,14 @@ export default function ProjectionReview() {
   // Approve either commits the refinement (when the chat produced a draft) or
   // promotes the pending candidate as-is. Discarding superseded candidates is
   // implicit — committing a refinement discards the old pending server-side.
-  async function approve() {
-    if (!id || !pending || busy) return;
+  // Returns whether the approval landed, so callers can decide where to go.
+  async function runApprove(): Promise<boolean> {
+    if (!id || !pending || busy) return false;
     if (refining && session.refinementId) {
       setBusy(true);
       const ok = await session.commit(id);
       setBusy(false);
-      if (ok)
-        go(projectionReviewTransitions.approveSuccess, { params: { id } });
-      return;
+      return ok;
     }
     setBusy(true);
     const res = await approveProjectionCandidate(id, pending.id);
@@ -139,9 +155,65 @@ export default function ProjectionReview() {
     if (res.isErr()) {
       console.error("review: approve failed", res.error);
       toast.error("Failed to approve", { description: res.error.message });
+      return false;
+    }
+    return true;
+  }
+
+  async function approve() {
+    if (!id) return;
+    if (await runApprove()) {
+      go(projectionReviewTransitions.approveSuccess, { params: { id } });
+    }
+  }
+
+  /**
+   * Approve, then go wherever the plan says to go next. The plan is re-read
+   * after the approval precisely because approving changes it: this projection
+   * drops out, and anything that was waiting on it becomes available.
+   */
+  async function approveAndNext() {
+    if (!id || advancing) return;
+
+    // Held across both steps so the buttons never re-enable in between.
+    setAdvancing(true);
+    if (!(await runApprove())) {
+      setAdvancing(false);
       return;
     }
-    go(projectionReviewTransitions.approveSuccess, { params: { id } });
+    const next = await findNextTarget();
+    setAdvancing(false);
+
+    if (next.isErr()) {
+      // The approval itself succeeded, so land somewhere sane and say why.
+      toast.error("Couldn't work out what's next", {
+        description: next.error.message,
+      });
+      go(projectionReviewTransitions.approveSuccess, { params: { id } });
+      return;
+    }
+    if (!next.value) {
+      go(projectionReviewTransitions.caughtUp);
+      return;
+    }
+    if (next.value.type === "reflection") {
+      go(projectionReviewTransitions.openNextReflection, {
+        params: { id: next.value.id },
+      });
+      return;
+    }
+    // A projection can be its own next step: its candidate was generated
+    // against context that has since moved on, so approving it did not settle
+    // it. Say so, rather than looking like the button did nothing.
+    if (next.value.id === id) {
+      toast.info("Approved — but it needs another pass", {
+        description:
+          "New context landed after this candidate was generated, so a fresh one is ready to review.",
+      });
+    }
+    go(projectionReviewTransitions.reviewNext, {
+      params: { id: next.value.id, snapshotId: next.value.snapshotId },
+    });
   }
 
   return (
@@ -160,12 +232,21 @@ export default function ProjectionReview() {
             </Button>
             <Button
               size="sm"
-              variant="commit"
+              variant="outline"
               onClick={approve}
-              disabled={!pending || busy}
+              disabled={!pending || busy || advancing}
             >
               <CheckIcon />
               {refining ? "Approve refined" : "Approve"}
+            </Button>
+            <Button
+              size="sm"
+              variant="commit"
+              onClick={approveAndNext}
+              disabled={!pending || busy || advancing}
+            >
+              {advancing ? "Finding next…" : "Approve & next"}
+              <ArrowRightIcon />
             </Button>
           </>
         }
@@ -179,6 +260,17 @@ export default function ProjectionReview() {
                 pendingContent={pendingContent}
                 refining={refining}
               />
+            ) : advancing ? (
+              // The approval already landed, so there is deliberately no
+              // candidate here any more. Preparing the next one runs a model,
+              // which takes a while — say what is happening rather than let the
+              // "not found" state below read as a failure.
+              <div className="flex flex-1 flex-col items-center justify-center gap-1.5">
+                <p className="text-[13px] text-fg-2">Approved.</p>
+                <p className="text-[12px] text-fg-3">
+                  Working out what's next and generating its candidate…
+                </p>
+              </div>
             ) : (
               <div className="flex flex-1 items-center justify-center">
                 <p className="text-[13px] text-fg-2">

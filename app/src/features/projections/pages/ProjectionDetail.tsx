@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { regenerateProjection } from "@/api/kalaidoscope/projections";
@@ -19,6 +19,7 @@ import {
 } from "@/hooks/use-projection-snapshot";
 import { useRefineSession } from "@/hooks/use-refine-session";
 import { useResumeRefinement } from "@/hooks/use-resume-refinement";
+import { useContextSources } from "@/hooks/use-context-sources";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatShortDateTime } from "@/lib/datetime";
 import { defineRoute } from "@/routes/route-kit";
@@ -102,6 +103,20 @@ export default function ProjectionDetail() {
     refetchRotation();
   }, [snapshots.length, liveSnapshot?.id, refetchRotation]);
 
+  // Name whatever this projection is waiting on. The picker's source lists are
+  // already loaded and SWR-cached app-wide, so this costs nothing extra.
+  const sources = useContextSources();
+  const blockedNames = useMemo(() => {
+    if (!info?.blockedBy.length) return [];
+    const byId = new Map(
+      [...sources.projections, ...sources.reflections].map((o) => [
+        o.id,
+        o.name,
+      ]),
+    );
+    return info.blockedBy.map((dep) => byId.get(dep) ?? "an upstream input");
+  }, [info?.blockedBy, sources.projections, sources.reflections]);
+
   const liveId = liveSnapshot?.id;
   const history = snapshots.filter((s) => s.status !== "discarded");
   const historicalVersionIndex = history.findIndex((s) => s.id === snapshotId);
@@ -179,6 +194,7 @@ export default function ProjectionDetail() {
             readOnly={readOnly}
             rotLoading={rotLoading}
             info={info}
+            blockedNames={blockedNames}
             onReviewCandidate={
               pendingCandidate
                 ? () =>

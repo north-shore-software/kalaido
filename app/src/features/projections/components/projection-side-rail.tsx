@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CheckIcon, RefreshCwIcon } from "lucide-react";
+import { CheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label, Timeline, type TimelineItem } from "@/components/kalaido";
 import type { ProjectionStatusInfo } from "@/features/projections/status";
@@ -10,6 +10,8 @@ export interface ProjectionSideRailProps {
   info: ProjectionStatusInfo | undefined;
   /** Set only while a pending candidate exists; navigates to its review. */
   onReviewCandidate?: () => void;
+  /** Display names for `info.blockedBy`, in the same order. */
+  blockedNames?: string[];
   regenerating: boolean;
   onRefresh: () => void;
   onBackToLive: () => void;
@@ -23,6 +25,7 @@ export function ProjectionSideRail({
   rotLoading,
   info,
   onReviewCandidate,
+  blockedNames,
   regenerating,
   onRefresh,
   onBackToLive,
@@ -44,7 +47,27 @@ export function ProjectionSideRail({
         </Button>
       </div>
     );
-  } else if (info?.status === "stale" || info?.status === "blocked") {
+  } else if (info?.status === "blocked") {
+    // Refreshing now would build on output that is about to be superseded, and
+    // the server refuses it, so this card explains instead of offering a button.
+    const waitingOn =
+      blockedNames && blockedNames.length > 0
+        ? blockedNames.join(", ")
+        : "an upstream input";
+    freshnessCard = (
+      <div className="rounded-lg border border-line p-3.5">
+        <div className="mb-2 flex items-center gap-2.5">
+          <ClockIcon className="size-4 text-fg-3" />
+          <span className="text-[13px] font-semibold">Waiting upstream</span>
+        </div>
+        <p className="text-[11.5px] leading-relaxed text-fg-2">
+          {waitingOn} {blockedNames && blockedNames.length > 1 ? "have" : "has"}{" "}
+          changes still to approve. Approve those first — refreshing now would
+          use output that is about to change.
+        </p>
+      </div>
+    );
+  } else if (info?.status === "stale") {
     freshnessCard = (
       <div className="rounded-lg border border-ingest-line bg-ingest-wash p-3.5">
         <div className="mb-2 flex items-center gap-2.5">

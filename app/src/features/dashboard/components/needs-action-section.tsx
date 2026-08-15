@@ -5,11 +5,14 @@ import type { NeedItem } from "../types";
 export interface NeedsActionSectionProps {
   items: NeedItem[];
   onAction: (item: NeedItem) => void;
+  /** Id of the row currently generating a candidate, if any. */
+  busyId?: string | null;
 }
 
 export function NeedsActionSection({
   items,
   onAction,
+  busyId,
 }: NeedsActionSectionProps) {
   if (items.length === 0) {
     return null;
@@ -22,7 +25,13 @@ export function NeedsActionSection({
         <StatusPill kind="drifting">{items.length}</StatusPill>
       </div>
       {items.map((item) => (
-        <NeedsRow key={item.id} item={item} onAction={onAction} />
+        <NeedsRow
+          key={item.id}
+          item={item}
+          onAction={onAction}
+          busy={busyId === item.id}
+          disabled={!!busyId && busyId !== item.id}
+        />
       ))}
     </section>
   );

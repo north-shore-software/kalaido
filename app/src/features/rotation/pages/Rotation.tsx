@@ -11,7 +11,7 @@ import {
 } from "@/api/kalaidoscope/projections";
 import { regenerateReflection } from "@/api/kalaidoscope/reflections";
 import { parseProjectionOutput } from "@/hooks/use-projection-snapshot";
-import type { EntityStatus } from "@/api/kalaidoscope/rotation";
+import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
 
 import {
   QNode,
@@ -21,14 +21,6 @@ import { ActiveRotationCard } from "@/features/rotation/components/active-rotati
 import { RotationEmptyState } from "@/features/rotation/components/rotation-empty-state";
 import { defineRoute } from "@/routes/route-kit";
 import { rotationTransitions } from "./Rotation.transitions";
-
-function hasDelta(s: EntityStatus): boolean {
-  return (
-    (s.newFragmentIds?.length ?? 0) > 0 ||
-    (s.staleDependencies?.length ?? 0) > 0 ||
-    (s.pendingWindows?.length ?? 0) > 0
-  );
-}
 
 export default function Rotation() {
   const { go } = useAppNavigate();
@@ -69,14 +61,9 @@ export default function Rotation() {
   // Both projections and reflections share the topo order from the server.
   const needsAction = useMemo(() => statuses.filter(hasDelta), [statuses]);
 
-  const needsActionIds = useMemo(
-    () => new Set(needsAction.map((s) => s.id)),
-    [needsAction],
+  const current = needsAction.find(
+    (s) => !skipped.has(s.id) && isActionable(s),
   );
-  const isBlocked = (s: EntityStatus) =>
-    (s.staleDependencies ?? []).some((dep) => needsActionIds.has(dep));
-
-  const current = needsAction.find((s) => !skipped.has(s.id) && !isBlocked(s));
   const currentId = current?.id;
   const currentType = current?.type;
 
@@ -186,9 +173,9 @@ export default function Rotation() {
                   );
                 }
 
-                const blockedNames = (s.staleDependencies ?? [])
-                  .filter((dep) => needsActionIds.has(dep))
-                  .map((dep) => nameById.get(dep) ?? "upstream");
+                const blockedNames = (s.blockedBy ?? []).map(
+                  (dep) => nameById.get(dep) ?? "upstream",
+                );
                 const dep =
                   blockedNames.length > 0
                     ? `waiting on ${blockedNames.join(", ")}`

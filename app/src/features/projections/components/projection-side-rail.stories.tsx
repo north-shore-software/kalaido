@@ -56,6 +56,7 @@ export const Blocked: Story = () => (
       readOnly={false}
       rotLoading={false}
       info={{ status: "blocked", entropy: 0, blockedBy: ["upstream-1"] }}
+      blockedNames={["Weekly digest"]}
       onReviewCandidate={undefined}
       regenerating={false}
       onRefresh={action("onRefresh")}

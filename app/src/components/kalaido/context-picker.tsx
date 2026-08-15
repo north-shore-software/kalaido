@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FileTextIcon,
   GlobeIcon,
@@ -190,49 +190,73 @@ export function ContextPicker({
         : [...selected, it],
     );
 
-  const groups: {
-    kind: ContextKind;
-    heading: string;
-    options: ContextItem[];
-  }[] = [
+  const groups = useMemo<
     {
-      kind: "Colour",
-      heading: "Colours",
-      options: sources.colours.map((c) => ({
+      kind: ContextKind;
+      heading: string;
+      options: ContextItem[];
+    }[]
+  >(
+    () => [
+      {
         kind: "Colour",
-        id: c.id,
-        label: c.name,
-        value: c.value,
-      })),
-    },
-    {
-      kind: "Type",
-      heading: "Types",
-      options: sources.types.map((t) => ({
+        heading: "Colours",
+        options: sources.colours.map((c) => ({
+          kind: "Colour",
+          id: c.id,
+          label: c.name,
+          value: c.value,
+        })),
+      },
+      {
         kind: "Type",
-        id: t.value,
-        label: t.label,
-      })),
-    },
-    {
-      kind: "Projection",
-      heading: "Projections",
-      options: sources.projections.map((p) => ({
+        heading: "Types",
+        options: sources.types.map((t) => ({
+          kind: "Type",
+          id: t.value,
+          label: t.label,
+        })),
+      },
+      {
         kind: "Projection",
-        id: p.id,
-        label: p.name,
-      })),
-    },
-    {
-      kind: "Reflection",
-      heading: "Reflections",
-      options: sources.reflections.map((r) => ({
+        heading: "Projections",
+        options: sources.projections.map((p) => ({
+          kind: "Projection",
+          id: p.id,
+          label: p.name,
+        })),
+      },
+      {
         kind: "Reflection",
-        id: r.id,
-        label: r.name,
-      })),
-    },
-  ];
+        heading: "Reflections",
+        options: sources.reflections.map((r) => ({
+          kind: "Reflection",
+          id: r.id,
+          label: r.name,
+        })),
+      },
+    ],
+    [sources.colours, sources.types, sources.projections, sources.reflections],
+  );
+
+  /**
+   * A stored context spec is ids only, so items reconstructed from one arrive
+   * labelled with their id (see `specToItems`). Resolve each against the
+   * options this picker already loads, which is where the display name — and a
+   * colour's swatch — actually lives. Anything unknown keeps what it came with,
+   * so a since-deleted source still renders rather than vanishing.
+   */
+  const catalogue = useMemo(() => {
+    const m = new Map<string, ContextItem>();
+    for (const g of groups)
+      for (const opt of g.options) m.set(`${opt.kind}:${opt.id}`, opt);
+    return m;
+  }, [groups]);
+
+  const labelled = useMemo(
+    () => selected.map((it) => catalogue.get(`${it.kind}:${it.id}`) ?? it),
+    [selected, catalogue],
+  );
 
   const addControl = (
     <Popover open={open} onOpenChange={setOpen}>
@@ -277,10 +301,10 @@ export function ContextPicker({
   if (bare) {
     return (
       <div className={cn("flex flex-col", className)}>
-        {selected.length === 0 ? (
+        {labelled.length === 0 ? (
           <ContextEmptyState />
         ) : (
-          <ContextItems items={selected} onRemove={remove} />
+          <ContextItems items={labelled} onRemove={remove} />
         )}
         {addControl}
       </div>
@@ -299,10 +323,10 @@ export function ContextPicker({
         <Mono className="mb-2.5 block text-[10.5px] text-fg-4">
           inputs feeding this context
         </Mono>
-        {selected.length === 0 ? (
+        {labelled.length === 0 ? (
           <ContextEmptyState />
         ) : (
-          <ContextItems items={selected} onRemove={remove} />
+          <ContextItems items={labelled} onRemove={remove} />
         )}
         {addControl}
         {resolvedTokens != null && (

@@ -2,6 +2,7 @@ package status
 
 import (
 	stdctx "context"
+	"sort"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -170,7 +171,8 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	status.NewFragmentIDs = diff.FragmentIDs
 
 	// If there are new snapshot IDs, it means an upstream dependency got a new snapshot.
-	// We map the new snapshot IDs back to their projection/reflection IDs.
+	// We map the new snapshot IDs back to their projection/reflection IDs. These
+	// are upstreams whose output has moved on — regenerating now consumes it.
 	staleDeps := make(map[string]bool)
 	for _, sID := range diff.SnapshotIDs {
 		// Try projection snapshot
@@ -181,7 +183,12 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 		}
 	}
 
-	// Recursive Check: if any of our dependencies are themselves stale, we are stale.
+	// Recursive check: a dependency that is not itself up to date blocks us.
+	// Regenerating against it would consume output that is about to be
+	// superseded, so this is reported separately from the diff above — the two
+	// look alike here but mean opposite things to a caller deciding what to do
+	// next. Topological order guarantees dep.status is already evaluated.
+	blockedBy := make(map[string]bool)
 	for _, dep := range n.deps {
 		if dep.status.UpToDateSnapshotID == "" {
 			// Check if dep has any snapshots. If it has no snapshots, it's a draft, and we ignore it.
@@ -193,14 +200,25 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 			}
 			c, _ := e.app.FindRecordsByFilter(depSnapCol, depFK+" = {:id} && status = 'approved'", "-approval_sequence_number", 1, 0, dbx.Params{"id": dep.record.Id})
 			if len(c) > 0 {
-				staleDeps[dep.record.Id] = true
+				blockedBy[dep.record.Id] = true
 			}
 		}
 	}
 
+	// A dep can be both: it published something we haven't consumed *and* has
+	// moved on again since. Blocked wins — there is nothing useful to do yet —
+	// so it is reported once, as the stronger of the two.
 	for depID := range staleDeps {
-		status.StaleDependencies = append(status.StaleDependencies, depID)
+		if !blockedBy[depID] {
+			status.StaleDependencies = append(status.StaleDependencies, depID)
+		}
 	}
+	for depID := range blockedBy {
+		status.BlockedBy = append(status.BlockedBy, depID)
+	}
+	// Map iteration is unordered; sort so the response is stable across calls.
+	sort.Strings(status.StaleDependencies)
+	sort.Strings(status.BlockedBy)
 
 	// Window evaluation for scheduled entities
 	version, ok := engine.GoverningVersion(engine.LoadWindowSpecVersions(n.record), e.now)
@@ -222,7 +240,8 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 		status.PendingWindows = engine.CalculatePendingWindows(n.record.Id, currentSpec, lastWindowEnd, created, e.now)
 	}
 
-	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 && len(status.PendingWindows) == 0 {
+	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 &&
+		len(status.BlockedBy) == 0 && len(status.PendingWindows) == 0 {
 		status.UpToDateSnapshotID = liveSnapID
 	}
 

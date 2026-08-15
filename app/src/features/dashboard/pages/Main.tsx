@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { toast } from "sonner";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
@@ -8,30 +8,26 @@ import {
   useLiveCollection,
   useLiveCollectionWatching,
 } from "@/hooks/use-live-collection";
-import { updateProjection } from "@/api/kalaidoscope/projections";
+import {
+  regenerateProjection,
+  updateProjection,
+} from "@/api/kalaidoscope/projections";
 import { updateReflection } from "@/api/kalaidoscope/reflections";
-import type { EntityStatus } from "@/api/kalaidoscope/rotation";
+import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
+import { describeDelta } from "../describe-delta";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types";
 import { defineRoute } from "@/routes/route-kit";
 import { mainTransitions } from "./Main.transitions";
 
-import type { NeedItem, PinItem, RecentFragment } from "../types";
+import type { NeedAction, NeedItem, PinItem, RecentFragment } from "../types";
 import { CaughtUpBanner } from "../components/caught-up-banner";
 import { NeedsActionSection } from "../components/needs-action-section";
 import { PinnedSection } from "../components/pinned-section";
 import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 
 type EntityKind = "projection" | "reflection";
-
-function hasDelta(s: EntityStatus): boolean {
-  return (
-    (s.newFragmentIds?.length ?? 0) > 0 ||
-    (s.staleDependencies?.length ?? 0) > 0 ||
-    (s.pendingWindows?.length ?? 0) > 0
-  );
-}
 
 /** Parse a `view_stream.colours` cell (JSON string or array) into indices. */
 function parseColours(raw: unknown): number[] {
@@ -47,21 +43,17 @@ function parseColours(raw: unknown): number[] {
   return [];
 }
 
-function describeDelta(s: EntityStatus): string {
-  const nf = s.newFragmentIds?.length ?? 0;
-  const pw = s.pendingWindows?.length ?? 0;
-  const sd = s.staleDependencies?.length ?? 0;
-  const parts: string[] = [];
-  if (nf > 0) parts.push(`${nf} new fragment${nf > 1 ? "s" : ""}`);
-  if (pw > 0) parts.push(`${pw} window${pw > 1 ? "s" : ""} due`);
-  if (parts.length === 0 && sd > 0) parts.push("blocked upstream");
-  return parts.join(" · ") || "needs refresh";
-}
-
 export default function Main() {
   const { go } = useAppNavigate();
+  // Id of the row whose candidate is being generated, so the row can say so —
+  // generation is a model call, not an instant hop.
+  const [refreshing, setRefreshing] = useState<string | null>(null);
 
-  const { statuses, isLoading: rotLoading } = useRotationStatus();
+  const {
+    statuses,
+    isLoading: rotLoading,
+    refetch: refetchRotation,
+  } = useRotationStatus();
   const projections = useLiveCollection("projection", {
     filter: 'name != ""',
     sort: "-updated",
@@ -100,6 +92,36 @@ export default function Main() {
     return m;
   }, [pending.records]);
 
+  // The freshness plan is computed per request, so it goes stale while the
+  // dashboard sits open — approve a candidate elsewhere and everything
+  // downstream of it changes state. Recompute whenever the records it derives
+  // from move. Keyed by content, not array identity, so a revalidation that
+  // changed nothing doesn't re-fetch.
+  const planInputsKey = useMemo(
+    () =>
+      [
+        pending.records.map((s) => s.id).join(","),
+        fragments.records.length,
+        projections.records.length,
+        reflections.records.length,
+      ].join("|"),
+    [
+      pending.records,
+      fragments.records,
+      projections.records,
+      reflections.records,
+    ],
+  );
+  // The key the plan we're holding was fetched against; null until first sync.
+  const planSyncedKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (planSyncedKey.current === planInputsKey) return;
+    const firstSync = planSyncedKey.current === null;
+    planSyncedKey.current = planInputsKey;
+    // The hook fetches once on mount already; only re-fetch on later changes.
+    if (!firstSync) refetchRotation();
+  }, [planInputsKey, refetchRotation]);
+
   const pinned = useMemo<PinItem[]>(() => {
     const items: PinItem[] = [];
     for (const p of projections.records)
@@ -121,16 +143,27 @@ export default function Main() {
 
   const needsAction = useMemo<NeedItem[]>(
     () =>
-      statuses.filter(hasDelta).map((s) => ({
-        id: s.id,
-        kind: s.type as EntityKind,
-        name:
-          nameById.get(s.id) ??
-          (s.type === "reflection" ? "Reflection" : "Projection"),
-        meta: describeDelta(s),
-        candidateId:
-          s.type === "projection" ? candidateByProjection.get(s.id) : undefined,
-      })),
+      statuses.filter(hasDelta).map((s) => {
+        const candidateId =
+          s.type === "projection" ? candidateByProjection.get(s.id) : undefined;
+        // Reflections publish without a review gate, so the dashboard never
+        // starts one from here — it opens them instead.
+        const action: NeedAction = candidateId
+          ? "review"
+          : s.type === "projection" && isActionable(s)
+            ? "refresh"
+            : "open";
+        return {
+          id: s.id,
+          kind: s.type as EntityKind,
+          name:
+            nameById.get(s.id) ??
+            (s.type === "reflection" ? "Reflection" : "Projection"),
+          meta: describeDelta(s, (dep) => nameById.get(dep) ?? "an upstream"),
+          action,
+          candidateId,
+        };
+      }),
     [statuses, nameById, candidateByProjection],
   );
   const caughtUp = !rotLoading && needsAction.length === 0;
@@ -150,13 +183,12 @@ export default function Main() {
     [fragments.records],
   );
 
-  function openEntity(it: NeedItem | PinItem) {
+  function openEntity(it: PinItem) {
     if (it.kind === "reflection") {
       go(mainTransitions.openReflection, { params: { id: it.id } });
       return;
     }
-    const candidateId =
-      "candidateId" in it ? it.candidateId : candidateByProjection.get(it.id);
+    const candidateId = candidateByProjection.get(it.id);
     if (candidateId) {
       go(mainTransitions.reviewProjection, {
         params: { id: it.id, snapshotId: candidateId },
@@ -164,6 +196,41 @@ export default function Main() {
     } else {
       go(mainTransitions.openProjection, { params: { id: it.id } });
     }
+  }
+
+  /**
+   * Take up a row in "needs action". A projection with work to do goes straight
+   * into review — generating the candidate first if there isn't one — rather
+   * than stopping at its detail page, which is a step on the way to the same
+   * place. Blocked items have nothing to review yet, so they just open.
+   */
+  async function startWork(it: NeedItem) {
+    if (it.kind === "reflection") {
+      go(mainTransitions.openReflection, { params: { id: it.id } });
+      return;
+    }
+    if (it.candidateId) {
+      go(mainTransitions.reviewProjection, {
+        params: { id: it.id, snapshotId: it.candidateId },
+      });
+      return;
+    }
+    if (it.action !== "refresh") {
+      go(mainTransitions.openProjection, { params: { id: it.id } });
+      return;
+    }
+    if (refreshing) return;
+
+    setRefreshing(it.id);
+    const res = await regenerateProjection(it.id);
+    setRefreshing(null);
+    if (res.isErr()) {
+      toast.error("Failed to refresh", { description: res.error.message });
+      return;
+    }
+    go(mainTransitions.reviewProjection, {
+      params: { id: it.id, snapshotId: res.value.snapshotId },
+    });
   }
 
   async function unpin(it: PinItem) {
@@ -184,7 +251,11 @@ export default function Main() {
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 pt-5 pb-6">
             {caughtUp && <CaughtUpBanner />}
 
-            <NeedsActionSection items={needsAction} onAction={openEntity} />
+            <NeedsActionSection
+              items={needsAction}
+              onAction={startWork}
+              busyId={refreshing}
+            />
 
             <PinnedSection items={pinned} onOpen={openEntity} onUnpin={unpin} />
           </div>
