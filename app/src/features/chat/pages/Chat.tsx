@@ -7,7 +7,7 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { ConversationList } from "@/features/chat";
+import { ConversationList, SaveFragmentAction } from "@/features/chat";
 import {
   ChatPanel,
   type ContextItem,
@@ -144,6 +144,12 @@ export default function Chat() {
                 : undefined
             }
             context={context}
+            assistantActions={({ content }) => (
+              <SaveFragmentAction
+                content={content}
+                clientId={activeClientId}
+              />
+            )}
             onTurnComplete={() => {
               refresh();
             }}

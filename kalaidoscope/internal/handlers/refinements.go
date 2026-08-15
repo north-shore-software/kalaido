@@ -29,9 +29,8 @@ func HandleCreateReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetRefinementCol string) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		type reqBody struct {
-			ClientID         string   `json:"clientId"`
-			SnapshotID       string   `json:"snapshotId"`
-			ContextFragments []string `json:"contextFragments"`
+			ClientID   string `json:"clientId"`
+			SnapshotID string `json:"snapshotId"`
 		}
 		var req reqBody
 		if err := e.BindBody(&req); err != nil {

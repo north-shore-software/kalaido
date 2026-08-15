@@ -6,6 +6,17 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
+// Headings that separate a focused context from the material around it. The
+// distinction is entirely one of framing — both halves are real context — so the
+// wording has to carry the whole weight of it.
+const (
+	FocusHeading      = "PRIMARY FOCUS — the subject of this conversation. This is what you are working on:"
+	BackgroundHeading = "BACKGROUND — supporting material only. Use it to inform your answer, but do not treat it as the subject:"
+	// Stated when a focus is declared mid-conversation, where the background is
+	// already in the transcript above rather than repeated underneath.
+	BackgroundNotice = "Everything else already in the active context is BACKGROUND — reference only, not the subject."
+)
+
 const (
 	DistillInstruction    = "You are an expert AI prompt engineer. Given the following source documents and a desired sample output, your task is to write a single, comprehensive instruction prompt. When this prompt is applied to these or similar source documents in the future, it must reliably produce the exact format, style, and structure seen in the sample output. Do not include conversational filler; output only the prompt."
 	ColourEvalInstruction = "You are an expert content evaluator. Does the target document match the given Criteria? Use the provided positive and negative examples to help you understand the criteria. You must answer strictly with 'YES' or 'NO'."

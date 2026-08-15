@@ -20,7 +20,7 @@ import { recordInferenceRate } from "@/hooks/app-state-actions.ts";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { cn } from "@/lib/css-utils";
 import { ChatComposer } from "./chat-composer";
-import { ChatMessages } from "./chat-messages";
+import { ChatMessages, type ChatMessagesProps } from "./chat-messages";
 import type { ContextItem } from "./context-picker";
 
 interface ChatPanelProps {
@@ -62,6 +62,12 @@ interface ChatPanelProps {
    */
   onMessagesChange?: (messages: UIMessage[]) => void;
   title?: ReactNode;
+  /**
+   * Controls to attach under each assistant answer (see {@link ChatMessages}).
+   * Only the surfaces where an answer is worth keeping supply this — a refine
+   * chat's answers are drafts of a snapshot, not material in their own right.
+   */
+  assistantActions?: ChatMessagesProps["assistantActions"];
   /** Drop the card chrome when embedded in a column that already has a border. */
   flat?: boolean;
   className?: string;
@@ -79,6 +85,7 @@ export function ChatPanel({
   onTurnComplete,
   onMessagesChange,
   title,
+  assistantActions,
   flat,
   className,
   transport: transportProp,
@@ -235,6 +242,7 @@ export function ChatPanel({
           messages={messages}
           greeting={greeting}
           pending={isLoading}
+          assistantActions={assistantActions}
         />
         <div ref={bottomRef} />
       </div>

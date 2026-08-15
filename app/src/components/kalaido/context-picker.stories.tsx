@@ -29,6 +29,13 @@ const fixtureItems: ContextItem[] = [
     id: "refl-1",
     label: "Weekly Sync Reflection",
   },
+  // An explicitly pinned fragment. Fragments have no names, so the label is a
+  // line of their own content — resolved by the picker, not stored in the spec.
+  {
+    kind: "Fragment",
+    id: "frag-1",
+    label: "Checkout redesign: the three open questions",
+  },
 ];
 
 export const Items: Story = () => (
