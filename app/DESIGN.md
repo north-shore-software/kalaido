@@ -293,7 +293,7 @@ Lucide throughout.
 
 | Size | Where |
 |---|---|
-| 28px | icon rail, collapsed — matched to the brand mark, which the rail sets at the same size |
+| 26px | icon rail, collapsed — matched to the brand mark, which the rail sets at the same size |
 | 16px | icon rail, expanded (and the rail's settings and collapse controls in both states) |
 | 15px | panel and card titles |
 | 14px | buttons |
