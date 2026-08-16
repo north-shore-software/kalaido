@@ -19,7 +19,20 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# macos-private-api enables wry/transparent, which disables WKWebView's
+# `drawsBackground` (a private KVC key) so the window's own colour shows through
+# before the document paints.
+#
+# NOT STRICTLY NECESSARY. `theme: "Dark"` in tauri.conf.json already removes the
+# white; without this feature the pre-paint region is WebKit's dark-appearance
+# default, a near-black that reads slightly off against our #252628 canvas. This
+# closes that last gap — it is polish, not a fix.
+#
+# REMOVE THIS FOR MAC APP STORE DISTRIBUTION. Private API use is checked at App
+# Store review; Developer ID notarization (how this app ships) does not audit it,
+# so there is no penalty today. Dropping it costs a slightly-off dark, nothing
+# more. See DESIGN.md §3.
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
 tauri-plugin-shell = "2"

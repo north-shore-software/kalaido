@@ -16,8 +16,11 @@ function prefersDark(): boolean {
   );
 }
 
+export const LIGHT_THEME_SHIPPED = false;
+
 /** What "system" currently means. */
 export function resolveTheme(theme: Theme): "dark" | "light" {
+  if (!LIGHT_THEME_SHIPPED) return "dark";
   if (theme === "system") return prefersDark() ? "dark" : "light";
   return theme;
 }
