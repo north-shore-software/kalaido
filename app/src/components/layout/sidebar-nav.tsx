@@ -16,7 +16,8 @@ export interface SidebarNavItem {
   icon: LucideIcon;
 }
 
-export const RAIL_ICON_CLASS = "size-4 group-data-[collapsible=icon]:size-7";
+export const RAIL_ICON_CLASS =
+  "size-4 [stroke-width:1.5] group-data-[collapsible=icon]:size-6.5";
 
 /**
  * A group of sidebar nav links. `/main` is matched exactly (it's the root); the
