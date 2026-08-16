@@ -4,11 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kalaido</title>
+    <!-- Makes WebKit paint its own blank canvas dark — along with scrollbars,
+         form controls and overscroll — before any app CSS exists. This is the
+         layer that covers the window between webview creation and first parse,
+         when no stylesheet of ours has been seen yet.
+         Static because the app is dark by construction (DESIGN.md §9); it has
+         to become dynamic if light is ever shipped. -->
+    <meta name="color-scheme" content="dark" />
+    <!-- Pre-paint canvas, for `tauri dev`: there Vite injects index.css through
+         the module graph, so it arrives downstream of the JS and the document
+         would paint white until it lands. The production build emits a
+         render-blocking stylesheet link instead, so this is belt-and-braces in
+         the bundle. Adding .dark below is not enough — it only defines custom
+         properties and paints nothing on its own.
+         This value duplicates --gray-1 / --bg-0 (DESIGN.md §3) because it must
+         apply before any stylesheet exists; the window's backgroundColor in
+         tauri.conf.json is a third copy for the same reason. Move them together. -->
+    <style>
+      html {
+        background-color: #252628;
+      }
+    </style>
     <script>
-      try {
-        const t = localStorage.getItem('kalaido-theme') || 'dark';
-        if (t === 'dark') document.documentElement.classList.add('dark');
-      } catch {}
+      // `.dark` has to be on <html> before the stylesheet applies: :root alone
+      // resolves to the light palette (DESIGN.md §9), so without this the app
+      // paints light for a frame once index.css lands.
+      // Unconditional on purpose — it reads no storage and holds no default,
+      // because theme.ts is the single source for the runtime theme. Revisit
+      // when light ships: this runs before the module graph exists, so it
+      // cannot import the flag it depends on.
+      document.documentElement.classList.add("dark");
     </script>
   </head>
 
