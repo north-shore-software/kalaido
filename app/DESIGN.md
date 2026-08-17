@@ -15,10 +15,11 @@ enforces them. If the two disagree, the CSS is what ships — fix whichever is w
 ## 1. The idea in one paragraph
 
 Hard-edged, dark, terminal-adjacent. Nothing is rounded. Depth comes from three flat grey
-surfaces, never from shadow. Structure comes from 1px hairlines. Two accents carry meaning
-rather than decoration — cyan says *this is running*, magenta says *this needs you*. A
-serif display face sits against a grotesque body face, and a mono face does all the
-labelling, so type role is legible at a glance from shape alone.
+surfaces, never from shadow. Structure comes from 1px hairlines. Accents carry meaning
+rather than decoration — each section of the app owns a hue that marks position and live
+state, while magenta, constant everywhere, says *this needs you*. A serif display face
+sits against a grotesque body face, and a mono face does all the labelling, so type role
+is legible at a glance from shape alone.
 
 ---
 
@@ -126,55 +127,121 @@ A card on the canvas uses a border, not a fill. A card on a panel uses `bg-2`.
 
 ### Accents
 
-| Tier | Cyan | Magenta | Yellow |
-|---|---|---|---|
-| base | `#22d3ee` | `#f0189c` | `#f5d90a` |
-| `wash` — tinted fill | `rgba(34,211,238,0.12)` | `rgba(240,24,156,0.14)` | — |
-| `edge` — border | `rgba(34,211,238,0.4)` | `rgba(240,24,156,0.45)` | — |
-| `veil` — faintest fill | `rgba(34,211,238,0.04)` | `rgba(240,24,156,0.05)` | — |
-| `fg` — text on solid | `#16171a` | `#16171a` | `#16171a` |
-| `ink` — text on wash | `#22d3ee` | `#f0189c` | `#f5d90a` |
+One accent varies, one is constant. Each section of the app owns a hue — the **section
+accent** — that plays the same role on every screen: where you are, what is selected,
+what is live. Magenta never varies. Danger (§ Status) never varies.
+
+The tier recipe applies to whichever hue the section owns:
+
+| Tier | Section accent (any hue) | Magenta (constant) |
+|---|---|---|
+| base | the section's hue | `#f0189c` |
+| `wash` — tinted fill | base at 0.12–0.14 | `rgba(240,24,156,0.14)` |
+| `edge` — border | base at 0.40–0.45 | `rgba(240,24,156,0.45)` |
+| `veil` — faintest fill | base at 0.04–0.05 | `rgba(240,24,156,0.05)` |
+| `fg` — text on solid | `#16171a` | `#16171a` |
+| `ink` — text on wash | the hue itself | `#f0189c` |
 
 Text on a wash is the accent itself. There is no separate lifted ink.
 
 Text on a *solid* accent is `#16171a` — dark. The magenta primary button has dark text.
 
+In code the section accent is a semantic token set per route — `--section` plus its
+`-wash` / `-edge` / `-veil` / `-fg` tiers — so components say `border-section-edge`, never
+a hue by name.
+
+#### Section → hue map
+
+> **PROPOSED — tune the assignments before the code slice lands.** Constraints that must
+> survive any tuning: no section hue may sit near magenta (`#f0189c`) or near danger
+> (`#ff5a3c`), and Chat's yellow displaces the old drifting yellow (see Status below).
+
+| Section | Hue | Source token |
+|---|---|---|
+| Dashboard | cyan `#22d3ee` | `--cyan-base` |
+| Chat | yellow `#f5d90a` | `--yellow-base` |
+| Projections (incl. review, rotation) | violet | `--content-7` |
+| Reflections | green | `--content-4` |
+| Colours | blue | `--content-1` |
+| Fragments | teal | `--content-8` |
+| Connections (incl. import) | neutral — `fg-2` plays the accent | — |
+| Settings · onboarding · boot | neutral — `fg-2` plays the accent | — |
+
+Neutral sections use `fg-2` wherever the accent recipe calls for a hue: monochrome
+emphasis, no colour. Sub-routes inherit their section (rotation is a projections
+workflow; import belongs to connections).
+
+Two proximity risks to check visually before committing hues: `--content-7` violet
+against magenta, and the new drifting orange against danger. If either muddies, shift
+the hue, not the rule.
+
 ### Status
+
+Global and orthogonal to the section accent — a status colour means the same thing on
+every screen.
 
 | Token | Value |
 |---|---|
 | `stable` | `#22d3ee` |
-| `drifting` | `#f5d90a` |
+| `drifting` | `#ff9f0a` *(proposed — vacated `#f5d90a`, which is now Chat's hue)* |
 | `critical` / `danger` | `#ff5a3c` |
+
+Each status colour also carries a `wash` tier at 0.12–0.14 alpha, same recipe as the
+accents.
 
 ---
 
 ## 4. What the accents mean
 
-This is the part that governs new screens.
+This is the part that governs new screens. Three channels; one varies by place, two
+never do.
 
-**Cyan is system state.** What is currently true, connected, running, selected. The active
-scope. The active settings section. "Active & Running". The API pill. The send button once
-it has something to send. Cyan is reassurance — it reports, it does not ask.
+**The section accent is position and state.** Each section owns a hue (map in §3). On
+that section's screens the hue does everything one accent used to do: the active rail
+item, the selected row, the active settings entry, the armed send button, state pills,
+the hero card, the focus ring, text selection. Walking from Chat to Projections, the
+accent walks from yellow to violet — the page itself reminds you where you are. The
+section accent is reassurance — it reports, it does not ask.
 
-**Magenta is your decision is required.** The pending column and its badge. The inset edge
-marking unreviewed content. The primary approve action. Magenta is a demand.
+**Magenta is your decision is required.** The pending column and its badge. The inset
+edge marking unreviewed content. The primary approve action. Magenta is a demand, and it
+is the same demand on every screen.
+
+**Danger is destructive.** Constant everywhere. The one sanctioned exception: diff panes
+use the `stable`/`critical` washes as add/remove, a convention readers bring with them.
+
+**The guardrail: magenta is never a section hue.** The whole value of magenta is that
+its presence anywhere means a decision is waiting — that signal only survives if no page
+is allowed to wear it as wallpaper. No section hue may sit close enough to magenta to be
+mistaken for it.
 
 Consequences:
 
-- **Position is not attention.** Where you *are* is cyan; what *needs you* is magenta. They
-  are independent channels and may appear on the same element at once. The shell — rail,
-  breadcrumbs, page header — reports position only, so it is never magenta on its own.
-  Magenta enters the shell only where a component has been given the content state that
-  justifies it.
+- **Position is not attention.** Where you *are* is the section accent; what *needs you*
+  is magenta. They are independent channels and may appear on the same screen at once —
+  but never as a pair on one control. The shell — rail, breadcrumbs, page header —
+  reports position only, so it is never magenta on its own. Magenta enters the shell only
+  where a component has been given the content state that justifies it.
+- **The rail is the colour legend.** Each rail item's active border takes its own
+  destination's hue. Capture, the shell's one action, tints with the section you are
+  currently in.
 - **A screen with nothing awaiting the user contains no magenta at all.** If you are
   reaching for magenta to make something prominent, you are using it wrong — reach for
   `line-strong` or `fg-1` instead.
 - **Exactly one chamfered magenta button per screen.** The chamfer marks *the* action. A
   screen with two is a screen that has not decided what it is for.
-- **Yellow and danger are reserved.** Yellow means local or offline. Danger means
-  destructive. Neither is a general-purpose highlight.
-- Cyan and magenta never appear as a pair on the same control.
+- **Status is not accent.** `stable` / `drifting` / `critical` mean the same thing on
+  every screen and never vary with the section. Drifting covers stale, out-of-date,
+  degraded — "true, but getting less true."
+- **Entity identity is not accent.** What kind of thing something is (projection,
+  reflection, fragment) is carried by icon shape, mono type pills, and the content
+  palette — never by the section accent or magenta.
+- **Neutral sections are monochrome.** Settings, connections, onboarding and boot use
+  `fg-2` where the recipe calls for a hue. Utility is deliberately colourless.
+
+> **Transitional note:** §5 and §7 still say "cyan" in their recipes (scoped-action
+> hover, the active scope card's shadow, the armed send button). Until those sections are
+> re-pointed, read every such "cyan" as *the section accent*.
 
 ---
 
