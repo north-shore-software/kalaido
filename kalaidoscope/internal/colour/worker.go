@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -158,11 +159,21 @@ func evaluateTask(task evalTask) {
 
 	prompt := prompts.ColourEvalPrompt(criteria, positiveBlock, negativeBlock, targetDoc)
 
-	out, err := usage.GenerateOnce(ctx, workerApp, prompt, llm.RoleColour, nil)
-	if err != nil {
-		log.Printf("colour eval worker: evaluation failed for fragment %s: %v", task.fragmentID, err)
-		recordProviderErrorKind(colourRec, err)
-		return
+	var out string
+	for {
+		out, err = usage.GenerateOnce(ctx, workerApp, prompt, llm.RoleColour, nil)
+		if errors.Is(err, llmq.ErrPreempted) {
+			// Higher-priority work took the slot mid-generation. The task is
+			// still in hand — go around again; the retry blocks in the
+			// scheduler until the next idle window.
+			continue
+		}
+		if err != nil {
+			log.Printf("colour eval worker: evaluation failed for fragment %s: %v", task.fragmentID, err)
+			recordProviderErrorKind(colourRec, err)
+			return
+		}
+		break
 	}
 	clearProviderErrorKind(colourRec)
 

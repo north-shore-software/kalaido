@@ -7,6 +7,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -73,6 +74,10 @@ func RegisterHooks(app core.App) {
 		// Only once the write has actually committed. Generation picks this up
 		// on the next call, with no restart.
 		llm.SetWorkspaceConfig(next)
+		// A provider change also changes how calls should be scheduled
+		// (concurrency 1 for a local model vs. rate-limited parallelism for a
+		// hosted API).
+		llmq.Reconfigure(llmq.ConfigForProvider(llm.ActiveProviderID()))
 		return nil
 	})
 }

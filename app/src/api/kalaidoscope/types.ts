@@ -19,6 +19,7 @@ export const Collections = {
 	Ingest: "ingest",
 	KalaidoscopeConfig: "kalaidoscope_config",
 	Lens: "lens",
+	LlmQueueStatus: "llm_queue_status",
 	Projection: "projection",
 	ProjectionSnapshot: "projection_snapshot",
 	RefineProjSnapshotConversation: "refine_proj_snapshot_conversation",
@@ -206,11 +207,21 @@ export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
 	prompt?: null | Tprompt
 }
 
+export type LlmQueueStatusRecord<Trunning = unknown, Twaiting = unknown> = {
+	created: IsoAutoDateString
+	id: string
+	running?: null | Trunning
+	state?: string
+	updated: IsoAutoDateString
+	waiting?: null | Twaiting
+}
+
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
 	id: string
+	last_provider_error_kind?: string
 	name?: string
 	pinned_by?: RecordIdString
 	updated: IsoAutoDateString
@@ -253,6 +264,7 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
 	id: string
+	last_provider_error_kind?: string
 	name?: string
 	pinned_by?: RecordIdString
 	updated: IsoAutoDateString
@@ -333,6 +345,7 @@ export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & Bas
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
+export type LlmQueueStatusResponse<Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
 export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
@@ -359,6 +372,7 @@ export type CollectionRecords = {
 	ingest: IngestRecord
 	kalaidoscope_config: KalaidoscopeConfigRecord
 	lens: LensRecord
+	llm_queue_status: LlmQueueStatusRecord
 	projection: ProjectionRecord
 	projection_snapshot: ProjectionSnapshotRecord
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationRecord
@@ -384,6 +398,7 @@ export type CollectionResponses = {
 	ingest: IngestResponse
 	kalaidoscope_config: KalaidoscopeConfigResponse
 	lens: LensResponse
+	llm_queue_status: LlmQueueStatusResponse
 	projection: ProjectionResponse
 	projection_snapshot: ProjectionSnapshotResponse
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationResponse

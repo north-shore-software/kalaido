@@ -119,6 +119,9 @@ var schema = []tableDef{
 			&core.JSONField{Name: "current_context_spec"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
+			// Last durable provider failure seen by the background lens
+			// distillation worker ("auth"/"quota"), cleared on the next success.
+			&core.TextField{Name: "last_provider_error_kind"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -133,6 +136,9 @@ var schema = []tableDef{
 			&core.JSONField{Name: "window_spec_versions"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
+			// Last durable provider failure seen by the background lens
+			// distillation worker ("auth"/"quota"), cleared on the next success.
+			&core.TextField{Name: "last_provider_error_kind"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -279,6 +285,22 @@ var schema = []tableDef{
 		},
 		Indexes: []indexDef{
 			{Name: "idx_usage_period", Unique: true, Columns: "period"},
+		},
+	},
+
+	{
+		// Live LLM scheduler state, mirrored by the server (server/queue_status.go)
+		// so the utility bar can watch the queue over the ordinary realtime
+		// channel. Server-written only, and reset to empty at boot — it
+		// describes the running process, not the workspace's data.
+		Name:                   "llm_queue_status",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.TextField{Name: "state"}, // "idle" | "active"
+			&core.JSONField{Name: "running"},
+			&core.JSONField{Name: "waiting"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
 	},
 
