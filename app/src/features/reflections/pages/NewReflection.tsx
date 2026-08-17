@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 
 import {
   type ContextItem,
-  ContextPicker,
+  ContextSummary,
   Mono,
   RefineChatPanel,
   RefineComposer,
@@ -140,10 +140,10 @@ export default function NewReflection() {
               }
               className="gap-5"
             >
-              <ContextPicker
-                initialValues={context}
+              <ContextSummary
+                entity="reflection"
+                value={context}
                 onChange={setContext}
-                bare
               />
             </RefineConfigPanel>
 

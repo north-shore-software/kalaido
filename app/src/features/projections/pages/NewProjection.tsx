@@ -185,7 +185,11 @@ export default function NewProjection() {
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <ContextPicker initialValues={context} onChange={setContext} />
+          <ContextPicker
+            entity="projection"
+            value={context}
+            onChange={setContext}
+          />
 
           <div className="flex min-w-0 flex-[1.05] flex-col border-r border-line">
             <RefineComposer

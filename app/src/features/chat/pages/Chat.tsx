@@ -65,12 +65,6 @@ export default function Chat() {
   const { items: historyContext, ready: historyContextReady } =
     useActiveContext(selected?.messages ?? []);
   const [syncedClientId, setSyncedClientId] = useState<string | null>(null);
-  // ContextPicker owns its selection from `initialValues` at mount only, so we
-  // remount it (via this key) whenever we programmatically reset `context`.
-  // Bumping it in the same batch as setContext keeps the remount and the new
-  // initialValues in sync — keying on the chat id instead would remount a
-  // render too early, before the restored context is applied.
-  const [pickerEpoch, setPickerEpoch] = useState(0);
 
   useEffect(() => {
     if (
@@ -80,7 +74,6 @@ export default function Chat() {
     ) {
       setContext(historyContext);
       setSyncedClientId(selected.clientId);
-      setPickerEpoch((e) => e + 1);
     }
   }, [selected, historyContext, historyContextReady, syncedClientId]);
 
@@ -99,7 +92,6 @@ export default function Chat() {
     setNewChatId(generateId());
     setContext([]);
     setSyncedClientId(null);
-    setPickerEpoch((e) => e + 1);
     setHistoryOpen(false);
   }
 
@@ -118,7 +110,6 @@ export default function Chat() {
     setNewChatId(generateId());
     setSyncedClientId(null);
     setContext((prev) => refocusedContext(prev, fragmentId));
-    setPickerEpoch((e) => e + 1);
     setHistoryOpen(false);
     toast.success("New chat focused on that answer");
   }
@@ -178,11 +169,7 @@ export default function Chat() {
       />
       <PageCard>
         <div className="flex flex-1 overflow-hidden">
-          <ContextPicker
-            key={pickerEpoch}
-            initialValues={context}
-            onChange={setContext}
-          />
+          <ContextPicker entity="chat" value={context} onChange={setContext} />
           <ChatPanel
             flat
             key={activeChatKey}

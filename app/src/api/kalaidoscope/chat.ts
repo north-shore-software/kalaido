@@ -11,7 +11,22 @@ export type ContextKind =
   | "Type"
   | "Fragment"
   | "Projection"
-  | "Reflection";
+  | "Reflection"
+  /**
+   * Not a source — a marker meaning "the fragment population is the whole
+   * kalaidoscope". It exists because whole scope and source composition are not
+   * mutually exclusive: the domain model has Whole Scope suppress fragment-level
+   * criteria while still permitting Source Projections to be attached, and an
+   * item list with no way to say "everything" could only express that as "these
+   * sources and no fragments at all" — silently dropping the entire scope.
+   *
+   * Carries the id `*`. Never persisted on its own: it round-trips through
+   * `ContextSpec.wholeScope`.
+   */
+  | "WholeScope";
+
+/** The id every {@link ContextKind} `WholeScope` marker carries. */
+export const WHOLE_SCOPE_ID = "*";
 
 export interface ContextItem {
   /** What sort of source this is — drives the icon and how it resolves later. */
@@ -113,8 +128,13 @@ function criteriaToSpec(items: ContextItem[]): ContextSpec {
   const sourceProjectionIds: string[] = [];
   const sourceReflectionIds: string[] = [];
 
+  let wholeScope = false;
+
   for (const it of items) {
     switch (it.kind) {
+      case "WholeScope":
+        wholeScope = true;
+        break;
       case "Type":
         fragmentTypes.push(it.id);
         break;
@@ -134,6 +154,7 @@ function criteriaToSpec(items: ContextItem[]): ContextSpec {
   }
 
   const spec: ContextSpec = {};
+  if (wholeScope) spec.wholeScope = true;
   if (fragmentIds.length) spec.fragmentIds = fragmentIds;
   if (fragmentTypes.length) spec.fragmentTypes = fragmentTypes;
   if (colourIds.length) spec.colourIds = colourIds;
@@ -208,8 +229,8 @@ export function windowSpecKey(spec: WindowSpec | undefined): string {
  * items. Used to re-seed a fixed (non-editable) context into the refine chat so
  * the entity's existing lens context is carried through and preserved when the
  * lens is re-distilled. Labels aren't rendered for the fixed refine context, so
- * the id doubles as the label. `wholeScope` maps to an empty selection (which
- * `itemsToSpec` turns back into `wholeScope`).
+ * the id doubles as the label. `wholeScope` comes back as its marker item, so a
+ * whole scope carrying source compositions survives the round trip intact.
  */
 export function specToItems(spec: ContextSpec): ContextItem[] {
   const items = criteriaToItems(spec);
@@ -225,6 +246,12 @@ export function specToItems(spec: ContextSpec): ContextItem[] {
 
 function criteriaToItems(spec: ContextSpec): ContextItem[] {
   const items: ContextItem[] = [];
+  if (spec.wholeScope)
+    items.push({
+      kind: "WholeScope",
+      id: WHOLE_SCOPE_ID,
+      label: "Whole scope",
+    });
   for (const id of spec.colourIds ?? [])
     items.push({ kind: "Colour", id, label: id });
   for (const t of spec.fragmentTypes ?? [])

@@ -29,11 +29,11 @@ Three faces, three jobs. Never mix them arbitrarily.
 | Family | Token | Job |
 |---|---|---|
 | **Archivo** | `--font-sans` | body copy, buttons, nav items, section and panel labels |
-| **Instrument Serif** | `--font-display` | page titles only |
+| **Source Serif 4** | `--font-display` | page titles only |
 | **JetBrains Mono** | `--font-mono` | breadcrumbs, column headers, pills, paths, slugs, counts, status text |
 
-Weights loaded: Archivo 400–900 (variable) · Instrument Serif 400 roman and italic ·
-JetBrains Mono 400–700.
+Weights loaded: Archivo 400–900 (variable) · Source Serif 4 200–900 (variable, roman
+only — the italic axis is not imported) · JetBrains Mono 400–700.
 
 ### The micro-label split
 
@@ -53,7 +53,7 @@ Use these rather than a t-shirt scale. Each is a `--text-*` token with its leadi
 
 | Role | Size / leading | Weight | Tracking | Case | Family |
 |---|---|---|---|---|---|
-| `display` | 36px / 1.05 | 400 | -0.015em | none | Instrument Serif |
+| `display` | 36px / 1.05 | 400 | -0.015em | none | Source Serif 4 |
 | `card-title` | 16px / 1.4 | 700 | -0.01em | none | Archivo |
 | `body` | 14.5px / 1.62 | 400 | — | none | Archivo |
 | `row` | 13.5px / 1.5 | 600 | — | none | Archivo |

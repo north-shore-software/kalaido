@@ -13,10 +13,12 @@ export { ListRow } from "./list-row";
 export { DiffLine } from "./diff";
 export {
   ContextPicker,
-  ContextItems,
-  ContextEmptyState,
+  type ContextPickerProps,
+  ContextSummary,
+  type ContextSummaryProps,
   type ContextItem,
   type ContextKind,
+  type EntityKind,
 } from "./context-picker";
 export { ChatPanel } from "./chat-panel";
 export {

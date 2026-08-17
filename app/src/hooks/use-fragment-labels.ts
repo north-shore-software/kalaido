@@ -29,6 +29,21 @@ export function fragmentLabel(content: string | undefined): string {
  * can fall back rather than render a blank.
  */
 export function useFragmentLabels(ids: string[]): Map<string, string> {
+  return useFragmentLabelsQuery(ids).labels;
+}
+
+export interface FragmentLabelsQuery {
+  labels: Map<string, string>;
+  /**
+   * The lookup has settled, so an id absent from `labels` is genuinely gone
+   * rather than merely not fetched yet. Callers that render "deleted" states
+   * need this — an in-flight query and a deleted fragment are indistinguishable
+   * from the map alone, and guessing wrong marks live fragments as missing.
+   */
+  ready: boolean;
+}
+
+export function useFragmentLabelsQuery(ids: string[]): FragmentLabelsQuery {
   const client = useKalaidoscopeClient();
 
   // Sorted and joined so a re-render with the same ids in a different order
@@ -43,15 +58,19 @@ export function useFragmentLabels(ids: string[]): Map<string, string> {
       .join(" || ");
   }, [key, client]);
 
-  const { records } = useCollection("fragment", {
+  const { records, data, isLoading } = useCollection("fragment", {
     filter,
     fields: "id,content",
     enabled: !!filter,
   });
 
-  return useMemo(() => {
+  const labels = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of records) m.set(r.id, fragmentLabel(r.content));
     return m;
   }, [records]);
+
+  // Nothing to look up is trivially settled; otherwise wait for a first
+  // response rather than for a merely idle SWR state.
+  return { labels, ready: !filter || (!isLoading && data !== undefined) };
 }
