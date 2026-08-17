@@ -121,14 +121,20 @@ export default function OnboardingLanding() {
           <div className="grid gap-3 sm:grid-cols-2">
             <SecondaryChoice
               icon={<CloudIcon className="size-4" />}
-              title={signedIn ? "Signed in to Kalaido Cloud" : "Log in to Cloud"}
+              title={
+                signedIn ? "Signed in to Kalaido Cloud" : "Log in to Cloud"
+              }
               description={
                 signedIn
                   ? (user?.email ?? "View cloud workspaces.")
                   : "Access existing cloud workspaces and sync across devices."
               }
               onClick={() =>
-                go(signedIn ? transitions.viewCloudWorkspaces : transitions.logIn)
+                go(
+                  signedIn
+                    ? transitions.viewCloudWorkspaces
+                    : transitions.logIn,
+                )
               }
             />
             <SecondaryChoice
