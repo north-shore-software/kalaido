@@ -83,15 +83,17 @@ export default function OnboardingLanding() {
       className="flex flex-col overflow-auto bg-background"
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-8">
-        <header className="flex flex-col gap-2">
-          <Mark className="size-8" />
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Get started with Kalaido
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Choose how you&apos;d like to set up your workspace.
-          </p>
+      <main className="m-auto flex w-full max-w-2xl flex-col gap-8 p-8">
+        <header className="flex flex-col items-center text-center">
+          <Mark className="mb-4 size-16 p-2 animate-glow-shimmer" />
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Get started with Kalaido
+            </h1>
+            <p className="text-body text-fg-2">
+              Choose how you&apos;d like to set up a workspace.
+            </p>
+          </div>
         </header>
 
         {restoreError && (
@@ -108,33 +110,41 @@ export default function OnboardingLanding() {
           </div>
         )}
 
-        <PrimaryChoice
-          icon={<PlusIcon className="size-6" />}
-          title="Create New Workspace"
-          description="Start fresh with a brand new local or cloud workspace."
-          onClick={() => go(transitions.createWorkspace)}
-        />
+        <div className="flex flex-col gap-3">
+          <PrimaryChoice
+            icon={<PlusIcon className="size-6" />}
+            title="Create New Workspace"
+            description="Start fresh with a brand new local or cloud workspace."
+            onClick={() => go(transitions.createWorkspace)}
+          />
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <SecondaryChoice
-            icon={<CloudIcon className="size-4" />}
-            title={signedIn ? "Signed in to Kalaido Cloud" : "Log in to Cloud"}
-            description={
-              signedIn
-                ? (user?.email ?? "View your cloud workspaces.")
-                : "Access your existing cloud workspaces and sync across devices."
-            }
-            onClick={() =>
-              go(signedIn ? transitions.viewCloudWorkspaces : transitions.logIn)
-            }
-          />
-          <SecondaryChoice
-            icon={<ArchiveIcon className="size-4" />}
-            title="Restore Workspace"
-            description="Restore a whole-workspace backup from a .zip archive file."
-            disabled={restoring}
-            onClick={() => void handleRestore()}
-          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SecondaryChoice
+              icon={<CloudIcon className="size-4" />}
+              title={
+                signedIn ? "Signed in to Kalaido Cloud" : "Log in to Cloud"
+              }
+              description={
+                signedIn
+                  ? (user?.email ?? "View cloud workspaces.")
+                  : "Access existing cloud workspaces and sync across devices."
+              }
+              onClick={() =>
+                go(
+                  signedIn
+                    ? transitions.viewCloudWorkspaces
+                    : transitions.logIn,
+                )
+              }
+            />
+            <SecondaryChoice
+              icon={<ArchiveIcon className="size-4" />}
+              title="Restore Workspace"
+              description="Restore a whole-workspace backup from a .zip archive file."
+              disabled={restoring}
+              onClick={() => void handleRestore()}
+            />
+          </div>
         </div>
 
         {availableKalaidoscopes.length > 0 && (
@@ -185,16 +195,16 @@ function PrimaryChoice({ icon, title, description, onClick }: ChoiceProps) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex items-center gap-4 rounded-lg border bg-card p-5 text-left ring-1 ring-foreground/5 transition-colors hover:border-foreground/30 hover:bg-surface-2"
+      className="group flex min-h-[104px] items-center gap-4 rounded-lg border border-cyan-edge bg-cyan-veil p-5 text-left transition-[border-color,box-shadow] duration-150 hover:border-cyan hover:shadow-[0_0_16px_rgba(34,211,238,0.35)]"
     >
-      <div className="flex size-12 shrink-0 items-center justify-center rounded-md border">
+      <div className="flex size-12 shrink-0 items-center justify-center rounded-md border transition-colors group-hover:border-cyan-edge group-hover:bg-cyan-wash group-hover:text-cyan">
         {icon}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-base font-semibold">{title}</span>
-        <span className="text-sm text-muted-foreground">{description}</span>
+        <span className="text-card-title font-bold">{title}</span>
+        <span className="text-body text-fg-2">{description}</span>
       </div>
-      <ArrowRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+      <ArrowRight className="size-5 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
     </button>
   );
 }
@@ -211,14 +221,14 @@ function SecondaryChoice({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="group flex items-start gap-3 rounded-lg border border-dashed p-4 text-left transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
+      className="group flex h-full min-h-[104px] items-center gap-3.5 rounded-lg border border-dashed p-5 text-left transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
     >
-      <div className="mt-0.5 shrink-0 text-muted-foreground">{icon}</div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-sm font-medium">{title}</span>
-        <span className="text-xs text-muted-foreground">{description}</span>
+      <div className="shrink-0 text-muted-foreground">{icon}</div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="truncate text-base font-semibold">{title}</span>
+        <span className="text-body-sm text-fg-3">{description}</span>
       </div>
-      <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
     </button>
   );
 }
