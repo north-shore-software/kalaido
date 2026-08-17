@@ -27,13 +27,14 @@ export interface ContextSources {
 // resolving a selection to fragment ids happens only at generation time, elsewhere.
 export function useContextSources(): ContextSources {
   const fragments = useCollection("fragment", { fields: "type" });
+  // Deliberately unfiltered on name: an unnamed projection is still a thing you
+  // can pin, and a context_spec that already references one has to be able to
+  // resolve it back to a label — otherwise the summary falls through to the id.
   const projections = useCollection("projection", {
-    filter: 'name != ""',
     sort: "-updated",
     fields: "id,name",
   });
   const reflections = useCollection("reflection", {
-    filter: 'name != ""',
     sort: "-updated",
     fields: "id,name",
   });
@@ -42,19 +43,30 @@ export function useContextSources(): ContextSources {
     fields: "id,name,colour_value",
   });
 
+  // Name is optional on all three collections, and every other list in the app
+  // renders a missing one as "Untitled <thing>". Resolve it here so the pickers
+  // and the read-only summary agree instead of each inventing a fallback.
   const projectionOptions = useMemo<ContextOption[]>(
-    () => projections.records.map((r) => ({ id: r.id, name: r.name ?? "" })),
+    () =>
+      projections.records.map((r) => ({
+        id: r.id,
+        name: r.name || "Untitled projection",
+      })),
     [projections.records],
   );
   const reflectionOptions = useMemo<ContextOption[]>(
-    () => reflections.records.map((r) => ({ id: r.id, name: r.name ?? "" })),
+    () =>
+      reflections.records.map((r) => ({
+        id: r.id,
+        name: r.name || "Untitled reflection",
+      })),
     [reflections.records],
   );
   const colourOptions = useMemo<ContextOption[]>(
     () =>
       colours.records.map((r) => ({
         id: r.id,
-        name: r.name ?? "",
+        name: r.name || "Untitled colour",
         value: r.colour_value,
       })),
     [colours.records],

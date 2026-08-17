@@ -68,7 +68,10 @@ func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID
 	var assistant strings.Builder
 	var toolCalls []llm.ToolCall
 
-	send(map[string]string{"type": "start"})
+	// The id has to travel to the client, or the AI SDK mints its own for the
+	// assistant message, posts that back on the next turn, and ExtractNewMessages
+	// — which dedupes on id alone — persists the turn a second time.
+	send(map[string]string{"type": "start", "messageId": textID})
 
 	var textStarted bool
 	var genStart, lastEmit time.Time
