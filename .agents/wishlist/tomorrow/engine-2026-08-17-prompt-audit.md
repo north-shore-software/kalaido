@@ -78,3 +78,9 @@ Each prompt must explicitly provide:
 - [ ] Distilled lenses contain only generalized, data-agnostic instructions, and nothing but the instruction text.
 - [ ] Chat refinement updates drafts exclusively through the structured tool call.
 - [ ] Colour evaluations reply strictly with `YES` or `NO`.
+
+---
+
+UNRELATED, BUT WHILE WE'RE AT IT:
+have projections prompts return a sample name for hte projection (at every turn? when providing a draft?)
+so that it is available as a default when saving the projection
