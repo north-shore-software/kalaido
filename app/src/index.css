@@ -377,6 +377,46 @@
   clip-path: polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%);
 }
 
+@keyframes glow-orbit-cyan {
+  0%,
+  100% {
+    filter: invert(1) drop-shadow(12px 0 18px rgba(34, 211, 238, 0.55))
+      drop-shadow(0 0 6px rgba(34, 211, 238, 0.2));
+  }
+  12.5% {
+    filter: invert(1) drop-shadow(8px -10px 26px rgba(34, 211, 238, 0.65))
+      drop-shadow(0 0 10px rgba(34, 211, 238, 0.3));
+  }
+  25% {
+    filter: invert(1) drop-shadow(0 -14px 32px rgba(34, 211, 238, 0.7))
+      drop-shadow(0 0 12px rgba(34, 211, 238, 0.35));
+  }
+  37.5% {
+    filter: invert(1) drop-shadow(-8px -9px 22px rgba(34, 211, 238, 0.55))
+      drop-shadow(0 0 8px rgba(34, 211, 238, 0.25));
+  }
+  50% {
+    filter: invert(1) drop-shadow(-10px 0 12px rgba(34, 211, 238, 0.5))
+      drop-shadow(0 0 4px rgba(34, 211, 238, 0.2));
+  }
+  62.5% {
+    filter: invert(1) drop-shadow(-6px 7px 8px rgba(34, 211, 238, 0.6))
+      drop-shadow(0 0 3px rgba(34, 211, 238, 0.25));
+  }
+  75% {
+    filter: invert(1) drop-shadow(0 9px 10px rgba(34, 211, 238, 0.55))
+      drop-shadow(0 0 4px rgba(34, 211, 238, 0.2));
+  }
+  87.5% {
+    filter: invert(1) drop-shadow(7px 6px 15px rgba(34, 211, 238, 0.5))
+      drop-shadow(0 0 5px rgba(34, 211, 238, 0.2));
+  }
+}
+
+@utility animate-glow-shimmer {
+  animation: glow-orbit-cyan 5s linear infinite;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
