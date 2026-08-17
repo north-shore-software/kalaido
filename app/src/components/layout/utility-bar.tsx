@@ -9,15 +9,10 @@ import {
   type SidecarStatus,
 } from "@/api/app/local-scopes";
 import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
-import { LocationLabel } from "./location-label";
 
 /**
  * Status only — the bar reports what the workspace is doing and holds no
  * controls (appearance moved to Settings › Appearance).
- *
- * The locator stays for now: it is the only place the active workspace's path
- * is visible, and it can't be dropped until the Manage Kalaidoscopes page shows
- * it instead.
  */
 export function UtilityBar() {
   const { latestInferenceRate } = useSnapshot(appState);
@@ -71,24 +66,8 @@ export function UtilityBar() {
     })();
   }, [currentKalaidoscopeId, isLocal]);
 
-  // For local kalaidoscopes the locator is the data directory path; for
-  // cloud/local_net it's an id or URL — show it untruncated.
-  const location = currentKalaidoscope ? currentKalaidoscope.locator : null;
-
   return (
-    <div className="flex h-8 shrink-0 items-center justify-between overflow-hidden border-t border-sidebar-border bg-sidebar px-3 gap-4">
-      {location ? (
-        <LocationLabel
-          location={location}
-          title={currentKalaidoscope?.locator}
-          truncate={isLocal}
-        />
-      ) : (
-        <span className="min-w-0 truncate font-mono text-mono-sm text-fg-4">
-          —
-        </span>
-      )}
-
+    <div className="flex h-8 shrink-0 items-center justify-end overflow-hidden border-t border-sidebar-border bg-sidebar px-3 gap-4">
       <div className="flex items-center gap-3 shrink-0">
         {isLocal && (
           <span
