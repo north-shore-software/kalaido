@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 
 import {
   type ContextItem,
-  ContextPicker,
+  ContextSummary,
   Label,
   RefineChatPanel,
   RefineComposer,
@@ -72,14 +72,12 @@ function ProjectionReviewPage() {
   // context_spec. Editing it re-emits a context_spec through the chat
   // (ChatPanel), and commit re-distills the lens with it.
   const [context, setContext] = useState<ContextItem[]>([]);
-  const [pickerEpoch, setPickerEpoch] = useState(0);
   const ctxInitedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!pending || ctxInitedFor.current === pending.id) return;
     ctxInitedFor.current = pending.id;
     const spec = parseContextSpec(pending.context_spec);
     setContext(spec ? specToItems(spec) : []);
-    setPickerEpoch((e) => e + 1);
   }, [pending]);
 
   // The refine session is created lazily on the user's first message (see
@@ -113,7 +111,6 @@ function ProjectionReviewPage() {
     if (ctxResumedFor.current === openRefinement.id) return;
     ctxResumedFor.current = openRefinement.id;
     setContext(refineContext);
-    setPickerEpoch((e) => e + 1);
   }, [resumed, openRefinement, refineContext]);
 
   async function startRefine() {
@@ -282,11 +279,10 @@ function ProjectionReviewPage() {
           <div className="flex w-[300px] shrink-0 flex-col border-l border-line bg-surface-1">
             <div className="flex max-h-[40%] shrink-0 flex-col gap-2 overflow-y-auto border-b border-line p-4">
               <Label>Context</Label>
-              <ContextPicker
-                key={pickerEpoch}
-                initialValues={context}
+              <ContextSummary
+                entity="projection"
+                value={context}
                 onChange={setContext}
-                bare
               />
             </div>
             {session.started ? (

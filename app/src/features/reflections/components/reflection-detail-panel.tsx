@@ -16,7 +16,7 @@ import {
 import { SchedulePill } from "@/features/reflections/components/schedule-controls";
 import {
   type ContextItem,
-  ContextPicker,
+  ContextSummary,
   Label,
   RefineChatPanel,
   RefineComposer,
@@ -88,7 +88,6 @@ export function ReflectionDetailPanel({
   const [context, setContext] = useState<ContextItem[]>([]);
   const [freq, setFreq] = useState(DEFAULT_FREQ);
   const [win, setWin] = useState(DEFAULT_WIN);
-  const [pickerEpoch, setPickerEpoch] = useState(0);
   const initedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!reflection || initedFor.current === reflection.id) return;
@@ -100,7 +99,6 @@ export function ReflectionDetailPanel({
     );
     setFreq(chips.freq);
     setWin(chips.win);
-    setPickerEpoch((e) => e + 1);
   }, [reflection]);
   const windowSpec = buildWindowSpec({
     cadenceDays: FREQ_DAYS[freq],
@@ -251,11 +249,10 @@ export function ReflectionDetailPanel({
               onWinChange={setWin}
               className="max-h-[40%] shrink-0 overflow-y-auto border-b border-line p-3"
             >
-              <ContextPicker
-                key={pickerEpoch}
-                initialValues={context}
+              <ContextSummary
+                entity="reflection"
+                value={context}
                 onChange={setContext}
-                bare
               />
             </RefineConfigPanel>
             {session.started ? (

@@ -98,6 +98,22 @@ describe("specToItems", () => {
     expect(items).toContainEqual({ kind: "Type", id: "note", label: "note" });
   });
 
+  test("round-trips a whole scope carrying source compositions", () => {
+    // The case the marker exists for. Without it this spec would come back as
+    // "just this projection", silently dropping every fragment in the scope.
+    const spec = {
+      wholeScope: true,
+      sourceProjectionIds: ["p1"],
+    };
+    expect(itemsToSpec(specToItems(spec))).toEqual(spec);
+  });
+
+  test("round-trips a bare whole scope", () => {
+    expect(itemsToSpec(specToItems({ wholeScope: true }))).toEqual({
+      wholeScope: true,
+    });
+  });
+
   test("round-trips a focused spec unchanged", () => {
     const spec = {
       fragmentTypes: ["note"],
