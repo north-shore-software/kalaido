@@ -23,8 +23,7 @@ export function KalaidoscopesSection() {
         description="All kalaidoscopes stored in this application."
       />
       {active && (
-        <div className="flex flex-col gap-3">
-          <KalaidoscopeRow kalaidoscope={active} isActive />
+        <KalaidoscopeRow kalaidoscope={active} isActive>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" disabled>
               In-scope configurations
@@ -33,7 +32,7 @@ export function KalaidoscopesSection() {
               PocketBase schema &amp; backups
             </Button>
           </div>
-        </div>
+        </KalaidoscopeRow>
       )}
       {others.length > 0 && (
         <div className="flex flex-col gap-2">
