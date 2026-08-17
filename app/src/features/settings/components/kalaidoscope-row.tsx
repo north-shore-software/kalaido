@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Pill, SurfaceCard } from "@/components/kalaido";
 import { LocationLabel } from "@/components/layout/location-label";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,12 @@ export function KalaidoscopeRow({
   kalaidoscope,
   isActive,
   switching,
+  children,
 }: {
   kalaidoscope: KalaidoscopeMeta;
   isActive: boolean;
   switching?: boolean;
+  children?: ReactNode;
 }) {
   return (
     <SurfaceCard
@@ -45,6 +48,7 @@ export function KalaidoscopeRow({
         )}
       </div>
       <LocationLabel location={kalaidoscope.locator} />
+      {children}
     </SurfaceCard>
   );
 }
