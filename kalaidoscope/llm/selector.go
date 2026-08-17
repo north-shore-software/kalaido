@@ -111,6 +111,25 @@ func ResolveRole(r Role) (string, error) {
 	return ModelFor(activeSet, r)
 }
 
+// ActiveProviderID resolves which provider this workspace's calls currently
+// route to: the workspace's own choice when configured, else the provider of
+// the active model set's chat model. Falls back to Ollama — the strictest
+// scheduling shape — when nothing resolves.
+func ActiveProviderID() ProviderID {
+	if cfg := ActiveWorkspaceConfig(); cfg.Configured() {
+		return cfg.Provider
+	}
+	model, err := ModelFor(activeSet, RoleChat)
+	if err != nil {
+		return ProviderOllama
+	}
+	p, err := ProviderFor(model)
+	if err != nil {
+		return ProviderOllama
+	}
+	return p
+}
+
 func ErrorProvider(err error) Provider {
 	return errProvider{err: err}
 }

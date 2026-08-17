@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"log"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -170,12 +169,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 			_ = app.Save(parentRec)
 		}
 
-		// TODO: execute this asynchronously so that the LLM generation doesn't block the API
-		// request or the UI. (Note: ensure that context is correctly handled if moved to a goroutine)
-		if err := DistillAndUpdateLens(ctx, app, strat, newSnapID, oldLensID, spec, refinementID, targetCol); err != nil {
-			log.Printf("refinement lens distillation failed: %v", err)
-			return "", err
-		}
+		EnqueueLensDistillation(strat, newSnapID, oldLensID, spec, refinementID, targetCol)
 	}
 
 	return newSnapID, nil

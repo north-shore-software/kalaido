@@ -11,6 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -25,7 +26,9 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		ctx := e.Request.Context()
+		// RoleColour schedules as idle work by default, but the preview is the
+		// one colour call the user actively watches — make it jump the queue.
+		ctx := llmq.WithPriority(e.Request.Context(), llmq.Interactive)
 
 		positiveBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.PositiveExamples))
 		negativeBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.NegativeExamples))

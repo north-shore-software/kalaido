@@ -11,8 +11,10 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 
@@ -39,6 +41,19 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 	RegisterRoutes(app)
 	usage.Setup(app)
 	colour.SetWorkerApp(app)
+	engine.SetLensWorkerApp(app)
+	registerQueueStatus(app)
+
+	// After se.Next() so it runs once the rest of the boot chain — model set
+	// resolution and workspace config load are registered later, by the
+	// binary's main — has decided which provider is active.
+	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		if err := se.Next(); err != nil {
+			return err
+		}
+		llmq.Reconfigure(llmq.ConfigForProvider(llm.ActiveProviderID()))
+		return nil
+	})
 
 	return app
 }
