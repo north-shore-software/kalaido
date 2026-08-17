@@ -68,7 +68,8 @@ Each prompt must explicitly provide:
 - Execution parameters (deterministic temp-0 generation): the LLM gateway
   wish.
 - Iterative lens evolution (evolving an existing lens instead of
-  re-distilling from scratch): its own future wish.
+  re-distilling from scratch): the lens-APO wish
+  (`engine-2026-08-17-lens-apo.md`).
 
 ## Acceptance Criteria
 - [ ] An audit finds every prompt originating from the single prompt home, with no prompt text assembled inline at call sites.
