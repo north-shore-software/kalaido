@@ -44,10 +44,11 @@ Route all LLM operations through a single centralized execution funnel to enforc
 
 ## Undecided / Future Refinement (TBD)
 - **Interactive Preemption vs. FIFO Queueing**: Whether urgent interactive user actions (e.g. sending a chat message) should preempt or pause background batch tasks (e.g. chained snapshot drainage), or simply queue behind them with a status indicator ("Waiting for local model…").
+  - *2026-08-17*: Both mechanisms now exist in `kalaidoscope/internal/llmq` — priority re-ordering of the waiting queue, plus preemption (cancel + owner retry) of in-flight background/idle calls, gated by `Config.PreemptAtOrBelow`. Idle-tier work (colour evals) additionally waits for a quiet period (`IdleAfter`) so it doesn't evict the chat model between turns. Which policy applies per deployment lives in `llmq.ConfigForProvider`; still open is making it user-configurable.
 
 ## Acceptance Criteria
-- [ ] All LLM calls in the backend route through the single centralized gateway funnel.
-- [ ] Concurrent requests against local Ollama models are serialized to prevent concurrent execution.
+- [x] All LLM calls in the backend route through the single centralized gateway funnel.
+- [x] Concurrent requests against local Ollama models are serialized to prevent concurrent execution.
 - [ ] Snapshot generation (`RoleSnapshot`) and lens distillation (`RoleDistill`) execute with `temperature: 0`.
 - [ ] Streaming endpoints emit real-time token count / activity events to the client.
 - [ ] Frontend displays live token count / streaming activity during active generations.
