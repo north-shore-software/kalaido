@@ -14,9 +14,9 @@ import (
 // The distillation worker follows the reconcile wave's shape: a coalescing
 // signal, and each pass re-deriving its worklist from DB state instead of a
 // payload queue. A refinement commit marks its snapshot (lens_distill_requested,
-// with lens_id left empty until a lens lands), so the work survives a restart —
-// SetLensWorkerApp fires one startup signal to resume anything unfinished — and
-// a newer commit supersedes an abandoned target for free.
+// with lens_id left empty until a lens lands), so a newer commit supersedes an
+// abandoned target for free, and work interrupted by a shutdown is picked up
+// by whichever future pass runs next — nothing resumes it at startup.
 
 // Buffered by one: distillation requested while a pass is running coalesces
 // into a single follow-up pass, which is sound because every pass re-derives
@@ -28,7 +28,6 @@ var lensWorkerApp core.App
 func SetLensWorkerApp(app core.App) {
 	lensWorkerApp = app
 	go lensWorkerLoop()
-	RequestLensDistill()
 }
 
 // RequestLensDistill asks for a distillation pass and returns immediately, so

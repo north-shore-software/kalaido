@@ -32,7 +32,7 @@ var (
 	optimizerCalls [][]llm.Message
 )
 
-func (scriptedProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
+func (scriptedProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
 	var reply string
 	if msgs[0].Role == "system" { // optimizer conversation
 		scriptMu.Lock()
