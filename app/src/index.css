@@ -271,6 +271,9 @@
   --text-pill: 10.5px;
   --text-pill--line-height: 1.4;
   --text-pill--letter-spacing: 0.12em;
+  --text-overlay-title: 22px;
+  --text-overlay-title--line-height: 1.4;
+  --text-overlay-title--letter-spacing: 0.08em;
 
   /* Legacy t-shirt scale — retained for the screens that have no mock yet.
        Deprecated: new work uses the roles above. */
