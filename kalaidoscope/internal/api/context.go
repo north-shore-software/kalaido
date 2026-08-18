@@ -15,15 +15,6 @@ type ContextSpec struct {
 	ColourIDs           []string `json:"colourIds,omitempty"`
 	SourceProjectionIDs []string `json:"sourceProjectionIds,omitempty"`
 	SourceReflectionIDs []string `json:"sourceReflectionIds,omitempty"`
-
-	// Focus names the part of this context the work is actually about; whatever
-	// the outer spec resolves to beyond it is background — material the model
-	// may consult but must not treat as the subject.
-	//
-	// One level only: a Focus of its own is ignored, so this can never recurse.
-	// Focus changes how the context is *presented*, never what it contains — the
-	// resolved set is the same either way (see llmcontext.PinnedIDs.All).
-	Focus *ContextSpec `json:"focus,omitempty"`
 }
 
 type WindowSpec struct {

@@ -37,12 +37,6 @@ export interface ContextItem {
   label: string;
   /** A colour's `value` (tailwind class / hex / css colour) — Colour kind only. */
   value?: string;
-  /**
-   * This item is the subject of the work, not just material for it. Everything
-   * unfocused becomes background — still sent, but framed as reference. Purely a
-   * matter of how the context is presented; it never changes what's in it.
-   */
-  focus?: boolean;
 }
 
 export type MessageRole = "user" | "assistant";
@@ -76,12 +70,6 @@ export interface ContextSpec {
   sourceProjectionIds?: string[];
   sourceReflectionIds?: string[];
   wholeScope?: boolean;
-  /**
-   * The part of this context the work is about; whatever the outer spec covers
-   * beyond it is background. One level only — a nested `focus` is ignored
-   * server-side.
-   */
-  focus?: ContextSpec;
 }
 
 /**
@@ -108,15 +96,9 @@ export interface WindowSpec {
  * the rest). An empty selection yields `{}` — i.e. "clear the context".
  */
 export function itemsToSpec(items: ContextItem[]): ContextSpec {
-  const spec = criteriaToSpec(items.filter((it) => !it.focus));
+  const spec = criteriaToSpec(items);
 
-  const focused = items.filter((it) => it.focus);
-  if (focused.length) spec.focus = criteriaToSpec(focused);
-
-  // "Nothing selected" means the whole kalaidoscope. Note this is decided by the
-  // *whole* selection, not by what's left after the focus is split out —
-  // otherwise focusing your only item would silently drag everything else in as
-  // background.
+  // "Nothing selected" means the whole kalaidoscope.
   if (items.length === 0) spec.wholeScope = true;
   return spec;
 }
@@ -234,15 +216,7 @@ export function windowSpecKey(spec: WindowSpec | undefined): string {
  * whole scope carrying source compositions survives the round trip intact.
  */
 export function specToItems(spec: ContextSpec): ContextItem[] {
-  const items = criteriaToItems(spec);
-  // The focused half comes back marked, so the picker can render it as the
-  // subject and `itemsToSpec` can split it out again unchanged.
-  if (spec.focus) {
-    for (const it of criteriaToItems(spec.focus)) {
-      items.push({ ...it, focus: true });
-    }
-  }
-  return items;
+  return criteriaToItems(spec);
 }
 
 function criteriaToItems(spec: ContextSpec): ContextItem[] {
@@ -279,9 +253,6 @@ export function specKey(spec: ContextSpec): string {
     sourceProjectionIds: [...(spec.sourceProjectionIds ?? [])].sort(),
     sourceReflectionIds: [...(spec.sourceReflectionIds ?? [])].sort(),
     wholeScope: spec.wholeScope ?? false,
-    // Refocusing can move an item between focus and background without changing
-    // what's selected, and the backend has to be told — so the key has to move.
-    focus: spec.focus ? specKey(spec.focus) : "",
   });
 }
 

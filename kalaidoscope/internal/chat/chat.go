@@ -191,7 +191,7 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 			}
 			if foundPinned {
 				added, removed := llmcontext.DiffPinnedIDs(activeIDs, pinned)
-				deltaText, _ := llmcontext.HydrateContextChange(ctx, app, pinned, added, removed)
+				deltaText, _ := llmcontext.HydrateDeltaToText(ctx, app, added, removed)
 				if deltaText != "" {
 					hydratedMsgs = append(hydratedMsgs, llm.Message{Role: "system", Content: deltaText})
 				}

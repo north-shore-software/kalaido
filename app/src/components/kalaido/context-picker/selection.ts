@@ -4,7 +4,6 @@ import {
   type ContextSelection,
   type Criterion,
   EMPTY_SELECTION,
-  type FocusRef,
   type SourceRef,
 } from "./types.ts";
 
@@ -13,9 +12,8 @@ import {
  * so the losses are countable.
  *
  * `ContextItem[]` is what every call site passes and what `itemsToSpec` folds
- * into a `ContextSpec`. It can say "these things are in the context" and "these
- * ones are the focus", and nothing else. Two parts of the funnel therefore do
- * not survive a round-trip:
+ * into a `ContextSpec`. It can say "these things are in the context", and
+ * nothing else. Two parts of the funnel therefore do not survive a round-trip:
  *
  *   - **Exclusion.** There is no `exclude*` field, in the TypeScript spec or in
  *     Go's `api.ContextSpec`, so `except` degrades to whole-scope and the named
@@ -56,10 +54,6 @@ export function selectionToItems(sel: ContextSelection): ContextItem[] {
     items.push({ kind: s.kind, id: s.id, label: s.label });
   }
 
-  for (const f of sel.focus) {
-    items.push({ kind: f.kind, id: f.id, label: f.label, focus: true });
-  }
-
   return items;
 }
 
@@ -78,7 +72,6 @@ export function itemsToSelection(items: ContextItem[]): ContextSelection {
 
   const criteria: Criterion[] = [];
   const sources: SourceRef[] = [];
-  const focus: FocusRef[] = [];
 
   let wholeScope = false;
 
@@ -87,26 +80,6 @@ export function itemsToSelection(items: ContextItem[]): ContextSelection {
       wholeScope = true;
       continue;
     }
-    if (it.focus) {
-      if (
-        it.kind === "Fragment" ||
-        it.kind === "Projection" ||
-        it.kind === "Reflection"
-      ) {
-        focus.push({ kind: it.kind, id: it.id, label: it.label });
-      }
-      // A focused Colour or Type cannot be represented — focus names individual
-      // things. Fold it back into the criteria rather than losing it.
-      else
-        criteria.push({
-          kind: it.kind,
-          id: it.id,
-          label: it.label,
-          value: it.value,
-        });
-      continue;
-    }
-
     switch (it.kind) {
       case "Colour":
       case "Type":
@@ -145,7 +118,7 @@ export function itemsToSelection(items: ContextItem[]): ContextSelection {
         ? "none"
         : "except";
 
-  return { mode, criteria, sources, focus };
+  return { mode, criteria, sources };
 }
 
 /** What a source Reflection gets when nothing says otherwise. */
@@ -163,7 +136,7 @@ export function selectionKey(sel: ContextSelection): string {
 
 export function itemsKey(items: ContextItem[]): string {
   return items
-    .map((it) => `${it.focus ? "focus" : "bg"}:${it.kind}:${it.id}`)
+    .map((it) => `${it.kind}:${it.id}`)
     .sort()
     .join("|");
 }

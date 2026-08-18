@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { generateId, type UIMessage } from "ai";
 import { HistoryIcon, SquarePenIcon } from "lucide-react";
-import { toast } from "sonner";
 import {
   PageCard,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
 import { ChatAnswerActions, ConversationList } from "@/features/chat";
-import { refocusedContext } from "@/features/chat/refocus";
 import {
   ChatPanel,
   type ContextItem,
@@ -97,33 +95,13 @@ export default function Chat() {
   }
 
   /**
-   * Narrow onto one answer: a fresh chat whose subject is the fragment just
-   * saved, with whatever the last chat was working from carried across as
-   * background.
-   *
-   * This is a "new chat" in every sense — same reset as {@link handleNew}, so no
-   * navigation and no route state — differing only in what it seeds the context
-   * with. The prior messages are deliberately dropped: the fragment is what was
-   * worth keeping from them.
-   */
-  function refocusOn(fragmentId: string) {
-    setSelected(null);
-    setNewChatId(generateId());
-    setSyncedClientId(null);
-    setContext((prev) => refocusedContext(prev, fragmentId));
-    setHistoryOpen(false);
-    toast.success("New chat focused on that answer");
-  }
-
-  /**
    * Graduate an answer into a projection: its text becomes the projection's
    * first draft, which approving distils into the lens — "keep producing
    * something shaped like this".
    *
    * The chat's own context becomes the projection's inputs, since that is the
    * material the answer was derived from and the material a living version
-   * should keep reading. The focus marker is dropped on the way: a projection
-   * has inputs, not a conversational subject.
+   * should keep reading.
    */
   function graduate({ content }: { content: string }) {
     go(chatTransitions.graduateToProjection, {
@@ -131,9 +109,7 @@ export default function Chat() {
         seed: {
           name: fragmentLabel(content),
           draft: content,
-          contextSpec: itemsToSpec(
-            context.map((it) => ({ ...it, focus: false })),
-          ),
+          contextSpec: itemsToSpec(context),
         },
       },
     });
@@ -188,7 +164,6 @@ export default function Chat() {
               <ChatAnswerActions
                 content={content}
                 clientId={activeClientId}
-                onRefocus={refocusOn}
                 onGraduate={graduate}
               />
             )}

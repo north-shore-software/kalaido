@@ -7,19 +7,6 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
-// Headings that separate a focused context from the material around it. The
-// distinction is entirely one of framing — both halves are real context — so the
-// wording has to carry the whole weight of it.
-const (
-	FocusHeading      = "PRIMARY FOCUS — the subject of this conversation. This is what you are working on:"
-	BackgroundHeading = "BACKGROUND — supporting material only. Use it to inform your answer, but do not treat it as the subject:"
-	// Stated when a focus is declared during a conversation. The background it
-	// refers to may be earlier in the transcript (an established chat that has
-	// just been refocused) or listed immediately below (a fresh chat that opened
-	// focused), so the wording has to cover both.
-	BackgroundNotice = "Everything else in the active context — already established above, or listed below — is BACKGROUND: reference only, never the subject."
-)
-
 const ColourEvalInstruction = "You are an expert content evaluator. Does the target document match the given Criteria? Use the provided positive and negative examples to help you understand the criteria. You must answer strictly with 'YES' or 'NO'."
 
 func ApplyPrompt(lensPrompt, sourceBlock string, windowStart, windowEnd types.DateTime) string {
@@ -82,12 +69,12 @@ const UpdateDraftToolName = "update_draft"
 const ProductBrief = `Kalaido is a private desktop app where the user collects raw source material — notes, emails, transcripts, articles, brain dumps — and turns it into synthesized documents that stay current as the material changes. Everything in this conversation comes from the user's own workspace.`
 
 // ContextLegend explains the document taxonomy the model sees in the hydrated
-// context: FragmentBlock, the two snapshot blocks, the delta notices and the
-// focus/background headings. It must stay in sync with those formats.
+// context: FragmentBlock, the two snapshot blocks and the delta notices. It
+// must stay in sync with those formats.
 const ContextLegend = `The conversation includes documents from the user's workspace, each wrapped in a "--- ... ---" header:
 - Fragments are the user's raw source material. The header gives the fragment's kind (such as email or note), its source, and an internal ID.
 - Projection and reflection snapshots are documents Kalaido generated earlier by synthesizing other documents. Treat them as derived views, not original sources.
-Documents may be added or removed while the conversation is under way; a notice announces each change, and removed documents must no longer be relied on. A document introduced as PRIMARY FOCUS is the subject of the conversation; everything else is background. IDs are internal — refer to documents by their source or name when talking to the user, and never echo a raw ID even when the user's message contains one.`
+Documents may be added or removed while the conversation is under way; a notice announces each change, and removed documents must no longer be relied on. IDs are internal — refer to documents by their source or name when talking to the user, and never echo a raw ID even when the user's message contains one.`
 
 // MentionLegend explains the inline @-references the user's messages may carry
 // (the expanded form of llmcontext.ExpandMentions). Each bullet states how a

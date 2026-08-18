@@ -1,6 +1,6 @@
 ---
 title: "Tag specific documents in chat instead of focus mode"
-status: "idea"
+status: "shipped"
 author: "human"
 created: "2026-08-17"
 ---
@@ -16,3 +16,11 @@ Replace or complement the existing focus mechanism by allowing users to directly
 
 ## Open Questions
 - None explicitly raised by user.
+
+## Resolution (2026-08-18)
+Shipped as "named sources": @-mentions in chat and refinement chat resolve to
+entity IDs at compose time, expand to model-facing references at prompt
+assembly, and add the tagged item to the context selection. The focus mechanism
+was subsequently removed end to end (picker stage, ContextSpec.focus,
+PinnedIDs.Focus, focus/background prompt framing, and the Save & refocus
+action) — mentions are now the way to state the subject.

@@ -108,7 +108,7 @@ func loadIntentTimeline(ctx context.Context, app core.App, strat Strategy, paren
 					continue
 				}
 				added, removed := llmcontext.DiffPinnedIDs(active, pinned)
-				if deltaText, err := llmcontext.HydrateContextChange(ctx, app, pinned, added, removed); err == nil && strings.TrimSpace(deltaText) != "" {
+				if deltaText, err := llmcontext.HydrateDeltaToText(ctx, app, added, removed); err == nil && strings.TrimSpace(deltaText) != "" {
 					turns.WriteString(prompts.ContextChangeBlock(deltaText))
 				}
 				active = pinned
@@ -144,7 +144,7 @@ func loadIntentTimeline(ctx context.Context, app core.App, strat Strategy, paren
 	// The sources may have changed again since the last recorded state — end
 	// the timeline at the exact set the lens will be applied to.
 	added, removed := llmcontext.DiffPinnedIDs(active, finalPinned)
-	if deltaText, err := llmcontext.HydrateContextChange(ctx, app, finalPinned, added, removed); err == nil && strings.TrimSpace(deltaText) != "" {
+	if deltaText, err := llmcontext.HydrateDeltaToText(ctx, app, added, removed); err == nil && strings.TrimSpace(deltaText) != "" {
 		blocks.WriteString(prompts.ContextChangeBlock(deltaText))
 	}
 	return blocks.String()

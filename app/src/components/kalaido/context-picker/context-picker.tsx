@@ -22,7 +22,6 @@ import {
   type CriterionKind,
   EMPTY_SELECTION,
   type EntityKind,
-  type FocusKind,
   type FragmentMode,
   type LastN,
   type SourceKind,
@@ -91,7 +90,7 @@ export function ContextPicker({
     value ? itemsToSelection(value) : EMPTY_SELECTION,
   );
   const [picker, setPicker] = useState<{
-    slot: "criteria" | "source" | "focus";
+    slot: "criteria" | "source";
     kind: string;
   } | null>(null);
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -152,12 +151,10 @@ export function ContextPicker({
       ...selection.criteria
         .filter((c) => c.kind === "Fragment")
         .map((c) => c.id),
-      ...selection.focus.filter((f) => f.kind === "Fragment").map((f) => f.id),
     ],
     [selection],
   );
-  const { labels: fragmentLabels, ready: labelsReady } =
-    useFragmentLabelsQuery(fragmentIds);
+  const { labels: fragmentLabels } = useFragmentLabelsQuery(fragmentIds);
 
   const label = useCallback(
     (kind: string, id: string, fallback: string) => {
@@ -214,12 +211,6 @@ export function ContextPicker({
       sources: selection.sources.filter((s) => !sameRef(s, { kind, id })),
     });
 
-  const removeFocus = (id: string, kind: string) =>
-    commit({
-      ...selection,
-      focus: selection.focus.filter((f) => !sameRef(f, { kind, id })),
-    });
-
   const setLastN = (id: string, n: LastN) =>
     commit({
       ...selection,
@@ -249,7 +240,7 @@ export function ContextPicker({
           },
         ],
       });
-    } else if (picker.slot === "source") {
+    } else {
       commit({
         ...selection,
         sources: [
@@ -262,14 +253,6 @@ export function ContextPicker({
           },
         ],
       });
-    } else {
-      commit({
-        ...selection,
-        focus: [
-          ...selection.focus,
-          { kind: kind as FocusKind, id: option.id, label: option.label },
-        ],
-      });
     }
     closePicker();
   };
@@ -279,12 +262,9 @@ export function ContextPicker({
   const pickerOptions: PickerOption[] = useMemo(() => {
     if (!picker) return [];
     const taken = new Set(
-      (picker.slot === "criteria"
-        ? selection.criteria
-        : picker.slot === "source"
-          ? selection.sources
-          : selection.focus
-      ).map((x) => `${x.kind}:${x.id}`),
+      (picker.slot === "criteria" ? selection.criteria : selection.sources).map(
+        (x) => `${x.kind}:${x.id}`,
+      ),
     );
     const keep = (kind: string, id: string) => !taken.has(`${kind}:${id}`);
 
@@ -329,108 +309,10 @@ export function ContextPicker({
     return "Nothing left to add here.";
   })();
 
-  const pickerTint: PickerTint =
-    picker?.slot === "source"
-      ? "yellow"
-      : picker?.slot === "focus"
-        ? "magenta"
-        : "cyan";
+  const pickerTint: PickerTint = picker?.slot === "source" ? "yellow" : "cyan";
 
-  const openPicker = (slot: "criteria" | "source" | "focus", kind: string) =>
+  const openPicker = (slot: "criteria" | "source", kind: string) =>
     setPicker({ slot, kind });
-
-  /* ------------------------------------------------------------ focus state */
-
-  const focusRows = useMemo(
-    () =>
-      selection.focus.map((f) => {
-        const name = label(f.kind, f.id, f.label);
-
-        // A fragment id the lookup came back without has been deleted. Real,
-        // not stubbed — and never dropped silently, because focus is the part
-        // of the spec the user cares most about. Gated on `labelsReady` so an
-        // in-flight lookup never reads as a deletion.
-        if (f.kind === "Fragment" && labelsReady && !fragmentLabels.has(f.id)) {
-          return {
-            ...f,
-            name,
-            tone: "invalid" as const,
-            state: "Invalid",
-            reason:
-              "Deleted from the workspace. Kept here rather than dropped quietly.",
-            fix: "Remove",
-            fixKind: "removeFocus" as const,
-          };
-        }
-
-        if (f.kind === "Fragment") {
-          if (mode === "none") {
-            return {
-              ...f,
-              name,
-              tone: "blocked" as const,
-              state: "Blocked",
-              reason: "No fragments in scope — Fragments is set to None.",
-              fix: "Switch to Only…",
-              fixKind: "switchToOnly" as const,
-            };
-          }
-          const named = selection.criteria.some(
-            (c) => c.kind === "Fragment" && c.id === f.id,
-          );
-          if (mode === "except" && named) {
-            return {
-              ...f,
-              name,
-              tone: "blocked" as const,
-              state: "Blocked",
-              reason: "You excluded this fragment.",
-              fix: "Drop exclusion",
-              fixKind: "dropExclusion" as const,
-            };
-          }
-          if (mode === "only" && !named) {
-            return {
-              ...f,
-              name,
-              tone: "added" as const,
-              state: "Adds to scope",
-              reason:
-                "Not named by Only include — focusing it adds it as an explicit fragment.",
-              fix: "Undo",
-              fixKind: "removeFocus" as const,
-            };
-          }
-          return { ...f, name, tone: "ok" as const, state: "In scope" };
-        }
-
-        const composed = selection.sources.some((s) => sameRef(s, f));
-        if (!composed) {
-          return {
-            ...f,
-            name,
-            tone: "added" as const,
-            state: "Adds to scope",
-            reason: `Not built on top of — focusing it adds it as a source ${f.kind.toLowerCase()}.`,
-            fix: "Undo",
-            fixKind: "removeFocus" as const,
-          };
-        }
-        return { ...f, name, tone: "ok" as const, state: "In scope" };
-      }),
-    [selection, mode, fragmentLabels, labelsReady, label],
-  );
-
-  const applyFix = (row: FocusRowModel) => {
-    switch (row.fixKind) {
-      case "removeFocus":
-        return removeFocus(row.id, row.kind);
-      case "dropExclusion":
-        return removeCriterion(row.id, "Fragment");
-      case "switchToOnly":
-        return setMode("only");
-    }
-  };
 
   /* ----------------------------------------------------------------- render */
 
@@ -441,8 +323,8 @@ export function ContextPicker({
           pill: "border-critical/40 bg-critical-wash text-critical-ink",
         }
       : {
-          inset: "shadow-[inset_3px_0_0_var(--section)]",
-          pill: "border-section-edge bg-section-wash text-section-ink",
+          inset: "shadow-[inset_3px_0_0_var(--cyan-base)]",
+          pill: "border-cyan-edge bg-cyan-wash text-cyan-ink",
         };
 
   const body = (
@@ -503,7 +385,7 @@ export function ContextPicker({
                   "flex-1 border-0 px-2 py-2.5 text-center text-body-sm font-semibold",
                   i > 0 && "border-l border-line-strong",
                   mode === m
-                    ? "bg-section text-section-foreground"
+                    ? "bg-cyan text-cyan-foreground"
                     : "bg-transparent text-fg-3 hover:text-fg-1",
                 )}
               >
@@ -720,62 +602,6 @@ export function ContextPicker({
             </p>
           </div>
         )}
-
-        {/* ------------------------------------------------- 03 Focus ------ */}
-        <section className="p-5">
-          <div className="mb-1.5 flex items-baseline gap-2.5">
-            <StageNumber n={sourcesAllowed ? "03" : "02"} />
-            <span className="text-item font-bold text-fg-1">Focus</span>
-          </div>
-          <p className="mb-3 text-meta text-fg-5 text-pretty">
-            Changes how the context is framed, never what's in it. Individual
-            things only — a colour names a population, not a subject.
-          </p>
-
-          <div className="flex flex-col gap-1.5">
-            {focusRows.map((f) => (
-              <FocusRow
-                key={`${f.kind}:${f.id}`}
-                row={f}
-                onFix={() => applyFix(f)}
-              />
-            ))}
-          </div>
-
-          <div className="mt-2.5 flex gap-1.5">
-            {(mode === "none"
-              ? (["Projection", "Reflection"] as const)
-              : sourcesAllowed
-                ? (["Fragment", "Projection", "Reflection"] as const)
-                : (["Fragment"] as const)
-            ).map((k) => (
-              <Adder
-                key={k}
-                label={k}
-                tint="magenta"
-                onClick={() => openPicker("focus", k)}
-              />
-            ))}
-          </div>
-
-          {picker?.slot === "focus" && (
-            <div className="mt-2.5">
-              <ItemPicker
-                kindLabel={picker.kind}
-                tint={pickerTint}
-                options={pickerOptions}
-                onPick={pick}
-                onClose={closePicker}
-                emptyCopy={pickerEmptyCopy}
-                loading={picker.kind === "Fragment" && fragmentSearch.loading}
-                remoteFiltered={picker.kind === "Fragment"}
-                onQueryChange={
-                  picker.kind === "Fragment" ? setFragmentQuery : undefined
-                }
-              />
-            </div>
-          )}
-        </section>
       </div>
 
       <ResolutionReadout
@@ -836,10 +662,8 @@ function StageNumber({ n }: { n: string }) {
 }
 
 const ADDER_TINT: Record<PickerTint, string> = {
-  cyan: "hover:border-section hover:text-section-ink hover:bg-section-wash",
-  yellow: "hover:border-section hover:text-section-ink hover:bg-section-wash",
-  magenta: "hover:border-magenta hover:text-magenta-ink hover:bg-magenta-wash",
-  section: "hover:border-section hover:text-section-ink hover:bg-section-wash",
+  cyan: "hover:border-cyan hover:text-cyan-ink",
+  yellow: "hover:border-yellow hover:text-yellow-ink",
 };
 
 function Adder({
@@ -904,98 +728,6 @@ function LastNControl({
       <span className="ml-auto font-mono text-mono-sm text-fg-5">
         {value === "all" ? "every window" : "most recent"}
       </span>
-    </div>
-  );
-}
-
-type FocusTone = "ok" | "added" | "blocked" | "invalid";
-
-/** What a row's fix does, named rather than captured — see `applyFix`. */
-type FixKind = "removeFocus" | "dropExclusion" | "switchToOnly";
-
-interface FocusRowModel {
-  kind: string;
-  id: string;
-  name: string;
-  tone: FocusTone;
-  state: string;
-  reason?: string;
-  fix?: string;
-  fixKind?: FixKind;
-}
-
-const FOCUS_TONE: Record<
-  FocusTone,
-  { box: string; pill: string; state: string; strike?: boolean }
-> = {
-  ok: {
-    box: "border-magenta-edge bg-magenta-veil shadow-[inset_3px_0_0_var(--magenta-base)]",
-    pill: "border-magenta-edge text-magenta-ink",
-    state: "text-fg-5",
-  },
-  added: {
-    box: "border-section-edge bg-section-veil shadow-[inset_3px_0_0_var(--section)]",
-    pill: "border-section-edge text-section-ink",
-    state: "text-section-ink",
-  },
-  blocked: {
-    box: "border-critical/45 bg-critical-wash shadow-[inset_3px_0_0_var(--status-critical)]",
-    pill: "border-critical/45 text-critical-ink",
-    state: "text-critical-ink",
-    strike: true,
-  },
-  invalid: {
-    box: "border-critical/45 bg-critical-wash shadow-[inset_3px_0_0_var(--status-critical)]",
-    pill: "border-critical/45 text-critical-ink",
-    state: "text-critical-ink",
-  },
-};
-
-function FocusRow({ row, onFix }: { row: FocusRowModel; onFix?: () => void }) {
-  const t = FOCUS_TONE[row.tone];
-  return (
-    <div className={cn("border px-3 py-2.5", t.box)}>
-      <div className="flex items-center gap-2.5">
-        <span
-          className={cn(
-            "shrink-0 border px-1.5 py-0.5 font-mono text-pill font-bold uppercase",
-            t.pill,
-          )}
-        >
-          {KIND_ABBREV[row.kind] ?? row.kind}
-        </span>
-        <span
-          className={cn(
-            "min-w-0 truncate text-item font-semibold",
-            t.strike ? "text-fg-3 line-through" : "text-fg-1",
-          )}
-        >
-          {row.name}
-        </span>
-        <span
-          className={cn(
-            "ml-auto shrink-0 font-mono text-pill font-semibold uppercase",
-            t.state,
-          )}
-        >
-          {row.state}
-        </span>
-      </div>
-
-      {row.reason && (
-        <div className="mt-2 flex items-baseline gap-2.5 border-t border-line pt-2">
-          <span className="min-w-0 text-meta text-fg-3">{row.reason}</span>
-          {row.fix && (
-            <button
-              type="button"
-              onClick={onFix}
-              className="ml-auto shrink-0 whitespace-nowrap border-0 border-b border-line-strong bg-transparent pb-px text-btn-sm font-semibold uppercase text-fg-4 hover:text-fg-1"
-            >
-              {row.fix}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

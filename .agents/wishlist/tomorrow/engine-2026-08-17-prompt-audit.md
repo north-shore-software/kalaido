@@ -11,7 +11,7 @@ updated: "2026-08-17"
 Audit every prompt in the codebase into one canonical, reviewable home, and
 hold each one to a content standard: a prompt must tell the model what app it
 is working inside, what data it has been given and what kind, what is the
-primary focus versus background reference, and exactly how to reply.
+which documents are being referenced, and exactly how to reply.
 
 ## Why prompts deserve a spec
 
@@ -39,7 +39,8 @@ Each prompt must explicitly provide:
 - **Data framing**: every injected block labeled with what it is (source
   fragments, prior instruction, sample output, …), including timestamps or
   window bounds where the data is time-scoped.
-- **Focus vs. background**: the material being worked on clearly separated
+- (Removed 2026-08-18: focus/background separation no longer exists — @-mentions
+  state the subject instead.) ~~**Focus vs. background**: the material being worked on clearly separated~~
   from supporting reference context, with instructions on how each may be
   used.
 - **Reply contract**: the exact output format, and what to omit — no
@@ -57,7 +58,7 @@ Each prompt must explicitly provide:
   structural and stylistic rules only, never facts copied from the sample.
   Output is the instruction text alone.
 - **Chat / refinement**: frames the model as a document-editing assistant;
-  enforces the focus/background segregation above; drafts are delivered via
+  (focus/background segregation has since been removed); drafts are delivered via
   the structured draft-update tool call, never as document text pasted into
   the conversation.
 - **Colour evaluation**: task definition, the criterion, labeled positive and
@@ -73,7 +74,7 @@ Each prompt must explicitly provide:
 
 ## Acceptance Criteria
 - [ ] An audit finds every prompt originating from the single prompt home, with no prompt text assembled inline at call sites.
-- [ ] Every prompt satisfies the content standard: app context, labeled data blocks, focus/background separation, explicit reply contract.
+- [ ] Every prompt satisfies the content standard: app context, labeled data blocks, explicit reply contract.
 - [ ] Generated snapshots are pure markdown with no preambles or closing remarks — directly usable without cleanup.
 - [ ] Distilled lenses contain only generalized, data-agnostic instructions, and nothing but the instruction text.
 - [ ] Chat refinement updates drafts exclusively through the structured tool call.

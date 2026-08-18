@@ -21,8 +21,6 @@ export type {
   Criterion,
   CriterionKind,
   EntityKind,
-  FocusKind,
-  FocusRef,
   FragmentMode,
   LastN,
   SourceKind,

@@ -55,37 +55,6 @@ func RenderFragmentRecords(recs []*core.Record) string {
 	return sb.String()
 }
 
-// HydrateContextChange renders one context change for a running conversation.
-//
-// The focus is stated in full rather than diffed: it is a claim about what the
-// conversation is *now about*, which no add/remove delta can express — refocusing
-// typically adds one document and demotes everything already present, and the
-// demotion is the part that matters. Focused documents are then left out of the
-// delta below so their text isn't repeated.
-func HydrateContextChange(ctx stdctx.Context, app core.App, current, added, removed PinnedIDs) (string, error) {
-	focus := current.FocusOrEmpty()
-	if focus.IsEmpty() {
-		return HydrateDeltaToText(ctx, app, added, removed)
-	}
-
-	var sb strings.Builder
-	focusText, err := HydrateIDsToText(ctx, app, focus)
-	if err != nil {
-		return "", err
-	}
-	sb.WriteString(prompts.FocusHeading + "\n\n")
-	sb.WriteString(focusText)
-	sb.WriteString(prompts.BackgroundNotice + "\n\n")
-
-	deltaText, err := HydrateDeltaToText(ctx, app, added.Without(focus), removed)
-	if err != nil {
-		return "", err
-	}
-	sb.WriteString(deltaText)
-
-	return sb.String(), nil
-}
-
 func HydrateDeltaToText(ctx stdctx.Context, app core.App, added, removed PinnedIDs) (string, error) {
 	var sb strings.Builder
 

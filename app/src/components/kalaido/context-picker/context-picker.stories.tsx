@@ -88,7 +88,7 @@ function PickerHost({
   onAutoSegment,
 }: {
   kindLabel: string;
-  tint: "cyan" | "yellow" | "magenta";
+  tint: "cyan" | "yellow";
   options: PickerOption[];
   onAutoSegment?: () => void;
 }) {
@@ -127,14 +127,6 @@ export const PickerSource: Story = () => (
       { id: "a", label: "Daily Standup", meta: "4 windows" },
       { id: "b", label: "Weekly themes", meta: "12 windows" },
     ]}
-  />
-);
-
-export const PickerFocus: Story = () => (
-  <PickerHost
-    kindLabel="Projection"
-    tint="magenta"
-    options={[{ id: "a", label: "Checkout PRD" }]}
   />
 );
 
