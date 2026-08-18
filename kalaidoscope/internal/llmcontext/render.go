@@ -18,7 +18,7 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 		var sb strings.Builder
 		for _, p := range m.Parts {
 			if p.Type == "text" {
-				sb.WriteString(p.Text)
+				sb.WriteString(ExpandMentions(p.Text))
 			} else if strings.HasPrefix(p.Type, "tool-") {
 				var data struct {
 					ToolName string `json:"toolName"`

@@ -152,3 +152,30 @@ func ReflectionSnapshotBlock(name, id, output string) string {
 func DraftEcho(toolName, draft string) string {
 	return fmt.Sprintf("[You called %s, drafting:]\n%s", toolName, draft)
 }
+
+// Mention expansions render a user-typed @-mention (see llmcontext.ExpandMentions)
+// into the reference form the model sees. Each form's join key must stay in sync
+// with the block headers above: a fragment mention joins to FragmentBlock by ID,
+// while projection and reflection mentions join to their snapshot blocks by name
+// — the model never sees projection or reflection record IDs, so the ID here is
+// provenance only. Colours and types dissolve into fragment IDs during context
+// resolution, so their mentions can only point at the group.
+func FragmentMention(label, id string) string {
+	return fmt.Sprintf("@%q (Fragment ID: %s)", label, id)
+}
+
+func ProjectionMention(label, id string) string {
+	return fmt.Sprintf("@%q (Projection: %s)", label, id)
+}
+
+func ReflectionMention(label, id string) string {
+	return fmt.Sprintf("@%q (Reflection: %s)", label, id)
+}
+
+func ColourMention(label string) string {
+	return fmt.Sprintf("@%q (Colour — its tagged fragments are in the context)", label)
+}
+
+func TypeMention(fragmentType string) string {
+	return fmt.Sprintf("@%q (fragment type — those fragments are in the context)", fragmentType)
+}
