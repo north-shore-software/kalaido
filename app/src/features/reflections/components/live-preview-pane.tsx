@@ -1,4 +1,4 @@
-import { Pill } from "@/components/kalaido";
+import { MarkdownContent, Pill } from "@/components/kalaido";
 import { PaneHeader } from "@/components/layout/page-layout";
 import { cn } from "@/lib/css-utils";
 
@@ -29,8 +29,8 @@ export function LivePreviewPane({
             Send a first message to generate a draft.
           </p>
         ) : preview.length > 0 ? (
-          <div className="whitespace-pre-wrap text-body leading-relaxed text-fg-1">
-            {preview}
+          <div className="text-body leading-relaxed text-fg-1">
+            <MarkdownContent streaming content={preview} />
           </div>
         ) : (
           <p className="text-body-sm text-fg-2">Generating…</p>

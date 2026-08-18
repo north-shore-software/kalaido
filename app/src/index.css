@@ -9,6 +9,8 @@
    hosts Vite. Ladle sets the Vite root to its own internal app, so without
    an explicit @source no app utilities are generated when running in Ladle. */
 @source "../src";
+/* Streamdown's internal wrappers carry their own utility classes. */
+@source "../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 

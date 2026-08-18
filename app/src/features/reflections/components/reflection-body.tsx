@@ -1,4 +1,9 @@
-import { DocBody, EmptyState, StatusPill } from "@/components/kalaido";
+import {
+  DocBody,
+  EmptyState,
+  MarkdownContent,
+  StatusPill,
+} from "@/components/kalaido";
 
 export interface ReflectionBodyProps {
   readOnly?: boolean;
@@ -39,8 +44,12 @@ export function ReflectionBody({
             <DocBody paragraphs={3} />
           </div>
         ) : historical ? (
-          <div className="max-w-[500px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
-            {historicalContent || "(empty snapshot)"}
+          <div className="max-w-[500px] text-body leading-relaxed text-fg-1">
+            {historicalContent ? (
+              <MarkdownContent content={historicalContent} />
+            ) : (
+              "(empty snapshot)"
+            )}
           </div>
         ) : (
           <EmptyState>Snapshot not found.</EmptyState>
@@ -70,8 +79,8 @@ export function ReflectionBody({
       )}
 
       {status === "ready" && (
-        <div className="max-w-[500px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
-          {content || "(empty snapshot)"}
+        <div className="max-w-[500px] text-body leading-relaxed text-fg-1">
+          {content ? <MarkdownContent content={content} /> : "(empty snapshot)"}
         </div>
       )}
     </div>

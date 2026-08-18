@@ -8,9 +8,10 @@ import {
 import { useContextSources } from "@/hooks/use-context-sources";
 import { useFragmentLabels } from "@/hooks/use-fragment-labels";
 import { cn } from "@/lib/css-utils";
-import { splitMentions } from "@/lib/mentions";
+import { mentionsToTags, splitMentions } from "@/lib/mentions";
 import { ColourSwatch } from "./colour";
 import { KIND_ABBREV } from "./context-bar/state";
+import { MarkdownContent } from "./markdown-content";
 
 export interface MessageBubbleProps {
   role: string;
@@ -50,6 +51,21 @@ function MessageText({ content }: { content: string }) {
   );
 }
 
+/**
+ * The same chip, reachable from inside rendered markdown: `mentionsToTags`
+ * rewrites the wire tokens into <kmention> tags, allowlisted below so the
+ * label rides through sanitization as literal text rather than prose.
+ */
+const mentionTagComponents = {
+  kmention: (props: Record<string, unknown>) => (
+    <span className="inline rounded-sm border border-current/25 bg-current/10 px-1 font-medium whitespace-nowrap">
+      {props.children as ReactNode}
+    </span>
+  ),
+};
+const mentionAllowedTags = { kmention: [] as string[] };
+const mentionLiteralTags = ["kmention"];
+
 export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
   return (
     <div
@@ -60,13 +76,26 @@ export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
     >
       <div
         className={cn(
-          "max-w-[70%] rounded-none px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
+          "max-w-[70%] rounded-none px-4 py-2.5 text-sm leading-relaxed break-words",
           role === "user"
-            ? "bg-section text-section-foreground font-medium"
+            ? "bg-section text-section-foreground font-medium whitespace-pre-wrap"
             : "bg-surface-2 text-fg-1",
         )}
       >
-        <MessageText content={content} />
+        {role === "user" ? (
+          // User text is verbatim input — rendering a literal `# note` as a
+          // heading would misrepresent what was typed.
+          <MessageText content={content} />
+        ) : (
+          <MarkdownContent
+            variant="chat"
+            streaming
+            content={mentionsToTags(content)}
+            components={mentionTagComponents}
+            allowedTags={mentionAllowedTags}
+            literalTagContent={mentionLiteralTags}
+          />
+        )}
       </div>
       {actions && (
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">

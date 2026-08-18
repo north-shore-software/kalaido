@@ -4,6 +4,7 @@ import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import {
   buildMentionToken,
   mentionQueryAt,
+  mentionsToTags,
   sanitizeMentionLabel,
   splitMentions,
   stripMentions,
@@ -44,6 +45,53 @@ describe("splitMentions", () => {
     "@[Fragment:has space|label]",
   ])("passes through %j literally", (text) => {
     expect(splitMentions(text)).toEqual([{ type: "text", text }]);
+  });
+});
+
+describe("mentionsToTags", () => {
+  it("passes text without mentions through untouched", () => {
+    expect(mentionsToTags("# heading\n\nplain **markdown**")).toBe(
+      "# heading\n\nplain **markdown**",
+    );
+  });
+
+  it("rewrites a token into a kmention tag", () => {
+    expect(
+      mentionsToTags(
+        "based on @[Fragment:abc123def456ghi|standup notes], do x",
+      ),
+    ).toBe("based on <kmention>@standup notes</kmention>, do x");
+  });
+
+  it("rewrites multiple tokens and falls back to the id", () => {
+    expect(mentionsToTags("@[Colour:c1|Work] and @[Type:email|]")).toBe(
+      "<kmention>@Work</kmention> and <kmention>@email</kmention>",
+    );
+  });
+
+  it("escapes markup characters in the label", () => {
+    expect(mentionsToTags("@[Fragment:abc123|a <b> & c]")).toBe(
+      "<kmention>@a &lt;b&gt; &amp; c</kmention>",
+    );
+  });
+
+  it("leaves tokens inside code fences literal", () => {
+    const text = [
+      "before @[Colour:c1|Work]",
+      "```",
+      "quoted @[Colour:c1|Work]",
+      "```",
+      "after @[Colour:c1|Work]",
+    ].join("\n");
+    expect(mentionsToTags(text)).toBe(
+      [
+        "before <kmention>@Work</kmention>",
+        "```",
+        "quoted @[Colour:c1|Work]",
+        "```",
+        "after <kmention>@Work</kmention>",
+      ].join("\n"),
+    );
   });
 });
 
