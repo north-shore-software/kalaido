@@ -1,0 +1,34 @@
+package prompts
+
+import (
+	"strings"
+	"testing"
+)
+
+// Both conversational prompts must carry the mention legend, and the legend's
+// promises must hold against the formats it describes: the fragment join key
+// ("ID: ...") appears in both FragmentMention and FragmentBlock, and snapshot
+// blocks carry the quoted name a projection/reflection mention joins on.
+func TestMentionLegendComposition(t *testing.T) {
+	for name, prompt := range map[string]string{
+		"ChatSystemPrompt":       ChatSystemPrompt,
+		"RefinementSystemPrompt": RefinementSystemPrompt,
+	} {
+		if !strings.Contains(prompt, MentionLegend) {
+			t.Errorf("%s does not include MentionLegend", name)
+		}
+	}
+
+	if !strings.Contains(FragmentMention("label", "id123"), "Fragment ID: id123") {
+		t.Errorf("FragmentMention lost the ID join key: %q", FragmentMention("label", "id123"))
+	}
+	if !strings.Contains(FragmentBlock("note", "src", "id123", "body"), "(ID: id123)") {
+		t.Errorf("FragmentBlock lost the ID header: %q", FragmentBlock("note", "src", "id123", "body"))
+	}
+	if !strings.Contains(ProjectionSnapshotBlock("Weekly Digest", "snap1", "out"), `"Weekly Digest"`) {
+		t.Errorf("ProjectionSnapshotBlock lost the quoted name: %q", ProjectionSnapshotBlock("Weekly Digest", "snap1", "out"))
+	}
+	if !strings.Contains(ProjectionMention("Weekly Digest", "proj1"), `@"Weekly Digest"`) {
+		t.Errorf("ProjectionMention lost the quoted name join key: %q", ProjectionMention("Weekly Digest", "proj1"))
+	}
+}

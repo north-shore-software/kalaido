@@ -87,7 +87,18 @@ const ProductBrief = `Kalaido is a private desktop app where the user collects r
 const ContextLegend = `The conversation includes documents from the user's workspace, each wrapped in a "--- ... ---" header:
 - Fragments are the user's raw source material. The header gives the fragment's kind (such as email or note), its source, and an internal ID.
 - Projection and reflection snapshots are documents Kalaido generated earlier by synthesizing other documents. Treat them as derived views, not original sources.
-Documents may be added or removed while the conversation is under way; a notice announces each change, and removed documents must no longer be relied on. A document introduced as PRIMARY FOCUS is the subject of the conversation; everything else is background. IDs are internal — refer to documents by their source or name when talking to the user.`
+Documents may be added or removed while the conversation is under way; a notice announces each change, and removed documents must no longer be relied on. A document introduced as PRIMARY FOCUS is the subject of the conversation; everything else is background. IDs are internal — refer to documents by their source or name when talking to the user, and never echo a raw ID even when the user's message contains one.`
+
+// MentionLegend explains the inline @-references the user's messages may carry
+// (the expanded form of llmcontext.ExpandMentions). Each bullet states how a
+// reference joins back to the hydrated blocks ContextLegend describes, so it
+// must stay in sync with the Mention helpers below and with those block
+// formats.
+const MentionLegend = `The user can reference specific workspace items inline; these appear in their messages as @"Label" (...) references. Items referenced this way are part of the active context — the app adds them when the user tags them.
+- A fragment reference carries the fragment's ID, which matches a fragment header's ID in the context.
+- A projection or reflection reference matches its snapshot block by name.
+- A colour or fragment-type reference names a group of fragments in the context, not a single document.
+If a referenced item has no matching document in the context, it was removed or deleted — say so plainly rather than guessing at its contents.`
 
 // GroundingRules split reasoning from facts: general knowledge is always
 // allowed for understanding the documents, outside facts only on explicit
@@ -97,12 +108,12 @@ const GroundingRules = `Use your general knowledge to understand, interpret, and
 // ChatSystemPrompt is the main chat's system prompt, prepended by
 // chat.PrepareLLMPrompt.
 const ChatSystemPrompt = "You are the assistant inside Kalaido. Help the user explore, question, and work with the documents in the active context. Be direct and concrete, and quote or cite the documents when it helps.\n\n" +
-	ProductBrief + "\n\n" + ContextLegend + "\n\n" + GroundingRules
+	ProductBrief + "\n\n" + ContextLegend + "\n\n" + MentionLegend + "\n\n" + GroundingRules
 
 const RefinementSystemPrompt = `You are a professional assistant helping the user refine a "snapshot" view of their source documents.
 Your goal is to distill their requested format, style, and emphasis into a single text output (the "draft").
 
-` + ProductBrief + "\n\n" + ContextLegend + "\n\n" + GroundingRules + `
+` + ProductBrief + "\n\n" + ContextLegend + "\n\n" + MentionLegend + "\n\n" + GroundingRules + `
 
 You have access to the "update_draft" tool. You MUST call "update_draft" to create or update the draft preview whenever you have a meaningfully updated draft.
 - Always call "update_draft" with the complete draft text (never a diff).
