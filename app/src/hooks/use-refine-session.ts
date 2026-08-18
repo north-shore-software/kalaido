@@ -1,13 +1,14 @@
-import { useCallback, useState } from "react";
 import { generateId, type UIMessage } from "ai";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import type { ContextSpec } from "@/api/kalaidoscope/chat";
 import {
   commitRefinement,
   createRefinement,
   extractDraftFromMessages,
+  extractSuggestedNameFromMessages,
   normalizeRefinementMessages,
 } from "@/api/kalaidoscope/refinements";
-import type { ContextSpec } from "@/api/kalaidoscope/chat";
 
 /**
  * The shared lifecycle of a "refine via chat" session, used by every surface
@@ -39,6 +40,12 @@ export interface RefineSession {
   onMessagesChange: (m: UIMessage[]) => void;
   /** The latest drafted snapshot scraped from the chat (empty until one lands). */
   preview: string;
+  /**
+   * The model's latest name suggestion for the document being drafted (empty
+   * until one lands). Rides `suggest_name` calls before the first draft and
+   * `update_draft`'s `suggested_name` argument afterwards.
+   */
+  suggestedName: string;
   /** A refinement is open. */
   started: boolean;
   /** A `start` call is in flight. */
@@ -100,6 +107,7 @@ export function useRefineSession({
   const onMessagesChange = useCallback((m: UIMessage[]) => setMessages(m), []);
 
   const preview = extractDraftFromMessages(messages);
+  const suggestedName = extractSuggestedNameFromMessages(messages);
   const started = refinementId != null;
 
   const start = useCallback<RefineSession["start"]>(
@@ -182,6 +190,7 @@ export function useRefineSession({
     messages,
     onMessagesChange,
     preview,
+    suggestedName,
     started,
     creating,
     committing,

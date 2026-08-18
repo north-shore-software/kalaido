@@ -1,23 +1,22 @@
 import { useState } from "react";
-import { defineRoute } from "@/routes/route-kit";
-import { newReflectionTransitions } from "./NewReflection.transitions";
 import { toast } from "sonner";
-import { useAppNavigate } from "@/routes/use-app-navigate";
-import {
-  PageCard,
-  PageHeader,
-  PageLayout,
-} from "@/components/layout/page-layout";
-import { Button } from "@/components/ui/button";
-
+import { createReflection } from "@/api/kalaidoscope/reflections";
 import {
   ContextBar,
   type ContextItem,
   RefineChatPanel,
   RefineComposer,
 } from "@/components/kalaido";
-import { createReflection } from "@/api/kalaidoscope/reflections";
-import { useRefineSession } from "@/hooks/use-refine-session";
+import {
+  PageCard,
+  PageHeader,
+  PageLayout,
+} from "@/components/layout/page-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LivePreviewPane } from "@/features/reflections/components/live-preview-pane";
+import { RefineConfigPanel } from "@/features/reflections/components/refine-config-panel";
+import { SchedulePill } from "@/features/reflections/components/schedule-controls";
 import {
   buildWindowSpec,
   FREQ,
@@ -25,17 +24,13 @@ import {
   WIN,
   WIN_DAYS,
 } from "@/features/reflections/schedule";
-import { SchedulePill } from "@/features/reflections/components/schedule-controls";
-import { RefineConfigPanel } from "@/features/reflections/components/refine-config-panel";
-import { LivePreviewPane } from "@/features/reflections/components/live-preview-pane";
+import { useDraftName } from "@/hooks/use-draft-name";
+import { useRefineSession } from "@/hooks/use-refine-session";
 import { withContextItem } from "@/lib/mentions";
-
-/** A readable reflection name from the opening prompt (the only "name" we have). */
-function deriveName(prompt: string): string {
-  const t = prompt.trim().replace(/\s+/g, " ");
-  if (!t) return "Untitled reflection";
-  return t.length > 60 ? `${t.slice(0, 60)}…` : t;
-}
+import { deriveName } from "@/lib/naming";
+import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { newReflectionTransitions } from "./NewReflection.transitions";
 
 export default function NewReflection() {
   const { go } = useAppNavigate();
@@ -46,9 +41,16 @@ export default function NewReflection() {
 
   const [reflectionId, setReflectionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [creating, setCreating] = useState(false);
 
   const session = useRefineSession({ target: "reflection" });
+
+  const { name, adopt, rename } = useDraftName({
+    target: "reflection",
+    entityId: reflectionId,
+    suggestedName: session.suggestedName,
+  });
 
   const started = reflectionId != null && session.started;
   const preview = session.preview;
@@ -70,7 +72,9 @@ export default function NewReflection() {
     if (!text || creating) return;
     setCreating(true);
 
-    const created = await createReflection(deriveName(text));
+    const typedName = nameInput.trim();
+    const initialName = typedName || deriveName(text, "Untitled reflection");
+    const created = await createReflection(initialName);
     if (created.isErr()) {
       setCreating(false);
       toast.error("Failed to create reflection", {
@@ -82,7 +86,10 @@ export default function NewReflection() {
 
     const ok = await session.start({ parentId: newReflectionId, prompt: text });
     setCreating(false);
-    if (ok) setReflectionId(newReflectionId);
+    if (ok) {
+      adopt(initialName, !!typedName);
+      setReflectionId(newReflectionId);
+    }
   }
 
   // "Done" commits the refinement (distilling the lens with this chat's context
@@ -100,8 +107,9 @@ export default function NewReflection() {
   return (
     <PageLayout>
       <PageHeader
-        title="New Reflection"
+        title={name ?? "New Reflection"}
         crumb={["Reflections", "New"]}
+        onTitleCommit={started ? rename : undefined}
         actions={
           <>
             <Button
@@ -163,6 +171,17 @@ export default function NewReflection() {
                 placeholder="‘a tight weekly work-snippet of what shipped’…"
                 disabled={creating}
                 onSubmit={() => void startReflection()}
+                nameField={
+                  <div className="shrink-0 px-4 pb-3">
+                    <Input
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      placeholder="Name (optional — Kalaido will suggest one)"
+                      aria-label="Reflection name"
+                      disabled={creating}
+                    />
+                  </div>
+                }
                 beforeInput={
                   <ContextBar
                     items={context}

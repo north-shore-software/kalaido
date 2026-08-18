@@ -1,7 +1,7 @@
-import type { Result } from "neverthrow";
 import type { UIMessage } from "ai";
-import type { ContextSpec } from "./chat";
+import type { Result } from "neverthrow";
 import { withActiveClient } from "./_active";
+import type { ContextSpec } from "./chat";
 
 export interface CreateRefinementResult {
   refinementId: string;
@@ -24,7 +24,7 @@ export interface CommitRefinementResult {
  * The returned chat is driven through `/api/chat` using `clientId` as the chat
  * id — the backend auto-routes that conversation to the refinement handler (it
  * matches `refine_*_conversation.external_conversation_id`), so the assistant
- * replies by emitting a full revised draft inside a ```snapshot fenced block.
+ * replies by emitting a full revised draft through the `update_draft` tool call.
  *
  * `snapshotId` scopes the session to an existing snapshot: the backend seeds the
  * new conversation with that snapshot's `context_spec` (and `window_spec` for
@@ -87,6 +87,7 @@ export async function commitRefinement(input: {
 }
 
 const UPDATE_DRAFT_TOOL = "update_draft";
+const SUGGEST_NAME_TOOL = "suggest_name";
 
 /**
  * Read the draft string out of a single message part, tolerating both shapes a
@@ -125,6 +126,74 @@ function draftFromPart(part: unknown): string | null {
     return typeof draft === "string" ? draft : null;
   }
   return null;
+}
+
+/**
+ * Read a named tool call's input out of a single message part, tolerating the
+ * same two shapes as {@link draftFromPart} (live `dynamic-tool` and persisted
+ * `tool-<name>`). Returns null if the part is a different tool or malformed.
+ */
+function toolInputFromPart(
+  part: unknown,
+  toolName: string,
+): Record<string, unknown> | null {
+  const p = part as {
+    type?: string;
+    toolName?: string;
+    state?: string;
+    input?: unknown;
+    data?: { toolName?: string; input?: unknown };
+  };
+  if (p.type === "dynamic-tool" && p.toolName === toolName) {
+    if (p.state !== "input-streaming" && p.state !== "input-available") {
+      return null;
+    }
+    return (p.input as Record<string, unknown> | undefined) ?? null;
+  }
+  if (p.type === `tool-${toolName}` && p.data) {
+    return (p.data.input as Record<string, unknown> | undefined) ?? null;
+  }
+  return null;
+}
+
+/**
+ * The model's name suggestion carried by one part, or null. Two carriers, per
+ * the refinement prompt's naming protocol: before the first draft the model
+ * calls `suggest_name` (`input.name`); with every draft the name rides
+ * `update_draft`'s optional `suggested_name` argument.
+ */
+function suggestedNameFromPart(part: unknown): string | null {
+  const draftInput = toolInputFromPart(part, UPDATE_DRAFT_TOOL);
+  if (draftInput) {
+    const name = draftInput.suggested_name;
+    return typeof name === "string" ? name : null;
+  }
+  const suggestInput = toolInputFromPart(part, SUGGEST_NAME_TOOL);
+  if (suggestInput) {
+    const name = suggestInput.name;
+    return typeof name === "string" ? name : null;
+  }
+  return null;
+}
+
+/**
+ * Pull the most recent non-empty name suggestion out of a refinement chat,
+ * from either carrier. A draft turn that omits `suggested_name` does not erase
+ * an earlier suggestion — the scan simply keeps looking further back. Empty
+ * string until any suggestion lands.
+ */
+export function extractSuggestedNameFromMessages(
+  messages: UIMessage[],
+): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "assistant" || !m.parts) continue;
+    for (let j = m.parts.length - 1; j >= 0; j--) {
+      const name = suggestedNameFromPart(m.parts[j])?.trim();
+      if (name) return name;
+    }
+  }
+  return "";
 }
 
 /**

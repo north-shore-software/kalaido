@@ -1,8 +1,8 @@
 import type { KeyboardEvent, ReactNode } from "react";
 import { PaneHeader } from "@/components/layout/page-chrome";
 import { Textarea } from "@/components/ui/textarea";
-import { ComposerSendButton } from "./composer-send-button";
 import { cn } from "@/lib/css-utils";
+import { ComposerSendButton } from "./composer-send-button";
 
 export interface RefineComposerProps {
   title?: string;
@@ -21,6 +21,11 @@ export interface RefineComposerProps {
    * pre-chat surfaces, mirroring its position above the ChatPanel composer.
    */
   beforeInput?: ReactNode;
+  /**
+   * Rendered above `beforeInput` — the slot creation surfaces use for the
+   * optional name field, keeping the ContextBar in its usual position.
+   */
+  nameField?: ReactNode;
 }
 
 export function RefineComposer({
@@ -36,6 +41,7 @@ export function RefineComposer({
   preparing = false,
   preparingText = "Preparing refine session…",
   beforeInput,
+  nameField,
 }: RefineComposerProps) {
   if (preparing) {
     return (
@@ -71,6 +77,7 @@ export function RefineComposer({
           </p>
         </div>
       )}
+      {nameField}
       {beforeInput}
       <div className="shrink-0 border-t border-line px-4 py-3">
         <div className="flex items-end gap-2">

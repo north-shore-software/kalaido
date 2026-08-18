@@ -1,10 +1,19 @@
+import { GitForkIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { GitForkIcon } from "lucide-react";
 import { toast } from "sonner";
-import { regenerateProjection } from "@/api/kalaidoscope/projections";
-import { parseContextSpec } from "@/api/kalaidoscope/chat";
 import type { ContextSpec } from "@/api/kalaidoscope/chat";
+import { parseContextSpec } from "@/api/kalaidoscope/chat";
+import {
+  regenerateProjection,
+  updateProjection,
+} from "@/api/kalaidoscope/projections";
+import type { TimelineItem } from "@/components/kalaido";
+import {
+  PageCard,
+  PageHeader,
+  PageLayout,
+} from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,16 +21,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { TimelineItem } from "@/components/kalaido";
-import {
-  PageCard,
-  PageHeader,
-  PageLayout,
-} from "@/components/layout/page-layout";
 import { ProjectionDraftEditor } from "@/features/projections/components/projection-draft-editor";
 import { ProjectionSideRail } from "@/features/projections/components/projection-side-rail";
 import { SnapshotPreview } from "@/features/projections/components/snapshot-preview";
 import { getProjectionStatus } from "@/features/projections/status";
+import { useContextSources } from "@/hooks/use-context-sources";
+import { useDraftName } from "@/hooks/use-draft-name";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import {
   parseProjectionOutput,
@@ -29,7 +34,6 @@ import {
 } from "@/hooks/use-projection-snapshot";
 import { useRefineSession } from "@/hooks/use-refine-session";
 import { useResumeRefinement } from "@/hooks/use-resume-refinement";
-import { useContextSources } from "@/hooks/use-context-sources";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatShortDateTime } from "@/lib/datetime";
 import { defineRoute } from "@/routes/route-kit";
@@ -76,6 +80,30 @@ export default function ProjectionDetail() {
     snapshotId: "",
     enabled: noSnapshots,
   });
+
+  // Naming for the resumed authoring draft. Ownership is inferred at adoption:
+  // if the stored name no longer matches the chat's latest suggestion, someone
+  // overrode it (rename, seed), so suggestions must keep their hands off.
+  const draftName = useDraftName({
+    target: "projection",
+    entityId: id ?? null,
+    suggestedName: resumed ? session.suggestedName : "",
+  });
+  const { adopt: adoptDraftName } = draftName;
+  useEffect(() => {
+    if (!resumed || !projection || draftName.name !== null) return;
+    const suggestion = session.suggestedName;
+    adoptDraftName(
+      projection.name || "Untitled projection",
+      suggestion !== "" && projection.name !== suggestion,
+    );
+  }, [
+    resumed,
+    projection,
+    draftName.name,
+    session.suggestedName,
+    adoptDraftName,
+  ]);
 
   async function handleRefresh() {
     if (!id || regenerating) return;
@@ -199,13 +227,15 @@ export default function ProjectionDetail() {
   });
 
   if (resumed && id) {
+    const draftTitle = draftName.name ?? title;
     return (
       <ProjectionDraftEditor
         session={session}
         projectionId={id}
-        title={title}
-        crumb={["Projections", title, "Draft"]}
+        title={draftTitle}
+        crumb={["Projections", draftTitle, "Draft"]}
         initialContext={refineContext}
+        onTitleCommit={draftName.rename}
         onCancel={() => go(projectionDetailTransitions.backToList)}
         onApproveSuccess={(projId) =>
           go(projectionDetailTransitions.openDetail, { params: { id: projId } })
@@ -225,6 +255,18 @@ export default function ProjectionDetail() {
             ? [historicalVersion ? `v${historicalVersion}` : "snapshot"]
             : []),
         ]}
+        onTitleCommit={
+          !readOnly && id
+            ? (next) =>
+                void updateProjection(id, { name: next }).then((res) => {
+                  if (res.isErr()) {
+                    toast.error("Failed to rename", {
+                      description: res.error.message,
+                    });
+                  }
+                })
+            : undefined
+        }
         actions={
           !readOnly && (
             <DropdownMenu>

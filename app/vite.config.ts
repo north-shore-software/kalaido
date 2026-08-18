@@ -36,7 +36,7 @@ export default defineConfig(async () => ({
     // network, so Vite's default 500 kB warning (which is about download time)
     // doesn't apply. Revisit if this frontend is ever served as a web app —
     // at that point transfer size becomes real and code-splitting is worth it.
-    chunkSizeWarningLimit: 2000,
+    chunkSizeWarningLimit: 2500,
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
