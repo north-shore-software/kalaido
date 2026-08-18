@@ -235,7 +235,7 @@ func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 		pid := snap.GetString("projection_id")
 		if proj := projMap[pid]; proj != nil {
 			name := proj.GetString("name")
-			fmt.Fprintf(sb, "--- projection %q (ID: %s) ---\n%s\n\n", name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output")))
+			sb.WriteString(prompts.ProjectionSnapshotBlock(name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output"))))
 		}
 	}
 }
@@ -260,7 +260,7 @@ func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 		rid := snap.GetString("reflection_id")
 		if refl := reflMap[rid]; refl != nil {
 			name := refl.GetString("name")
-			fmt.Fprintf(sb, "--- reflection %q (ID: %s) ---\n%s\n\n", name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output")))
+			sb.WriteString(prompts.ReflectionSnapshotBlock(name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output"))))
 		}
 	}
 }
