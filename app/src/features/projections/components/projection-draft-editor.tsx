@@ -1,5 +1,11 @@
-import { useState } from "react";
 import { CheckIcon } from "lucide-react";
+import { useState } from "react";
+import {
+  type ContextItem,
+  MarkdownContent,
+  Pill,
+  RefineChatPanel,
+} from "@/components/kalaido";
 import {
   PageCard,
   PageHeader,
@@ -7,7 +13,6 @@ import {
   PaneHeader,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { type ContextItem, Pill, RefineChatPanel } from "@/components/kalaido";
 import type { RefineSession } from "@/hooks/use-refine-session";
 import { withContextItem } from "@/lib/mentions";
 
@@ -96,8 +101,8 @@ export function ProjectionDraftEditor({
             />
             <div className="flex-1 overflow-y-auto p-5">
               {session.preview.length > 0 ? (
-                <div className="whitespace-pre-wrap text-body leading-relaxed text-fg-1">
-                  {session.preview}
+                <div className="text-body leading-relaxed text-fg-1">
+                  <MarkdownContent streaming content={session.preview} />
                 </div>
               ) : (
                 <p className="text-body-sm text-fg-2">Nothing drafted yet.</p>

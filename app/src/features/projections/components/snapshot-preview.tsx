@@ -1,6 +1,12 @@
-import { DocBody, EmptyState, Pill, StatusPill } from "@/components/kalaido";
-import type { ProjectionSnapshotState } from "@/hooks/use-projection-snapshot";
 import type { ProjectionSnapshotResponse } from "@/api/kalaidoscope/types";
+import {
+  DocBody,
+  EmptyState,
+  MarkdownContent,
+  Pill,
+  StatusPill,
+} from "@/components/kalaido";
+import type { ProjectionSnapshotState } from "@/hooks/use-projection-snapshot";
 
 export interface SnapshotPreviewProps {
   state: ProjectionSnapshotState;
@@ -41,8 +47,12 @@ export function SnapshotPreview({
               <DocBody paragraphs={4} />
             </div>
           ) : historical ? (
-            <div className="max-w-[640px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
-              {historicalContent || "(empty snapshot)"}
+            <div className="max-w-[640px] text-body leading-relaxed text-fg-1">
+              {historicalContent ? (
+                <MarkdownContent content={historicalContent} />
+              ) : (
+                "(empty snapshot)"
+              )}
             </div>
           ) : (
             <EmptyState>Snapshot not found.</EmptyState>
@@ -78,8 +88,12 @@ export function SnapshotPreview({
               <div className="mb-4 flex items-center gap-2.5">
                 <Pill tone="primary">plan of record</Pill>
               </div>
-              <div className="max-w-[640px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
-                {state.output.content || "(empty snapshot)"}
+              <div className="max-w-[640px] text-body leading-relaxed text-fg-1">
+                {state.output.content ? (
+                  <MarkdownContent content={state.output.content} />
+                ) : (
+                  "(empty snapshot)"
+                )}
               </div>
             </>
           )}

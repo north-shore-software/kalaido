@@ -1,6 +1,6 @@
 import { ClockIcon } from "lucide-react";
+import { MarkdownContent, Mono, StatusPill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
-import { Mono, StatusPill } from "@/components/kalaido";
 
 export interface Window {
   start: string;
@@ -97,8 +97,8 @@ export function ActiveRotationCard({
       ) : (
         <div className="max-h-[280px] overflow-y-auto px-5 py-4">
           {draft ? (
-            <div className="whitespace-pre-wrap text-body leading-relaxed text-fg-1">
-              {draft}
+            <div className="text-body leading-relaxed text-fg-1">
+              <MarkdownContent content={draft} />
             </div>
           ) : (
             <p className="text-body-sm text-fg-2">Generating draft…</p>

@@ -1,8 +1,9 @@
 import type { Story } from "@ladle/react";
+import type { UIMessage } from "ai";
 import { PinIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ChatMessages } from "./chat-messages";
 import { fixtureMessages } from "../../features/chat/fixtures";
+import { ChatMessages } from "./chat-messages";
 
 export default { title: "Kalaido / ChatMessages" };
 
@@ -37,5 +38,47 @@ export const WithAssistantActions: Story = () => (
         </Button>
       )}
     />
+  </div>
+);
+
+// Assistant replies are markdown; mention tokens render as chips inside it.
+// User bubbles stay verbatim — their `# not a heading` prints literally.
+const markdownMessages: UIMessage[] = [
+  {
+    id: "md-1",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "# not a heading — summarize @[Fragment:abc123def456ghi|standup notes]",
+      },
+    ],
+  },
+  {
+    id: "md-2",
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: [
+          "## Summary of @[Fragment:abc123def456ghi|standup notes]",
+          "",
+          "Two themes stand out, both **carried over** from last week:",
+          "",
+          "1. Deploy pipeline flakiness",
+          "2. Review backlog",
+          "",
+          "```ts",
+          "const blocked = reviews.filter((r) => r.age > 3);",
+          "```",
+        ].join("\n"),
+      },
+    ],
+  },
+];
+
+export const MarkdownWithMentions: Story = () => (
+  <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
+    <ChatMessages messages={markdownMessages} />
   </div>
 );

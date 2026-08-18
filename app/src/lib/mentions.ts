@@ -77,6 +77,34 @@ export function splitMentions(text: string): MentionSegment[] {
   return segments;
 }
 
+/**
+ * Replace each mention token with a `<kmention>` tag for the markdown
+ * renderer, so chips survive markdown parsing (the tag is allowlisted and its
+ * children treated as a literal label, never prose). Fence-aware: a token
+ * quoted inside a ``` block stays literal, like any other code.
+ */
+export function mentionsToTags(text: string): string {
+  const re = new RegExp(MENTION_SOURCE, "g");
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  let inFence = false;
+  return text
+    .split("\n")
+    .map((line) => {
+      if (/^\s{0,3}(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      return line.replace(
+        re,
+        (_, __, id: string, label: string) =>
+          `<kmention>@${escapeHtml(label || id)}</kmention>`,
+      );
+    })
+    .join("\n");
+}
+
 /** Replace each mention token with a plain `@Label` — for previews and other cosmetic surfaces. */
 export function stripMentions(text: string): string {
   return text.replace(

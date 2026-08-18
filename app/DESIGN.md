@@ -83,6 +83,33 @@ the exception: they use a centred Archivo semibold hero header beneath the glowi
 
 ---
 
+### Type in generated content
+
+LLM output renders as markdown through `MarkdownContent` (components/kalaido). Markdown
+headings are content, not chrome — they never use the display serif (page titles only)
+and top out at `card-title`. Two variants: **document** (previews, snapshots — the
+`body` voice) and **chat** (message bubbles — the `text-sm` voice, everything scaled
+down one step).
+
+| Element | Document variant |
+|---|---|
+| `p` | `body` |
+| `h1` | `card-title` weight 700 |
+| `h2` | 16px bold |
+| `h3`–`h6` | `body-sm` semibold |
+| lists | `pl-5`, disc/decimal, task lists as disabled checkboxes |
+| `blockquote` | 2px `line-strong` left border, `fg-3` |
+| inline code | mono at 0.9em on `surface-2` |
+| code block | `mono-sm` on `surface-2`, `line` border, no copy chrome |
+| table | `body-sm`; headers are `label`-role mono per the micro-label split |
+| links | underline with `line-strong` decoration, open in the OS browser |
+| `ins` / `del` | diff voice: `stable-wash`/`stable-ink` and `critical-wash`/`critical-ink` + strikethrough |
+
+Generated prose keeps `text-wrap: pretty`. Streamdown's built-in chrome (copy buttons,
+link-safety modals, line numbers, carets) stays off — surfaces are quiet.
+
+---
+
 ## 3. Colour
 
 ### Greys
