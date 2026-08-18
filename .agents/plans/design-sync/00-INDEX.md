@@ -8,8 +8,8 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 - [x] `01-hue-map.md` — finalise the section→hue map with Sara (Projections #4ade80, Reflections #c084fc, Colours #fda4af, Fragments #a3e635)
 - [x] `02-section-tokens.md` — introduce `--section-*` tokens, re-point the primitives (Capture and rail nav hover exceptions logged)
 - [x] `03-buttons-pills.md` — button dedupe, pill fixes (default 40px button size rule change logged)
-- [x] `04-overlays.md` — reskin dialogs/popovers to §5 (dialog, alert-dialog, dropdown-menu, popover, select, sheet, hover-card, menubar, context-menu, combobox, chart tooltip ✓)
-- [x] `05-composer.md` — chat composer now wears the §7 send recipe; shared send-button classes extracted (quota-notice tone remains open, see step file)
+- [x] `04-overlays.md` — reskin dialogs/popovers to §5 (dialog, alert-dialog, dropdown-menu, popover, select, sheet, hover-card, context-menu, combobox, chart tooltip ✓; menubar + navigation-menu skipped — unimported, deleted in step 18 instead)
+- [x] `05-composer.md` — chat composer now wears the §7 send recipe; shared send-button classes extracted (quota-notice tone moved to step 17)
 - [x] `06-icons.md` — stroke widths per §6
 
 ## Screens (one per step)
@@ -24,10 +24,11 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 - [ ] `14-connections-import.md`
 - [ ] `15-settings.md`
 - [ ] `16-onboarding-boot.md`
+- [ ] `17-context-ui.md` — the context-bar/mentions UI added by #53–#56 after the sweep started (includes Sara's review of its ported section tints)
 
 ## Finish
 
-- [ ] `17-cleanup.md` — dead code and dead tokens (only after all screens pass)
+- [ ] `18-cleanup.md` — dead code and dead tokens (only after all screens pass)
 
 ---
 

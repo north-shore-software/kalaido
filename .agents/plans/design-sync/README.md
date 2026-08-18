@@ -47,6 +47,11 @@ fine; never start a step before the previous one is checked off.
 
 ## Ground rules
 
+- **Sync with main before every session.** The app evolves underneath this work
+  (batch 2 had to be hand-ported because the branch sat on a stale base while
+  the context UI was rewritten). Before starting a step, bring the branch up to
+  date with latest `main`; after Sara approves a step, get its PR merged
+  promptly rather than letting steps pile up on the branch.
 - **One screen at a time.** Steps 01–06 are foundations that touch shared code;
   each names a "review screen" — verify there, and list the other screens the
   change touches so Sara can spot-check.
@@ -56,8 +61,19 @@ fine; never start a step before the previous one is checked off.
 - **Cite rules by section**: §2 type, §3 colour, §4 accent meaning, §5 form
   (radius/borders/chamfer/shadows/glow/hover/motion), §6 layout, §7 recipes,
   §8 token names, §9 light mode.
-- **Verify every step**: the app compiles (`npx tsc --noEmit` in `app/`) and the
-  screen looks right in the running app. Don't claim done without both.
+- **Verify every step**: the app compiles (`npx tsc --noEmit` in `app/`),
+  `npx biome check` passes (round 2's lint run caught a real rules-of-hooks bug
+  — never add a hook below an early return), and the screen looks right in the
+  running app. Don't claim done without all three.
+- **No phantom utilities.** Any custom `text-*`/`bg-*`/`border-*`/`shadow-*`
+  class must have a matching token in `app/src/index.css` `@theme` — Tailwind
+  silently emits nothing otherwise. Round 1 shipped `text-overlay-title` with
+  no token and every overlay title quietly rendered at 14px. Grep the token
+  before using the class.
+- **Mechanical sweeps need per-hunk review.** A round-1 find-replace flipped
+  the sign on a sheet's exit animation so it slid the wrong way. Directions,
+  signs and mirrored values are easy casualties — read every hunk of a sweep
+  before committing it.
 - **Type migration note (steps 07–16):** the legacy t-shirt scale
   (`text-xs/sm/base/md/lg/xl/2xl/3xl`) and arbitrary `text-[Npx]` values are being
   replaced by the §2 roles. Nearest-role map:
