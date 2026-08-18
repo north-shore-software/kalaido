@@ -29,6 +29,7 @@ import {
   parseProjectionOutput,
   useProjectionSnapshot,
 } from "@/hooks/use-projection-snapshot";
+import { withContextItem } from "@/lib/mentions";
 
 /**
  * "Approve & next" moves between projections without leaving this route, so
@@ -287,6 +288,9 @@ function ProjectionReviewPage() {
                 session={session}
                 title="Refine with chat"
                 context={context}
+                onMention={(item) =>
+                  setContext((prev) => withContextItem(prev, item))
+                }
                 placeholder="Tell Kalaido what to change…"
               />
             ) : (

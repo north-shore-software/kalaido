@@ -14,6 +14,7 @@ import {
   RefineChatPanel,
 } from "@/components/kalaido";
 import type { RefineSession } from "@/hooks/use-refine-session";
+import { withContextItem } from "@/lib/mentions";
 
 export interface ProjectionDraftEditorProps {
   session: RefineSession;
@@ -87,6 +88,9 @@ export function ProjectionDraftEditor({
               session={session}
               title="Define via chat"
               context={context}
+              onMention={(item) =>
+                setContext((prev) => withContextItem(prev, item))
+              }
             />
           </div>
 

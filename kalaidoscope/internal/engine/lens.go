@@ -117,7 +117,10 @@ func loadIntentTimeline(ctx context.Context, app core.App, strat Strategy, paren
 			}
 			for _, p := range m.Parts {
 				if p.Type == "text" && strings.TrimSpace(p.Text) != "" {
-					turns.WriteString(prompts.HistoryTurnLine(m.Role, p.Text))
+					// The same mention expansion Flatten applies: the timeline must
+					// reproduce what the refinement model saw, and the expanded ID is
+					// the join key to the hydrated blocks above.
+					turns.WriteString(prompts.HistoryTurnLine(m.Role, llmcontext.ExpandMentions(p.Text)))
 				}
 			}
 		}

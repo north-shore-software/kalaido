@@ -37,6 +37,7 @@ import { RefreshCard } from "./refresh-card";
 import { SummaryLog } from "./summary-log";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { reflectionsTransitions } from "@/features/reflections/pages/Reflections.transitions";
+import { withContextItem } from "@/lib/mentions";
 
 // A snapshot's actual resolved window ({start,end} JSON), if any.
 function parseResolvedWindow(
@@ -259,6 +260,9 @@ export function ReflectionDetailPanel({
               <RefineChatPanel
                 session={session}
                 context={context}
+                onMention={(item) =>
+                  setContext((prev) => withContextItem(prev, item))
+                }
                 windowSpec={windowSpec}
                 placeholder="‘group by project and lead with blockers’…"
               />

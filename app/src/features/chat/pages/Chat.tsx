@@ -35,6 +35,7 @@ import { fragmentLabel } from "@/hooks/use-fragment-labels";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { defineRoute } from "@/routes/route-kit";
 import { chatTransitions } from "./Chat.transitions";
+import { withContextItem } from "@/lib/mentions";
 
 export default function Chat() {
   const client = useKalaidoscopeClient();
@@ -180,6 +181,9 @@ export default function Chat() {
                 : undefined
             }
             context={context}
+            onMention={(item) =>
+              setContext((prev) => withContextItem(prev, item))
+            }
             assistantActions={({ content }) => (
               <ChatAnswerActions
                 content={content}
