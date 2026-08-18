@@ -1,7 +1,6 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
 import { RefineConfigPanel } from "./refine-config-panel";
-import { Mono } from "@/components/kalaido";
 
 export default { title: "Reflections / RefineConfigPanel" };
 
@@ -15,11 +14,7 @@ export const Default: Story = () => {
         onFreqChange={setFreq}
         win={win}
         onWinChange={setWin}
-      >
-        <div className="rounded border border-dashed border-line p-2 text-center text-xs text-fg-3">
-          Mock Context Picker (Pure)
-        </div>
-      </RefineConfigPanel>
+      />
     </div>
   );
 };
@@ -37,17 +32,8 @@ export const AuthoringStyle: Story = () => {
         freqLabel="Frequency · how often it regenerates"
         winLabel="Lookback window · fragments per run"
         gap="gap-2"
-        contextSubtitle={
-          <Mono className="-mt-1.5 text-[10.5px] text-fg-4">
-            colours &amp; fragment types only
-          </Mono>
-        }
         className="gap-5"
-      >
-        <div className="rounded border border-dashed border-line p-2 text-center text-xs text-fg-3">
-          Mock Context Picker (Pure)
-        </div>
-      </RefineConfigPanel>
+      />
     </div>
   );
 };

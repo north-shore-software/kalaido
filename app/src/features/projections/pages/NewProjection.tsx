@@ -13,8 +13,8 @@ import {
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
 import {
+  ContextBar,
   type ContextItem,
-  ContextPicker,
   RefineComposer,
 } from "@/components/kalaido";
 import { createProjection } from "@/api/kalaidoscope/projections";
@@ -185,12 +185,6 @@ export default function NewProjection() {
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <ContextPicker
-            entity="projection"
-            value={context}
-            onChange={setContext}
-          />
-
           <div className="flex min-w-0 flex-[1.05] flex-col border-r border-line">
             <RefineComposer
               title="Define via chat"
@@ -201,6 +195,13 @@ export default function NewProjection() {
               placeholder="‘A live PRD for the checkout redesign’…"
               disabled={creating}
               onSubmit={() => void startProjection()}
+              beforeInput={
+                <ContextBar
+                  items={context}
+                  onChange={setContext}
+                  entity="projection"
+                />
+              }
             />
           </div>
 

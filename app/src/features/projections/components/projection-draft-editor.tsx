@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   type ContextItem,
-  ContextPicker,
   Pill,
   RefineChatPanel,
 } from "@/components/kalaido";
@@ -77,12 +76,6 @@ export function ProjectionDraftEditor({
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <ContextPicker
-            entity="projection"
-            value={context}
-            onChange={setContext}
-          />
-
           <div className="flex min-w-0 flex-[1.05] flex-col border-r border-line">
             <RefineChatPanel
               session={session}
@@ -91,6 +84,8 @@ export function ProjectionDraftEditor({
               onMention={(item) =>
                 setContext((prev) => withContextItem(prev, item))
               }
+              onContextChange={setContext}
+              entity="projection"
             />
           </div>
 

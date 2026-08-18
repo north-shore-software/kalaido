@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { PaneHeader } from "@/components/layout/page-chrome";
 import { Textarea } from "@/components/ui/textarea";
 import { ComposerSendButton } from "./composer-send-button";
@@ -16,6 +16,11 @@ export interface RefineComposerProps {
   onSubmit?: () => void;
   preparing?: boolean;
   preparingText?: string;
+  /**
+   * Rendered directly above the input footer — the slot the ContextBar uses on
+   * pre-chat surfaces, mirroring its position above the ChatPanel composer.
+   */
+  beforeInput?: ReactNode;
 }
 
 export function RefineComposer({
@@ -30,6 +35,7 @@ export function RefineComposer({
   onSubmit,
   preparing = false,
   preparingText = "Preparing refine session…",
+  beforeInput,
 }: RefineComposerProps) {
   if (preparing) {
     return (
@@ -65,6 +71,7 @@ export function RefineComposer({
           </p>
         </div>
       )}
+      {beforeInput}
       <div className="shrink-0 border-t border-line px-4 py-3">
         <div className="flex items-end gap-2">
           <Textarea
