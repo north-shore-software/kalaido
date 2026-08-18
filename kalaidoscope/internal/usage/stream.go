@@ -64,7 +64,13 @@ func stream(ctx context.Context, app core.App, role llm.Role, msgs []llm.Message
 }
 
 func GenerateOnce(ctx context.Context, app core.App, prompt string, role llm.Role, tools []llm.Tool) (string, error) {
-	comp, runCtx, err := stream(ctx, app, role, []llm.Message{{Role: "user", Content: prompt}}, tools)
+	return GenerateOnceMsgs(ctx, app, []llm.Message{{Role: "user", Content: prompt}}, role, tools)
+}
+
+// GenerateOnceMsgs is GenerateOnce over a full message transcript, for callers
+// holding a multi-turn conversation (the lens distillation loop).
+func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, tools []llm.Tool) (string, error) {
+	comp, runCtx, err := stream(ctx, app, role, msgs, tools)
 	if err != nil {
 		return "", err
 	}

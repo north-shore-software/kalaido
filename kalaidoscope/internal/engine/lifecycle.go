@@ -41,6 +41,12 @@ type SnapshotSpec struct {
 	// to the origin marked on ctx, so wave generations need no plumbing.
 	ChainOrigin string
 
+	// Set on refinement commits. LensDistillRequested is the durable marker the
+	// background distillation worker derives its worklist from (together with an
+	// empty LensID), so the commit needs no in-memory handoff to survive.
+	CreatedFromRefinementID string
+	LensDistillRequested    bool
+
 	WindowKey               string
 	WindowSpecVersionNumber int
 }
@@ -74,6 +80,8 @@ func AppendSnapshot(ctx context.Context, app core.App, collectionName string, fo
 	}
 	snap.Set("status", status)
 	snap.Set("model", s.Model)
+	snap.Set("created_from_refinement_id", s.CreatedFromRefinementID)
+	snap.Set("lens_distill_requested", s.LensDistillRequested)
 	origin := s.ChainOrigin
 	if origin == "" {
 		origin = llmcontext.ChainOriginFromContext(ctx)
@@ -188,6 +196,9 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		ChainOrigin:             chainOrigin,
 		WindowKey:               winKey,
 		WindowSpecVersionNumber: specVersionNumber,
+
+		CreatedFromRefinementID: refinementID,
+		LensDistillRequested:    updateLensAndContext,
 	})
 	if err != nil {
 		return "", err
@@ -203,7 +214,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 			_ = app.Save(parentRec)
 		}
 
-		EnqueueLensDistillation(strat, newSnapID, oldLensID, spec, refinementID, targetCol)
+		RequestLensDistill()
 	}
 
 	// An edit to a chain-marked candidate has just superseded whatever its

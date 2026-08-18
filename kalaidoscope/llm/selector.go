@@ -101,7 +101,15 @@ func ActiveModelSet() ModelSet {
 // ResolveRole maps a role to a concrete model name. A workspace that has chosen
 // its own provider resolves against its stored models; everything else falls
 // back to the static env-seeded table.
+//
+// Distill is structurally aliased to snapshot: the distillation loop verifies a
+// lens by executing it exactly as production will, which is only meaningful if
+// the optimizer and the executor are the same model. No configuration — static
+// table or workspace RoleModels — can split them.
 func ResolveRole(r Role) (string, error) {
+	if r == RoleDistill {
+		r = RoleSnapshot
+	}
 	if cfg := ActiveWorkspaceConfig(); cfg.Configured() {
 		if m := cfg.ModelForRole(r); m != "" {
 			return m, nil
