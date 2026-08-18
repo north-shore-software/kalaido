@@ -3,25 +3,11 @@ import { cn } from "@/lib/css-utils";
 import { ColourSwatch } from "../colour";
 
 /** Which stage opened the picker — it borrows that stage's accent. */
-export type PickerTint = "cyan" | "yellow" | "magenta" | "section";
+export type PickerTint = "cyan" | "yellow";
 
 const TINT: Record<PickerTint, { box: string; pill: string }> = {
-  cyan: {
-    box: "border-section",
-    pill: "border-section-edge text-section-ink",
-  },
-  yellow: {
-    box: "border-yellow",
-    pill: "border-yellow-line text-yellow-ink",
-  },
-  magenta: {
-    box: "border-magenta",
-    pill: "border-magenta-edge text-magenta-ink",
-  },
-  section: {
-    box: "border-section",
-    pill: "border-section-edge text-section-ink",
-  },
+  cyan: { box: "border-cyan", pill: "border-cyan-edge text-cyan-ink" },
+  yellow: { box: "border-yellow", pill: "border-yellow-line text-yellow-ink" },
 };
 
 export interface PickerOption {
@@ -162,7 +148,7 @@ export function ItemPicker({
                 <button
                   type="button"
                   onClick={onAutoSegment}
-                  className="w-full border border-section px-3 py-2.5 text-btn-sm font-bold uppercase text-section-ink hover:opacity-85"
+                  className="w-full border border-cyan px-3 py-2.5 text-btn-sm font-bold uppercase text-cyan-ink hover:opacity-85"
                 >
                   Auto-segment my scope
                 </button>

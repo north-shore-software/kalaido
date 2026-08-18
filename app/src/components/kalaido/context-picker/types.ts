@@ -30,12 +30,6 @@ export type CriterionKind = Extract<
 /** The two composition inputs. Additive only — they are not fragments. */
 export type SourceKind = Extract<ContextKind, "Projection" | "Reflection">;
 
-/** Focus names individual things, never a population, so no Colour and no Type. */
-export type FocusKind = Extract<
-  ContextKind,
-  "Fragment" | "Projection" | "Reflection"
->;
-
 /**
  * How many of a source Reflection's most recent materialized windows to pull in.
  * `"all"` takes every window that exists. A number is a request, not a promise:
@@ -63,12 +57,6 @@ export interface SourceRef {
   lastN?: LastN;
 }
 
-export interface FocusRef {
-  kind: FocusKind;
-  id: string;
-  label: string;
-}
-
 /**
  * The funnel's own model. Richer than the `ContextSpec` it serialises to —
  * `mode` and `lastN` have no representation on the wire yet — so it is held in
@@ -78,7 +66,6 @@ export interface ContextSelection {
   mode: FragmentMode;
   criteria: Criterion[];
   sources: SourceRef[];
-  focus: FocusRef[];
 }
 
 export const EMPTY_SELECTION: ContextSelection = {
@@ -87,7 +74,6 @@ export const EMPTY_SELECTION: ContextSelection = {
   mode: "except",
   criteria: [],
   sources: [],
-  focus: [],
 };
 
 /** Stage 02 is absent on a Reflection, and `none` mode with it. */

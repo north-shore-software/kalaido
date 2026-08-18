@@ -76,7 +76,6 @@ export function ContextSummary({
   const rows = [
     ...selection.criteria.map((c) => ({ ...c, tone: "criteria" as const })),
     ...selection.sources.map((s) => ({ ...s, tone: "source" as const })),
-    ...selection.focus.map((f) => ({ ...f, tone: "focus" as const })),
   ];
 
   return (
@@ -98,8 +97,6 @@ export function ContextSummary({
                 "flex items-center gap-2 border border-line-strong bg-surface-1 px-2 py-1.5",
                 r.tone === "source" &&
                   "shadow-[inset_3px_0_0_var(--yellow-base)]",
-                r.tone === "focus" &&
-                  "shadow-[inset_3px_0_0_var(--magenta-base)]",
               )}
             >
               <span
@@ -107,9 +104,7 @@ export function ContextSummary({
                   "shrink-0 border px-1 py-px font-mono text-pill font-bold uppercase",
                   r.tone === "source"
                     ? "border-yellow-line text-yellow-ink"
-                    : r.tone === "focus"
-                      ? "border-magenta-edge text-magenta-ink"
-                      : "border-line-strong text-fg-3",
+                    : "border-line-strong text-fg-3",
                 )}
               >
                 {KIND_ABBREV[r.kind] ?? r.kind}

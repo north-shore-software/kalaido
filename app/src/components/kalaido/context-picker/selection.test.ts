@@ -9,7 +9,6 @@ const sel = (over: Partial<ContextSelection>): ContextSelection => ({
   mode: "except",
   criteria: [],
   sources: [],
-  focus: [],
   ...over,
 });
 
@@ -54,16 +53,6 @@ describe("selectionToItems", () => {
     });
     expect(spec(s)).toEqual({ wholeScope: true });
   });
-
-  test("focus travels as the focused half", () => {
-    const s = sel({
-      focus: [{ kind: "Fragment", id: "f1", label: "Brief" }],
-    });
-    expect(spec(s)).toEqual({
-      wholeScope: true,
-      focus: { fragmentIds: ["f1"] },
-    });
-  });
 });
 
 describe("itemsToSelection", () => {
@@ -99,7 +88,6 @@ describe("itemsToSelection", () => {
         { kind: "Colour", id: "c1", label: "Urgent" },
       ],
       sources: [{ kind: "Projection", id: "p1", label: "PRD" }],
-      focus: [{ kind: "Fragment", id: "f1", label: "Brief" }],
     });
     expect(spec(itemsToSelection(selectionToItems(s)))).toEqual(spec(s));
   });

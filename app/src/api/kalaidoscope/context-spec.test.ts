@@ -33,36 +33,9 @@ describe("itemsToSpec", () => {
   });
 });
 
-describe("itemsToSpec focus", () => {
-  test("splits focused items out of the background", () => {
-    const items: ContextItem[] = [
-      { kind: "Fragment", id: "f1", label: "The subject", focus: true },
-      { kind: "Type", id: "note", label: "Note" },
-    ];
-    expect(itemsToSpec(items)).toEqual({
-      fragmentTypes: ["note"],
-      focus: { fragmentIds: ["f1"] },
-    });
-  });
-
-  // The trap: whole scope is decided by the whole selection, not by what's left
-  // after the focus is removed. Otherwise focusing your only item would quietly
-  // pull the entire kalaidoscope in as background.
-  test("focusing the only item does not turn the background into everything", () => {
-    const spec = itemsToSpec([
-      { kind: "Fragment", id: "f1", label: "The subject", focus: true },
-    ]);
-    expect(spec.wholeScope).toBeUndefined();
-    expect(spec).toEqual({ focus: { fragmentIds: ["f1"] } });
-  });
-
+describe("itemsToSpec whole scope", () => {
   test("an empty selection is still whole scope", () => {
     expect(itemsToSpec([])).toEqual({ wholeScope: true });
-  });
-
-  test("no focused items means no focus key", () => {
-    const spec = itemsToSpec([{ kind: "Type", id: "note", label: "Note" }]);
-    expect(spec.focus).toBeUndefined();
   });
 });
 
@@ -84,20 +57,6 @@ describe("specToItems", () => {
     expect(itemsToSpec(specToItems(spec))).toEqual(spec);
   });
 
-  test("marks the focused half so the picker can render it", () => {
-    const items = specToItems({
-      fragmentTypes: ["note"],
-      focus: { fragmentIds: ["f1"] },
-    });
-    expect(items).toContainEqual({
-      kind: "Fragment",
-      id: "f1",
-      label: "f1",
-      focus: true,
-    });
-    expect(items).toContainEqual({ kind: "Type", id: "note", label: "note" });
-  });
-
   test("round-trips a whole scope carrying source compositions", () => {
     // The case the marker exists for. Without it this spec would come back as
     // "just this projection", silently dropping every fragment in the scope.
@@ -113,20 +72,11 @@ describe("specToItems", () => {
       wholeScope: true,
     });
   });
-
-  test("round-trips a focused spec unchanged", () => {
-    const spec = {
-      fragmentTypes: ["note"],
-      colourIds: ["c1"],
-      focus: { fragmentIds: ["f1"] },
-    };
-    expect(itemsToSpec(specToItems(spec))).toEqual(spec);
-  });
 });
 
 describe("specKey", () => {
   // The key decides whether the chat re-sends its context, so a changed pin set
-  // has to move it — otherwise the backend never learns about the new focus.
+  // has to move it — otherwise the backend never learns about the change.
   test("changes when the pinned set changes", () => {
     expect(specKey({ fragmentIds: ["f1"] })).not.toBe(
       specKey({ fragmentIds: ["f2"] }),
@@ -138,18 +88,5 @@ describe("specKey", () => {
     expect(specKey({ fragmentIds: ["f1", "f2"] })).toBe(
       specKey({ fragmentIds: ["f2", "f1"] }),
     );
-  });
-
-  // Refocusing moves an item between focus and background without changing what
-  // is selected. If the key missed that, the chat would never re-send the spec
-  // and the refocus would silently never reach the model.
-  test("changes when an item is promoted to the focus", () => {
-    const background = itemsToSpec([
-      { kind: "Fragment", id: "f1", label: "x" },
-    ]);
-    const focused = itemsToSpec([
-      { kind: "Fragment", id: "f1", label: "x", focus: true },
-    ]);
-    expect(specKey(background)).not.toBe(specKey(focused));
   });
 });
