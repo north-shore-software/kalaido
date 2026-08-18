@@ -8,19 +8,19 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 - [x] `01-hue-map.md` — finalise the section→hue map with Sara (Projections #4ade80, Reflections #c084fc, Colours #fda4af, Fragments #a3e635)
 - [x] `02-section-tokens.md` — introduce `--section-*` tokens, re-point the primitives (Capture and rail nav hover exceptions logged)
 - [x] `03-buttons-pills.md` — button dedupe, pill fixes (default 40px button size rule change logged)
-- [ ] `04-overlays.md` — reskin dialogs/popovers to §5 (partially done: dialog, alert-dialog, dropdown-menu, popover, select, sheet ✓; remaining: hover-card, menubar, navigation-menu, context-menu, combobox, chart tooltip)
+- [x] `04-overlays.md` — reskin dialogs/popovers to §5 (dialog, alert-dialog, dropdown-menu, popover, select, sheet, hover-card, menubar, context-menu, combobox, chart tooltip ✓)
 - [x] `05-composer.md` — chat composer now wears the §7 send recipe; shared send-button classes extracted (quota-notice tone remains open, see step file)
-- [ ] `06-icons.md` — stroke widths per §6
+- [x] `06-icons.md` — stroke widths per §6
 
 ## Screens (one per step)
 
-- [ ] `07-dashboard.md`
-- [ ] `08-chat.md`
-- [ ] `09-projections.md` (list · detail · draft · review)
-- [ ] `10-reflections.md`
-- [ ] `11-colours.md`
-- [ ] `12-fragments.md` (stream)
-- [ ] `13-rotation.md`
+- [x] `07-dashboard.md`
+- [x] `08-chat.md`
+- [x] `09-projections.md` (list · detail · draft · review)
+- [x] `10-reflections.md`
+- [x] `11-colours.md`
+- [x] `12-fragments.md` (stream)
+- [x] `13-rotation.md`
 - [ ] `14-connections-import.md`
 - [ ] `15-settings.md`
 - [ ] `16-onboarding-boot.md`
