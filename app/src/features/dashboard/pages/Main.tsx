@@ -13,6 +13,7 @@ import {
   updateProjection,
 } from "@/api/kalaidoscope/projections";
 import { updateReflection } from "@/api/kalaidoscope/reflections";
+import { startReconcile } from "@/api/kalaidoscope/reconcile";
 import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
 import { describeDelta } from "../describe-delta";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
@@ -73,6 +74,9 @@ export default function Main() {
     ["fragment", "colour_fragment"],
     { sort: "-source_time,-created" },
   );
+  // The reconcile wave keeps no run state of its own; whether it is working
+  // shows in the scheduler mirror as background snapshot generation.
+  const queue = useLiveCollection("llm_queue_status");
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -168,6 +172,25 @@ export default function Main() {
   );
   const caughtUp = !rotLoading && needsAction.length === 0;
 
+  // "Generate all" has work only while some row is still missing its
+  // candidate: a "review" row is already pre-generated, and reflections or
+  // blocked/refreshable projections are exactly what a wave produces.
+  const generateAllHasWork = needsAction.some((it) => it.action !== "review");
+  const waveGenerating = useMemo(() => {
+    const status = queue.records[0];
+    if (status?.state !== "active") return false;
+    const running = (status.running ?? []) as {
+      role?: string;
+      priority?: string;
+    }[];
+    const waiting = (status.waiting ?? {}) as Record<string, number>;
+    return (
+      running.some(
+        (t) => t.priority === "background" && t.role === "snapshot",
+      ) || (waiting.background ?? 0) > 0
+    );
+  }, [queue.records]);
+
   const recent = useMemo<RecentFragment[]>(
     () =>
       fragments.records.slice(0, 8).map((f) => {
@@ -233,6 +256,37 @@ export default function Main() {
     });
   }
 
+  // Bridges the gap between clicking Generate all and the queue mirror
+  // reporting the wave (its writes are debounced server-side), so the button
+  // responds immediately instead of staying pressable for a beat.
+  const [waveKicked, setWaveKicked] = useState(false);
+  useEffect(() => {
+    if (!waveKicked) return;
+    if (waveGenerating) {
+      setWaveKicked(false);
+      return;
+    }
+    const id = setTimeout(() => setWaveKicked(false), 3000);
+    return () => clearTimeout(id);
+  }, [waveKicked, waveGenerating]);
+
+  /**
+   * Kick off a backend generation wave over the whole stale set. Fire and
+   * forget: the dashboard has no run state to track — candidates arrive
+   * through the live subscriptions and rows flip to "Review" as they land,
+   * while the utility bar shows the queue working.
+   */
+  async function generateAll() {
+    setWaveKicked(true);
+    const res = await startReconcile();
+    if (res.isErr()) {
+      setWaveKicked(false);
+      toast.error("Failed to start generating", {
+        description: res.error.message,
+      });
+    }
+  }
+
   async function unpin(it: PinItem) {
     const res =
       it.kind === "projection"
@@ -255,6 +309,8 @@ export default function Main() {
               items={needsAction}
               onAction={startWork}
               busyId={refreshing}
+              onGenerateAll={generateAllHasWork ? generateAll : undefined}
+              generating={waveGenerating || waveKicked}
             />
 
             <PinnedSection items={pinned} onOpen={openEntity} onUnpin={unpin} />

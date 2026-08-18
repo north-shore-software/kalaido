@@ -220,24 +220,15 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	sort.Strings(status.StaleDependencies)
 	sort.Strings(status.BlockedBy)
 
-	// Window evaluation for scheduled entities
+	// Window evaluation for scheduled entities. The resume point is the max
+	// approved window end (engine.LastApprovedWindowEnd) — the live snapshot
+	// found above is picked by approval sequence, which counts per window and
+	// says nothing about which window was generated last.
 	version, ok := engine.GoverningVersion(engine.LoadWindowSpecVersions(n.record), e.now)
 	if ok && version.Spec.Period != "" {
-		currentSpec := version.Spec
-		var lastWindowEnd time.Time
-		if snapRec != nil {
-			var winSpec map[string]string
-			if err := snapRec.UnmarshalJSONField("window_spec", &winSpec); err == nil {
-				if endStr, ok := winSpec["end"]; ok && endStr != "" {
-					if t, err := time.Parse(time.RFC3339, endStr); err == nil {
-						lastWindowEnd = t
-					}
-				}
-			}
-		}
-
 		created := n.record.GetDateTime("created").Time()
-		status.PendingWindows = engine.CalculatePendingWindows(n.record.Id, currentSpec, lastWindowEnd, created, e.now)
+		status.PendingWindows = engine.CalculatePendingWindows(
+			n.record.Id, version.Spec, engine.LastApprovedWindowEnd(e.app, n.record.Id), created, e.now)
 	}
 
 	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 &&

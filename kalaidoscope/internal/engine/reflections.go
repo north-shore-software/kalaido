@@ -75,23 +75,31 @@ func GetPendingWindows(app core.App, reflectionID string) ([]api.Window, error) 
 	}
 	currentSpec := version.Spec
 
+	created := rec.GetDateTime("created").Time()
+	return CalculatePendingWindows(reflectionID, currentSpec, LastApprovedWindowEnd(app, reflectionID), created, time.Now()), nil
+}
+
+// LastApprovedWindowEnd is the end of the latest schedule window this
+// reflection has an approved snapshot for — the point pending-window
+// calculation resumes from. It scans the approved windowed snapshots for the
+// max resolved_window end: approval sequences count per window, so "highest
+// sequence" says nothing about which window is newest, and window_spec holds
+// the schedule (period), not the window bounds. Zero when no window has ever
+// been generated.
+func LastApprovedWindowEnd(app core.App, reflectionID string) time.Time {
 	recs, _ := app.FindRecordsByFilter("reflection_snapshot",
-		"reflection_id = {:id} && status = 'approved'", "-approval_sequence_number", 1, 0,
+		"reflection_id = {:id} && status = 'approved' && window_key != ''", "", 0, 0,
 		map[string]any{"id": reflectionID})
 
-	var lastWindowEnd time.Time
-	if len(recs) > 0 {
-		snapRec := recs[0]
-		var winSpec map[string]string
-		if err := snapRec.UnmarshalJSONField("window_spec", &winSpec); err == nil {
-			if endStr, ok := winSpec["end"]; ok && endStr != "" {
-				if t, err := time.Parse(time.RFC3339, endStr); err == nil {
-					lastWindowEnd = t
-				}
-			}
+	var last time.Time
+	for _, r := range recs {
+		var win map[string]string
+		if err := r.UnmarshalJSONField("resolved_window", &win); err != nil {
+			continue
+		}
+		if t, err := time.Parse(time.RFC3339, win["end"]); err == nil && t.After(last) {
+			last = t
 		}
 	}
-
-	created := rec.GetDateTime("created").Time()
-	return CalculatePendingWindows(reflectionID, currentSpec, lastWindowEnd, created, time.Now()), nil
+	return last
 }

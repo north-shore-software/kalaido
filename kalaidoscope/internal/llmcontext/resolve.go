@@ -112,6 +112,20 @@ func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec) ([
 	return ids, nil
 }
 
+// snapshotFilterAndSort decides which upstream snapshot an entity reference
+// resolves to. Ordinarily that is the latest *approved* snapshot — the only
+// output the upstream has actually published. Inside a speculative chain wave
+// (WithChainOrigin) it is the upstream's newest snapshot regardless of status:
+// the wave bets that pending candidates will be approved as-is, and because
+// approval promotes the record in place (same ID), a downstream snapshot that
+// consumed a candidate becomes consistent the moment that candidate lands.
+func snapshotFilterAndSort(ctx stdctx.Context, entityFilter string) (filter, sort string) {
+	if ChainOriginFromContext(ctx) != "" {
+		return entityFilter, "-created"
+	}
+	return entityFilter + " && status = 'approved'", "-approval_sequence_number"
+}
+
 func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.ContextSpec) []string {
 	var ids []string
 	if len(spec.SourceProjectionIDs) == 0 {
@@ -124,8 +138,8 @@ func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		ors = append(ors, "projection_id = {:"+key+"}")
 		params[key] = pid
 	}
-	filter := "(" + strings.Join(ors, " || ") + ") && status = 'approved'"
-	if recs, err := app.FindRecordsByFilter("projection_snapshot", filter, "-approval_sequence_number", 0, 0, params); err == nil {
+	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+")")
+	if recs, err := app.FindRecordsByFilter("projection_snapshot", filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
 			pid := r.GetString("projection_id")
@@ -150,8 +164,8 @@ func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		ors = append(ors, "reflection_id = {:"+key+"}")
 		params[key] = rid
 	}
-	filter := "(" + strings.Join(ors, " || ") + ") && status = 'approved'"
-	if recs, err := app.FindRecordsByFilter("reflection_snapshot", filter, "-approval_sequence_number", 0, 0, params); err == nil {
+	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+")")
+	if recs, err := app.FindRecordsByFilter("reflection_snapshot", filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
 			rid := r.GetString("reflection_id")

@@ -15,6 +15,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 
@@ -42,6 +43,7 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 	usage.Setup(app)
 	colour.SetWorkerApp(app)
 	engine.SetLensWorkerApp(app)
+	reconcile.Register(app)
 	registerQueueStatus(app)
 
 	// After se.Next() so it runs once the rest of the boot chain — model set
@@ -121,6 +123,9 @@ func RegisterRoutes(app core.App) {
 
 		// Rotation / Staleness endpoint
 		se.Router.GET("/api/rotation", handlers.HandleGetRotation(app))
+
+		// Speculative "generate all" wave over the stale set
+		se.Router.POST("/api/reconcile", handlers.HandleReconcile(app))
 
 		return se.Next()
 	})
