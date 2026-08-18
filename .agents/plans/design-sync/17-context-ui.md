@@ -1,40 +1,35 @@
-# 17 — Context UI (context-bar, mentions, quota notice)
+# 17 — New-feature surface (context UI · markdown · inline naming)
 
-Scope: the context-selection and @-mention UI that landed on main (#53, #54,
-#56) **after** this sweep started, so no earlier step covers it:
-`components/kalaido/context-bar/context-bar.tsx`, `mention-menu.tsx`,
-`context-picker/item-picker.tsx`, and the mention chips + quota notice in
-`chat-messages.tsx` / `chat-composer.tsx`.
+Scope: everything that landed on main **after** this sweep started and so was
+never in a screen step: the context-bar/mentions UI (#53–#56), markdown
+rendering of LLM output (#59 "vibedown"), and inline entity naming (#62).
 
-It renders on four screens across three section hues — review on all of them:
-**Chat** (yellow), **NewProjection** and **ProjectionReview** (green),
-**NewReflection** (violet).
+The mechanical §-compliance work is already done (2026-08-18): the pickers
+and pin chips wear the route's section accent; `MarkdownContent` speaks §2
+roles in both variants; mention chips are square; the mention menu is
+shadowless; the quota notice is drifting-toned (closing step 05's old open
+item); and DESIGN.md documents the generated-content type table (§2) and the
+inline-rename recipe (§7).
 
-## Changes
+## What remains: Sara's review
 
-1. **Mention menu shadow** (`mention-menu.tsx` ~line 103): drop `shadow-md`.
-   Rule: §5 — overlays are `border-line`-drawn; they carry no shadow or ring.
-2. **Chat message type roles** (`chat-messages.tsx`): four `text-sm` uses →
-   §2 roles (message bodies read as `body-sm`). Same file: the inline mention
-   chip (~line 42) is `rounded-sm` — §5 zero-radius says `rounded-none`. If
-   Sara prefers the softened chip, record it as a §5 exception (README loop
-   step 4), don't leave it silent.
-3. **Quota notice tone** (`chat-composer.tsx` ~line 116) — step 05's open
-   item, closed here: `border-destructive/40 bg-destructive/5` → `drifting`
-   wash/ink (§4: danger is destructive-only; a quota warning is "true, but
-   getting less true"). Its `rounded-md` and `text-xs` migrate at the same
-   time.
-4. **Review the ported section tints.** In round 2, Sara's
-   abolish-yellow-source-tint work was re-applied onto these components —
-   which she has never seen rendered: the three pickers and the pin chips in
-   `context-bar.tsx` wear the route's section accent, and `item-picker.tsx`'s
-   tint model is `section | magenta`. Nothing to change up front; Sara
-   eyeballs all four host screens (the picker goes yellow on Chat, green on
-   the projection screens, violet on NewReflection) and any adjustment goes
-   through the normal loop.
+This step is review-led, like 14. Walk the surfaces below; any adjustment
+goes through the README loop (comply / rule change / recorded exception).
 
-## Review
+1. **Picker + pin tints** — her abolish-yellow work was re-applied onto
+   components she has never seen rendered. Open the context bar's three
+   pickers and add/remove a pin on: **Chat** (yellow), **NewProjection** and
+   **ProjectionReview** (green), **NewReflection** (violet).
+2. **Markdown rendering** — both variants: chat bubbles (incl. an @-mention
+   chip inside a message), projection draft preview, snapshot preview, the
+   snapshot **compare pane's ins/del diff voice** (stable/critical washes),
+   reflection body, rotation card. Headings, lists, code, tables per the §2
+   generated-content table.
+3. **Inline-renameable titles** — hover pencil + section-accent editing
+   underline, on NewProjection, NewReflection, ProjectionDetail and the
+   reflection header. Note: the ProjectionDetail and reflection headers
+   belong to already-ticked screens 09/10 — #62 changed them after her tick,
+   so this is also their re-review.
 
-All four screens above: open each picker, add/remove a pin, trigger an
-@-mention, and (on Chat) view a quota warning if reproducible — otherwise
-verify its classes by inspection. Compile check: `npx tsc --noEmit` in `app/`.
+Compile check: `npx tsc --noEmit` in `app/`. Then tick the step in
+`00-INDEX.md`.

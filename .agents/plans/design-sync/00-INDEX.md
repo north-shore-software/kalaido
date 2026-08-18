@@ -24,7 +24,7 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 - [ ] `14-connections-import.md`
 - [ ] `15-settings.md`
 - [ ] `16-onboarding-boot.md`
-- [ ] `17-context-ui.md` — the context-bar/mentions UI added by #53–#56 after the sweep started (includes Sara's review of its ported section tints)
+- [ ] `17-context-ui.md` — review of the post-sweep feature surface: context-bar tints, markdown rendering (#59), inline naming (#62); includes re-review of the 09/10 headers #62 changed
 
 ## Finish
 
