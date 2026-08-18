@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -22,28 +24,38 @@ func init() {
 	})
 }
 
-// scriptedProvider plays a two-candidate distillation: the initial generation
-// yields LENS V1, whose execution misses the target; the critique revises it to
-// LENS V2, whose execution reproduces the target byte-for-byte.
+// scriptedProvider plays a two-candidate, target-isolated distillation: the
+// generator's first lens misses, the critic diagnoses it, and the revised lens
+// reproduces the target byte-for-byte. Threads are told apart by their system
+// prompt; the stateless execute leg has no system turn.
 type scriptedProvider struct{}
 
 var (
-	scriptMu       sync.Mutex
-	optimizerCalls [][]llm.Message
+	scriptMu    sync.Mutex
+	genCalls    [][]llm.Message
+	criticCalls [][]llm.Message
 )
+
+const scriptedDiagnosis = "items should be a single italicized sentence"
 
 func (scriptedProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
 	var reply string
-	if msgs[0].Role == "system" { // optimizer conversation
+	switch {
+	case msgs[0].Role == "system" && msgs[0].Content == prompts.DistillGenSystem:
 		scriptMu.Lock()
-		optimizerCalls = append(optimizerCalls, msgs)
+		genCalls = append(genCalls, msgs)
 		scriptMu.Unlock()
 		if len(msgs) == 2 {
 			reply = "LENS V1"
 		} else {
-			reply = "VERDICT: MISMATCH\nSCORE: 40\nDIAGNOSIS: wrong structure\nREVISED LENS:\nLENS V2"
+			reply = "LENS V2"
 		}
-	} else { // stateless production apply
+	case msgs[0].Role == "system" && msgs[0].Content == prompts.DistillCriticSystem:
+		scriptMu.Lock()
+		criticCalls = append(criticCalls, msgs)
+		scriptMu.Unlock()
+		reply = "VERDICT: MISMATCH\nSCORE: 40\nDIAGNOSIS: " + scriptedDiagnosis
+	default: // stateless production apply
 		if strings.Contains(msgs[0].Content, "LENS V2") {
 			reply = "TARGET OUTPUT"
 		} else {
@@ -59,7 +71,7 @@ func (scriptedProvider) Stream(ctx context.Context, msgs []llm.Message, tools []
 func TestDistillPassRunsLoopFromDBState(t *testing.T) {
 	app := pbtest.NewApp(t)
 	scriptMu.Lock()
-	optimizerCalls = nil
+	genCalls, criticCalls = nil, nil
 	scriptMu.Unlock()
 
 	frag := pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
@@ -71,6 +83,16 @@ func TestDistillPassRunsLoopFromDBState(t *testing.T) {
 	ref := pbtest.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "ext-1",
+	})
+	// The conversation's context seed, as the refinement handler writes it:
+	// the timeline renders this as the initial source state.
+	pinnedData, _ := json.Marshal(llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}})
+	pbtest.NewRecord(t, app, "chat_message", map[string]any{
+		"refine_proj_conversation_id": ref.Id,
+		"content": pbutil.JSONObject(api.UIMessage{
+			ID: "s1", Role: "system",
+			Parts: []api.UIMessagePart{{Type: "pinned_ids", Data: pinnedData}},
+		}),
 	})
 	pbtest.NewRecord(t, app, "chat_message", map[string]any{
 		"refine_proj_conversation_id": ref.Id,
@@ -132,14 +154,44 @@ func TestDistillPassRunsLoopFromDBState(t *testing.T) {
 		t.Fatalf("snapshot lens_id = %q, want %q", got, lensID)
 	}
 
-	// The optimizer saw the refinement chat and the target; never a previous lens.
 	scriptMu.Lock()
-	initial := optimizerCalls[0][1].Content
+	genSeen := append([][]llm.Message(nil), genCalls...)
+	criticSeen := append([][]llm.Message(nil), criticCalls...)
 	scriptMu.Unlock()
-	for _, want := range []string{"make it a haiku", "TARGET OUTPUT", "raw notes"} {
+
+	// The generator saw the refinement chat and the sources via the timeline's
+	// inline context state — and NEVER the target, in any turn of any call.
+	initial := genSeen[0][1].Content
+	for _, want := range []string{"make it a haiku", "raw notes"} {
 		if !strings.Contains(initial, want) {
-			t.Errorf("initial optimizer message missing %q", want)
+			t.Errorf("initial generator message missing %q", want)
 		}
+	}
+	for _, call := range genSeen {
+		for _, m := range call {
+			if strings.Contains(m.Content, "TARGET OUTPUT") {
+				t.Fatalf("generator saw the target in a %s turn", m.Role)
+			}
+		}
+	}
+
+	// The critic is the only holder of the target, and its diagnosis reached
+	// the generator's feedback turn.
+	if len(criticSeen) != 1 {
+		t.Fatalf("critic calls = %d, want 1", len(criticSeen))
+	}
+	criticInitial := criticSeen[0][1].Content
+	for _, want := range []string{"TARGET OUTPUT", "WRONG OUTPUT"} {
+		if !strings.Contains(criticInitial, want) {
+			t.Errorf("critic's initial message missing %q", want)
+		}
+	}
+	if len(genSeen) != 2 {
+		t.Fatalf("generator calls = %d, want 2", len(genSeen))
+	}
+	feedback := genSeen[1][len(genSeen[1])-1].Content
+	if !strings.Contains(feedback, scriptedDiagnosis) {
+		t.Errorf("generator feedback turn missing the critic's diagnosis: %q", feedback)
 	}
 
 	// A second pass finds nothing: lens_id is set, so the worklist is empty.
