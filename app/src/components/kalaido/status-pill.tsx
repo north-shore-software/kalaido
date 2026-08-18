@@ -11,7 +11,7 @@ export type StatusKind =
   | "neutral";
 
 const KIND: Record<StatusKind, string> = {
-  stable: "border-cyan-edge bg-stable-wash text-stable-ink",
+  stable: "border-stable/40 bg-stable-wash text-stable-ink",
   drifting: "border-drifting/45 bg-drifting-wash text-drifting-ink",
   critical: "border-critical/45 bg-critical-wash text-critical-ink",
   yellow: "border-yellow-line bg-yellow-wash text-yellow-ink",

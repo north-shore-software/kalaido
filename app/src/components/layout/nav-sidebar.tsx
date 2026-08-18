@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import {
+  NEUTRAL_DEST_CLASS,
   RAIL_ICON_CLASS,
   SidebarNav,
   type SidebarNavItem,
@@ -76,7 +77,7 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
 ];
 
 const ACTION_CLASS =
-  "text-fg-2 hover:border-l-2 hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 active:bg-cyan-wash active:text-fg-2 data-active:border-l-2 data-active:border-l-cyan data-active:bg-cyan-wash data-active:text-fg-2";
+  "text-fg-2 hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 active:bg-cyan-wash active:text-fg-2 data-active:border-l-cyan data-active:bg-cyan-wash data-active:text-fg-2";
 
 /**
  * Capture sits above the navigation and alone in its zone — getting a thought
@@ -118,7 +119,7 @@ function NavConnections() {
             <SidebarMenuButton
               tooltip="Connections"
               isActive={pathname.startsWith("/connections")}
-              className="hover:border-l-fg-2 hover:bg-surface-2 hover:text-fg-2 data-active:border-l-fg-2 data-active:text-fg-2 data-active:hover:text-fg-2"
+              className={NEUTRAL_DEST_CLASS}
               render={
                 <RouteLink
                   transition={navSidebarTransitions.transitions.openConnections}
@@ -142,7 +143,7 @@ function SettingsButton() {
       <SidebarMenuButton
         tooltip="Settings"
         isActive={pathname.startsWith("/settings")}
-        className="hover:border-l-fg-2 hover:bg-surface-2 hover:text-fg-2 data-active:border-l-fg-2 data-active:text-fg-2 data-active:hover:text-fg-2"
+        className={NEUTRAL_DEST_CLASS}
         render={
           <RouteLink
             transition={navSidebarTransitions.transitions.openSettings}

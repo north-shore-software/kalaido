@@ -12,9 +12,9 @@ function PinIcon({ kind }: { kind: EntityKind }) {
   return (
     <span className="flex size-7 shrink-0 items-center justify-center rounded-none bg-surface-2">
       {kind === "projection" ? (
-        <FileTextIcon className="size-3.5 text-[#4ade80]" />
+        <FileTextIcon className="size-3.5 text-green" />
       ) : (
-        <ClockIcon className="size-3.5 text-[#c084fc]" />
+        <ClockIcon className="size-3.5 text-violet" />
       )}
     </span>
   );
@@ -32,8 +32,8 @@ export function PinCard({ item, onOpen, onUnpin }: PinCardProps) {
           <span
             className={
               isProj
-                ? "size-[11px] bg-[#4ade80] rounded-none shrink-0"
-                : "size-[11px] bg-[#c084fc] rounded-none shrink-0"
+                ? "size-[11px] bg-green rounded-none shrink-0"
+                : "size-[11px] bg-violet rounded-none shrink-0"
             }
           />
         </>
@@ -44,8 +44,8 @@ export function PinCard({ item, onOpen, onUnpin }: PinCardProps) {
           <StatusPill
             className={
               isProj
-                ? "border-[#4ade80]/45 bg-[#4ade80]/10 text-[#4ade80]"
-                : "border-[#c084fc]/45 bg-[#c084fc]/10 text-[#c084fc]"
+                ? "border-green/45 bg-green/10 text-green"
+                : "border-violet/45 bg-violet/10 text-violet"
             }
           >
             {isProj ? "PROJ" : "REFL"}

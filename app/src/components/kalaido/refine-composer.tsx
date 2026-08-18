@@ -1,8 +1,7 @@
 import type { KeyboardEvent } from "react";
-import { SendIcon } from "lucide-react";
 import { PaneHeader } from "@/components/layout/page-chrome";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ComposerSendButton } from "./composer-send-button";
 import { cn } from "@/lib/css-utils";
 
 export interface RefineComposerProps {
@@ -77,19 +76,7 @@ export function RefineComposer({
             disabled={disabled || busy}
             className="max-h-40 min-h-0 flex-1 overflow-y-auto"
           />
-          <Button
-            size="icon-sm"
-            onClick={onSubmit}
-            disabled={isSubmitDisabled}
-            className={cn(
-              "size-[26px] clip-chamfer",
-              isSubmitDisabled
-                ? "border-line-strong bg-transparent text-fg-4"
-                : "border-transparent bg-section text-section-foreground hover:opacity-[0.86]",
-            )}
-          >
-            <SendIcon />
-          </Button>
+          <ComposerSendButton onClick={onSubmit} disabled={isSubmitDisabled} />
         </div>
       </div>
     </div>

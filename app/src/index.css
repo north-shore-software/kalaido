@@ -35,7 +35,6 @@
   --gray-9: #d6d8dd;
   --gray-10: #f5f6f8;
   --gray-11: #ffffff;
-  --gray-11: #ffffff;
 
   --cyan-base: #22d3ee;
   --cyan-wash: rgb(34 211 238 / 0.08);
@@ -48,6 +47,7 @@
   --yellow-base: #f5d90a;
   --yellow-wash: rgb(245 217 10 / 0.08);
   --yellow-line: rgb(245 217 10 / 0.4);
+  --yellow-veil: rgb(245 217 10 / 0.04);
   --violet-base: #c084fc;
   --violet-wash: rgb(192 132 252 / 0.08);
   --violet-edge: rgb(192 132 252 / 0.45);
@@ -56,10 +56,6 @@
   --green-wash: rgb(74 222 128 / 0.08);
   --green-edge: rgb(74 222 128 / 0.45);
   --green-veil: rgb(74 222 128 / 0.05);
-  --pink-base: #f9a8d4;
-  --pink-wash: rgb(249 168 212 / 0.08);
-  --pink-edge: rgb(249 168 212 / 0.45);
-  --pink-veil: rgb(249 168 212 / 0.05);
   --blush-base: #fda4af;
   --blush-wash: rgb(253 164 175 / 0.08);
   --blush-edge: rgb(253 164 175 / 0.45);
@@ -372,6 +368,18 @@
   --color-lime-edge: var(--lime-edge);
   --color-lime-wash: var(--lime-wash);
   --color-lime-ink: var(--lime-base);
+  --color-green: var(--green-base);
+  --color-green-edge: var(--green-edge);
+  --color-green-wash: var(--green-wash);
+  --color-green-ink: var(--green-base);
+  --color-violet: var(--violet-base);
+  --color-violet-edge: var(--violet-edge);
+  --color-violet-wash: var(--violet-wash);
+  --color-violet-ink: var(--violet-base);
+  --color-blush: var(--blush-base);
+  --color-blush-edge: var(--blush-edge);
+  --color-blush-wash: var(--blush-wash);
+  --color-blush-ink: var(--blush-base);
 
   /* Content colour palette → utilities: bg-content-1 … text-content-8 */
   --color-content-1: var(--content-1);
@@ -493,7 +501,7 @@
   --section: var(--yellow-base);
   --section-wash: var(--yellow-wash);
   --section-edge: var(--yellow-line);
-  --section-veil: rgb(245 217 10 / 0.04);
+  --section-veil: var(--yellow-veil);
   --section-fg: var(--gray-0);
   --section-ink: var(--yellow-base);
   --shadow-section: 4px 4px 0 0 rgb(245 217 10 / 0.28);
