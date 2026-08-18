@@ -92,12 +92,8 @@ export function sectionForRoute(id: RouteId): SectionId {
       return "connections";
     case "settings":
       return "settings";
-    case "splash":
-    case "boot-error":
-    case "onboarding-landing":
-    case "onboarding-login":
-    case "cloud-workspaces":
-    case "kalaidoscope-setup":
+    // splash, boot-error and the onboarding/setup routes: everything
+    // pre-workspace wears the brand's own section.
     default:
       return "onboarding";
   }

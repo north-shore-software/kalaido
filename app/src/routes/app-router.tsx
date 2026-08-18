@@ -51,6 +51,11 @@ export function AppRouter() {
  */
 function RouteGatekeeper({ def }: { def: RouteDef }) {
   const snap = useSnapshot(appState);
+  const section = sectionForRoute(def.id);
+
+  useEffect(() => {
+    document.documentElement.dataset.section = section;
+  }, [section]);
 
   if (def.featureFlag && !isFeatureEnabled(def.featureFlag)) {
     return (
@@ -77,12 +82,6 @@ function RouteGatekeeper({ def }: { def: RouteDef }) {
       />
     );
   }
-
-  const section = sectionForRoute(def.id);
-
-  useEffect(() => {
-    document.documentElement.dataset.section = section;
-  }, [section]);
 
   const Page = def.Component;
 
