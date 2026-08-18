@@ -54,7 +54,7 @@ Use these rather than a t-shirt scale. Each is a `--text-*` token with its leadi
 
 | Role | Size / leading | Weight | Tracking | Case | Family |
 |---|---|---|---|---|---|
-| `display` | 40px / 1.05 | 400 | 0 | none | Source Serif 4 |
+| `display` | 40px / 1.15 | 400 | 0 | none | Source Serif 4 |
 | `card-title` | 18px / 1.4 | 700 | 0 | none | Archivo |
 | `body` | 16px / 1.6 | 400 | 0.02em | none | Archivo |
 | `row` | 15px / 1.5 | 600 | — | none | Archivo |
@@ -91,17 +91,17 @@ Eleven steps, cool-neutral. `--gray-11` (`#ffffff`) is spare; the system does no
 
 | Token | Value | Role |
 |---|---|---|
-| `--gray-0` | `#16171a` | text on solid accent |
-| `--gray-1` | `#252628` | app canvas |
-| `--gray-2` | `#2d2f31` | rails, sidebars, panels, list rows |
-| `--gray-3` | `#37393c` | cards on panels, nav hover |
-| `--gray-4` | `#3a3c3f` | default hairline |
-| `--gray-5` | `#4e5155` | raised hairline |
-| `--gray-6` | `#64666a` | breadcrumb separators, counts |
-| `--gray-7` | `#84868a` | metadata, paths, rail icons, placeholders |
-| `--gray-8` | `#a3a5a7` | column labels, subtitles, pill text |
-| `--gray-9` | `#d6d8d9` | secondary body, inactive nav items |
-| `--gray-10` | `#f5f6f6` | headings, primary body, active labels |
+| `--gray-0` | `#121315` | text on solid accent |
+| `--gray-1` | `#1a1b1e` | app canvas |
+| `--gray-2` | `#222327` | rails, sidebars, panels, list rows |
+| `--gray-3` | `#2a2c31` | cards on panels, nav hover |
+| `--gray-4` | `#36383e` | default hairline |
+| `--gray-5` | `#4b4d55` | raised hairline |
+| `--gray-6` | `#64666f` | breadcrumb separators, counts |
+| `--gray-7` | `#84868f` | metadata, paths, rail icons, placeholders |
+| `--gray-8` | `#a3a5ad` | column labels, subtitles, pill text |
+| `--gray-9` | `#d6d8dd` | secondary body, inactive nav items |
+| `--gray-10` | `#f5f6f8` | headings, primary body, active labels |
 
 ### Surfaces
 
@@ -109,9 +109,9 @@ Three levels. **Depth is surface, never shadow.**
 
 | Level | Value | Used for |
 |---|---|---|
-| `bg-0` | `#252628` | the canvas — content columns, page body |
-| `bg-1` | `#2d2f31` | anything attached to an edge — rails, sidebars, context panels, nested panels, list rows |
-| `bg-2` | `#37393c` | anything sitting *on* `bg-1` — cards, popovers, nav hover |
+| `bg-0` | `#1a1b1e` | the canvas — content columns, page body |
+| `bg-1` | `#222327` | anything attached to an edge — rails, sidebars, context panels, nested panels, list rows |
+| `bg-2` | `#2a2c31` | anything sitting *on* `bg-1` — cards, popovers, nav hover |
 
 A card on the canvas uses a border, not a fill. A card on a panel uses `bg-2`.
 
@@ -122,18 +122,18 @@ A fourth utility, `bg-surface-3`, exists and currently resolves to the same valu
 
 | Level | Value | Used for |
 |---|---|---|
-| `fg-1` | `#f5f6f6` | headings, primary body, active labels |
-| `fg-2` | `#d6d8d9` | secondary body, ghost button labels, inactive nav |
-| `fg-3` | `#a3a5a7` | column labels, subtitles, panel copy, pill text |
-| `fg-4` | `#84868a` | breadcrumbs, metadata, paths, rail icons, placeholders |
-| `fg-5` | `#64666a` | breadcrumb separators, counts |
+| `fg-1` | `#f5f6f8` | headings, primary body, active labels |
+| `fg-2` | `#d6d8dd` | secondary body, ghost button labels, inactive nav |
+| `fg-3` | `#a3a5ad` | column labels, subtitles, panel copy, pill text |
+| `fg-4` | `#84868f` | breadcrumbs, metadata, paths, rail icons, placeholders |
+| `fg-5` | `#64666f` | breadcrumb separators, counts |
 
 ### Hairlines
 
 | Token | Value | Used for |
 |---|---|---|
-| `line` | `#3a3c3f` | the default — panel edges, row borders, header underlines |
-| `line-strong` | `#4e5155` | raised — card borders, button borders, dashed affordances |
+| `line` | `#36383e` | the default — panel edges, row borders, header underlines |
+| `line-strong` | `#4b4d55` | raised — card borders, button borders, dashed affordances |
 
 ### Accents
 
@@ -149,12 +149,12 @@ The tier recipe applies to whichever hue the section owns:
 | `wash` — tinted fill | base at 0.08 | `rgba(255,46,147,0.04)` |
 | `edge` — border | base at 0.40–0.45 | `rgba(255,46,147,0.45)` |
 | `veil` — faintest fill | base at 0.04–0.05 | `rgba(255,46,147,0.05)` |
-| `fg` — text on solid | `#16171a` | `#ffffff` |
+| `fg` — text on solid | `#121315` | `#ffffff` |
 | `ink` — text on wash | the hue itself | `#ff2e93` |
 
 Text on a wash is the accent itself. There is no separate lifted ink.
 
-Text on a *solid* section accent is `#16171a` — dark. Solid Magenta and solid Danger use system white (`#ffffff`). The magenta primary button has white text.
+Text on a *solid* section accent is `#121315` — dark. Solid Magenta and solid Danger use system white (`#ffffff`). The magenta primary button has white text.
 
 In code the section accent is a semantic token set per route — `--section` plus its
 `-wash` / `-edge` / `-veil` / `-fg` tiers — so components say `border-section-edge`, never
@@ -196,11 +196,12 @@ Each status colour also carries a `wash` tier (0.08 alpha for stable/drifting; 0
 
 ### Content palette
 
-Eight vivid oklch mid-tones, `--content-1…8`, colour the user's own content — the
-swatch a Colour, fragment or projection carries (`ColourSwatch`). They are identity,
-not meaning: never use them for state, demand or status. They double as the pool the
-section hues are drawn from (see the map above), so a section hue and an entity swatch
-may coincide on one screen; that is accepted.
+Eight vivid oklch mid-tones, `--content-1…8`, colour the user's own content: the
+swatch a Colour carries (`ColourSwatch`), and the dot a fragment takes from its
+assigned Colour. They are identity, not meaning: never use them for state, demand or
+status. They are *per-item* identity only — what kind of thing an item is (its entity
+kind) is carried by the kind's home-section hue instead (§4). Section hues are their
+own dedicated tokens, not drawn from this palette.
 
 ---
 
@@ -238,24 +239,27 @@ Consequences:
 - **The rail is the colour legend.** Each rail item's active border takes its own
   destination's hue. Capture, the shell's one action, tints with the section you are
   currently in.
-  **Exception:** on the workspace icon rail, Capture always stays brand cyan (`#22d3ee`) rather than tinting with the active section — a deliberate one-off, do not extend.
+  **Exception:** Capture always stays brand cyan (`#22d3ee`) rather than tinting with
+  the active section — on the icon rail and inside its capture modal (cyan save
+  button, cyan field focus). A deliberate one-off, do not extend.
 - **A screen with nothing awaiting the user contains no magenta at all.** If you are
   reaching for magenta to make something prominent, you are using it wrong — reach for
   `line-strong` or `fg-1` instead.
 - **Exactly one chamfered magenta button per screen.** The chamfer marks *the* action. A
   screen with two is a screen that has not decided what it is for.
-- **Status is not accent.** `stable` / `drifting` / `critical` mean the same thing on
-  every screen and never vary with the section. Drifting covers stale, out-of-date,
-  degraded — "true, but getting less true."
-- **Entity identity is not accent.** What kind of thing something is (projection,
-  reflection, fragment) is carried by icon shape, mono type pills, and the content
-  palette — never by the section accent or magenta.
+- **Warnings are not accent; reassurance is.** `drifting` and `critical` mean the same
+  thing on every screen and never vary with the section (drifting covers stale,
+  out-of-date, degraded — "true, but getting less true"; diff panes keep their
+  stable/critical add/remove washes). But a state that merely reassures — "up to
+  date", "latest", a live preview's "draft"/"pending" — wears the section accent,
+  like any other all-is-well signal.
+- **An entity kind wears its home section's hue — everywhere.** What kind of thing
+  something is travels with it: projections are green, reflections violet, fragments
+  lime, on any screen (the Dashboard's pin cards mix green and violet side by side).
+  This is fixed per kind — it does not follow the current section — and it replaces
+  per-entity swatches outside the Colours screens. Never use magenta for kind.
 - **Neutral sections are monochrome.** Settings, connections, onboarding and boot use
   `fg-2` where the recipe calls for a hue. Utility is deliberately colourless.
-
-> **Transitional note:** §5 and §7 still say "cyan" in their recipes (scoped-action
-> hover, the active scope card's shadow, the armed send button). Until those sections are
-> re-pointed, read every such "cyan" as *the section accent*.
 
 ---
 
@@ -295,7 +299,7 @@ Hard offsets, no blur, accent-tinted:
 | Token | Value | Mechanism | Used on |
 |---|---|---|---|
 | `drop-shadow-magenta` | `4px 4px 0 rgba(255,46,147,0.5)` | `filter` | the primary action button |
-| `shadow-cyan` | `4px 4px 0 0 rgba(34,211,238,0.28)` | `box-shadow` | the active scope card |
+| `shadow-section` | `4px 4px 0 0` — section base at 0.28 | `box-shadow` | the active scope card |
 
 The magenta one is a filter, not a box-shadow, because its target is chamfered: `clip-path`
 clips an element's whole rendering, box-shadow included, so a `box-shadow` on a chamfered
@@ -439,7 +443,11 @@ Optional leading icon in an accent. Hover promotes the border to `fg-1`.
 **Primary** (`commit`) — one per screen. Magenta fill, `#ffffff` text, weight 700,
 chamfered, `drop-shadow-magenta`. Hover drops to `opacity: 0.86`.
 
-**Section Action** (`section`) — for section creation actions (e.g. '+ New Projection'). Solid section accent fill (`bg-section`), `#16171a` text, weight 700, zero radius, hover `opacity: 0.86`.
+**Section Action** (`section`) — for section creation actions (e.g. '+ New Projection').
+Solid section accent fill (`bg-section`), `#121315` text, weight 700, zero radius, hover
+`opacity: 0.86`. Its sanctioned companion (Chat's History button) is the *washed* form:
+`section-edge` border, static `section-wash` fill, `section-ink` text — hover promotes
+the border to the solid accent, the fill never changes.
 
 **Text** (`ghost`) — borderless, `fg-2` text; hovers by fill to `bg-2` (§5 borderless
 rule). For rows of low-stakes actions where a border per button would draw a fence.
@@ -447,22 +455,25 @@ rule). For rows of low-stakes actions where a border per button would draw a fen
 **Destructive** — transparent, `danger` border at 0.4 promoting to solid on hover,
 `danger` text. Danger Zone only.
 
-Sizes: default 40px tall / 20px horizontal padding; `sm` 25px / 12px at 11px type (used
+Sizes: default 40px tall / 20px horizontal padding; `sm` 25px / 12px at 12px type (used
 in list rows); `xs` 24px with 12px icons; icon-only squares of each. A filled
 `secondary` variant exists solely for the OAuth provider buttons — do not reach for it
 elsewhere.
 
 ### Pills
 
-Mono, 9.5px, 600–700, `0.12em`, uppercase, 3px/6px padding, 1px border, zero radius.
+Mono, 10.5px, 600–700, `0.12em`, uppercase, 3px/6px padding, 1px border, zero radius.
 
-- **state pill** (Active scope, Pending): accent `edge` border, accent `wash` fill, accent text
+- **state pill** (Active scope, Pending): accent `edge` border, accent `wash` fill, accent
+  text. `Pill`'s primary tone is the section-accent form — reassurance chips ("latest",
+  "plan of record", "draft"/"pending" previews) use it. `StatusPill` keeps the constant
+  colours: `drifting`/`critical`, and magenta for a pending decision.
 - **type pill** (API, Ollama): `line-strong` border, no fill, `fg-3` text, `0.08em` tracking
 
 A state pill with no accent — a plain count, a neutral tag — collapses to the type-pill
 recipe.
 
-A pill may carry a 10px leading icon.
+A pill may carry a 10px leading icon, or a 5px `bg-current` leading dot.
 
 ### Labels
 
@@ -504,7 +515,7 @@ no outline ever.
 
 A chat composer is a `line`-topped bar, 12px/16px padding, with a 26px chamfered send button
 that is `line-strong`/transparent/`fg-4` when idle and solid section accent (`bg-section`) with
-`#16171a` glyph (`text-section-foreground`) once armed.
+`#121315` glyph (`text-section-foreground`) once armed.
 
 ### Two-column compare
 
@@ -563,8 +574,9 @@ Utilities follow Tailwind convention from those: `bg-surface-0`, `text-fg-3`, `b
 
 ## 9. Light mode
 
-There isn't one. The system is built on a dark ground — `#16171a` text on solid accents,
-alpha fills at 0.04–0.14 that only read against dark surfaces — and does not transpose.
+There isn't one. The system is built on a dark ground — `#121315` text on solid section
+accents (white on solid magenta and danger),
+alpha fills at 0.04–0.08 that only read against dark surfaces — and does not transpose.
 
 The theme mechanism stays wired and working so it cannot rot, and `:root` carries a
 mechanically inverted palette that never ships. The Appearance control is hidden, not
