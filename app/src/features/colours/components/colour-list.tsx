@@ -34,7 +34,7 @@ export function ColourList({
                 c={swatchIndex(c.id)}
                 value={c.colour_value || undefined}
                 size={16}
-                className="rounded-md"
+                className="rounded-none"
               />
             }
             title={c.name || "Untitled colour"}

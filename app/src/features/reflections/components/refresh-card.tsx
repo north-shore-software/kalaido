@@ -8,12 +8,12 @@ export interface RefreshCardProps {
 
 export function RefreshCard({ regenerating, onRefresh }: RefreshCardProps) {
   return (
-    <div className="rounded-lg border border-line bg-card p-3.5">
+    <div className="rounded-none border border-line bg-card p-3.5">
       <div className="mb-2 flex items-center gap-2.5">
         <RefreshCwIcon className="size-4 text-fg-1" />
-        <span className="text-[13px] font-semibold">Refresh</span>
+        <span className="text-item font-semibold">Refresh</span>
       </div>
-      <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+      <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
         Generate an updated snapshot based on the current window.
       </p>
       <Button

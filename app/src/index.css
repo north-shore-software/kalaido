@@ -474,6 +474,17 @@
   * {
     @apply border-border outline-ring/50;
   }
+  svg.lucide {
+    stroke-width: 1.5;
+  }
+  svg.lucide.lucide-check,
+  svg.lucide.lucide-circle-check,
+  svg.lucide.lucide-chevron-right,
+  svg.lucide.lucide-chevron-down,
+  svg.lucide.lucide-chevron-up,
+  svg.lucide.lucide-chevron-left {
+    stroke-width: 2;
+  }
   body {
     @apply bg-background text-foreground;
     padding-top: var(--titlebar-height);

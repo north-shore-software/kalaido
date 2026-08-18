@@ -24,7 +24,7 @@ export function ReflectionHeader({
           <span className="text-base font-semibold">
             {name || "Untitled reflection"}
           </span>
-          <Mono className="text-[11px] text-fg-4">
+          <Mono className="text-meta text-fg-4">
             {schedDisplay.freq} · last {schedDisplay.win} ·{" "}
             {schedDisplay.scheduled ? "auto-approved" : "manual"}
           </Mono>

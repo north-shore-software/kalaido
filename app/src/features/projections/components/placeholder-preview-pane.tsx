@@ -13,7 +13,7 @@ export function PlaceholderPreviewPane() {
         }
       />
       <div className="flex-1 overflow-y-auto p-5">
-        <p className="text-[13px] text-fg-2">
+        <p className="text-body-sm text-fg-2">
           Send a first message to generate a draft.
         </p>
       </div>

@@ -1,7 +1,6 @@
 import { ClockIcon, FileTextIcon } from "lucide-react";
 import { ListRow } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/css-utils";
 import type { NeedAction, NeedItem } from "../types";
 
 export interface NeedsRowProps {
@@ -24,16 +23,11 @@ export function NeedsRow({ item, onAction, busy, disabled }: NeedsRowProps) {
     <ListRow
       variant="card"
       leading={
-        <span
-          className={cn(
-            "flex size-[30px] shrink-0 items-center justify-center rounded-md",
-            item.kind === "reflection" ? "bg-yellow-wash" : "bg-drifting-wash",
-          )}
-        >
+        <span className="flex size-[30px] shrink-0 items-center justify-center rounded-none bg-surface-2">
           {item.kind === "reflection" ? (
-            <ClockIcon className="size-4 text-yellow-ink" />
+            <ClockIcon className="size-4 text-fg-3" />
           ) : (
-            <FileTextIcon className="size-4 text-yellow-ink" />
+            <FileTextIcon className="size-4 text-fg-3" />
           )}
         </span>
       }

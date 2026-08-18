@@ -105,14 +105,12 @@ export default function NewReflection() {
         actions={
           <>
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => go(newReflectionTransitions.cancel)}
             >
               Cancel
             </Button>
             <Button
-              size="sm"
               variant="commit"
               disabled={!canCommit}
               onClick={() => void finish()}

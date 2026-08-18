@@ -38,8 +38,8 @@ export function ProjectionSideRail({
     freshnessCard = null;
   } else if (info?.status === "pending" && onReviewCandidate) {
     freshnessCard = (
-      <div className="rounded-lg border border-line p-3.5">
-        <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+      <div className="rounded-none border border-line p-3.5">
+        <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
           A candidate is awaiting review.
         </p>
         <Button size="sm" className="w-full" onClick={onReviewCandidate}>
@@ -55,12 +55,12 @@ export function ProjectionSideRail({
         ? blockedNames.join(", ")
         : "an upstream input";
     freshnessCard = (
-      <div className="rounded-lg border border-line p-3.5">
+      <div className="rounded-none border border-line p-3.5">
         <div className="mb-2 flex items-center gap-2.5">
           <ClockIcon className="size-4 text-fg-3" />
-          <span className="text-[13px] font-semibold">Waiting upstream</span>
+          <span className="text-item font-semibold">Waiting upstream</span>
         </div>
-        <p className="text-[11.5px] leading-relaxed text-fg-2">
+        <p className="text-body-sm leading-relaxed text-fg-2">
           {waitingOn} {blockedNames && blockedNames.length > 1 ? "have" : "has"}{" "}
           changes still to approve. Approve those first — refreshing now would
           use output that is about to change.
@@ -69,12 +69,12 @@ export function ProjectionSideRail({
     );
   } else if (info?.status === "stale") {
     freshnessCard = (
-      <div className="rounded-lg border border-yellow-line bg-yellow-wash p-3.5">
+      <div className="rounded-none border border-drifting/45 bg-drifting-wash p-3.5">
         <div className="mb-2 flex items-center gap-2.5">
-          <RefreshCwIcon className="size-4 text-yellow-ink" />
-          <span className="text-[13px] font-semibold">Refresh</span>
+          <RefreshCwIcon className="size-4 text-drifting-ink" />
+          <span className="text-item font-semibold text-fg-1">Refresh</span>
         </div>
-        <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+        <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
           Generate an updated candidate from this projection’s current context,
           then review it before it goes live.
         </p>
@@ -90,12 +90,12 @@ export function ProjectionSideRail({
     );
   } else {
     freshnessCard = (
-      <div className="rounded-lg border border-line p-3.5">
+      <div className="rounded-none border border-line p-3.5">
         <div className="mb-1 flex items-center gap-2.5">
           <CheckIcon className="size-4 text-section-ink" />
-          <span className="text-[13px] font-semibold">Up to date</span>
+          <span className="text-item font-semibold">Up to date</span>
         </div>
-        <p className="text-[11.5px] leading-relaxed text-fg-2">
+        <p className="text-body-sm leading-relaxed text-fg-2">
           No new context in scope.
         </p>
       </div>
@@ -105,8 +105,8 @@ export function ProjectionSideRail({
   return (
     <aside className="flex w-[312px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-line p-4">
       {readOnly ? (
-        <div className="rounded-lg border border-line p-3.5">
-          <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+        <div className="rounded-none border border-line p-3.5">
+          <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
             You’re viewing a past snapshot. It’s read-only.
           </p>
           <Button
@@ -127,7 +127,7 @@ export function ProjectionSideRail({
         {timeline.length > 0 ? (
           <Timeline items={timeline} />
         ) : (
-          <p className="text-[11.5px] text-fg-4">No snapshots yet.</p>
+          <p className="text-meta text-fg-4">No snapshots yet.</p>
         )}
       </div>
     </aside>

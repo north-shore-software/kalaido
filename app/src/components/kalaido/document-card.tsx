@@ -33,7 +33,7 @@ export function DocumentCard({
       <div className="flex items-center justify-between gap-2 px-3.5 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           {leading}
-          <span className="truncate text-[13.5px] font-semibold">{title}</span>
+          <span className="truncate text-row font-semibold text-fg-1 first-letter:uppercase">{title}</span>
         </div>
         {trailing && (
           <div className="flex shrink-0 items-center gap-2">{trailing}</div>
@@ -43,7 +43,7 @@ export function DocumentCard({
       <div className={cn("px-3.5", !footer && "pb-3.5")}>
         <div
           className={cn(
-            "rounded-md border border-line bg-background p-3",
+            "rounded-none border border-line bg-background p-3",
             contentClassName,
           )}
         >
@@ -54,7 +54,7 @@ export function DocumentCard({
     </>
   );
 
-  const shell = "overflow-hidden rounded-lg border border-line bg-card";
+  const shell = "overflow-hidden rounded-none border border-line bg-card";
 
   if (!onClick) {
     return <div className={cn(shell, className)}>{body}</div>;

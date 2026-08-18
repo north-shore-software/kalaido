@@ -14,29 +14,29 @@ export function ImportStatus({ phase, imported, errorMsg }: ImportStatusProps) {
   const running = phase === "running";
 
   return (
-    <section className="flex flex-col gap-2 border-t pt-6">
+    <section className="flex flex-col gap-2 border-t border-line pt-6">
       {running && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <p className="flex items-center gap-2 text-body-sm text-fg-3">
           <Spinner className="size-4" />
           Importing…
         </p>
       )}
 
       {phase === "done" && (
-        <p className="flex items-center gap-2 text-sm text-foreground">
+        <p className="flex items-center gap-2 text-body-sm text-fg-1">
           <CheckIcon className="size-4 text-stable" />
           Imported {imported} {imported === 1 ? "fragment" : "fragments"}.
         </p>
       )}
 
       {phase === "cancelled" && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-body-sm text-fg-4">
           Cancelled. Any import already accepted keeps running on the server.
         </p>
       )}
 
       {phase === "error" && (
-        <p className="flex items-center gap-2 break-words text-sm text-destructive">
+        <p className="flex items-center gap-2 break-words text-body-sm text-destructive">
           <TriangleAlert className="size-4 shrink-0" />
           {errorMsg}
         </p>

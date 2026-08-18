@@ -13,15 +13,15 @@ export function StatusBadge({ info }: StatusBadgeProps) {
   switch (info.status) {
     case "stale":
       return (
-        <Mono className="text-[10.5px] text-yellow-ink">
+        <Mono className="text-mono-sm text-drifting-ink">
           {info.entropy > 0 ? `${info.entropy} new · stale` : "stale"}
         </Mono>
       );
     case "blocked":
-      return <Mono className="text-[10.5px] text-fg-3">blocked upstream</Mono>;
+      return <Mono className="text-mono-sm text-fg-3">blocked upstream</Mono>;
     default:
       return (
-        <Mono className="text-[10.5px] text-section-ink">✓ up to date</Mono>
+        <Mono className="text-mono-sm text-section-ink">✓ up to date</Mono>
       );
   }
 }
@@ -46,15 +46,15 @@ export function ProjCard({
   const pinned = isPinned(p.pinned_by);
   return (
     <DocumentCard
-      className="w-[252px]"
+      className="w-[300px]"
       onClick={() => onOpen(p.id)}
       leading={
         <span className="size-[13px] bg-section rounded-none shrink-0" />
       }
       title={p.name || "Untitled projection"}
       trailing={<PinToggle pinned={pinned} onToggle={() => onTogglePin(p)} />}
-      lines={["100%", "90%", "96%", "58%"]}
-      contentClassName="h-[90px]"
+      lines={["100%", "92%", "96%", "84%", "58%"]}
+      contentClassName="h-[110px]"
       footer={
         candidateId ? (
           <Button

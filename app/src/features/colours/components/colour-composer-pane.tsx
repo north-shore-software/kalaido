@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Chip,
@@ -19,46 +18,21 @@ export function ColourComposerPane({
   typeFilter,
   previewing,
   previewFragments,
-  saving,
   onName,
   onCriteria,
   onTypeFilter,
-  onCancel,
-  onSave,
 }: {
   name: string;
   criteria: string;
   typeFilter: TypeFilter;
   previewing: boolean;
   previewFragments: FragmentResponse[];
-  saving: boolean;
   onName: (v: string) => void;
   onCriteria: (v: string) => void;
   onTypeFilter: (v: TypeFilter) => void;
-  onCancel: () => void;
-  onSave: () => void;
 }) {
-  const canSave =
-    name.trim().length > 0 && criteria.trim().length > 0 && !saving;
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-8 py-6">
-      <div className="flex items-center justify-between">
-        <span className="text-xl font-semibold">New Colour</span>
-        <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            variant="commit"
-            disabled={!canSave}
-            onClick={onSave}
-          >
-            {saving ? "Creating…" : "Create colour"}
-          </Button>
-        </div>
-      </div>
-
       <div className="flex flex-col gap-2">
         <Label>Name</Label>
         <Textarea
@@ -98,7 +72,7 @@ export function ColourComposerPane({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <Label>Live preview</Label>
-          <Mono className="text-[10.5px] text-fg-4">
+          <Mono className="text-meta text-fg-4">
             {previewing
               ? "matching…"
               : `${previewFragments.length} match${previewFragments.length === 1 ? "" : "es"}`}

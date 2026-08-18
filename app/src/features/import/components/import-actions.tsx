@@ -24,21 +24,30 @@ export function ImportActions({
   return (
     <div className="flex items-center gap-2">
       {running ? (
-        <Button variant="outline" size="sm" onClick={onCancel}>
+        <Button variant="outline" onClick={onCancel}>
           Cancel
         </Button>
       ) : phase === "done" ? (
-        <Button size="sm" onClick={onViewStream}>
+        <Button
+          variant="section"
+          className="bg-lime text-[#16171a] hover:text-[#16171a]"
+          onClick={onViewStream}
+        >
           View in stream
         </Button>
       ) : (
-        <Button size="sm" onClick={onImport} disabled={disabledImport}>
+        <Button
+          variant="section"
+          className="bg-lime text-[#16171a] hover:text-[#16171a]"
+          onClick={onImport}
+          disabled={disabledImport}
+        >
           <UploadIcon />
           Import
         </Button>
       )}
       {!running && phase === "done" && (
-        <Button variant="ghost" size="sm" onClick={onImportAnother}>
+        <Button variant="ghost" onClick={onImportAnother}>
           <FileIcon />
           Import another
         </Button>

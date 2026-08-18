@@ -1,8 +1,10 @@
 import { Fragment as F, useMemo } from "react";
+import { PlusIcon } from "lucide-react";
 import { useParams } from "react-router-dom";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types.ts";
-import { contentColour, Mono, Pill } from "@/components/kalaido";
+import { Mono, Pill } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
+import { Button } from "@/components/ui/button";
 import { FragmentDrawer } from "@/features/fragments/components/fragment-drawer";
 import {
   DayHeader,
@@ -12,7 +14,6 @@ import {
 } from "@/features/fragments/components/stream-parts";
 import type { LoadedFragment } from "@/features/fragments/types";
 import { useLiveCollectionWatching } from "@/hooks/use-live-collection";
-import { cn } from "@/lib/css-utils";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
 import { defineRoute } from "@/routes/route-kit";
@@ -62,7 +63,18 @@ export default function Stream() {
 
   return (
     <PageLayout>
-      <PageHeader title="Stream" />
+      <PageHeader
+        title="Stream"
+        actions={
+          <Button
+            variant="section"
+            onClick={() => go(streamTransitions.openImport)}
+          >
+            <PlusIcon />
+            Import
+          </Button>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-y-auto py-6">
         <div className="mx-auto max-w-[720px] px-8">
           {isLoading && (
@@ -93,18 +105,11 @@ export default function Stream() {
                       })
                     }
                   >
-                    <Mono className="w-11 shrink-0 pt-3 text-right text-[11.5px] text-fg-4">
+                    <Mono className="w-11 shrink-0 pt-3 text-right text-meta text-fg-4">
                       {f.time}
                     </Mono>
                     <div className="flex w-3.5 shrink-0 flex-col items-center self-stretch">
-                      <span
-                        className={cn(
-                          "mt-[15px] size-[11px] shrink-0 rounded-none ring-[3px] ring-background transition-colors",
-                          f.colours.length
-                            ? contentColour(f.colours[0])
-                            : "bg-surface-3 group-hover:bg-section",
-                        )}
-                      />
+                      <span className="mt-[15px] size-[11px] shrink-0 rounded-none ring-[3px] ring-background bg-section" />
                       {i < filteredFragments.length - 1 && (
                         <div className="mt-1 min-h-6 w-0.5 flex-1 bg-line" />
                       )}

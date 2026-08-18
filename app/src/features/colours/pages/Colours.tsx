@@ -99,10 +99,25 @@ export default function Colours() {
       <PageHeader
         title="Colours"
         actions={
-          <Button variant="section" onClick={openComposer}>
-            <PlusIcon />
-            New Colour
-          </Button>
+          composing ? (
+            <>
+              <Button variant="ghost" onClick={() => setComposing(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="commit"
+                disabled={!draftName.trim() || !draftCriteria.trim() || saving}
+                onClick={() => void saveNew()}
+              >
+                {saving ? "Creating…" : "Create colour"}
+              </Button>
+            </>
+          ) : (
+            <Button variant="section" onClick={openComposer}>
+              <PlusIcon />
+              New Colour
+            </Button>
+          )
         }
       />
       <PageCard>
@@ -121,12 +136,9 @@ export default function Colours() {
               typeFilter={preview.typeFilter}
               previewing={preview.previewing}
               previewFragments={preview.fragments}
-              saving={saving}
               onName={setDraftName}
               onCriteria={setDraftCriteria}
               onTypeFilter={preview.setTypeFilter}
-              onCancel={() => setComposing(false)}
-              onSave={() => void saveNew()}
             />
           ) : selected ? (
             <ColourDetailPane

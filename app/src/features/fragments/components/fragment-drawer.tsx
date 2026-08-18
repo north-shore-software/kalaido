@@ -59,19 +59,19 @@ export function FragmentDrawer({
       <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-xl">
         {isLoading && !fragment ? (
           <div className="flex flex-col gap-3 p-6">
-            <Skeleton className="h-6 w-40 rounded" />
-            <Skeleton className="h-3.5 w-24 rounded" />
+            <Skeleton className="h-6 w-40 rounded-none" />
+            <Skeleton className="h-3.5 w-24 rounded-none" />
             <div className="mt-3 flex flex-col gap-2">
-              <Skeleton className="h-2 w-full rounded" />
-              <Skeleton className="h-2 w-[94%] rounded" />
-              <Skeleton className="h-2 w-[88%] rounded" />
-              <Skeleton className="h-2 w-[70%] rounded" />
+              <Skeleton className="h-2 w-full rounded-none" />
+              <Skeleton className="h-2 w-[94%] rounded-none" />
+              <Skeleton className="h-2 w-[88%] rounded-none" />
+              <Skeleton className="h-2 w-[70%] rounded-none" />
             </div>
           </div>
         ) : !fragment ? (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center">
-            <SheetTitle className="text-sm">Fragment not found</SheetTitle>
-            <SheetDescription>
+            <SheetTitle className="text-body-sm">Fragment not found</SheetTitle>
+            <SheetDescription className="text-body-sm text-fg-3">
               This fragment may have been removed.
             </SheetDescription>
           </div>
@@ -79,15 +79,15 @@ export function FragmentDrawer({
           <>
             <SheetHeader className="gap-2 border-b border-line p-6">
               <div className="flex items-center gap-2.5">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-none bg-surface-2">
                   {Icon && <Icon className="size-3.5 text-fg-3" />}
                 </span>
-                <SheetTitle className="text-[13px] font-semibold">
+                <SheetTitle className="text-item font-semibold">
                   {fragmentTypeLabel(fragment.type as FragmentTypeOptions)}
                 </SheetTitle>
               </div>
               <div className="flex items-center gap-3">
-                <SheetDescription className="font-mono text-[11.5px] text-fg-4">
+                <SheetDescription className="font-mono text-meta text-fg-4">
                   {occurredStr ? formatShortDateTime(occurredStr) : "Fragment"}
                 </SheetDescription>
                 {colours.length > 0 ? (
@@ -99,12 +99,12 @@ export function FragmentDrawer({
                       ))}
                   </div>
                 ) : (
-                  <Mono className="text-[10.5px] text-fg-4">untagged</Mono>
+                  <Mono className="text-meta text-fg-4">untagged</Mono>
                 )}
               </div>
             </SheetHeader>
             <ScrollArea className="min-h-0 flex-1">
-              <Mono className="block px-6 py-5 text-xs leading-relaxed whitespace-pre-wrap text-fg-2">
+              <Mono className="block px-6 py-5 text-mono-sm leading-relaxed whitespace-pre-wrap text-fg-2">
                 {fragment.content}
               </Mono>
             </ScrollArea>

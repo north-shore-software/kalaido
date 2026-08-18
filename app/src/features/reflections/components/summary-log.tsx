@@ -11,7 +11,7 @@ export function SummaryLog({ items }: SummaryLogProps) {
       {items.length > 0 ? (
         <Timeline items={items} tone="section" />
       ) : (
-        <p className="text-[11.5px] text-fg-4">No snapshots yet.</p>
+        <p className="text-meta text-fg-4">No snapshots yet.</p>
       )}
     </div>
   );

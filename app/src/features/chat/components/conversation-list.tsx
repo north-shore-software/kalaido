@@ -47,27 +47,36 @@ export function ConversationList({
             </EmptyHeader>
           </Empty>
         ) : (
-          <div className="space-y-1">
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                type="button"
-                onClick={() => onSelect(conv)}
-                className={cn(
-                  // Transparent border on every row so selection doesn't shift the text.
-                  "w-full border-l-2 border-transparent px-3 py-2 text-left transition-colors hover:bg-accent",
-                  conv.clientId === selectedClientId &&
-                    "bg-accent border-primary",
-                )}
-              >
-                <div className="truncate text-sm font-medium">
-                  {conv.preview}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {formatShortDateTime(conv.createdAt)}
-                </div>
-              </button>
-            ))}
+          <div className="space-y-1.5">
+            {conversations.map((conv) => {
+              const isSelected = conv.clientId === selectedClientId;
+              return (
+                <button
+                  key={conv.id}
+                  type="button"
+                  onClick={() => onSelect(conv)}
+                  className={cn(
+                    "w-full border border-line border-l-2 border-l-section-edge bg-surface-1 px-3 py-2.5 text-left transition-colors hover:border-line-strong hover:border-l-2 hover:border-l-section hover:bg-section-wash",
+                    isSelected &&
+                      "border-line-strong border-l-2 border-l-section bg-section-wash",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "truncate text-row",
+                      isSelected
+                        ? "font-semibold text-fg-1"
+                        : "font-medium text-fg-2",
+                    )}
+                  >
+                    {conv.preview}
+                  </div>
+                  <div className="mt-1 font-mono text-mono-sm text-fg-4">
+                    {formatShortDateTime(conv.createdAt)}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </ScrollArea>

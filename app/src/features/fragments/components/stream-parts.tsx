@@ -9,7 +9,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ColourSwatch, fragmentTypeIcon, Mono } from "@/components/kalaido";
+import { fragmentTypeIcon } from "@/components/kalaido";
 import { cn } from "@/lib/css-utils";
 import type { LoadedFragment } from "../types";
 
@@ -26,7 +26,7 @@ export function DayHeader({ day, first }: DayHeaderProps) {
         first ? "mb-3.5" : "mt-5 mb-3.5",
       )}
     >
-      <span className="text-[11px] font-semibold tracking-[0.1em] text-fg-3 uppercase">
+      <span className="text-label font-semibold tracking-[0.14em] text-fg-3 uppercase">
         {day}
       </span>
       <div className="h-px flex-1 bg-line" />
@@ -48,18 +48,9 @@ export function StreamCard({ f }: StreamCardProps) {
           <span className="flex size-6 items-center justify-center rounded-none bg-surface-2">
             <Icon className="size-3.5 text-section-ink" />
           </span>
-          <span className="text-[12.5px] font-semibold text-section-ink">
+          <span className="text-body-sm font-semibold text-section-ink">
             {f.type}
           </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {f.colours.length > 0 ? (
-            f.colours
-              .map((c, i) => ({ c, key: `${i}-${c}` }))
-              .map((s) => <ColourSwatch key={s.key} c={s.c} size={10} />)
-          ) : (
-            <Mono className="text-[10.5px] text-fg-4">untagged</Mono>
-          )}
         </div>
       </div>
       <p className="line-clamp-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg-1">
@@ -75,19 +66,19 @@ export function StreamSkeleton() {
       {[1, 2, 3].map((i) => (
         <div key={i} className="flex flex-col gap-2">
           <div className="mt-4 mb-2 flex items-center gap-3">
-            <Skeleton className="h-3.5 w-16 rounded" />
+            <Skeleton className="h-3.5 w-16 rounded-none" />
             <div className="h-px flex-1 bg-line" />
           </div>
           <div className="flex items-start gap-4">
-            <Skeleton className="mt-3 h-4 w-11 shrink-0 rounded" />
-            <div className="flex flex-1 flex-col gap-2 rounded-lg border border-line bg-card p-3.5">
+            <Skeleton className="mt-3 h-4 w-11 shrink-0 rounded-none" />
+            <div className="flex flex-1 flex-col gap-2 rounded-none border border-line bg-card p-3.5">
               <div className="mb-1 flex items-center justify-between">
-                <Skeleton className="h-5 w-24 rounded" />
-                <Skeleton className="h-3.5 w-12 rounded" />
+                <Skeleton className="h-5 w-24 rounded-none" />
+                <Skeleton className="h-3.5 w-12 rounded-none" />
               </div>
-              <Skeleton className="h-1.5 w-full rounded" />
-              <Skeleton className="h-1.5 w-[92%] rounded" />
-              <Skeleton className="h-1.5 w-[60%] rounded" />
+              <Skeleton className="h-1.5 w-full rounded-none" />
+              <Skeleton className="h-1.5 w-[92%] rounded-none" />
+              <Skeleton className="h-1.5 w-[60%] rounded-none" />
             </div>
           </div>
         </div>
