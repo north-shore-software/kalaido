@@ -12,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -32,8 +33,10 @@ func ExtractNewMessages(dbMsgs []api.UIMessage, incoming []api.UIMessage) []api.
 
 func PrepareLLMPrompt(ctx context.Context, app core.App, conv *core.Record, allMsgs []api.UIMessage) []llm.Message {
 	hydratedMsgs := HydrateDeltaHistory(ctx, app, allMsgs)
-
-	return hydratedMsgs
+	if len(hydratedMsgs) == 0 {
+		return nil
+	}
+	return append([]llm.Message{{Role: "system", Content: prompts.ChatSystemPrompt}}, hydratedMsgs...)
 }
 
 type AssistantTurn struct {
