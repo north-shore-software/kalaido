@@ -66,7 +66,7 @@ func HistoryTurnLine(role, text string) string {
 }
 
 // ContextChangeBlock renders one inline source-context change (the hydrated
-// add/remove delta from llmcontext.HydrateContextChange) inside the timeline.
+// add/remove delta from llmcontext.HydrateDeltaToText) inside the timeline.
 func ContextChangeBlock(delta string) string {
 	return "[source documents changed at this point]\n" + delta + "[end of source document change]\n"
 }

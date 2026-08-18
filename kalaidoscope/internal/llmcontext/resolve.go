@@ -16,35 +16,7 @@ import (
 
 // ResolveSpecToIDs evaluates a spec into the concrete set of fragments and
 // upstream snapshots it names right now.
-//
-// A spec's Focus is resolved too, and lands in PinnedIDs.Focus: anything named
-// by both the focus and the outer spec belongs to the focus, so nothing is
-// counted twice. The resolved set as a whole (PinnedIDs.All) is identical
-// whether a focus was declared or not.
 func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec) (PinnedIDs, error) {
-	pinned, err := resolveOneSpec(ctx, app, spec)
-	if err != nil {
-		return pinned, err
-	}
-	if spec.Focus == nil {
-		return pinned, nil
-	}
-
-	// The nested spec's own Focus is ignored, so this cannot recurse.
-	focus, err := resolveOneSpec(ctx, app, *spec.Focus)
-	if err != nil {
-		return pinned, err
-	}
-	if focus.IsEmpty() {
-		return pinned, nil
-	}
-
-	background := pinned.Without(focus)
-	background.Focus = &focus
-	return background, nil
-}
-
-func resolveOneSpec(ctx stdctx.Context, app core.App, spec api.ContextSpec) (PinnedIDs, error) {
 	var pinned PinnedIDs
 
 	fragIDs, err := resolveFragments(ctx, app, spec)
@@ -178,25 +150,9 @@ func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 	return ids
 }
 
-// HydrateIDsToText renders a resolved context as prompt text. Where a focus is
-// declared the two parts are labelled and separated, so the model is told what
-// the subject is rather than handed one undifferentiated pile.
+// HydrateIDsToText renders a resolved context as prompt text.
 func HydrateIDsToText(ctx stdctx.Context, app core.App, pinned PinnedIDs) (string, error) {
-	focus := pinned.FocusOrEmpty()
-	if focus.IsEmpty() {
-		return hydrateFlat(ctx, app, pinned.Background()), nil
-	}
-
-	var sb strings.Builder
-	sb.WriteString(prompts.FocusHeading + "\n\n")
-	sb.WriteString(hydrateFlat(ctx, app, focus))
-
-	if background := hydrateFlat(ctx, app, pinned.Background()); background != "" {
-		sb.WriteString(prompts.BackgroundHeading + "\n\n")
-		sb.WriteString(background)
-	}
-
-	return sb.String(), nil
+	return hydrateFlat(ctx, app, pinned), nil
 }
 
 func hydrateFlat(ctx stdctx.Context, app core.App, pinned PinnedIDs) string {
@@ -296,11 +252,7 @@ func LatestPinnedAndSpec(msgs []api.UIMessage) (PinnedIDs, api.ContextSpec, api.
 }
 
 // DiffPinnedIDs reports what entered and left the context between two states.
-// Both sides are flattened first: focus is about presentation, so moving an
-// item into or out of the focus is not a change to what the context contains.
 func DiffPinnedIDs(old, new PinnedIDs) (added, removed PinnedIDs) {
-	old, new = old.All(), new.All()
-
 	oldFrags := make(map[string]bool)
 	for _, id := range old.FragmentIDs {
 		oldFrags[id] = true
