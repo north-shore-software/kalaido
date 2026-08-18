@@ -35,7 +35,7 @@ func stream(ctx context.Context, app core.App, role llm.Role, msgs []llm.Message
 		return nil, nil, err
 	}
 
-	comp, err := llm.SelectedProvider(model).Stream(runCtx, msgs, tools)
+	comp, err := llm.SelectedProvider(model).Stream(runCtx, msgs, tools, llm.OptionsForRole(role))
 	if err != nil {
 		release()
 		return nil, nil, err

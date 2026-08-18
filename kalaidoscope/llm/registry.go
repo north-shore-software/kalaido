@@ -92,3 +92,20 @@ func RequiresCredential(p ProviderID) bool {
 func Roles() []Role {
 	return []Role{RoleChat, RoleRefinement, RoleColour, RoleDistill, RoleSnapshot}
 }
+
+// optionsByRole is the per-role generation policy. Distill and snapshot run
+// deterministically: a lens must produce the same output on every application,
+// and verifying a lens by re-applying it is meaningless at nonzero temperature.
+// Colour is a strict YES/NO classifier, so sampling noise only hurts it. Roles
+// absent here use provider defaults.
+var optionsByRole = map[Role]GenOptions{
+	RoleDistill:  {Temperature: f64(0)},
+	RoleSnapshot: {Temperature: f64(0)},
+	RoleColour:   {Temperature: f64(0)},
+}
+
+func f64(v float64) *float64 { return &v }
+
+func OptionsForRole(r Role) GenOptions {
+	return optionsByRole[r]
+}

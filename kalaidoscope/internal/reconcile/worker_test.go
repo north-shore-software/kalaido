@@ -26,7 +26,7 @@ func init() {
 
 type fakeProvider struct{}
 
-func (fakeProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
+func (fakeProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
 	ch := make(chan llm.StreamEvent, 1)
 	ch <- llm.StreamEvent{Kind: llm.EventText, Text: "GENERATED"}
 	close(ch)

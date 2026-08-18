@@ -63,6 +63,12 @@ type Completion struct {
 	Wait   func() *Usage
 }
 
+// GenOptions are per-request sampling controls. The zero value means
+// "provider defaults": a nil Temperature is omitted from the request entirely.
+type GenOptions struct {
+	Temperature *float64
+}
+
 type Provider interface {
-	Stream(ctx context.Context, messages []Message, tools []Tool) (*Completion, error)
+	Stream(ctx context.Context, messages []Message, tools []Tool, opts GenOptions) (*Completion, error)
 }

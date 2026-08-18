@@ -147,7 +147,7 @@ func normalizeArguments(raw json.RawMessage) json.RawMessage {
 	return raw
 }
 
-func (p *OllamaProvider) Stream(ctx context.Context, messages []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
+func (p *OllamaProvider) Stream(ctx context.Context, messages []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
 	modelName := p.model()
 
 	var oTools []ollamaTool
@@ -165,12 +165,17 @@ func (p *OllamaProvider) Stream(ctx context.Context, messages []llm.Message, too
 		}
 	}
 
+	options := map[string]any{"num_ctx": GetModelContextLength(ctx, modelName)}
+	if opts.Temperature != nil {
+		options["temperature"] = *opts.Temperature
+	}
+
 	body, err := json.Marshal(ollamaChatRequest{
 		Model:     modelName,
 		Messages:  messages,
 		Stream:    true,
 		KeepAlive: keepAlive,
-		Options:   map[string]any{"num_ctx": GetModelContextLength(ctx, modelName)},
+		Options:   options,
 		Tools:     oTools,
 	})
 	if err != nil {

@@ -58,6 +58,7 @@ func validateModel(ctx context.Context, cfg llm.WorkspaceConfig, model string) e
 		ctx,
 		[]llm.Message{{Role: "user", Content: prompts.ValidationPing}},
 		nil,
+		llm.GenOptions{},
 	)
 	if err != nil {
 		return err

@@ -55,10 +55,15 @@ type geminiTool struct {
 	FunctionDeclarations []geminiFunctionDeclaration `json:"functionDeclarations"`
 }
 
+type geminiGenerationConfig struct {
+	Temperature *float64 `json:"temperature,omitempty"`
+}
+
 type geminiRequest struct {
-	Contents          []geminiContent `json:"contents"`
-	SystemInstruction *geminiContent  `json:"systemInstruction,omitempty"`
-	Tools             []geminiTool    `json:"tools,omitempty"`
+	Contents          []geminiContent         `json:"contents"`
+	SystemInstruction *geminiContent          `json:"systemInstruction,omitempty"`
+	Tools             []geminiTool            `json:"tools,omitempty"`
+	GenerationConfig  *geminiGenerationConfig `json:"generationConfig,omitempty"`
 }
 
 type geminiStreamChunk struct {
@@ -74,7 +79,7 @@ type geminiStreamChunk struct {
 	} `json:"usageMetadata"`
 }
 
-func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
+func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
 	apiKey := p.APIKey
 	if apiKey == "" {
 		apiKey = os.Getenv("GEMINI_API_KEY")
@@ -130,10 +135,16 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		gTools = []geminiTool{{FunctionDeclarations: decls}}
 	}
 
+	var genConfig *geminiGenerationConfig
+	if opts.Temperature != nil {
+		genConfig = &geminiGenerationConfig{Temperature: opts.Temperature}
+	}
+
 	body, err := json.Marshal(geminiRequest{
 		Contents:          contents,
 		SystemInstruction: systemInstruction,
 		Tools:             gTools,
+		GenerationConfig:  genConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gemini: marshal: %w", err)
