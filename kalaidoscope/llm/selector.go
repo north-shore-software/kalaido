@@ -136,7 +136,7 @@ func ErrorProvider(err error) Provider {
 
 type errProvider struct{ err error }
 
-func (p errProvider) Stream(context.Context, []Message, []Tool) (*Completion, error) {
+func (p errProvider) Stream(context.Context, []Message, []Tool, GenOptions) (*Completion, error) {
 	return nil, p.err
 }
 
