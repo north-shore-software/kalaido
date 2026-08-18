@@ -84,7 +84,7 @@ function MarkdownLink({
 const documentComponents: StreamdownProps["components"] = {
   p: styled("p", "my-2 text-body first:mt-0 last:mb-0"),
   h1: styled("h1", "mt-6 mb-2 text-card-title font-bold first:mt-0"),
-  h2: styled("h2", "mt-5 mb-1.5 text-base font-bold first:mt-0"),
+  h2: styled("h2", "mt-5 mb-1.5 text-body font-bold first:mt-0"),
   h3: styled("h3", "mt-4 mb-1 text-body-sm font-semibold first:mt-0"),
   h4: styled("h4", "mt-4 mb-1 text-body-sm font-semibold first:mt-0"),
   h5: styled("h5", "mt-4 mb-1 text-body-sm font-semibold first:mt-0"),
@@ -118,13 +118,13 @@ const documentComponents: StreamdownProps["components"] = {
 
 const chatComponents: StreamdownProps["components"] = {
   ...documentComponents,
-  p: styled("p", "my-1.5 text-sm leading-relaxed first:mt-0 last:mb-0"),
-  h1: styled("h1", "mt-4 mb-1.5 text-base font-bold first:mt-0"),
-  h2: styled("h2", "mt-3 mb-1 text-sm font-bold first:mt-0"),
-  h3: styled("h3", "mt-3 mb-1 text-sm font-semibold first:mt-0"),
-  h4: styled("h4", "mt-3 mb-1 text-sm font-semibold first:mt-0"),
-  h5: styled("h5", "mt-3 mb-1 text-sm font-semibold first:mt-0"),
-  h6: styled("h6", "mt-3 mb-1 text-sm font-semibold first:mt-0"),
+  p: styled("p", "my-1.5 text-body-sm leading-relaxed first:mt-0 last:mb-0"),
+  h1: styled("h1", "mt-4 mb-1.5 text-body font-bold first:mt-0"),
+  h2: styled("h2", "mt-3 mb-1 text-body-sm font-bold first:mt-0"),
+  h3: styled("h3", "mt-3 mb-1 text-body-sm font-semibold first:mt-0"),
+  h4: styled("h4", "mt-3 mb-1 text-body-sm font-semibold first:mt-0"),
+  h5: styled("h5", "mt-3 mb-1 text-body-sm font-semibold first:mt-0"),
+  h6: styled("h6", "mt-3 mb-1 text-body-sm font-semibold first:mt-0"),
   ul: styled("ul", "my-1.5 list-disc space-y-0.5 pl-4 [&_ol]:my-1 [&_ul]:my-1"),
   ol: styled(
     "ol",

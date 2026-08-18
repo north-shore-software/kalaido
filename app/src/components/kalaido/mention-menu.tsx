@@ -100,7 +100,7 @@ export function MentionMenu({
   loading,
 }: MentionMenuProps) {
   return (
-    <div className="absolute inset-x-0 bottom-full z-10 mb-2 border border-line-strong bg-surface-1 shadow-md">
+    <div className="absolute inset-x-0 bottom-full z-10 mb-2 border border-line-strong bg-surface-1">
       <div className="max-h-56 overflow-y-auto">
         {options.map((o, i) => (
           <button
