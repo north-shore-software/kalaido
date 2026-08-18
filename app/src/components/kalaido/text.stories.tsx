@@ -21,9 +21,12 @@ const BODY_SPACING = [
 export const ScaleComparison: Story = () => (
   <div className="p-8 bg-[#1a1b1e] text-[#f5f6f8] min-h-screen max-w-6xl font-sans flex flex-col gap-10">
     <div>
-      <h1 className="text-2xl font-display font-normal text-[#f5f6f8]">Typography: Letter Spacing Exploration</h1>
+      <h1 className="text-2xl font-display font-normal text-[#f5f6f8]">
+        Typography: Letter Spacing Exploration
+      </h1>
       <p className="text-xs text-[#a3a5ad] mt-1">
-        Explore letter-spacing (tracking) options for Card Title (18px Archivo bold) and Body (16px Archivo regular).
+        Explore letter-spacing (tracking) options for Card Title (18px Archivo
+        bold) and Body (16px Archivo regular).
       </p>
     </div>
 
@@ -33,9 +36,14 @@ export const ScaleComparison: Story = () => (
       </h2>
       <div className="flex flex-col gap-4">
         {CARD_TITLE_SPACING.map((opt) => (
-          <div key={opt.label} className="border border-[#36383e] bg-[#1a1b1e] p-4 flex items-center justify-between">
+          <div
+            key={opt.label}
+            className="border border-[#36383e] bg-[#1a1b1e] p-4 flex items-center justify-between"
+          >
             <div>
-              <div className="text-[10px] font-mono text-[#84868f] mb-1">{opt.label}</div>
+              <div className="text-[10px] font-mono text-[#84868f] mb-1">
+                {opt.label}
+              </div>
               <div
                 className="font-sans text-[18px] font-bold text-[#f5f6f8]"
                 style={{ letterSpacing: opt.tracking }}
@@ -43,7 +51,9 @@ export const ScaleComparison: Story = () => (
                 Checkout Flow Redesign PRD & System Architecture
               </div>
             </div>
-            <span className="font-mono text-xs text-[#4ade80]">{opt.tracking}</span>
+            <span className="font-mono text-xs text-[#4ade80]">
+              {opt.tracking}
+            </span>
           </div>
         ))}
       </div>
@@ -55,7 +65,10 @@ export const ScaleComparison: Story = () => (
       </h2>
       <div className="flex flex-col gap-4">
         {BODY_SPACING.map((opt) => (
-          <div key={opt.label} className="border border-[#36383e] bg-[#1a1b1e] p-4 flex flex-col gap-2">
+          <div
+            key={opt.label}
+            className="border border-[#36383e] bg-[#1a1b1e] p-4 flex flex-col gap-2"
+          >
             <div className="flex items-center justify-between text-[10px] font-mono text-[#84868f]">
               <span>{opt.label}</span>
               <span className="text-[#4ade80]">{opt.tracking}</span>
@@ -64,7 +77,9 @@ export const ScaleComparison: Story = () => (
               className="font-sans text-[16px] leading-[1.6] text-[#d6d8dd]"
               style={{ letterSpacing: opt.tracking }}
             >
-              A live projection distilling recent user telemetry and customer feedback into measurable engineering requirements. It continually refreshes as new source fragments arrive.
+              A live projection distilling recent user telemetry and customer
+              feedback into measurable engineering requirements. It continually
+              refreshes as new source fragments arrive.
             </p>
           </div>
         ))}
@@ -91,11 +106,17 @@ export const ScaleComparison: Story = () => (
           className="font-sans text-[16px] leading-[1.6] text-[#d6d8dd]"
           style={{ letterSpacing: "0.015em" }}
         >
-          A live projection distilling recent user telemetry and customer feedback into measurable engineering requirements.
+          A live projection distilling recent user telemetry and customer
+          feedback into measurable engineering requirements.
         </p>
         <div className="flex items-center justify-between pt-3 border-t border-[#36383e]">
-          <span className="font-mono text-[12.5px] text-[#84868f]">1,048,576 tokens</span>
-          <Button variant="section"><PlusIcon />New Snapshot</Button>
+          <span className="font-mono text-[12.5px] text-[#84868f]">
+            1,048,576 tokens
+          </span>
+          <Button variant="section">
+            <PlusIcon />
+            New Snapshot
+          </Button>
         </div>
       </div>
     </div>

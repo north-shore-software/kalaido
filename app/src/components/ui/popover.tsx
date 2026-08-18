@@ -72,10 +72,7 @@ function PopoverDescription({
   return (
     <PopoverPrimitive.Description
       data-slot="popover-description"
-      className={cn(
-        "mt-0.5 text-body-sm leading-relaxed text-fg-3",
-        className,
-      )}
+      className={cn("mt-0.5 text-body-sm leading-relaxed text-fg-3", className)}
       {...props}
     />
   );

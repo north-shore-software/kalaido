@@ -11,7 +11,13 @@ interface PillProps extends ComponentProps<"span"> {
  * A small uppercase accent badge. Distinct from `StatusPill`, which carries
  * semantic run status; this is a plain label chip.
  */
-export function Pill({ tone = "primary", dot, className, children, ...props }: PillProps) {
+export function Pill({
+  tone = "primary",
+  dot,
+  className,
+  children,
+  ...props
+}: PillProps) {
   return (
     <span
       className={cn(

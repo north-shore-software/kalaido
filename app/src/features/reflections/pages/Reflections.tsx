@@ -10,11 +10,7 @@ import {
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import {
-  EmptyState,
-  ListRow,
-  PinToggle,
-} from "@/components/kalaido";
+import { EmptyState, ListRow, PinToggle } from "@/components/kalaido";
 import { ReflectionDetailPanel } from "../components/reflection-detail-panel";
 import {
   currentWindowSpec,

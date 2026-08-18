@@ -74,7 +74,8 @@ function ThemePreviewCard({ theme }: { theme: ThemeOption }) {
         <div className="text-sm font-bold text-[#f5f6f6]">{theme.name}</div>
         <div className="text-xs text-[#a3a5a7]">{theme.desc}</div>
         <div className="font-mono text-[10px] text-[#84868a] mt-1">
-          bg-0: {theme.bg0} · bg-1: {theme.bg1} · bg-2: {theme.bg2} · line: {theme.line}
+          bg-0: {theme.bg0} · bg-1: {theme.bg1} · bg-2: {theme.bg2} · line:{" "}
+          {theme.line}
         </div>
       </div>
 
@@ -115,7 +116,9 @@ function ThemePreviewCard({ theme }: { theme: ThemeOption }) {
 
         <div className="flex-1 p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-display text-lg text-[#f5f6f6]">Projections View</h3>
+            <h3 className="font-display text-lg text-[#f5f6f6]">
+              Projections View
+            </h3>
             <span
               className="text-[10.5px] font-mono font-bold uppercase px-2 py-0.5"
               style={{
@@ -138,14 +141,24 @@ function ThemePreviewCard({ theme }: { theme: ThemeOption }) {
             }}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#f5f6f6]">Checkout Redesign PRD</span>
-              <span className="font-mono text-[10.5px] text-[#84868a]">v2 · live</span>
+              <span className="text-xs font-bold text-[#f5f6f6]">
+                Checkout Redesign PRD
+              </span>
+              <span className="font-mono text-[10.5px] text-[#84868a]">
+                v2 · live
+              </span>
             </div>
             <p className="text-xs text-[#d6d8d9] leading-relaxed">
-              A live projection distilling recent telemetry into measurable engineering requirements.
+              A live projection distilling recent telemetry into measurable
+              engineering requirements.
             </p>
-            <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: theme.line }}>
-              <span className="font-mono text-[10px] text-[#84868a]">1,048,576 tokens</span>
+            <div
+              className="flex items-center justify-between pt-2 border-t"
+              style={{ borderColor: theme.line }}
+            >
+              <span className="font-mono text-[10px] text-[#84868a]">
+                1,048,576 tokens
+              </span>
               <button
                 type="button"
                 className="px-3 py-1 text-xs font-bold uppercase"
@@ -167,9 +180,12 @@ function ThemePreviewCard({ theme }: { theme: ThemeOption }) {
 export const SurfaceComparisons: Story = () => (
   <div className="p-8 bg-[#121315] text-[#f5f6f6] min-h-screen max-w-6xl font-sans">
     <div className="mb-6">
-      <h1 className="text-2xl font-display font-normal text-[#f5f6f6]">Surface & Ground Exploration (§3)</h1>
+      <h1 className="text-2xl font-display font-normal text-[#f5f6f6]">
+        Surface & Ground Exploration (§3)
+      </h1>
       <p className="text-xs text-[#a3a5a7] mt-1">
-        Explore darker grey backgrounds with subtle cool / blue / green undertones for enhanced text contrast and immersion.
+        Explore darker grey backgrounds with subtle cool / blue / green
+        undertones for enhanced text contrast and immersion.
       </p>
     </div>
 

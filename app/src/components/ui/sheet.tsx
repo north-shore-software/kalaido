@@ -117,10 +117,7 @@ function SheetDescription({
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn(
-        "mt-0.5 text-body-sm leading-relaxed text-fg-3",
-        className,
-      )}
+      className={cn("mt-0.5 text-body-sm leading-relaxed text-fg-3", className)}
       {...props}
     />
   );

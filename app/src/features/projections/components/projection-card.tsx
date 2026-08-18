@@ -1,10 +1,6 @@
 import { RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DocumentCard,
-  Mono,
-  PinToggle,
-} from "@/components/kalaido";
+import { DocumentCard, Mono, PinToggle } from "@/components/kalaido";
 import { isPinned } from "@/lib/pins";
 import type { ProjectionStatusInfo } from "@/features/projections/status";
 import type { ProjectionResponse } from "@/api/kalaidoscope/types";
@@ -52,7 +48,9 @@ export function ProjCard({
     <DocumentCard
       className="w-[252px]"
       onClick={() => onOpen(p.id)}
-      leading={<span className="size-[13px] bg-section rounded-none shrink-0" />}
+      leading={
+        <span className="size-[13px] bg-section rounded-none shrink-0" />
+      }
       title={p.name || "Untitled projection"}
       trailing={<PinToggle pinned={pinned} onToggle={() => onTogglePin(p)} />}
       lines={["100%", "90%", "96%", "58%"]}

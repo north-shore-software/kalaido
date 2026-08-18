@@ -48,7 +48,9 @@ export function StreamCard({ f }: StreamCardProps) {
           <span className="flex size-6 items-center justify-center rounded-none bg-surface-2">
             <Icon className="size-3.5 text-section-ink" />
           </span>
-          <span className="text-[12.5px] font-semibold text-section-ink">{f.type}</span>
+          <span className="text-[12.5px] font-semibold text-section-ink">
+            {f.type}
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           {f.colours.length > 0 ? (

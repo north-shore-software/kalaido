@@ -22,8 +22,7 @@ export const RAIL_ICON_CLASS =
 const DEST_ACTIVE_CLASS: Record<SectionId, string> = {
   dashboard:
     "hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 data-active:border-l-cyan data-active:text-cyan-ink data-active:hover:text-cyan-ink",
-  chat:
-    "hover:border-l-yellow hover:bg-yellow-wash hover:text-fg-2 data-active:border-l-yellow data-active:text-yellow-ink data-active:hover:text-yellow-ink",
+  chat: "hover:border-l-yellow hover:bg-yellow-wash hover:text-fg-2 data-active:border-l-yellow data-active:text-yellow-ink data-active:hover:text-yellow-ink",
   projections:
     "hover:border-l-[#4ade80] hover:bg-[rgb(74_222_128/0.08)] hover:text-fg-2 data-active:border-l-[#4ade80] data-active:text-[#4ade80] data-active:hover:text-[#4ade80]",
   reflections:

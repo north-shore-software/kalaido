@@ -11,7 +11,11 @@ interface HueItem {
 }
 
 const SECTION_HUES: HueItem[] = [
-  { name: "Onboarding / Boot", role: "Brand Cyan (Pre-workspace)", color: "#22d3ee" },
+  {
+    name: "Onboarding / Boot",
+    role: "Brand Cyan (Pre-workspace)",
+    color: "#22d3ee",
+  },
   { name: "Capture", role: "Shell Quick Action", color: "#22d3ee" },
   { name: "Dashboard", role: "Section Accent", color: "#22d3ee" },
   { name: "Chat", role: "Section Accent", color: "#f5d90a" },
@@ -24,9 +28,21 @@ const SECTION_HUES: HueItem[] = [
 ];
 
 const STATUS_AND_GUARDRAIL_HUES: HueItem[] = [
-  { name: "Neon Magenta", role: "Constant Demand (#ff2e93)", color: "#ff2e93", washAlpha: 4, solidFgWhite: true },
+  {
+    name: "Neon Magenta",
+    role: "Constant Demand (#ff2e93)",
+    color: "#ff2e93",
+    washAlpha: 4,
+    solidFgWhite: true,
+  },
   { name: "Drifting", role: "Status (Stale/Degraded)", color: "#ff9f0a" },
-  { name: "Danger / Critical", role: "Destructive / Alert (#ff3333)", color: "#ff3333", washAlpha: 4, solidFgWhite: true },
+  {
+    name: "Danger / Critical",
+    role: "Destructive / Alert (#ff3333)",
+    color: "#ff3333",
+    washAlpha: 4,
+    solidFgWhite: true,
+  },
   { name: "Stable", role: "Status (Healthy)", color: "#22d3ee" },
 ];
 
@@ -39,7 +55,9 @@ function HueRow({ item }: { item: HueItem }) {
   return (
     <div className="grid grid-cols-[180px_1fr_1fr_1fr] items-center gap-4 py-2.5 border-b border-[#3a3c3f]">
       <div>
-        <div className="font-sans text-xs font-semibold text-[#f5f6f6]">{item.name}</div>
+        <div className="font-sans text-xs font-semibold text-[#f5f6f6]">
+          {item.name}
+        </div>
         <div className="font-mono text-[10px] text-[#84868a]">{item.role}</div>
         <div className="font-mono text-[10px] text-[#64666a]">{item.color}</div>
       </div>
@@ -65,7 +83,9 @@ function HueRow({ item }: { item: HueItem }) {
           borderLeft: `2px solid ${item.color}`,
         }}
       >
-        <span className="font-mono text-[11px] text-[#d6d8d9]">2px active rail/nav edge</span>
+        <span className="font-mono text-[11px] text-[#d6d8d9]">
+          2px active rail/nav edge
+        </span>
       </div>
 
       <div
@@ -84,9 +104,12 @@ function HueRow({ item }: { item: HueItem }) {
 export const HueMap: Story = () => (
   <div className="p-8 bg-[#252628] text-[#f5f6f6] min-h-screen max-w-5xl font-sans">
     <div className="mb-6">
-      <h1 className="text-2xl font-display font-normal text-[#f5f6f6]">Section → Hue Map (§3)</h1>
+      <h1 className="text-2xl font-display font-normal text-[#f5f6f6]">
+        Section → Hue Map (§3)
+      </h1>
       <p className="text-xs text-[#a3a5a7] mt-1">
-        Design system color reference for section accents, global constants, and momentum status.
+        Design system color reference for section accents, global constants, and
+        momentum status.
       </p>
     </div>
 
@@ -118,7 +141,9 @@ export const HueMap: Story = () => (
       </h2>
       <div className="grid grid-cols-2 gap-6">
         <div className="border border-[#3a3c3f] p-4 bg-[#2d2f31]">
-          <div className="text-xs font-semibold text-[#f5f6f6] mb-1">Colours Blush vs Neon Magenta Demand</div>
+          <div className="text-xs font-semibold text-[#f5f6f6] mb-1">
+            Colours Blush vs Neon Magenta Demand
+          </div>
           <div className="text-[11px] text-[#a3a5a7] mb-3">
             Colours Blush (#fda4af) vs Neon Magenta (#ff2e93).
           </div>
@@ -143,7 +168,9 @@ export const HueMap: Story = () => (
         </div>
 
         <div className="border border-[#3a3c3f] p-4 bg-[#2d2f31]">
-          <div className="text-xs font-semibold text-[#f5f6f6] mb-1">Chat Yellow vs Drifting vs Danger Red</div>
+          <div className="text-xs font-semibold text-[#f5f6f6] mb-1">
+            Chat Yellow vs Drifting vs Danger Red
+          </div>
           <div className="text-[11px] text-[#a3a5a7] mb-3">
             Drifting (#ff9f0a) vs Signal Red (#ff3333) vs Chat Yellow (#f5d90a).
           </div>

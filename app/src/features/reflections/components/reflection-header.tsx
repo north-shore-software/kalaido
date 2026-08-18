@@ -30,11 +30,7 @@ export function ReflectionHeader({
           </Mono>
         </div>
       </div>
-      {!readOnly && (
-        <Pill tone="primary">
-          latest
-        </Pill>
-      )}
+      {!readOnly && <Pill tone="primary">latest</Pill>}
     </div>
   );
 }

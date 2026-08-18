@@ -76,9 +76,7 @@ export function SnapshotPreview({
           {state.status === "ready" && (
             <>
               <div className="mb-4 flex items-center gap-2.5">
-                <Pill tone="primary">
-                  plan of record
-                </Pill>
+                <Pill tone="primary">plan of record</Pill>
               </div>
               <div className="max-w-[640px] whitespace-pre-wrap text-[13px] leading-relaxed">
                 {state.output.content || "(empty snapshot)"}
