@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
@@ -99,6 +100,33 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		}
 	}
 	return snapID, nil
+}
+
+// SnapshotIsCurrent reports whether the entity's newest snapshot — pending or
+// approved — already reflects what a generation under ctx would consume right
+// now: the same active lens and the same resolved context. The reconcile wave
+// uses it as its dedup guard, so a repeated "generate all" (or the wave a
+// refinement re-triggers) skips entities whose speculative candidate is still
+// fresh instead of burning a model call to reproduce it.
+func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *core.Record) bool {
+	recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(),
+		strat.ForeignKeyCol()+" = {:id}", "-created", 1, 0, dbx.Params{"id": rec.Id})
+	if err != nil || len(recs) == 0 {
+		return false
+	}
+	latest := recs[0]
+	if latest.GetString("lens_id") != rec.GetString("current_lens_id") {
+		return false
+	}
+	_, lensSpec, _ := resolveActiveLens(app, strat, rec)
+	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec)
+	if err != nil {
+		return false
+	}
+	var recorded llmcontext.PinnedIDs
+	_ = latest.UnmarshalJSONField("resolved_context", &recorded)
+	added, removed := llmcontext.DiffPinnedIDs(recorded, pinned)
+	return added.IsEmpty() && removed.IsEmpty()
 }
 
 func prepareGenerationContext(ctx context.Context, app core.App, strat Strategy, rec *core.Record, lensSpec api.ContextSpec) (string, llmcontext.PinnedIDs, error) {

@@ -170,6 +170,11 @@ var schema = []tableDef{
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			// Non-empty when this snapshot was generated as part of a speculative
+			// "generate all" wave (it may have consumed unapproved upstream
+			// candidates); the marker also propagates through refinement commits
+			// so an edited chain re-triggers its downstream regeneration.
+			&core.TextField{Name: "chain_origin"},
 			&core.NumberField{Name: "approval_sequence_number"},
 			&core.DateField{Name: "approval_timestamp"},
 			&core.DateField{Name: "generation_timestamp"},
@@ -195,6 +200,8 @@ var schema = []tableDef{
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			// See projection_snapshot.chain_origin.
+			&core.TextField{Name: "chain_origin"},
 			&core.NumberField{Name: "approval_sequence_number"},
 			&core.DateField{Name: "approval_timestamp"},
 			&core.DateField{Name: "generation_timestamp"},

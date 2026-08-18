@@ -8,7 +8,11 @@ export default { title: "Dashboard / NeedsActionSection" };
 export const Default: Story = () => {
   return (
     <div className="max-w-xl p-4">
-      <NeedsActionSection items={mockNeedItems} onAction={action("onAction")} />
+      <NeedsActionSection
+        items={mockNeedItems}
+        onAction={action("onAction")}
+        onGenerateAll={action("onGenerateAll")}
+      />
     </div>
   );
 };

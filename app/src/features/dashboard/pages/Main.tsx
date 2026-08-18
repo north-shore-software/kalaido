@@ -13,6 +13,7 @@ import {
   updateProjection,
 } from "@/api/kalaidoscope/projections";
 import { updateReflection } from "@/api/kalaidoscope/reflections";
+import { startReconcile } from "@/api/kalaidoscope/reconcile";
 import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
 import { describeDelta } from "../describe-delta";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
@@ -233,6 +234,21 @@ export default function Main() {
     });
   }
 
+  /**
+   * Kick off a backend generation wave over the whole stale set. Fire and
+   * forget: the dashboard has no run state to track — candidates arrive
+   * through the live subscriptions and rows flip to "Review" as they land,
+   * while the utility bar shows the queue working.
+   */
+  async function generateAll() {
+    const res = await startReconcile();
+    if (res.isErr()) {
+      toast.error("Failed to start generating", {
+        description: res.error.message,
+      });
+    }
+  }
+
   async function unpin(it: PinItem) {
     const res =
       it.kind === "projection"
@@ -255,6 +271,7 @@ export default function Main() {
               items={needsAction}
               onAction={startWork}
               busyId={refreshing}
+              onGenerateAll={generateAll}
             />
 
             <PinnedSection items={pinned} onOpen={openEntity} onUnpin={unpin} />

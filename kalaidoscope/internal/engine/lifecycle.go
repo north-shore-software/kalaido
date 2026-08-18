@@ -18,6 +18,12 @@ const (
 	StatusApproved = "approved"
 )
 
+// RequestWave, when set, asks the reconcile worker for a speculative
+// generation wave over the stale set. It is a hook variable rather than an
+// import because the worker's package sits above engine (it needs the status
+// evaluator, which itself imports engine). Wired by reconcile.Register.
+var RequestWave func()
+
 type SnapshotSpec struct {
 	SourceID        string
 	LensID          string
@@ -29,6 +35,11 @@ type SnapshotSpec struct {
 	Status          string
 
 	Model string
+
+	// Non-empty marks a snapshot as part of a speculative chain (see
+	// llmcontext.ChainOriginGenerateAll). Left empty, AppendSnapshot falls back
+	// to the origin marked on ctx, so wave generations need no plumbing.
+	ChainOrigin string
 
 	WindowKey               string
 	WindowSpecVersionNumber int
@@ -63,6 +74,11 @@ func AppendSnapshot(ctx context.Context, app core.App, collectionName string, fo
 	}
 	snap.Set("status", status)
 	snap.Set("model", s.Model)
+	origin := s.ChainOrigin
+	if origin == "" {
+		origin = llmcontext.ChainOriginFromContext(ctx)
+	}
+	snap.Set("chain_origin", origin)
 	snap.Set("generation_timestamp", types.NowDateTime())
 
 	if err := app.Save(snap); err != nil {
@@ -103,8 +119,16 @@ func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int,
 	filter := strat.ForeignKeyCol() + " = {:parent} && status = 'approved'"
 	params := dbx.Params{"parent": snap.GetString(strat.ForeignKeyCol())}
 	if strat.TargetType() == "reflection" {
-		filter += " && window_key = {:wk}"
-		params["wk"] = snap.GetString("window_key")
+		if wk := snap.GetString("window_key"); wk == "" {
+			// A bound empty param compares `= ''` in SQL and misses rows whose
+			// window_key was never written (NULL); PocketBase's literal ''
+			// matches empty-or-null. Without this, every windowless snapshot
+			// sequences from 1 and the second approval hits the unique index.
+			filter += " && window_key = ''"
+		} else {
+			filter += " && window_key = {:wk}"
+			params["wk"] = wk
+		}
 	}
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
@@ -119,12 +143,21 @@ func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int,
 
 func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, output string, updateLensAndContext bool, pinned llmcontext.PinnedIDs, spec api.ContextSpec, winSpec api.WindowSpec, refinementID, targetCol string) (string, error) {
 	oldLensID := ""
+	chainOrigin := ""
 	var resWin any
 	var winKey string
 	var specVersionNumber int
 	if sourceSnapshotID != "" {
 		if sourceSnap, err := app.FindRecordById(strat.SnapshotCollectionName(), sourceSnapshotID); err == nil {
 			oldLensID = sourceSnap.GetString("lens_id")
+			// Only a still-pending chain candidate carries its mark forward: the
+			// user is mid click-through and edited instead of approving as-is.
+			// A refinement of an already-approved snapshot is an ordinary edit,
+			// even if that snapshot was chain-generated once — it must not start
+			// background work on its own.
+			if sourceSnap.GetString("status") == StatusPending {
+				chainOrigin = sourceSnap.GetString("chain_origin")
+			}
 			if strat.TargetType() == "reflection" {
 				var rw map[string]string
 				if err := sourceSnap.UnmarshalJSONField("resolved_window", &rw); err == nil && len(rw) > 0 {
@@ -152,6 +185,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		Status:          StatusApproved,
 
 		Model:                   refinementModel(),
+		ChainOrigin:             chainOrigin,
 		WindowKey:               winKey,
 		WindowSpecVersionNumber: specVersionNumber,
 	})
@@ -170,6 +204,13 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		}
 
 		EnqueueLensDistillation(strat, newSnapID, oldLensID, spec, refinementID, targetCol)
+	}
+
+	// An edit to a chain-marked candidate has just superseded whatever its
+	// pre-generated dependents consumed. Re-run the wave so the downstream
+	// subtree regenerates; its dedup guard leaves untouched branches alone.
+	if chainOrigin != "" && RequestWave != nil {
+		RequestWave()
 	}
 
 	return newSnapID, nil
