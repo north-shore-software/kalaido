@@ -39,6 +39,13 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 			return e.InternalServerError("failed to fetch fragments", err)
 		}
 
+		// Resolved before the SSE stream commits its 200 — past that point an
+		// error can no longer become a status code.
+		model, err := llm.ResolveRole(llm.RoleColour)
+		if err != nil {
+			return e.InternalServerError("no model configured for colour matching", err)
+		}
+
 		w := e.Response
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -70,7 +77,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 				// client disconnects — the live preview deliberately cancels the
 				// prior in-flight request whenever the criteria change, which
 				// would otherwise leave these LLM calls running for stale input.
-				out, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleColour, nil)
+				out, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleColour, model, nil)
 				if err != nil {
 					// A canceled context is the expected outcome of that
 					// superseded request, not a failure worth logging.

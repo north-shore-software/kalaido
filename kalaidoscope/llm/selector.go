@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -117,6 +118,18 @@ func ResolveRole(r Role) (string, error) {
 		return "", fmt.Errorf("llm: workspace provider %q has no model for role %q", cfg.Provider, r)
 	}
 	return ModelFor(activeSet, r)
+}
+
+// ResolveRoleFor resolves the model for one operation: a per-entity override
+// wins outright; empty falls back to role resolution. The distill→snapshot
+// alias in ResolveRole is unaffected — an override applies identically to both
+// roles, so the distillation loop still optimizes against the exact model the
+// entity's production applies will use.
+func ResolveRoleFor(r Role, override string) (string, error) {
+	if m := strings.TrimSpace(override); m != "" {
+		return m, nil
+	}
+	return ResolveRole(r)
 }
 
 // ActiveProviderID resolves which provider this workspace's calls currently

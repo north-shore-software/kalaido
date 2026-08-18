@@ -118,6 +118,8 @@ var schema = []tableDef{
 			&core.TextField{Name: "name"},
 			&core.JSONField{Name: "current_context_spec"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
+			// Optional per-entity model override; empty = workspace role default.
+			&core.TextField{Name: "model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
 			// Last durable provider failure seen by the background lens
 			// distillation worker ("auth"/"quota"), cleared on the next success.
@@ -135,6 +137,8 @@ var schema = []tableDef{
 			&core.JSONField{Name: "current_context_spec"},
 			&core.JSONField{Name: "window_spec_versions"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
+			// Optional per-entity model override; empty = workspace role default.
+			&core.TextField{Name: "model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
 			// Last durable provider failure seen by the background lens
 			// distillation worker ("auth"/"quota"), cleared on the next success.
@@ -268,6 +272,8 @@ var schema = []tableDef{
 
 		Fields: []core.Field{
 			&core.TextField{Name: "external_conversation_id"},
+			// Optional per-entity model override; empty = workspace role default.
+			&core.TextField{Name: "model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{

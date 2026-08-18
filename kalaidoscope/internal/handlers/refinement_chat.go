@@ -89,7 +89,18 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			return e.BadRequestError("messages required", nil)
 		}
 
-		comp, err := usage.Stream(ctx, app, llm.RoleRefinement, hydratedMsgs, []llm.Tool{updateDraftTool, suggestNameTool})
+		// A refinement conversation has no model of its own — it always
+		// follows the entity it refines.
+		parentModel := ""
+		if p := refinementParent(app, refRec); p != nil {
+			parentModel = p.GetString("model")
+		}
+		assistantModel, err := llm.ResolveRoleFor(llm.RoleRefinement, parentModel)
+		if err != nil {
+			return e.InternalServerError("no model configured for refinement", err)
+		}
+
+		comp, err := usage.Stream(ctx, app, llm.RoleRefinement, assistantModel, hydratedMsgs, []llm.Tool{updateDraftTool, suggestNameTool})
 		if errors.Is(err, usage.ErrExhausted) {
 			return usage.WriteExhausted(e, app)
 		}
@@ -99,8 +110,6 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		if err != nil {
 			return e.InternalServerError("llm stream failed", err)
 		}
-
-		assistantModel, _ := llm.ResolveRole(llm.RoleRefinement)
 
 		textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
 

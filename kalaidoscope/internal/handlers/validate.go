@@ -15,8 +15,8 @@ import (
 // result without persisting anything.
 //
 // Saving the config validates it too, so this exists for the case where a save
-// is the wrong move: choosing a provider is irreversible, so the UI needs a way
-// to try a key before committing to one.
+// is the wrong move: the UI needs a way to try a key and model without
+// persisting a broken configuration.
 func HandleValidateProvider(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		var req api.ValidateProviderRequest

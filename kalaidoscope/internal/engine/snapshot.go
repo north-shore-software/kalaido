@@ -17,8 +17,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-func GenerateOutput(ctx context.Context, app core.App, lensPrompt, sourceBlock string) (string, error) {
-	output, err := usage.GenerateOnce(ctx, app, prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{}), llm.RoleSnapshot, nil)
+func GenerateOutput(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string) (string, error) {
+	output, err := usage.GenerateOnce(ctx, app, prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{}), llm.RoleSnapshot, model, nil)
 	if err != nil {
 		return "", err
 	}
@@ -37,6 +37,11 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 
 	lensPrompt, lensSpec, _ := resolveActiveLens(app, strat, rec)
 
+	model, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model"))
+	if err != nil {
+		return "", err
+	}
+
 	sourceBlock, pinnedCtx, err := prepareGenerationContext(ctx, app, strat, rec, lensSpec)
 	if err != nil {
 		return "", fmt.Errorf("prepare context: %w", err)
@@ -50,12 +55,12 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 
 		outputStr = ""
 	} else {
-		out, err := GenerateOutput(ctx, app, lensPrompt, sourceBlock)
+		out, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
 		if err != nil {
 			return "", fmt.Errorf("generate standard: %w", err)
 		}
 		outputStr = out
-		outputModel, _ = llm.ResolveRole(llm.RoleSnapshot)
+		outputModel = model
 	}
 
 	var winSpec, resWin any
@@ -117,6 +122,14 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 	latest := recs[0]
 	if latest.GetString("lens_id") != rec.GetString("current_lens_id") {
 		return false
+	}
+	// A model change makes the latest snapshot non-current — but only when both
+	// sides are known: legacy and empty-lens snapshots carry no model and must
+	// not read as perpetually stale.
+	if snapModel := latest.GetString("model"); snapModel != "" {
+		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model")); err == nil && effective != snapModel {
+			return false
+		}
 	}
 	_, lensSpec, _ := resolveActiveLens(app, strat, rec)
 	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec)

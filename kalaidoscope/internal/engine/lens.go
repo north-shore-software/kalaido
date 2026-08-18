@@ -201,7 +201,7 @@ func sharesVerbatimRun(a, b string) bool {
 //
 // Previous lenses are never an input: the refinement conversations and the
 // critic's judgment carry everything earlier refinements established.
-func distillLensLoop(ctx context.Context, app core.App, strat Strategy, snap *core.Record) (lens string, iterations int, converged bool, err error) {
+func distillLensLoop(ctx context.Context, app core.App, strat Strategy, snap *core.Record, model string) (lens string, iterations int, converged bool, err error) {
 	var resCtx llmcontext.PinnedIDs
 	_ = snap.UnmarshalJSONField("resolved_context", &resCtx)
 	// The same hydration production apply uses (see prepareGenerationContext):
@@ -219,12 +219,12 @@ func distillLensLoop(ctx context.Context, app core.App, strat Strategy, snap *co
 	}
 	generate := func() (string, error) {
 		return retryPreempted(func() (string, error) {
-			return usage.GenerateOnceMsgs(ctx, app, genChat, llm.RoleDistill, nil)
+			return usage.GenerateOnceMsgs(ctx, app, genChat, llm.RoleDistill, model, nil)
 		})
 	}
 	critique := func() (string, error) {
 		return retryPreempted(func() (string, error) {
-			return usage.GenerateOnceMsgs(ctx, app, criticChat, llm.RoleDistill, nil)
+			return usage.GenerateOnceMsgs(ctx, app, criticChat, llm.RoleDistill, model, nil)
 		})
 	}
 
@@ -250,7 +250,7 @@ func distillLensLoop(ctx context.Context, app core.App, strat Strategy, snap *co
 		}
 
 		candidate, err := retryPreempted(func() (string, error) {
-			return GenerateOutput(ctx, app, lens, sourceBlock)
+			return GenerateOutput(ctx, app, model, lens, sourceBlock)
 		})
 		if err != nil {
 			return "", iterations, false, err
@@ -307,7 +307,12 @@ func DistillAndUpdateLens(ctx context.Context, app core.App, strat Strategy, sna
 		return err
 	}
 
-	newLensPrompt, iterations, converged, err := distillLensLoop(ctx, app, strat, snap)
+	model, err := llm.ResolveRoleFor(llm.RoleDistill, rec.GetString("model"))
+	if err != nil {
+		return err
+	}
+
+	newLensPrompt, iterations, converged, err := distillLensLoop(ctx, app, strat, snap, model)
 	if err != nil {
 		return err
 	}
@@ -325,9 +330,7 @@ func DistillAndUpdateLens(ctx context.Context, app core.App, strat Strategy, sna
 	lensRec.Set("context_spec", pbutil.JSONObject(spec))
 	lensRec.Set("iterations", iterations)
 	lensRec.Set("converged", converged)
-	if model, err := llm.ResolveRole(llm.RoleDistill); err == nil {
-		lensRec.Set("model", model)
-	}
+	lensRec.Set("model", model)
 	if refinementID := snap.GetString("created_from_refinement_id"); refinementID != "" {
 		if strat.TargetType() == "reflection" {
 			lensRec.Set("created_from_refl_refinement_id", refinementID)

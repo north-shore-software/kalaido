@@ -159,9 +159,17 @@ func evaluateTask(task evalTask) {
 
 	prompt := prompts.ColourEvalPrompt(criteria, positiveBlock, negativeBlock, targetDoc)
 
+	// Colour matching stays role-level on purpose: it is workspace utility
+	// work, not entity generation, so no per-entity override applies.
+	model, err := llm.ResolveRole(llm.RoleColour)
+	if err != nil {
+		log.Printf("colour eval worker: no model for colour role: %v", err)
+		return
+	}
+
 	var out string
 	for {
-		out, err = usage.GenerateOnce(ctx, workerApp, prompt, llm.RoleColour, nil)
+		out, err = usage.GenerateOnce(ctx, workerApp, prompt, llm.RoleColour, model, nil)
 		if errors.Is(err, llmq.ErrPreempted) {
 			// Higher-priority work took the slot mid-generation. The task is
 			// still in hand — go around again; the retry blocks in the
@@ -197,9 +205,7 @@ func evaluateTask(task evalTask) {
 	}
 	cf.Set("match_type", matchType)
 
-	if model, err := llm.ResolveRole(llm.RoleColour); err == nil {
-		cf.Set("model", model)
-	}
+	cf.Set("model", model)
 
 	if err := workerApp.Save(cf); err != nil {
 		log.Printf("colour eval worker: failed to save colour_fragment: %v", err)

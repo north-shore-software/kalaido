@@ -1,8 +1,8 @@
 package api
 
 // ValidateProviderRequest tests a candidate provider configuration without
-// storing it. The create flow needs this because the first config write fixes
-// the provider permanently — the user has to be able to try a key first.
+// storing it, so the setup flow can try a key and model before saving
+// anything.
 type ValidateProviderRequest struct {
 	Provider     string            `json:"provider"`
 	APIKey       string            `json:"apiKey"`
