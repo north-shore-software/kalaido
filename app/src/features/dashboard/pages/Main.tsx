@@ -178,7 +178,7 @@ export default function Main() {
   const generateAllHasWork = needsAction.some((it) => it.action !== "review");
   const waveGenerating = useMemo(() => {
     const status = queue.records[0];
-    if (!status || status.state !== "active") return false;
+    if (status?.state !== "active") return false;
     const running = (status.running ?? []) as {
       role?: string;
       priority?: string;
