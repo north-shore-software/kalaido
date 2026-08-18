@@ -205,8 +205,11 @@ function ContextSpecDivider({
   );
 }
 
-const TOOL_MESSAGES: Record<string, string> = {
+// null = the tool is bookkeeping the user never needs narrated (its effect
+// shows up elsewhere in the UI), so a text-less turn stays silent.
+const TOOL_MESSAGES: Record<string, string | null> = {
   update_draft: "Updated the draft.",
+  suggest_name: null,
 };
 
 function toolNoticeFor(msg: UIMessage): string | null {
@@ -218,7 +221,9 @@ function toolNoticeFor(msg: UIMessage): string | null {
         : p.type?.startsWith("tool-")
           ? p.type.slice("tool-".length)
           : undefined;
-    if (name) return TOOL_MESSAGES[name] ?? `Called ${name}.`;
+    if (!name) continue;
+    const notice = TOOL_MESSAGES[name];
+    if (notice !== null) return notice ?? `Called ${name}.`;
   }
   return null;
 }

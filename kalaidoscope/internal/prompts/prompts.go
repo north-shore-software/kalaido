@@ -64,6 +64,15 @@ func BuildPrefix(sourceBlock string, windowStart, windowEnd types.DateTime) stri
 // all have to agree on. Renaming it is therefore never just a prompt change.
 const UpdateDraftToolName = "update_draft"
 
+// SuggestNameToolName carries the model's name suggestion on turns before the
+// first draft exists (after that, the name rides update_draft's
+// "suggested_name" argument instead). Same warning as UpdateDraftToolName: the
+// string is at once the advertised tool name, quoted in
+// RefinementSystemPrompt, and the wire identifier of persisted
+// "tool-"+SuggestNameToolName parts the client reads — renaming it is never
+// just a prompt change.
+const SuggestNameToolName = "suggest_name"
+
 // ProductBrief explains the product; deliberately not phrased as "You are…" so
 // each system prompt can open with its own role line and compose this beneath.
 const ProductBrief = `Kalaido is a private desktop app where the user collects raw source material — notes, emails, transcripts, articles, brain dumps — and turns it into synthesized documents that stay current as the material changes. Everything in this conversation comes from the user's own workspace.`
@@ -108,11 +117,20 @@ You have access to the "update_draft" tool. You MUST call "update_draft" to crea
 - If the user's request is genuinely too ambiguous or underspecified to make any useful draft attempt, you may ask a plain-text clarifying question without calling "update_draft".
 - Do not call "update_draft" if the draft content would not change.
 - When you call "update_draft", keep your accompanying message to at most one short sentence, and NEVER repeat the draft text in that message — the draft belongs only inside the tool call, which renders in a separate preview pane.
-- When you are instead asking a clarifying question (no tool call), a normal, focused question is fine.`
+- When you are instead asking a clarifying question (no tool call), a normal, focused question is fine.
+
+The document also needs a display name, which you supply alongside your normal work — never as a separate turn:
+- Every "update_draft" call should also include "suggested_name": a short name for the document — at most 6 words, plain text, with no markdown, quotes, or trailing punctuation. Refine it as the draft evolves.
+- Until the first draft exists, every reply must still carry a name: on a turn where you ask a clarifying question instead of calling "update_draft", call "suggest_name" with your best current name given what you know so far.
+- Once any draft has been produced, never call "suggest_name" again — from then on the name travels only on "update_draft".`
 
 const (
 	UpdateDraftToolDescription  = "Updates the live draft preview of the projection snapshot with the full updated content."
 	UpdateDraftParamDescription = "The complete, fully-rendered content of the draft. This must be the full text, not a diff."
+	UpdateDraftNameDescription  = "A short display name for the document: at most 6 words, plain text, no markdown, quotes, or trailing punctuation."
+
+	SuggestNameToolDescription  = "Suggests a display name for the document being drafted. Only for turns before the first draft exists; afterwards the name rides update_draft."
+	SuggestNameParamDescription = "The suggested display name: at most 6 words, plain text, no markdown, quotes, or trailing punctuation."
 )
 
 // ValidationPing is deliberately trivial — config validation is a reachability

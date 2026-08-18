@@ -32,3 +32,17 @@ func TestMentionLegendComposition(t *testing.T) {
 		t.Errorf("ProjectionMention lost the quoted name join key: %q", ProjectionMention("Weekly Digest", "proj1"))
 	}
 }
+
+// The refinement prompt's naming instructions must quote the exact tool names
+// the handler advertises — the constants are wire identifiers, so a drifted
+// quote silently detaches the instruction from the tool it governs.
+func TestNameSuggestionInstructions(t *testing.T) {
+	for _, name := range []string{UpdateDraftToolName, SuggestNameToolName} {
+		if !strings.Contains(RefinementSystemPrompt, `"`+name+`"`) {
+			t.Errorf("RefinementSystemPrompt does not quote tool %q", name)
+		}
+	}
+	if !strings.Contains(RefinementSystemPrompt, `"suggested_name"`) {
+		t.Error("RefinementSystemPrompt does not mention update_draft's suggested_name argument")
+	}
+}

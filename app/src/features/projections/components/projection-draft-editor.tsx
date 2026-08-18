@@ -22,6 +22,8 @@ export interface ProjectionDraftEditorProps {
   title: string;
   crumb: string[];
   initialContext?: ContextItem[];
+  /** Makes the header title editable inline; see {@link PageHeader}. */
+  onTitleCommit?: (next: string) => void;
   onCancel: () => void;
   onApproveSuccess: (id: string) => void;
 }
@@ -31,8 +33,9 @@ export interface ProjectionDraftEditorProps {
  * a refinement chat. Used both when authoring a brand-new projection
  * ({@link NewProjection}) and when resuming an uncommitted draft
  * ({@link ProjectionDetail}) — the only difference is how the {@link RefineSession}
- * was opened (fresh `start` vs `resume`). The draft lives in the chat (as a
- * ```snapshot block) until Approve commits it and routes to the projection.
+ * was opened (fresh `start` vs `resume`). The draft lives in the chat (as an
+ * `update_draft` tool call) until Approve commits it and routes to the
+ * projection.
  */
 export function ProjectionDraftEditor({
   session,
@@ -40,6 +43,7 @@ export function ProjectionDraftEditor({
   title,
   crumb,
   initialContext,
+  onTitleCommit,
   onCancel,
   onApproveSuccess,
 }: ProjectionDraftEditorProps) {
@@ -59,6 +63,7 @@ export function ProjectionDraftEditor({
       <PageHeader
         title={title}
         crumb={crumb}
+        onTitleCommit={onTitleCommit}
         actions={
           <>
             <Button variant="ghost" onClick={onCancel}>

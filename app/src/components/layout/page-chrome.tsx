@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
 import { ChevronRightIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import { EditableText } from "@/components/kalaido/editable-text";
 import { Label } from "@/components/kalaido/text";
 import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
 import { cn } from "@/lib/css-utils";
@@ -15,6 +16,12 @@ interface PageHeaderProps {
   actions?: ReactNode;
   tabs?: ReactNode;
   className?: string;
+  /**
+   * Makes the title editable inline ({@link EditableText}): called with the
+   * trimmed new name on Enter/blur; Escape and empty submits revert. Omit for
+   * the plain read-only title.
+   */
+  onTitleCommit?: (next: string) => void;
 }
 
 /**
@@ -28,6 +35,7 @@ export function PageHeader({
   actions,
   tabs,
   className,
+  onTitleCommit,
 }: PageHeaderProps) {
   // With the sidebar collapsed to icons, the switcher no longer names the open
   // workspace — so the page does. Every in-scope page is rooted at it, which
@@ -68,7 +76,13 @@ export function PageHeader({
                 ))}
             </div>
           )}
-          <h1 className="truncate font-display text-display pb-0.5">{title}</h1>
+          <h1 className="truncate font-display text-display pb-0.5">
+            {onTitleCommit ? (
+              <EditableText value={title} onCommit={onTitleCommit} />
+            ) : (
+              title
+            )}
+          </h1>
           {description && (
             <p className="mt-1 truncate text-meta text-fg-4">{description}</p>
           )}

@@ -1,33 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { specToItems } from "@/api/kalaidoscope/chat";
-import type { ContextSpec } from "@/api/kalaidoscope/chat";
-import { useAppNavigate } from "@/routes/use-app-navigate";
-import { defineRoute } from "@/routes/route-kit";
-import { newProjectionTransitions } from "./NewProjection.transitions";
 import { toast } from "sonner";
+import type { ContextSpec } from "@/api/kalaidoscope/chat";
+import { specToItems } from "@/api/kalaidoscope/chat";
+import { createProjection } from "@/api/kalaidoscope/projections";
+import {
+  ContextBar,
+  type ContextItem,
+  RefineComposer,
+} from "@/components/kalaido";
 import {
   PageCard,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import {
-  ContextBar,
-  type ContextItem,
-  RefineComposer,
-} from "@/components/kalaido";
-import { createProjection } from "@/api/kalaidoscope/projections";
-import { useRefineSession } from "@/hooks/use-refine-session";
+import { Input } from "@/components/ui/input";
 import { ProjectionDraftEditor } from "@/features/projections/components/projection-draft-editor";
+import { useDraftName } from "@/hooks/use-draft-name";
+import { useRefineSession } from "@/hooks/use-refine-session";
+import { deriveName } from "@/lib/naming";
+import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
 import { PlaceholderPreviewPane } from "../components/placeholder-preview-pane";
-
-/** A readable projection name from the opening prompt (the only "name" we have). */
-function deriveName(prompt: string): string {
-  const t = prompt.trim().replace(/\s+/g, " ");
-  if (!t) return "Untitled projection";
-  return t.length > 60 ? `${t.slice(0, 60)}…` : t;
-}
+import { newProjectionTransitions } from "./NewProjection.transitions";
 
 /**
  * A projection that starts from something that already exists — a fragment being
@@ -58,10 +54,17 @@ export default function NewProjection() {
   );
   const [projectionId, setProjectionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [creating, setCreating] = useState(false);
 
   const session = useRefineSession({ target: "projection" });
   const started = projectionId != null && session.started;
+
+  const { name, adopt, rename } = useDraftName({
+    target: "projection",
+    entityId: projectionId,
+    suggestedName: session.suggestedName,
+  });
 
   // The first message brings the projection into being: create the container via
   // the projection endpoint, then open a refinement session over it (no lens or
@@ -74,7 +77,9 @@ export default function NewProjection() {
     if (!text || creating || session.creating) return;
     setCreating(true);
 
-    const created = await createProjection(deriveName(text));
+    const typedName = nameInput.trim();
+    const initialName = typedName || deriveName(text, "Untitled projection");
+    const created = await createProjection(initialName);
     if (created.isErr()) {
       setCreating(false);
       toast.error("Failed to create projection", {
@@ -86,7 +91,10 @@ export default function NewProjection() {
 
     const ok = await session.start({ parentId: newProjectionId, prompt: text });
     setCreating(false);
-    if (ok) setProjectionId(newProjectionId);
+    if (ok) {
+      adopt(initialName, !!typedName);
+      setProjectionId(newProjectionId);
+    }
   }
 
   /**
@@ -115,9 +123,13 @@ export default function NewProjection() {
         seedDraft: seed.draft,
       });
       setCreating(false);
-      if (ok) setProjectionId(newProjectionId);
+      if (ok) {
+        // A seed name is a person's choice (fork/graduate) — suggestions keep off.
+        adopt(seed.name, true);
+        setProjectionId(newProjectionId);
+      }
     },
-    [session, go],
+    [session, go, adopt],
   );
 
   const seedStarted = useRef(false);
@@ -136,9 +148,12 @@ export default function NewProjection() {
       <ProjectionDraftEditor
         session={session}
         projectionId={projectionId}
-        title={seedRef.current ? seedRef.current.name : "New Projection"}
+        title={
+          name ?? (seedRef.current ? seedRef.current.name : "New Projection")
+        }
         crumb={["Projections", "New"]}
         initialContext={context}
+        onTitleCommit={rename}
         onCancel={() => go(newProjectionTransitions.cancel)}
         onApproveSuccess={(projId) =>
           go(newProjectionTransitions.approveSuccess, {
@@ -195,6 +210,17 @@ export default function NewProjection() {
               placeholder="‘A live PRD for the checkout redesign’…"
               disabled={creating}
               onSubmit={() => void startProjection()}
+              nameField={
+                <div className="shrink-0 px-4 pb-3">
+                  <Input
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="Name (optional — Kalaido will suggest one)"
+                    aria-label="Projection name"
+                    disabled={creating}
+                  />
+                </div>
+              }
               beforeInput={
                 <ContextBar
                   items={context}

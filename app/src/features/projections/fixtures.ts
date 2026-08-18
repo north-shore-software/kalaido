@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import type {
   ProjectionResponse,
   ProjectionSnapshotResponse,
@@ -6,7 +7,6 @@ import { Collections, type IsoAutoDateString } from "@/api/kalaidoscope/types";
 import type { TimelineItem } from "@/components/kalaido";
 import { TIMELINE_TRUTH_FIXTURES } from "@/components/kalaido/fixtures.ts";
 import type { RefineSession } from "@/hooks/use-refine-session";
-import type { UIMessage } from "ai";
 
 export const mockMarkdownContent1 = `# Product Roadmap Q3
 
@@ -189,6 +189,7 @@ export const mockSession: RefineSession = {
   messages: mockMessages,
   onMessagesChange: () => {},
   preview: mockMarkdownContent1,
+  suggestedName: "Product Roadmap",
   started: true,
   creating: false,
   committing: false,

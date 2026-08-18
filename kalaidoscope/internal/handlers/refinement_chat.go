@@ -26,9 +26,28 @@ var updateDraftTool = llm.Tool{
 			"draft": {
 				"type": "string",
 				"description": ` + strconv.Quote(prompts.UpdateDraftParamDescription) + `
+			},
+			"suggested_name": {
+				"type": "string",
+				"description": ` + strconv.Quote(prompts.UpdateDraftNameDescription) + `
 			}
 		},
 		"required": ["draft"]
+	}`),
+}
+
+var suggestNameTool = llm.Tool{
+	Name:        prompts.SuggestNameToolName,
+	Description: prompts.SuggestNameToolDescription,
+	Parameters: json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string",
+				"description": ` + strconv.Quote(prompts.SuggestNameParamDescription) + `
+			}
+		},
+		"required": ["name"]
 	}`),
 }
 
@@ -70,7 +89,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			return e.BadRequestError("messages required", nil)
 		}
 
-		comp, err := usage.Stream(ctx, app, llm.RoleRefinement, hydratedMsgs, []llm.Tool{updateDraftTool})
+		comp, err := usage.Stream(ctx, app, llm.RoleRefinement, hydratedMsgs, []llm.Tool{updateDraftTool, suggestNameTool})
 		if errors.Is(err, usage.ErrExhausted) {
 			return usage.WriteExhausted(e, app)
 		}

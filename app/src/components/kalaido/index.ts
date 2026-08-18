@@ -24,6 +24,7 @@ export type {
 } from "./context-picker";
 export { DiffLine } from "./diff";
 export { DocumentCard } from "./document-card";
+export { EditableText, type EditableTextProps } from "./editable-text";
 export { EmptyState } from "./empty-state";
 export { FragmentCard } from "./fragment-card";
 export { fragmentTypeIcon } from "./icons";
