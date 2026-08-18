@@ -113,7 +113,7 @@ export function ChatComposer({
   return (
     <div className="shrink-0 border-t p-4">
       {quotaMessage && (
-        <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <p className="mb-2 border border-drifting/40 bg-drifting-wash px-3 py-2 text-meta text-drifting-ink">
           {quotaMessage}
         </p>
       )}

@@ -88,14 +88,14 @@ the exception: they use a centred Archivo semibold hero header beneath the glowi
 LLM output renders as markdown through `MarkdownContent` (components/kalaido). Markdown
 headings are content, not chrome — they never use the display serif (page titles only)
 and top out at `card-title`. Two variants: **document** (previews, snapshots — the
-`body` voice) and **chat** (message bubbles — the `text-sm` voice, everything scaled
+`body` voice) and **chat** (message bubbles — the `body-sm` voice, everything scaled
 down one step).
 
 | Element | Document variant |
 |---|---|
 | `p` | `body` |
 | `h1` | `card-title` weight 700 |
-| `h2` | 16px bold |
+| `h2` | `body` bold |
 | `h3`–`h6` | `body-sm` semibold |
 | lists | `pl-5`, disc/decimal, task lists as disabled checkboxes |
 | `blockquote` | 2px `line-strong` left border, `fg-3` |
@@ -544,6 +544,13 @@ no outline ever.
   field already sitting inside a bordered container.
 - **Underlined** — a `line-strong` bottom border promoting to the section accent on
   focus. For free-standing form fields.
+
+**Inline rename** (`EditableText`) — text that is secretly a field. At rest it renders
+as plain text inheriting the surrounding type, with a 14px `fg-5` pencil revealed on
+hover or focus; clicking swaps in a bare input styled to match, marked only by a 1px
+bottom border in the section accent. Enter or blur commits; Escape, an empty submit,
+or an unchanged submit revert silently. Page titles take it via `PageHeader`'s
+`onTitleCommit` — the one sanctioned interactive element inside the display serif.
 
 A chat composer is a `line`-topped bar, 12px/16px padding, with a 26px chamfered send button
 that is `line-strong`/transparent/`fg-4` when idle and solid section accent (`bg-section`) with

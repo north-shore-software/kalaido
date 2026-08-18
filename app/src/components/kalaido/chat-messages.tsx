@@ -40,7 +40,7 @@ function MessageText({ content }: { content: string }) {
         key={i}
         // `currentColor`-derived so the chip reads on both the primary (user)
         // and muted (assistant) bubble backgrounds without per-role styling.
-        className="inline rounded-sm border border-current/25 bg-current/10 px-1 font-medium whitespace-nowrap"
+        className="inline rounded-none border border-current/25 bg-current/10 px-1 font-medium whitespace-nowrap"
       >
         @{seg.label}
       </span>
@@ -58,7 +58,7 @@ function MessageText({ content }: { content: string }) {
  */
 const mentionTagComponents = {
   kmention: (props: Record<string, unknown>) => (
-    <span className="inline rounded-sm border border-current/25 bg-current/10 px-1 font-medium whitespace-nowrap">
+    <span className="inline rounded-none border border-current/25 bg-current/10 px-1 font-medium whitespace-nowrap">
       {props.children as ReactNode}
     </span>
   ),
@@ -76,7 +76,7 @@ export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
     >
       <div
         className={cn(
-          "max-w-[70%] rounded-none px-4 py-2.5 text-sm leading-relaxed break-words",
+          "max-w-[70%] rounded-none px-4 py-2.5 text-body-sm leading-relaxed break-words",
           role === "user"
             ? "bg-section text-section-foreground font-medium whitespace-pre-wrap"
             : "bg-surface-2 text-fg-1",
@@ -258,7 +258,7 @@ export function ChatMessages({
     <>
       {chatMessageCount === 0 && (
         <div className="flex justify-start">
-          <div className="max-w-[70%] rounded-none px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words bg-surface-2 text-fg-1">
+          <div className="max-w-[70%] rounded-none px-4 py-2.5 text-body-sm leading-relaxed whitespace-pre-wrap break-words bg-surface-2 text-fg-1">
             {greeting}
           </div>
         </div>
@@ -283,7 +283,7 @@ export function ChatMessages({
           if (!notice) return null;
           return (
             <div key={msg.id} className="flex justify-start">
-              <div className="max-w-[70%] rounded-none px-4 py-2.5 text-sm italic leading-relaxed text-fg-4 bg-surface-2">
+              <div className="max-w-[70%] rounded-none px-4 py-2.5 text-body-sm italic leading-relaxed text-fg-4 bg-surface-2">
                 {notice}
               </div>
             </div>
@@ -310,7 +310,7 @@ export function ChatMessages({
 
       {pending && (
         <div className="flex justify-start">
-          <div className="bg-surface-2 rounded-none px-4 py-2.5 text-sm text-fg-4">
+          <div className="bg-surface-2 rounded-none px-4 py-2.5 text-body-sm text-fg-4">
             …
           </div>
         </div>

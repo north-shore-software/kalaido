@@ -24,7 +24,7 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 - [ ] `14-connections-import.md`
 - [ ] `15-settings.md`
 - [ ] `16-onboarding-boot.md`
-- [ ] `17-context-ui.md` — the context-bar/mentions UI added by #53–#56 after the sweep started (includes Sara's review of its ported section tints)
+- [ ] `17-context-ui.md` — review of the post-sweep feature surface: context-bar tints, markdown rendering (#59), inline naming (#62); includes re-review of the 09/10 headers #62 changed
 
 ## Finish
 
@@ -50,6 +50,7 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 2026-08-18 · §3 · Fragments do not wear their Colour in the Stream: cards and timeline dots take the section accent; the Colour shows only in the fragment drawer · Fragments
 2026-08-18 · §7 · 'section' button variant chamfers on hover (rest state square, borderless) · Projections, Reflections, Colours, Fragments
 2026-08-18 · §6 · Icon stroke rule enforced globally via CSS (svg.lucide 1.5; checks/chevrons re-asserted at 2) rather than per-callsite props · All screens
+2026-08-18 · §7 · Inline-rename recipe added (EditableText: inherits surrounding type, hover pencil, section-accent editing underline); page titles renameable via PageHeader onTitleCommit · Projections, Reflections
 
 ## Exceptions (log)
 
