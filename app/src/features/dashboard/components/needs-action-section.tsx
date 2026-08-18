@@ -8,8 +8,13 @@ export interface NeedsActionSectionProps {
   onAction: (item: NeedItem) => void;
   /** Id of the row currently generating a candidate, if any. */
   busyId?: string | null;
-  /** Start a background generation wave over everything listed here. */
+  /**
+   * Start a background generation wave over everything listed here. Omit when
+   * every row already has its candidate — there is nothing left to generate.
+   */
   onGenerateAll?: () => void;
+  /** The background wave is working; the action is shown but not pressable. */
+  generating?: boolean;
 }
 
 export function NeedsActionSection({
@@ -17,6 +22,7 @@ export function NeedsActionSection({
   onAction,
   busyId,
   onGenerateAll,
+  generating,
 }: NeedsActionSectionProps) {
   if (items.length === 0) {
     return null;
@@ -32,9 +38,10 @@ export function NeedsActionSection({
             size="sm"
             variant="outline"
             className="ml-auto"
+            disabled={generating}
             onClick={onGenerateAll}
           >
-            Generate all
+            {generating ? "Generating…" : "Generate all"}
           </Button>
         )}
       </div>
