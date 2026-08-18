@@ -78,8 +78,7 @@ export default function Import() {
         description="Bring an mbox archive, a text file, a Word document, or a zip into this kalaidoscope."
         actions={
           <Button
-            size="sm"
-            variant="ghost"
+            className="border-lime-edge bg-lime-wash text-lime-ink hover:border-lime hover:bg-lime-wash hover:text-lime-ink"
             onClick={() => go(importTransitions.backToStream)}
             disabled={running}
           >
@@ -92,9 +91,7 @@ export default function Import() {
           <section className="flex flex-col gap-2">
             <Label>File</Label>
             <FilePicker path={path} disabled={running} onChoose={chooseFile} />
-            {pickError && (
-              <p className="text-xs text-muted-foreground">{pickError}</p>
-            )}
+            {pickError && <p className="text-body-sm text-fg-3">{pickError}</p>}
             {path && <ImportPreview entries={entries} scanning={scanning} />}
           </section>
 

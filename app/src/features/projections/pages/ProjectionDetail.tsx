@@ -240,7 +240,7 @@ export default function ProjectionDetail() {
                 <DropdownMenuItem onClick={() => fork("refine")}>
                   <div className="flex flex-col gap-0.5">
                     <span>Refine into a further stage</span>
-                    <span className="text-[11px] text-fg-3">
+                    <span className="text-meta text-fg-3">
                       Reads this projection's output
                     </span>
                   </div>
@@ -248,7 +248,7 @@ export default function ProjectionDetail() {
                 <DropdownMenuItem onClick={() => fork("orthogonal")}>
                   <div className="flex flex-col gap-0.5">
                     <span>Another view of the same material</span>
-                    <span className="text-[11px] text-fg-3">
+                    <span className="text-meta text-fg-3">
                       Reads this projection's inputs
                     </span>
                   </div>

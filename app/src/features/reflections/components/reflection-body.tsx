@@ -30,7 +30,7 @@ export function ReflectionBody({
             past snapshot
             {historical?.status ? ` · ${historical.status}` : ""}
           </StatusPill>
-          <span className="text-[11.5px] text-fg-4">
+          <span className="text-meta text-fg-4">
             Viewing a past reflection snapshot — read-only
           </span>
         </div>
@@ -39,7 +39,7 @@ export function ReflectionBody({
             <DocBody paragraphs={3} />
           </div>
         ) : historical ? (
-          <div className="max-w-[500px] whitespace-pre-wrap text-[13px] leading-relaxed">
+          <div className="max-w-[500px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
             {historicalContent || "(empty snapshot)"}
           </div>
         ) : (
@@ -64,13 +64,13 @@ export function ReflectionBody({
       )}
 
       {status === "error" && (
-        <p className="text-[13px] text-destructive">
+        <p className="text-body-sm text-destructive">
           Couldn’t load this reflection: {errorMessage}
         </p>
       )}
 
       {status === "ready" && (
-        <div className="max-w-[500px] whitespace-pre-wrap text-[13px] leading-relaxed">
+        <div className="max-w-[500px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
           {content || "(empty snapshot)"}
         </div>
       )}

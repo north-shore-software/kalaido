@@ -32,7 +32,7 @@ export function SnapshotPreview({
               {historicalVersion ? `v${historicalVersion}` : "snapshot"}
               {historical?.status ? ` · ${historical.status}` : ""}
             </StatusPill>
-            <span className="text-[11.5px] text-fg-4">
+            <span className="text-meta text-fg-4">
               Viewing a past snapshot — read-only
             </span>
           </div>
@@ -41,7 +41,7 @@ export function SnapshotPreview({
               <DocBody paragraphs={4} />
             </div>
           ) : historical ? (
-            <div className="max-w-[640px] whitespace-pre-wrap text-[13px] leading-relaxed">
+            <div className="max-w-[640px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
               {historicalContent || "(empty snapshot)"}
             </div>
           ) : (
@@ -68,7 +68,7 @@ export function SnapshotPreview({
             ))}
 
           {state.status === "error" && (
-            <p className="text-[13px] text-destructive">
+            <p className="text-body-sm text-destructive">
               Couldn’t load this projection: {state.error.message}
             </p>
           )}
@@ -78,7 +78,7 @@ export function SnapshotPreview({
               <div className="mb-4 flex items-center gap-2.5">
                 <Pill tone="primary">plan of record</Pill>
               </div>
-              <div className="max-w-[640px] whitespace-pre-wrap text-[13px] leading-relaxed">
+              <div className="max-w-[640px] whitespace-pre-wrap text-body leading-relaxed text-fg-1">
                 {state.output.content || "(empty snapshot)"}
               </div>
             </>

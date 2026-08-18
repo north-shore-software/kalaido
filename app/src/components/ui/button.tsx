@@ -13,7 +13,7 @@ const buttonVariants = cva(
         commit:
           "bg-magenta font-bold text-magenta-foreground drop-shadow-magenta clip-chamfer hover:opacity-[0.86] focus-visible:ring-magenta/50",
         section:
-          "bg-section font-bold text-section-foreground hover:opacity-[0.86] focus-visible:ring-section/50",
+          "border-transparent bg-section font-bold text-section-foreground hover:text-section-foreground hover:clip-chamfer hover:opacity-[0.86] focus-visible:ring-section/50",
         outline:
           "border-fg-3 bg-transparent text-fg-1 hover:border-fg-1 aria-expanded:border-fg-1",
         secondary:

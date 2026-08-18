@@ -19,7 +19,7 @@ reference quality; change it least.
    navigation to `/settings/appearance`.
 3. **Active nav**: neutral section — active item becomes the grey treatment from
    step 02; Danger Zone keeps `critical` (§6). Verify.
-4. **Type pass**: ~16 t-shirt sizes across the section components → §2 roles.
+4. **Type pass**: ~15 t-shirt sizes across the section components → §2 roles (account-card, model-download-card, local-ai-section, danger-zone-section, model-radio-list, ollama-status-card, auth-form).
 5. OAuth buttons keep the `secondary` variant (§7 sanctions exactly that use).
 
 ## Review

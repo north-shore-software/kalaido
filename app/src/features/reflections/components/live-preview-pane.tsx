@@ -25,15 +25,15 @@ export function LivePreviewPane({
       />
       <div className="flex-1 overflow-y-auto p-5">
         {!started ? (
-          <p className="text-[13px] text-fg-2">
+          <p className="text-body-sm text-fg-2">
             Send a first message to generate a draft.
           </p>
         ) : preview.length > 0 ? (
-          <div className="whitespace-pre-wrap text-[13px] leading-relaxed">
+          <div className="whitespace-pre-wrap text-body leading-relaxed text-fg-1">
             {preview}
           </div>
         ) : (
-          <p className="text-[13px] text-fg-2">Generating…</p>
+          <p className="text-body-sm text-fg-2">Generating…</p>
         )}
       </div>
     </div>

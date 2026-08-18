@@ -161,7 +161,7 @@ export default function NewProjection() {
         />
         <PageCard>
           <div className="flex flex-1 items-center justify-center">
-            <p className="text-[13px] text-fg-2">Preparing the draft…</p>
+            <p className="text-body-sm text-fg-2">Preparing the draft…</p>
           </div>
         </PageCard>
       </PageLayout>

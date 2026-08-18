@@ -59,12 +59,12 @@ export function SchedulePill({ freq, win, className }: SchedulePillProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-md bg-surface-2 p-2.5",
+        "flex items-center gap-2 rounded-none bg-surface-2 p-2.5",
         className,
       )}
     >
       <ClockIcon className="size-3.5 text-fg-3" />
-      <Mono className="text-[11px] text-fg-2">
+      <Mono className="text-meta text-fg-2">
         {freq} · last {win}
       </Mono>
     </div>

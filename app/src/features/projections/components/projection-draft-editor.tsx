@@ -96,11 +96,11 @@ export function ProjectionDraftEditor({
             />
             <div className="flex-1 overflow-y-auto p-5">
               {session.preview.length > 0 ? (
-                <div className="whitespace-pre-wrap text-[13px] leading-relaxed">
+                <div className="whitespace-pre-wrap text-body leading-relaxed text-fg-1">
                   {session.preview}
                 </div>
               ) : (
-                <p className="text-[13px] text-fg-2">Nothing drafted yet.</p>
+                <p className="text-body-sm text-fg-2">Nothing drafted yet.</p>
               )}
             </div>
           </div>

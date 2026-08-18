@@ -73,16 +73,16 @@ export function ColourDetailPane({
           className="rounded-[7px]"
         />
         <div className="flex flex-col gap-0.5">
-          <span className="text-xl font-semibold">
+          <span className="text-card-title font-bold text-fg-1">
             {colour.name || "Untitled colour"}
           </span>
-          <Mono className="text-[11.5px] text-fg-4">
+          <Mono className="text-meta text-fg-4">
             {count} fragments · AI-tagged
           </Mono>
         </div>
       </div>
 
-      <div className="rounded-lg bg-surface-2 p-4">
+      <div className="rounded-none border border-line bg-surface-2 p-4">
         <Label className="mb-2 block">Filter prompt</Label>
         {editingCriteria !== null ? (
           <div className="flex flex-col gap-2.5">
@@ -94,30 +94,24 @@ export function ColourDetailPane({
             />
             <div className="flex gap-2">
               <Button
-                size="sm"
                 variant="commit"
                 disabled={!editingCriteria.trim()}
                 onClick={() => void saveCriteria()}
               >
                 Save definition
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setEditingCriteria(null)}
-              >
+              <Button variant="ghost" onClick={() => setEditingCriteria(null)}>
                 Cancel
               </Button>
             </div>
           </div>
         ) : (
           <>
-            <Mono className="text-[13px] leading-relaxed text-foreground">
+            <Mono className="text-body leading-relaxed text-fg-1">
               “{colour.criteria || "No criteria set"}”
             </Mono>
             <div className="mt-3.5 flex gap-2">
               <Button
-                size="sm"
                 variant="outline"
                 onClick={() => setEditingCriteria(colour.criteria ?? "")}
               >
@@ -131,7 +125,7 @@ export function ColourDetailPane({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <Label>Member fragments</Label>
-          <Mono className="text-[10.5px] text-fg-4">
+          <Mono className="text-meta text-fg-4">
             reject a tag → refines the filter
           </Mono>
         </div>
@@ -159,7 +153,7 @@ export function ColourDetailPane({
                       type="button"
                       onClick={() => void rejectTag(m.fragment_id)}
                       title="Reject this tag"
-                      className="absolute right-2 top-2 hidden size-5 items-center justify-center rounded-md bg-surface-2 text-fg-3 hover:text-critical-ink group-hover:flex"
+                      className="absolute right-2 top-2 hidden size-5 items-center justify-center rounded-none bg-surface-2 text-fg-3 hover:text-critical-ink group-hover:flex"
                     >
                       <XIcon className="size-3.5" />
                     </button>

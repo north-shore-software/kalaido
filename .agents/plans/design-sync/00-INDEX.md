@@ -8,26 +8,27 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 - [x] `01-hue-map.md` — finalise the section→hue map with Sara (Projections #4ade80, Reflections #c084fc, Colours #fda4af, Fragments #a3e635)
 - [x] `02-section-tokens.md` — introduce `--section-*` tokens, re-point the primitives (Capture and rail nav hover exceptions logged)
 - [x] `03-buttons-pills.md` — button dedupe, pill fixes (default 40px button size rule change logged)
-- [ ] `04-overlays.md` — reskin dialogs/popovers to §5 (partially done: dialog, alert-dialog, dropdown-menu, popover, select, sheet ✓; remaining: hover-card, menubar, navigation-menu, context-menu, combobox, chart tooltip)
-- [x] `05-composer.md` — chat composer now wears the §7 send recipe; shared send-button classes extracted (quota-notice tone remains open, see step file)
-- [ ] `06-icons.md` — stroke widths per §6
+- [x] `04-overlays.md` — reskin dialogs/popovers to §5 (dialog, alert-dialog, dropdown-menu, popover, select, sheet, hover-card, context-menu, combobox, chart tooltip ✓; menubar + navigation-menu skipped — unimported, deleted in step 18 instead)
+- [x] `05-composer.md` — chat composer now wears the §7 send recipe; shared send-button classes extracted (quota-notice tone moved to step 17)
+- [x] `06-icons.md` — stroke widths per §6
 
 ## Screens (one per step)
 
-- [ ] `07-dashboard.md`
-- [ ] `08-chat.md`
-- [ ] `09-projections.md` (list · detail · draft · review)
-- [ ] `10-reflections.md`
-- [ ] `11-colours.md`
-- [ ] `12-fragments.md` (stream)
-- [ ] `13-rotation.md`
+- [x] `07-dashboard.md`
+- [x] `08-chat.md`
+- [x] `09-projections.md` (list · detail · draft · review)
+- [x] `10-reflections.md`
+- [x] `11-colours.md`
+- [x] `12-fragments.md` (stream)
+- [x] `13-rotation.md`
 - [ ] `14-connections-import.md`
 - [ ] `15-settings.md`
 - [ ] `16-onboarding-boot.md`
+- [ ] `17-context-ui.md` — the context-bar/mentions UI added by #53–#56 after the sweep started (includes Sara's review of its ported section tints)
 
 ## Finish
 
-- [ ] `17-cleanup.md` — dead code and dead tokens (only after all screens pass)
+- [ ] `18-cleanup.md` — dead code and dead tokens (only after all screens pass)
 
 ---
 
@@ -45,6 +46,10 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 2026-08-17 · §3 · Wash alpha 0.12–0.14 → 0.08 (0.04 for magenta and critical) · All washes
 2026-08-17 · §4 · Entity kinds wear their home section's hue everywhere (projection green, reflection violet, fragment lime); replaces per-entity ColourSwatch identity outside Colours · Dashboard, Projections, Reflections, Fragments
 2026-08-17 · §4 · Reassurance states ("up to date", "latest", draft/pending previews) wear the section accent; drifting/critical stay constant · Projections, Reflections, Rotation
+2026-08-18 · §3 · Yellow-as-source-tint abolished: pickers, source/pin chips and LastN controls borrow the route's section accent (magenta stays reserved for focus) · Chat, Projections, Reflections
+2026-08-18 · §3 · Fragments do not wear their Colour in the Stream: cards and timeline dots take the section accent; the Colour shows only in the fragment drawer · Fragments
+2026-08-18 · §7 · 'section' button variant chamfers on hover (rest state square, borderless) · Projections, Reflections, Colours, Fragments
+2026-08-18 · §6 · Icon stroke rule enforced globally via CSS (svg.lucide 1.5; checks/chevrons re-asserted at 2) rather than per-callsite props · All screens
 
 ## Exceptions (log)
 

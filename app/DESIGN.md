@@ -197,11 +197,14 @@ Each status colour also carries a `wash` tier (0.08 alpha for stable/drifting; 0
 ### Content palette
 
 Eight vivid oklch mid-tones, `--content-1…8`, colour the user's own content: the
-swatch a Colour carries (`ColourSwatch`), and the dot a fragment takes from its
-assigned Colour. They are identity, not meaning: never use them for state, demand or
-status. They are *per-item* identity only — what kind of thing an item is (its entity
-kind) is carried by the kind's home-section hue instead (§4). Section hues are their
-own dedicated tokens, not drawn from this palette.
+swatch a Colour carries (`ColourSwatch`), shown wherever a Colour is the subject —
+the Colours screens, pickers and @-mentions, and a fragment's drawer detail. A
+fragment does *not* wear its Colour in the Stream itself: stream cards and timeline
+dots take the section accent, and the Colour appears only once the drawer opens.
+They are identity, not meaning: never use them for state, demand or status. They are
+*per-item* identity only — what kind of thing an item is (its entity kind) is
+carried by the kind's home-section hue instead (§4). Section hues are their own
+dedicated tokens, not drawn from this palette.
 
 ---
 
@@ -444,8 +447,10 @@ Optional leading icon in an accent. Hover promotes the border to `fg-1`.
 chamfered, `drop-shadow-magenta`. Hover drops to `opacity: 0.86`.
 
 **Section Action** (`section`) — for section creation actions (e.g. '+ New Projection').
-Solid section accent fill (`bg-section`), `#121315` text, weight 700, zero radius, hover
-`opacity: 0.86`. Its sanctioned companion (Chat's History button) is the *washed* form:
+Solid section accent fill (`bg-section`), borderless, `#121315` text, weight 700, zero
+radius at rest; on hover it chamfers (`clip-chamfer`) and drops to `opacity: 0.86` —
+the cut corner, elsewhere the mark of *the* committed action, appears as a preview of
+commitment. Its sanctioned companion (Chat's History button) is the *washed* form:
 `section-edge` border, static `section-wash` fill, `section-ink` text — hover promotes
 the border to the solid accent, the fill never changes.
 

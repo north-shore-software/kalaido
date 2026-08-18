@@ -16,7 +16,7 @@ export function FilePicker({ path, disabled, onChoose }: FilePickerProps) {
         readOnly
         placeholder="No file selected"
         onClick={onChoose}
-        className="flex-1 cursor-pointer font-mono text-sm"
+        className="flex-1 cursor-pointer font-mono text-body-sm"
       />
       <Button
         type="button"

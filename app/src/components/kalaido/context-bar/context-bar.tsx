@@ -150,7 +150,7 @@ export function ContextBar({
           {open === "colours" && (
             <ItemPicker
               kindLabel="Colour"
-              tint="cyan"
+              tint="section"
               options={barSources.colours}
               selectedIds={selectedIds("Colour", barSources.colours)}
               onPick={(o) => {
@@ -163,7 +163,7 @@ export function ContextBar({
           {open === "types" && (
             <ItemPicker
               kindLabel="Type"
-              tint="cyan"
+              tint="section"
               options={barSources.types}
               selectedIds={selectedIds("Type", barSources.types)}
               onPick={(o) => {
@@ -176,7 +176,7 @@ export function ContextBar({
           {open === "pins" && (
             <ItemPicker
               kindLabel="Item"
-              tint="yellow"
+              tint="section"
               options={pinChoices.options}
               remoteFiltered
               loading={fragmentSearch.loading}
@@ -222,7 +222,7 @@ export function ContextBar({
             type="button"
             title="Remove from context"
             onClick={() => onChange(removePin(items, pin))}
-            className="flex min-w-0 items-center gap-1 rounded-none border border-yellow-line px-1.5 py-0.5 font-mono text-pill font-semibold text-yellow-ink hover:opacity-80"
+            className="flex min-w-0 items-center gap-1 rounded-none border border-section-edge px-1.5 py-0.5 font-mono text-pill font-semibold text-section-ink hover:opacity-80"
           >
             <span className="shrink-0 uppercase">{KIND_ABBREV[pin.kind]}</span>
             <span className="min-w-0 truncate normal-case font-sans text-meta text-fg-1">

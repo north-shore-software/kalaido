@@ -3,16 +3,16 @@ import { cn } from "@/lib/css-utils";
 import { ColourSwatch } from "../colour";
 
 /** Which stage opened the picker — it borrows that stage's accent. */
-export type PickerTint = "cyan" | "yellow";
+export type PickerTint = "section" | "magenta";
 
 const TINT: Record<PickerTint, { box: string; pill: string }> = {
-  cyan: {
+  section: {
     box: "border-section",
     pill: "border-section-edge text-section-ink",
   },
-  yellow: {
-    box: "border-yellow",
-    pill: "border-yellow-line text-yellow-ink",
+  magenta: {
+    box: "border-magenta",
+    pill: "border-magenta-edge text-magenta-ink",
   },
 };
 

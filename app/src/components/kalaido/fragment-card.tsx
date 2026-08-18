@@ -1,14 +1,12 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/css-utils";
 import { fragmentTypeIcon } from "./icons";
-import { ColourSwatch } from "./colour";
 import { Mono } from "./text";
 import { StatusPill } from "./status-pill";
 
 export function FragmentCard({
   type,
   time,
-  colours = [],
   preview,
   compact,
   rejected,
@@ -36,7 +34,7 @@ export function FragmentCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex size-6 shrink-0 items-center justify-center rounded-none bg-surface-2">
-            <Icon className="size-3.5 text-fg-3" />
+            <Icon className="size-3.5 text-lime" />
           </span>
           <span className="truncate text-body-sm font-semibold">{type}</span>
         </div>
@@ -52,15 +50,6 @@ export function FragmentCard({
         <p className="mt-2 font-mono text-mono-sm leading-relaxed text-fg-4">
           {preview}
         </p>
-      )}
-      {colours.length > 0 && (
-        <div className="mt-2 flex gap-1.5">
-          {colours
-            .map((c, i) => ({ c, key: `${i}-${c}` }))
-            .map((s) => (
-              <ColourSwatch key={s.key} c={s.c} size={9} />
-            ))}
-        </div>
       )}
     </div>
   );

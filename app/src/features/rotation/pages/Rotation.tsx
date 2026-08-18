@@ -192,7 +192,7 @@ export default function Rotation() {
                   />
                 );
               })}
-              <Mono className="ml-[42px] text-[11.5px] text-fg-4">
+              <Mono className="ml-[42px] text-meta text-fg-4">
                 only the top card is actionable · approve to advance the queue
               </Mono>
             </>

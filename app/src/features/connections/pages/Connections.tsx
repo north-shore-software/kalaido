@@ -14,7 +14,7 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { Pill, StatusPill } from "@/components/kalaido";
+import { Pill } from "@/components/kalaido";
 import { connectionsTransitions } from "./Connections.transitions";
 
 interface Connection {
@@ -66,21 +66,21 @@ function ConnectionRow({ c }: { c: AvailableConnection }) {
   return (
     <RouteLink
       transition={c.transition}
-      className="group flex items-center gap-4 rounded-lg border border-line bg-card p-4 transition-all hover:border-line-strong"
+      className="group flex items-center gap-4 rounded-none border border-line bg-card p-4 transition-colors hover:border-line-strong hover:bg-surface-2/50"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-fg-2">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-none bg-surface-2 text-fg-2">
         <Icon className="size-5" />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">{c.title}</h3>
-          <StatusPill kind="yellow">Available</StatusPill>
+          <h3 className="text-row font-semibold text-fg-1">{c.title}</h3>
+          <Pill tone="primary">Available</Pill>
         </div>
-        <p className="mt-0.5 text-xs leading-relaxed text-fg-3">
+        <p className="mt-0.5 text-body-sm leading-relaxed text-fg-3">
           {c.description}
         </p>
       </div>
-      <ArrowRightIcon className="size-4 shrink-0 text-fg-4 transition-transform group-hover:translate-x-0.5" />
+      <ArrowRightIcon className="size-4 shrink-0 text-fg-4 transition-colors group-hover:text-fg-2" />
     </RouteLink>
   );
 }
@@ -88,16 +88,16 @@ function ConnectionRow({ c }: { c: AvailableConnection }) {
 function ComingSoonRow({ c }: { c: Connection }) {
   const Icon = c.icon;
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-dashed border-line bg-card/40 p-4">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-fg-4">
+    <div className="flex items-center gap-4 rounded-none border border-dashed border-line bg-card/40 p-4">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-none bg-surface-2 text-fg-4">
         <Icon className="size-5" />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-fg-3">{c.title}</h3>
+          <h3 className="text-row font-semibold text-fg-3">{c.title}</h3>
           <Pill tone="muted">Coming soon</Pill>
         </div>
-        <p className="mt-0.5 text-xs leading-relaxed text-fg-4">
+        <p className="mt-0.5 text-body-sm leading-relaxed text-fg-4">
           {c.description}
         </p>
       </div>

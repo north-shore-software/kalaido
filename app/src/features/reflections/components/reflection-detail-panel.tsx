@@ -266,10 +266,10 @@ export function ReflectionDetailPanel({
             )}
           </div>
         )}
-        <aside className="flex w-[240px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-line p-4">
+        <aside className="flex w-[280px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-line p-4">
           {readOnly ? (
-            <div className="rounded-lg border border-line p-3.5">
-              <p className="mb-3 text-[11.5px] leading-relaxed text-fg-2">
+            <div className="rounded-none border border-line p-3.5">
+              <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
                 You’re viewing a past snapshot. It’s read-only.
               </p>
               <Button

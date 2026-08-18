@@ -22,7 +22,7 @@ export function QNode({ state, n, last }: QNodeProps) {
         )}
       >
         {state === "done" ? (
-          <CheckIcon className="size-3 text-white" strokeWidth={2.4} />
+          <CheckIcon className="size-3 text-white" />
         ) : (
           <Mono
             className={cn(
@@ -55,10 +55,10 @@ export function QueuedRotationRow({
   return (
     <div className="flex gap-4 opacity-50">
       <QNode state="todo" n={n} last={last} />
-      <div className="mb-3 flex flex-1 items-center justify-between rounded-lg border border-dashed border-border px-4 py-3.5">
+      <div className="mb-3 flex flex-1 items-center justify-between rounded-none border border-dashed border-border px-4 py-3.5">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[13.5px] font-medium text-fg-2">{name}</span>
-          {dep && <Mono className="text-[10.5px] text-fg-4">{dep}</Mono>}
+          <span className="text-row font-medium text-fg-2">{name}</span>
+          {dep && <Mono className="text-meta text-fg-4">{dep}</Mono>}
         </div>
         <ClockIcon className="size-3.5 text-fg-4" />
       </div>

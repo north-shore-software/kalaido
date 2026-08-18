@@ -26,7 +26,7 @@ function entryName(path: string): string {
 export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
   if (scanning) {
     return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+      <p className="flex items-center gap-2 text-body-sm text-fg-3">
         <Spinner className="size-4" />
         Scanning contents…
       </p>
@@ -41,14 +41,14 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">Contents</span>
-        <span className="tabular-nums text-muted-foreground">
+      <div className="flex items-center justify-between text-body-sm">
+        <span className="text-fg-4">Contents</span>
+        <span className="tabular-nums font-mono text-mono-sm text-fg-4">
           {importable} importable
           {unsupported > 0 ? ` · ${unsupported} unsupported` : ""}
         </span>
       </div>
-      <ul className="max-h-56 divide-y divide-border overflow-auto rounded-md border">
+      <ul className="max-h-56 divide-y divide-line overflow-auto rounded-none border border-line bg-surface-1">
         {shown
           .map((e, i) => ({ e, key: `${i}-${e.path}` }))
           .map(({ e, key }) => (
@@ -57,29 +57,27 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
               className="flex items-center justify-between gap-3 px-3 py-1.5"
             >
               <span
-                className="truncate font-mono text-xs text-foreground"
+                className="truncate font-mono text-mono-sm text-fg-1"
                 title={e.path}
               >
                 {entryName(e.path)}
               </span>
               {e.kind === "other" ? (
-                <span className="flex shrink-0 items-center gap-1 text-xs text-destructive">
+                <span className="flex shrink-0 items-center gap-1 text-meta text-destructive">
                   <TriangleAlert className="size-3.5" />
                   Unsupported
                 </span>
               ) : (
-                <span className="shrink-0 text-xs text-muted-foreground">
+                <span className="shrink-0 text-meta text-fg-4">
                   {e.kind === "docx" ? "Word" : "Text"}
                 </span>
               )}
             </li>
           ))}
       </ul>
-      {overflow > 0 && (
-        <p className="text-xs text-muted-foreground">+{overflow} more…</p>
-      )}
+      {overflow > 0 && <p className="text-meta text-fg-4">+{overflow} more…</p>}
       {unsupported > 0 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-meta text-fg-4">
           Unsupported files are skipped by the import.
         </p>
       )}
