@@ -23,7 +23,11 @@ interface ItemPickerProps {
   /** Rendered in the pill and woven into the placeholder. */
   kindLabel: string;
   tint: PickerTint;
-  /** Already filtered down to what is not selected. */
+  /**
+   * What the picker offers. Single-pick callers pass only what is not yet
+   * selected; multi-select callers (`selectedIds`) include selected rows so
+   * they can be toggled off.
+   */
   options: PickerOption[];
   onPick: (option: PickerOption) => void;
   onClose: () => void;
@@ -39,6 +43,12 @@ interface ItemPickerProps {
   onQueryChange?: (query: string) => void;
   /** Set when `options` are already filtered upstream — skips local matching. */
   remoteFiltered?: boolean;
+  /**
+   * Multi-select mode: rows render a check state from this set and picking
+   * toggles instead of committing. Closing stays the caller's job either way —
+   * a multi-select caller simply doesn't close on pick.
+   */
+  selectedIds?: ReadonlySet<string>;
 }
 
 /**
@@ -57,6 +67,7 @@ export function ItemPicker({
   loading,
   onQueryChange,
   remoteFiltered,
+  selectedIds,
 }: ItemPickerProps) {
   const [query, setQuery] = useState("");
   const t = TINT[tint];
@@ -119,8 +130,23 @@ export function ItemPicker({
               key={o.id}
               type="button"
               onClick={() => onPick(o)}
+              aria-pressed={
+                selectedIds != null ? selectedIds.has(o.id) : undefined
+              }
               className="flex w-full items-center gap-2.5 border-0 border-b border-line px-3 py-2.5 text-left hover:bg-surface-2"
             >
+              {selectedIds != null && (
+                <span
+                  className={cn(
+                    "flex size-3 shrink-0 items-center justify-center border text-[9px] leading-none",
+                    selectedIds.has(o.id)
+                      ? "border-cyan-edge bg-cyan-wash text-cyan-ink"
+                      : "border-line-strong text-transparent",
+                  )}
+                >
+                  ✓
+                </span>
+              )}
               {o.value != null && <ColourSwatch value={o.value} size={9} />}
               <span className="min-w-0 truncate text-item font-semibold text-fg-1">
                 {o.label}

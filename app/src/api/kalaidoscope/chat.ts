@@ -4,6 +4,7 @@ import {
   type UIMessage,
 } from "ai";
 import { kalaidoscopeAuthHeaders } from "@/api/kalaidoscope/client.ts";
+import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import type { TypedPocketBase } from "@/api/kalaidoscope/types.ts";
 import { stripMentions } from "@/lib/mentions";
 
@@ -26,8 +27,11 @@ export type ContextKind =
    */
   | "WholeScope";
 
-/** The id every {@link ContextKind} `WholeScope` marker carries. */
-export const WHOLE_SCOPE_ID = "*";
+export {
+  isWholeScopeSelection,
+  WHOLE_SCOPE_ID,
+  WHOLE_SCOPE_ITEM,
+} from "./context-items";
 
 export interface ContextItem {
   /** What sort of source this is — drives the icon and how it resolves later. */
@@ -221,12 +225,7 @@ export function specToItems(spec: ContextSpec): ContextItem[] {
 
 function criteriaToItems(spec: ContextSpec): ContextItem[] {
   const items: ContextItem[] = [];
-  if (spec.wholeScope)
-    items.push({
-      kind: "WholeScope",
-      id: WHOLE_SCOPE_ID,
-      label: "Whole scope",
-    });
+  if (spec.wholeScope) items.push(WHOLE_SCOPE_ITEM);
   for (const id of spec.colourIds ?? [])
     items.push({ kind: "Colour", id, label: id });
   for (const t of spec.fragmentTypes ?? [])
