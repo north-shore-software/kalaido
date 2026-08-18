@@ -11,14 +11,10 @@ export { Timeline, type TimelineItem } from "./timeline";
 export { FragmentCard } from "./fragment-card";
 export { ListRow } from "./list-row";
 export { DiffLine } from "./diff";
-export {
-  ContextPicker,
-  type ContextPickerProps,
-  ContextSummary,
-  type ContextSummaryProps,
-  type ContextItem,
-  type ContextKind,
-  type EntityKind,
+export type {
+  ContextItem,
+  ContextKind,
+  EntityKind,
 } from "./context-picker";
 export {
   ContextBar,
