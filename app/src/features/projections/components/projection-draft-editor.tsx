@@ -7,11 +7,7 @@ import {
   PaneHeader,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import {
-  type ContextItem,
-  Pill,
-  RefineChatPanel,
-} from "@/components/kalaido";
+import { type ContextItem, Pill, RefineChatPanel } from "@/components/kalaido";
 import type { RefineSession } from "@/hooks/use-refine-session";
 import { withContextItem } from "@/lib/mentions";
 
