@@ -253,7 +253,7 @@ function BarTrigger({
       className={cn(
         "shrink-0 rounded-none border px-1.5 py-0.5 font-mono text-pill font-bold uppercase",
         expanded
-          ? "border-cyan-edge bg-cyan-wash text-cyan-ink"
+          ? "border-section-edge bg-section-wash text-section-ink"
           : "border-line-strong text-fg-4 hover:text-fg-2",
       )}
     >

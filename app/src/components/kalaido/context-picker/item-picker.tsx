@@ -6,8 +6,14 @@ import { ColourSwatch } from "../colour";
 export type PickerTint = "cyan" | "yellow";
 
 const TINT: Record<PickerTint, { box: string; pill: string }> = {
-  cyan: { box: "border-cyan", pill: "border-cyan-edge text-cyan-ink" },
-  yellow: { box: "border-yellow", pill: "border-yellow-line text-yellow-ink" },
+  cyan: {
+    box: "border-section",
+    pill: "border-section-edge text-section-ink",
+  },
+  yellow: {
+    box: "border-yellow",
+    pill: "border-yellow-line text-yellow-ink",
+  },
 };
 
 export interface PickerOption {
@@ -140,7 +146,7 @@ export function ItemPicker({
                   className={cn(
                     "flex size-3 shrink-0 items-center justify-center border text-[9px] leading-none",
                     selectedIds.has(o.id)
-                      ? "border-cyan-edge bg-cyan-wash text-cyan-ink"
+                      ? "border-section-edge bg-section-wash text-section-ink"
                       : "border-line-strong text-transparent",
                   )}
                 >
@@ -174,7 +180,7 @@ export function ItemPicker({
                 <button
                   type="button"
                   onClick={onAutoSegment}
-                  className="w-full border border-cyan px-3 py-2.5 text-btn-sm font-bold uppercase text-cyan-ink hover:opacity-85"
+                  className="w-full border border-section px-3 py-2.5 text-btn-sm font-bold uppercase text-section-ink hover:opacity-85"
                 >
                   Auto-segment my scope
                 </button>
