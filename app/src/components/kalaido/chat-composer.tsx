@@ -1,20 +1,17 @@
 import { type KeyboardEvent, useRef, useState } from "react";
 import type { ContextItem } from "@/api/kalaidoscope/chat";
-import { Button } from "@/components/ui/button";
-import type { KeyboardEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import {
   buildMentionToken,
   type MentionKind,
   mentionQueryAt,
 } from "@/lib/mentions";
-import { SendIcon } from "lucide-react";
+import { ComposerSendButton } from "./composer-send-button";
 import {
   MentionMenu,
   type MentionOption,
   useMentionOptions,
 } from "./mention-menu";
-import { ComposerSendButton } from "./composer-send-button";
 
 export interface ChatComposerProps {
   value: string;
@@ -124,27 +121,27 @@ export function ChatComposer({
       <div className="flex items-end gap-2">
         <div className="relative min-w-0 flex-1">
           {menuOpen && (options.length > 0 || loading) && (
-              <MentionMenu
-                  options={options}
-                  activeIndex={highlighted}
-                  onPick={pick}
-                  onHover={setActiveIndex}
-                  loading={loading}
-              />
+            <MentionMenu
+              options={options}
+              activeIndex={highlighted}
+              onPick={pick}
+              onHover={setActiveIndex}
+              loading={loading}
+            />
           )}
           <Textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => {
-                onChange(e.target.value);
-                setCaret(e.target.selectionStart ?? 0);
-              }}
-              onSelect={syncCaret}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              rows={1}
-              disabled={!!quotaMessage}
-              className="flex-1 min-h-0 max-h-40 overflow-y-auto"
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setCaret(e.target.selectionStart ?? 0);
+            }}
+            onSelect={syncCaret}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            rows={1}
+            disabled={!!quotaMessage}
+            className="flex-1 min-h-0 max-h-40 overflow-y-auto"
           />
         </div>
         <ComposerSendButton onClick={onSubmit} disabled={isSendDisabled} />
