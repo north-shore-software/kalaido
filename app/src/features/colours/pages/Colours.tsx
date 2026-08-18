@@ -99,7 +99,7 @@ export default function Colours() {
       <PageHeader
         title="Colours"
         actions={
-          <Button size="sm" onClick={openComposer}>
+          <Button variant="section" onClick={openComposer}>
             <PlusIcon />
             New Colour
           </Button>

@@ -5,9 +5,9 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 
 ## Foundations (shared code; each names a review screen)
 
-- [ ] `01-hue-map.md` — finalise the section→hue map with Sara (doc-only)
-- [ ] `02-section-tokens.md` — introduce `--section-*` tokens, re-point the primitives
-- [ ] `03-buttons-pills.md` — button dedupe, pill fixes
+- [x] `01-hue-map.md` — finalise the section→hue map with Sara (doc-only; Projections set to #c084fc)
+- [x] `02-section-tokens.md` — introduce `--section-*` tokens, re-point the primitives (Capture and rail nav hover exceptions logged)
+- [x] `03-buttons-pills.md` — button dedupe, pill fixes (default 40px button size rule change logged)
 - [ ] `04-overlays.md` — reskin dialogs/popovers to §5
 - [ ] `05-composer.md` — one chat composer, per §7
 - [ ] `06-icons.md` — stroke widths per §6
@@ -35,8 +35,14 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 
 <!-- agent: append one line per DESIGN.md rule change:
      date · rule (§) · what changed · screens needing re-review -->
+2026-08-17 · §3, §7 · Solid Magenta and solid Danger use white text (#ffffff) instead of dark #16171a · Projections (Review/Draft), Onboarding, Modals
+2026-08-17 · §7 · Added 'section' button variant (solid section accent fill with #16171a text) for section creation actions · Projections, Reflections, Colours
+2026-08-17 · §7 · Changed default button size from 32px (14px padding) to 40px (20px padding) · All screens using default buttons
+2026-08-17 · §2 · Scaled type roles proportionally based on 16px body (display: 40px, card-title: 18px / 0 tracking, body: 16px / 0.02em tracking, body-sm: 14px / 0.015em, row: 15px, item: 14.5px, btn: 13px, meta: 12.5px, mono-sm: 12px, label/crumb: 11px, pill: 10.5px, overlay-title: 22px) · All screens
 
 ## Exceptions (log)
 
 <!-- agent: append one line per recorded special case:
      date · screen · what · DESIGN.md section where the exception is noted -->
+2026-08-17 · workspace shell (icon rail) · Capture always stays brand cyan (#22d3ee) instead of tinting with the active section · §4
+2026-08-17 · workspace shell (icon rail) · Nav items show 2px left border on hover & active in destination hue, hover with destination wash fill, and maintain fg-2 text/icon colour · §5

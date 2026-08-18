@@ -1,7 +1,7 @@
 import { Fragment as F, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types.ts";
-import { contentColour, Mono, StatusPill } from "@/components/kalaido";
+import { contentColour, Mono, Pill } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { FragmentDrawer } from "@/features/fragments/components/fragment-drawer";
 import {
@@ -67,9 +67,7 @@ export default function Stream() {
         <div className="mx-auto max-w-[720px] px-8">
           {isLoading && (
             <div className="mb-5 flex items-center gap-2.5">
-              <StatusPill kind="yellow" dot>
-                Loading...
-              </StatusPill>
+              <Pill tone="primary">Loading...</Pill>
             </div>
           )}
 
@@ -88,7 +86,7 @@ export default function Stream() {
                   {head && <DayHeader day={f.day} first={i === 0} />}
                   <button
                     type="button"
-                    className="flex w-full cursor-pointer items-start gap-4 text-left"
+                    className="group flex w-full cursor-pointer items-start gap-4 text-left"
                     onClick={() =>
                       go(streamTransitions.openFragment, {
                         params: { id: f.id },
@@ -101,10 +99,10 @@ export default function Stream() {
                     <div className="flex w-3.5 shrink-0 flex-col items-center self-stretch">
                       <span
                         className={cn(
-                          "mt-[15px] size-[11px] shrink-0 rounded-sm ring-[3px] ring-background",
+                          "mt-[15px] size-[11px] shrink-0 rounded-none ring-[3px] ring-background transition-colors",
                           f.colours.length
                             ? contentColour(f.colours[0])
-                            : "bg-surface-3",
+                            : "bg-surface-3 group-hover:bg-section",
                         )}
                       />
                       {i < filteredFragments.length - 1 && (

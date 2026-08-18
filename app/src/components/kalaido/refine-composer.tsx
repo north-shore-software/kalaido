@@ -85,7 +85,7 @@ export function RefineComposer({
               "size-[26px] clip-chamfer",
               isSubmitDisabled
                 ? "border-line-strong bg-transparent text-fg-4"
-                : "border-transparent bg-cyan text-cyan-foreground hover:opacity-[0.86]",
+                : "border-transparent bg-section text-section-foreground hover:opacity-[0.86]",
             )}
           >
             <SendIcon />

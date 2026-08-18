@@ -22,7 +22,7 @@ export function KalaidoscopeRow({
     <SurfaceCard
       className={cn(
         "flex flex-col gap-2.5",
-        isActive && "border-cyan-edge bg-cyan-veil shadow-cyan",
+        isActive && "border-section-edge bg-section-veil shadow-section",
       )}
     >
       <div className="flex items-center gap-2.5">

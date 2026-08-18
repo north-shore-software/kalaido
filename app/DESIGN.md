@@ -54,21 +54,21 @@ Use these rather than a t-shirt scale. Each is a `--text-*` token with its leadi
 
 | Role | Size / leading | Weight | Tracking | Case | Family |
 |---|---|---|---|---|---|
-| `display` | 36px / 1.05 | 400 | 0 | none | Source Serif 4 |
-| `card-title` | 16px / 1.4 | 700 | -0.01em | none | Archivo |
-| `body` | 14.5px / 1.62 | 400 | — | none | Archivo |
-| `row` | 13.5px / 1.5 | 600 | — | none | Archivo |
-| `item` | 13px / 1.5 | 400–600 | — | none | Archivo |
-| `body-sm` | 12.5px / 1.55 | 400 | — | none | Archivo |
-| `btn` | 12px / 1 | 600–700 | 0.06em | uppercase | Archivo |
-| `meta` | 11.5px / 1.45 | 400 | — | none | Archivo or mono |
-| `btn-sm` | 11px / 1 | 600 | 0.06em | uppercase | Archivo |
-| `mono-sm` | 11px / 1.45 | 400 | — | none | JetBrains Mono |
-| `label` | 10px / 1.4 | 600 | 0.14em | uppercase | Archivo |
-| `label-mono` | 10px / 1.4 | 600–700 | 0.14em | uppercase | JetBrains Mono |
-| `crumb` | 10px / 1.4 | 400 | 0.12em | uppercase | JetBrains Mono |
-| `pill` | 9.5px / 1.4 | 600–700 | 0.12em (0.08em on type pills) | uppercase | JetBrains Mono |
-| `overlay-title` | 20px / 1.4 | 600 | 0.08em | uppercase | Archivo (`--font-heading`) |
+| `display` | 40px / 1.05 | 400 | 0 | none | Source Serif 4 |
+| `card-title` | 18px / 1.4 | 700 | 0 | none | Archivo |
+| `body` | 16px / 1.6 | 400 | 0.02em | none | Archivo |
+| `row` | 15px / 1.5 | 600 | — | none | Archivo |
+| `item` | 14.5px / 1.5 | 400–600 | — | none | Archivo |
+| `body-sm` | 14px / 1.55 | 400 | 0.015em | none | Archivo |
+| `btn` | 13px / 1 | 600–700 | 0.06em | uppercase | Archivo |
+| `meta` | 12.5px / 1.45 | 400 | — | none | Archivo or mono |
+| `btn-sm` | 12px / 1 | 600 | 0.06em | uppercase | Archivo |
+| `mono-sm` | 12px / 1.45 | 400 | — | none | JetBrains Mono |
+| `label` | 11px / 1.4 | 600 | 0.14em | uppercase | Archivo |
+| `label-mono` | 11px / 1.4 | 600–700 | 0.14em | uppercase | JetBrains Mono |
+| `crumb` | 11px / 1.4 | 400 | 0.12em | uppercase | JetBrains Mono |
+| `pill` | 10.5px / 1.4 | 600–700 | 0.12em (0.08em on type pills) | uppercase | JetBrains Mono |
+| `overlay-title` | 22px / 1.4 | 600 | 0.08em | uppercase | Archivo (`--font-heading`) |
 
 `label` and `label-mono` share one token (`--text-label`); the family is chosen at the
 call site. `overlay-title` is the heading inside dialogs, sheets and empty states — the
@@ -145,16 +145,16 @@ The tier recipe applies to whichever hue the section owns:
 
 | Tier | Section accent (any hue) | Magenta (constant) |
 |---|---|---|
-| base | the section's hue | `#f0189c` |
-| `wash` — tinted fill | base at 0.12–0.14 | `rgba(240,24,156,0.14)` |
-| `edge` — border | base at 0.40–0.45 | `rgba(240,24,156,0.45)` |
-| `veil` — faintest fill | base at 0.04–0.05 | `rgba(240,24,156,0.05)` |
-| `fg` — text on solid | `#16171a` | `#16171a` |
-| `ink` — text on wash | the hue itself | `#f0189c` |
+| base | the section's hue | `#ff2e93` |
+| `wash` — tinted fill | base at 0.08 | `rgba(255,46,147,0.04)` |
+| `edge` — border | base at 0.40–0.45 | `rgba(255,46,147,0.45)` |
+| `veil` — faintest fill | base at 0.04–0.05 | `rgba(255,46,147,0.05)` |
+| `fg` — text on solid | `#16171a` | `#ffffff` |
+| `ink` — text on wash | the hue itself | `#ff2e93` |
 
 Text on a wash is the accent itself. There is no separate lifted ink.
 
-Text on a *solid* accent is `#16171a` — dark. The magenta primary button has dark text.
+Text on a *solid* section accent is `#16171a` — dark. Solid Magenta and solid Danger use system white (`#ffffff`). The magenta primary button has white text.
 
 In code the section accent is a semantic token set per route — `--section` plus its
 `-wash` / `-edge` / `-veil` / `-fg` tiers — so components say `border-section-edge`, never
@@ -162,31 +162,24 @@ a hue by name.
 
 #### Section → hue map
 
-> **PROPOSED — tune the assignments before the code slice lands.** Constraints that must
-> survive any tuning: no section hue may sit near magenta (`#f0189c`) or near danger
-> (`#ff5a3c`), and Chat's yellow displaces the old drifting yellow (see Status below).
-
-| Section | Hue | Source token |
+| Section / Shell Action | Hue | Source token |
 |---|---|---|
+| Onboarding · boot (pre-workspace) | brand cyan `#22d3ee` | `--cyan-base` |
+| Capture (shell action) | brand cyan `#22d3ee` | `--cyan-base` |
 | Dashboard | cyan `#22d3ee` | `--cyan-base` |
 | Chat | yellow `#f5d90a` | `--yellow-base` |
-| Projections (incl. review, rotation) | violet | `--content-7` |
-| Reflections | green | `--content-4` |
-| Colours | blue | `--content-1` |
-| Fragments | teal | `--content-8` |
+| Projections (incl. review, rotation) | green `#4ade80` | `--green-base` |
+| Reflections | violet `#c084fc` | `--violet-base` |
+| Colours | blush `#fda4af` | `--blush-base` |
+| Fragments | lime `#a3e635` | `--lime-base` |
 | Connections (incl. import) | neutral — `fg-2` plays the accent | — |
 | Settings | neutral — `fg-2` plays the accent | — |
-| Onboarding · boot (pre-workspace) | brand cyan `#22d3ee` | `--cyan-base` |
 
 Neutral sections use `fg-2` wherever the accent recipe calls for a hue: monochrome
 emphasis, no colour. The pre-workspace surfaces are not a section — there is no
 workspace yet — so they wear the brand's own cyan, including its one glow moment
 (§5). Sub-routes inherit their section (rotation is a projections workflow; import
 belongs to connections).
-
-Two proximity risks to check visually before committing hues: `--content-7` violet
-against magenta, and the new drifting orange against danger. If either muddies, shift
-the hue, not the rule.
 
 ### Status
 
@@ -196,11 +189,10 @@ every screen.
 | Token | Value |
 |---|---|
 | `stable` | `#22d3ee` |
-| `drifting` | `#ff9f0a` *(proposed — vacated `#f5d90a`, which is now Chat's hue)* |
-| `critical` / `danger` | `#ff5a3c` |
+| `drifting` | `#ff9f0a` |
+| `critical` / `danger` | `#ff3333` |
 
-Each status colour also carries a `wash` tier at 0.12–0.14 alpha, same recipe as the
-accents.
+Each status colour also carries a `wash` tier (0.08 alpha for stable/drifting; 0.04 alpha for critical/danger).
 
 ### Content palette
 
@@ -246,6 +238,7 @@ Consequences:
 - **The rail is the colour legend.** Each rail item's active border takes its own
   destination's hue. Capture, the shell's one action, tints with the section you are
   currently in.
+  **Exception:** on the workspace icon rail, Capture always stays brand cyan (`#22d3ee`) rather than tinting with the active section — a deliberate one-off, do not extend.
 - **A screen with nothing awaiting the user contains no magenta at all.** If you are
   reaching for magenta to make something prominent, you are using it wrong — reach for
   `line-strong` or `fg-1` instead.
@@ -301,7 +294,7 @@ Hard offsets, no blur, accent-tinted:
 
 | Token | Value | Mechanism | Used on |
 |---|---|---|---|
-| `drop-shadow-magenta` | `4px 4px 0 rgba(240,24,156,0.5)` | `filter` | the primary action button |
+| `drop-shadow-magenta` | `4px 4px 0 rgba(255,46,147,0.5)` | `filter` | the primary action button |
 | `shadow-cyan` | `4px 4px 0 0 rgba(34,211,238,0.28)` | `box-shadow` | the active scope card |
 
 The magenta one is a filter, not a box-shadow, because its target is chamfered: `clip-path`
@@ -338,6 +331,7 @@ the glow to app screens.
 
 **Borderless controls change fill.** Nav items and text buttons hover to `bg-2`; plain
 list rows use it at half alpha.
+**Exception:** on the workspace icon rail, nav items show a 2px left border in their destination hue on hover and active, hover with their destination hue's `wash` fill, and retain resting text/icon colour (`fg-2`) rather than hovering to `bg-2`/`fg-1` — a deliberate one-off, do not extend.
 
 **A bordered card acting as a single click target may do both** — promote its border
 and take the one-step fill. Cards are destinations, not controls; the fill says "all of
@@ -442,8 +436,10 @@ Hover promotes the border to `fg-3` and text to `fg-1`.
 **Outlined** (`outline`) — one step up. Transparent, `fg-3` border, `fg-1` text.
 Optional leading icon in an accent. Hover promotes the border to `fg-1`.
 
-**Primary** (`commit`) — one per screen. Magenta fill, `#16171a` text, weight 700,
+**Primary** (`commit`) — one per screen. Magenta fill, `#ffffff` text, weight 700,
 chamfered, `drop-shadow-magenta`. Hover drops to `opacity: 0.86`.
+
+**Section Action** (`section`) — for section creation actions (e.g. '+ New Projection'). Solid section accent fill (`bg-section`), `#16171a` text, weight 700, zero radius, hover `opacity: 0.86`.
 
 **Text** (`ghost`) — borderless, `fg-2` text; hovers by fill to `bg-2` (§5 borderless
 rule). For rows of low-stakes actions where a border per button would draw a fence.
@@ -451,7 +447,7 @@ rule). For rows of low-stakes actions where a border per button would draw a fen
 **Destructive** — transparent, `danger` border at 0.4 promoting to solid on hover,
 `danger` text. Danger Zone only.
 
-Sizes: default 32px tall / 14px horizontal padding; `sm` 25px / 12px at 11px type (used
+Sizes: default 40px tall / 20px horizontal padding; `sm` 25px / 12px at 11px type (used
 in list rows); `xs` 24px with 12px icons; icon-only squares of each. A filled
 `secondary` variant exists solely for the OAuth provider buttons — do not reach for it
 elsewhere.
@@ -507,8 +503,8 @@ no outline ever.
   focus. For free-standing form fields.
 
 A chat composer is a `line`-topped bar, 12px/16px padding, with a 26px chamfered send button
-that is `line-strong`/transparent/`fg-4` when idle and solid cyan with `#16171a` glyph once
-armed.
+that is `line-strong`/transparent/`fg-4` when idle and solid section accent (`bg-section`) with
+`#16171a` glyph (`text-section-foreground`) once armed.
 
 ### Two-column compare
 

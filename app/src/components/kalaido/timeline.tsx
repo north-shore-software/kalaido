@@ -19,13 +19,23 @@ export interface TimelineItem {
  */
 export function Timeline({
   items,
-  tone = "magenta",
+  tone = "section",
 }: {
   items: TimelineItem[];
-  tone?: "magenta" | "stable";
+  tone?: "section" | "magenta" | "stable";
 }) {
-  const ring = tone === "stable" ? "border-stable" : "border-magenta";
-  const fill = tone === "stable" ? "bg-stable" : "bg-magenta";
+  const ring =
+    tone === "stable"
+      ? "border-stable"
+      : tone === "magenta"
+        ? "border-magenta"
+        : "border-section";
+  const fill =
+    tone === "stable"
+      ? "bg-stable"
+      : tone === "magenta"
+        ? "bg-magenta"
+        : "bg-section";
   return (
     <div className="flex flex-col">
       {items.map((it, i) => (
@@ -33,9 +43,8 @@ export function Timeline({
           <div className="flex w-3 shrink-0 flex-col items-center">
             <span
               className={cn(
-                "size-[11px] rounded-sm border-2",
-                ring,
-                it.pending ? "bg-card" : fill,
+                "size-[11px] rounded-none border-2",
+                it.pending ? "border-magenta bg-card" : cn(ring, fill),
               )}
             />
             {i < items.length - 1 && (

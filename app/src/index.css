@@ -23,38 +23,67 @@
 
   /* === Raw palette (theme-independent) ============================= */
 
-  --gray-0: #16171a;
-  --gray-1: #252628;
-  --gray-2: #2d2f31;
-  --gray-3: #37393c;
-  --gray-4: #3a3c3f;
-  --gray-5: #4e5155;
-  --gray-6: #64666a;
-  --gray-7: #84868a;
-  --gray-8: #a3a5a7;
-  --gray-9: #d6d8d9;
-  --gray-10: #f5f6f6;
+  --gray-0: #121315;
+  --gray-1: #1a1b1e;
+  --gray-2: #222327;
+  --gray-3: #2a2c31;
+  --gray-4: #36383e;
+  --gray-5: #4b4d55;
+  --gray-6: #64666f;
+  --gray-7: #84868f;
+  --gray-8: #a3a5ad;
+  --gray-9: #d6d8dd;
+  --gray-10: #f5f6f8;
+  --gray-11: #ffffff;
   --gray-11: #ffffff;
 
   --cyan-base: #22d3ee;
-  --cyan-wash: rgb(34 211 238 / 0.12);
+  --cyan-wash: rgb(34 211 238 / 0.08);
   --cyan-edge: rgb(34 211 238 / 0.4);
   --cyan-veil: rgb(34 211 238 / 0.04);
-  --magenta-base: #f0189c;
-  --magenta-wash: rgb(240 24 156 / 0.14);
-  --magenta-edge: rgb(240 24 156 / 0.45);
-  --magenta-veil: rgb(240 24 156 / 0.05);
+  --magenta-base: #ff2e93;
+  --magenta-wash: rgb(255 46 147 / 0.04);
+  --magenta-edge: rgb(255 46 147 / 0.45);
+  --magenta-veil: rgb(255 46 147 / 0.05);
   --yellow-base: #f5d90a;
-  --yellow-wash: rgb(245 217 10 / 0.12);
+  --yellow-wash: rgb(245 217 10 / 0.08);
   --yellow-line: rgb(245 217 10 / 0.4);
+  --violet-base: #c084fc;
+  --violet-wash: rgb(192 132 252 / 0.08);
+  --violet-edge: rgb(192 132 252 / 0.45);
+  --violet-veil: rgb(192 132 252 / 0.05);
+  --green-base: #4ade80;
+  --green-wash: rgb(74 222 128 / 0.08);
+  --green-edge: rgb(74 222 128 / 0.45);
+  --green-veil: rgb(74 222 128 / 0.05);
+  --pink-base: #f9a8d4;
+  --pink-wash: rgb(249 168 212 / 0.08);
+  --pink-edge: rgb(249 168 212 / 0.45);
+  --pink-veil: rgb(249 168 212 / 0.05);
+  --blush-base: #fda4af;
+  --blush-wash: rgb(253 164 175 / 0.08);
+  --blush-edge: rgb(253 164 175 / 0.45);
+  --blush-veil: rgb(253 164 175 / 0.05);
+  --lime-base: #a3e635;
+  --lime-wash: rgb(163 230 53 / 0.08);
+  --lime-edge: rgb(163 230 53 / 0.45);
+  --lime-veil: rgb(163 230 53 / 0.05);
+
+  --section: var(--cyan-base);
+  --section-wash: var(--cyan-wash);
+  --section-edge: var(--cyan-edge);
+  --section-veil: var(--cyan-veil);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--section);
+  --shadow-section: 4px 4px 0 0 rgb(34 211 238 / 0.28);
 
   /* Status — three momentum tiers */
   --status-stable: #22d3ee;
-  --status-drifting: #f5d90a;
-  --status-critical: #ff5a3c;
-  --status-stable-wash: rgb(34 211 238 / 0.12);
-  --status-drifting-wash: rgb(245 217 10 / 0.14);
-  --status-critical-wash: rgb(255 90 60 / 0.14);
+  --status-drifting: #ff9f0a;
+  --status-critical: #ff3333;
+  --status-stable-wash: rgb(34 211 238 / 0.08);
+  --status-drifting-wash: rgb(255 159 10 / 0.08);
+  --status-critical-wash: rgb(255 51 51 / 0.04);
 
   /* Ink is the accent itself: text on a wash is the accent colour. */
   --accent-cyan-ink: var(--cyan-base);
@@ -94,7 +123,7 @@
   --accent-cyan: var(--cyan-base);
   --accent-cyan-fg: var(--gray-0);
   --accent-magenta: var(--magenta-base);
-  --accent-magenta-fg: var(--gray-0);
+  --accent-magenta-fg: var(--gray-11);
   --accent-yellow: var(--yellow-base);
   --accent-yellow-fg: var(--gray-0);
 
@@ -122,7 +151,7 @@
 
   --border: var(--border-subtle);
   --input: var(--border-strong);
-  --ring: var(--accent-cyan);
+  --ring: var(--section);
 
   --chart-1: var(--cyan-base);
   --chart-2: var(--magenta-base);
@@ -134,12 +163,12 @@
 
   --sidebar: var(--bg-1);
   --sidebar-foreground: var(--fg-2);
-  --sidebar-primary: var(--accent-cyan);
-  --sidebar-primary-foreground: var(--accent-cyan-fg);
-  --sidebar-accent: var(--cyan-wash);
-  --sidebar-accent-foreground: var(--accent-cyan);
+  --sidebar-primary: var(--section);
+  --sidebar-primary-foreground: var(--section-fg);
+  --sidebar-accent: var(--section-wash);
+  --sidebar-accent-foreground: var(--section);
   --sidebar-border: var(--border-subtle);
-  --sidebar-ring: var(--accent-cyan);
+  --sidebar-ring: var(--section);
 
   /* === Spacing / motion (additive, for direct var() use) ===
        The type scale lives in @theme below — declaring `--text-*` here would
@@ -207,55 +236,57 @@
   /* Mock-derived type roles (DESIGN.md §2). `label` covers both the Archivo
        and mono micro-labels — they share the recipe and differ only by family.
        Weight is left to call sites; the roles carry size, leading, tracking. */
-  --text-display: 36px;
-  --text-display--line-height: 1.05;
+  --text-display: 40px;
+  --text-display--line-height: 1.15;
   --text-display--letter-spacing: 0em;
-  --text-card-title: 16px;
+  --text-card-title: 18px;
   --text-card-title--line-height: 1.4;
-  --text-card-title--letter-spacing: -0.01em;
-  --text-body: 14.5px;
-  --text-body--line-height: 1.62;
-  --text-row: 13.5px;
+  --text-card-title--letter-spacing: 0em;
+  --text-body: 16px;
+  --text-body--line-height: 1.6;
+  --text-body--letter-spacing: 0.02em;
+  --text-row: 15px;
   --text-row--line-height: 1.5;
-  --text-item: 13px;
+  --text-item: 14.5px;
   --text-item--line-height: 1.5;
-  --text-body-sm: 12.5px;
+  --text-body-sm: 14px;
   --text-body-sm--line-height: 1.55;
-  --text-btn: 12px;
+  --text-body-sm--letter-spacing: 0.015em;
+  --text-btn: 13px;
   --text-btn--line-height: 1;
   --text-btn--letter-spacing: 0.06em;
-  --text-meta: 11.5px;
+  --text-meta: 12.5px;
   --text-meta--line-height: 1.45;
-  --text-btn-sm: 11px;
+  --text-btn-sm: 12px;
   --text-btn-sm--line-height: 1;
   --text-btn-sm--letter-spacing: 0.06em;
-  --text-mono-sm: 11px;
+  --text-mono-sm: 12px;
   --text-mono-sm--line-height: 1.45;
-  --text-label: 10px;
+  --text-label: 11px;
   --text-label--line-height: 1.4;
   --text-label--letter-spacing: 0.14em;
-  --text-crumb: 10px;
+  --text-crumb: 11px;
   --text-crumb--line-height: 1.4;
   --text-crumb--letter-spacing: 0.12em;
-  --text-pill: 9.5px;
+  --text-pill: 10.5px;
   --text-pill--line-height: 1.4;
   --text-pill--letter-spacing: 0.12em;
 
   /* Legacy t-shirt scale — retained for the screens that have no mock yet.
        Deprecated: new work uses the roles above. */
-  --text-xs: 11px;
+  --text-xs: 12px;
   --text-xs--line-height: 1.45;
-  --text-sm: 12px;
+  --text-sm: 13.5px;
   --text-sm--line-height: 1.5;
-  --text-base: 14px;
+  --text-base: 16px;
   --text-base--line-height: 1.5;
-  --text-md: 16px;
+  --text-md: 18px;
   --text-md--line-height: 1.5;
-  --text-lg: 20px;
+  --text-lg: 22px;
   --text-lg--line-height: 1.4;
-  --text-xl: 28px;
+  --text-xl: 32px;
   --text-xl--line-height: 1.2;
-  --text-2xl: 40px;
+  --text-2xl: 44px;
   --text-2xl--line-height: 1.1;
   --text-3xl: 64px;
   --text-3xl--line-height: 1.05;
@@ -315,6 +346,12 @@
   --color-magenta-edge: var(--magenta-edge);
   --color-cyan-veil: var(--cyan-veil);
   --color-magenta-veil: var(--magenta-veil);
+  --color-section: var(--section);
+  --color-section-foreground: var(--section-fg);
+  --color-section-wash: var(--section-wash);
+  --color-section-edge: var(--section-edge);
+  --color-section-veil: var(--section-veil);
+  --color-section-ink: var(--section-ink);
   --color-stable: var(--status-stable);
   --color-drifting: var(--status-drifting);
   --color-critical: var(--status-critical);
@@ -328,6 +365,10 @@
   --color-drifting-wash: var(--status-drifting-wash);
   --color-critical-wash: var(--status-critical-wash);
   --color-yellow-line: var(--yellow-line);
+  --color-lime: var(--lime-base);
+  --color-lime-edge: var(--lime-edge);
+  --color-lime-wash: var(--lime-wash);
+  --color-lime-ink: var(--lime-base);
 
   /* Content colour palette → utilities: bg-content-1 … text-content-8 */
   --color-content-1: var(--content-1);
@@ -355,8 +396,9 @@
   --color-line-strong: var(--border-strong);
 
   /* Hard offset shadows, accent-tinted. Decoration, not elevation. */
-  --drop-shadow-magenta: 4px 4px 0 rgb(240 24 156 / 0.5);
+  --drop-shadow-magenta: 4px 4px 0 rgb(255 46 147 / 0.5);
   --shadow-cyan: 4px 4px 0 0 rgb(34 211 238 / 0.28);
+  --shadow-section: var(--shadow-section);
 
   /* Nothing is rounded. `full` survives for the 5px status dots. */
   --radius-sm: 0;
@@ -429,9 +471,90 @@
     @apply font-sans;
   }
   ::selection {
-    background: var(--cyan-base);
+    background: var(--section);
     color: var(--gray-0);
   }
+}
+
+[data-section="dashboard"] {
+  --section: var(--cyan-base);
+  --section-wash: var(--cyan-wash);
+  --section-edge: var(--cyan-edge);
+  --section-veil: var(--cyan-veil);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--cyan-base);
+  --shadow-section: 4px 4px 0 0 rgb(34 211 238 / 0.28);
+}
+
+[data-section="chat"] {
+  --section: var(--yellow-base);
+  --section-wash: var(--yellow-wash);
+  --section-edge: var(--yellow-line);
+  --section-veil: rgb(245 217 10 / 0.04);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--yellow-base);
+  --shadow-section: 4px 4px 0 0 rgb(245 217 10 / 0.28);
+}
+
+[data-section="projections"] {
+  --section: var(--green-base);
+  --section-wash: var(--green-wash);
+  --section-edge: var(--green-edge);
+  --section-veil: var(--green-veil);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--green-base);
+  --shadow-section: 4px 4px 0 0 rgb(74 222 128 / 0.28);
+}
+
+[data-section="reflections"] {
+  --section: var(--violet-base);
+  --section-wash: var(--violet-wash);
+  --section-edge: var(--violet-edge);
+  --section-veil: var(--violet-veil);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--violet-base);
+  --shadow-section: 4px 4px 0 0 rgb(192 132 252 / 0.28);
+}
+
+[data-section="colours"] {
+  --section: var(--blush-base);
+  --section-wash: var(--blush-wash);
+  --section-edge: var(--blush-edge);
+  --section-veil: var(--blush-veil);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--blush-base);
+  --shadow-section: 4px 4px 0 0 rgb(253 164 175 / 0.28);
+}
+
+[data-section="fragments"] {
+  --section: var(--lime-base);
+  --section-wash: var(--lime-wash);
+  --section-edge: var(--lime-edge);
+  --section-veil: var(--lime-veil);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--lime-base);
+  --shadow-section: 4px 4px 0 0 rgb(163 230 53 / 0.28);
+}
+
+[data-section="connections"],
+[data-section="settings"] {
+  --section: var(--fg-2);
+  --section-wash: color-mix(in srgb, var(--fg-2) 8%, transparent);
+  --section-edge: color-mix(in srgb, var(--fg-2) 45%, transparent);
+  --section-veil: color-mix(in srgb, var(--fg-2) 5%, transparent);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--fg-2);
+  --shadow-section: 4px 4px 0 0 color-mix(in srgb, var(--fg-2) 28%, transparent);
+}
+
+[data-section="onboarding"] {
+  --section: var(--cyan-base);
+  --section-wash: var(--cyan-wash);
+  --section-edge: var(--cyan-edge);
+  --section-veil: var(--cyan-veil);
+  --section-fg: var(--gray-0);
+  --section-ink: var(--cyan-base);
+  --shadow-section: 4px 4px 0 0 rgb(34 211 238 / 0.28);
 }
 
 /* Unlayered — beats all @layer rules including Tailwind utilities */

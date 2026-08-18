@@ -67,8 +67,8 @@ export function ResolutionReadout({
     ? "text-critical-ink"
     : near
       ? "text-drifting-ink"
-      : "text-cyan-ink";
-  const accentBg = over ? "bg-critical" : near ? "bg-drifting" : "bg-cyan";
+      : "text-section-ink";
+  const accentBg = over ? "bg-critical" : near ? "bg-drifting" : "bg-section";
   const edge = over
     ? "border-critical/50"
     : near
@@ -204,7 +204,7 @@ export function ResolutionReadout({
           <button
             type="button"
             onClick={onAutoSegment}
-            className="clip-chamfer w-full border border-cyan bg-cyan px-3.5 py-2.5 text-btn font-bold uppercase text-cyan-foreground shadow-cyan hover:opacity-85"
+            className="clip-chamfer w-full border border-section bg-section px-3.5 py-2.5 text-btn font-bold uppercase text-section-foreground shadow-section hover:opacity-85"
           >
             Auto-segment my scope
           </button>

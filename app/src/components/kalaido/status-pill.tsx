@@ -11,12 +11,12 @@ export type StatusKind =
   | "neutral";
 
 const KIND: Record<StatusKind, string> = {
-  stable: "border-stable/45 bg-stable-wash text-stable-ink",
+  stable: "border-cyan-edge bg-stable-wash text-stable-ink",
   drifting: "border-drifting/45 bg-drifting-wash text-drifting-ink",
   critical: "border-critical/45 bg-critical-wash text-critical-ink",
-  yellow: "border-yellow/45 bg-yellow-wash text-yellow-ink",
-  magenta: "border-magenta/45 bg-magenta-wash text-magenta-ink",
-  cyan: "border-cyan/45 bg-cyan-wash text-cyan-ink",
+  yellow: "border-yellow-line bg-yellow-wash text-yellow-ink",
+  magenta: "border-magenta-edge bg-magenta-wash text-magenta-ink",
+  cyan: "border-cyan-edge bg-cyan-wash text-cyan-ink",
   neutral: "border-line-strong text-fg-3 tracking-[0.08em]",
 };
 
@@ -38,7 +38,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-none border px-1.5 py-[3px] font-mono text-pill font-semibold uppercase",
+        "inline-flex items-center gap-1 rounded-none border px-1.5 py-[3px] font-mono text-pill font-semibold uppercase [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-2.5",
         KIND[kind],
         className,
       )}

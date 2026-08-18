@@ -75,10 +75,8 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   },
 ];
 
-/** Accent treatment for the shell's one creation action. Reserved for Capture:
- *  the accent means "this makes something", and nothing else in the shell does. */
 const ACTION_CLASS =
-  "text-cyan-ink hover:bg-cyan-wash hover:text-cyan-ink active:bg-cyan-wash active:text-cyan-ink data-active:bg-cyan-wash data-active:text-cyan-ink";
+  "text-fg-2 hover:border-l-2 hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 active:bg-cyan-wash active:text-fg-2 data-active:border-l-2 data-active:border-l-cyan data-active:bg-cyan-wash data-active:text-fg-2";
 
 /**
  * Capture sits above the navigation and alone in its zone — getting a thought
@@ -120,6 +118,7 @@ function NavConnections() {
             <SidebarMenuButton
               tooltip="Connections"
               isActive={pathname.startsWith("/connections")}
+              className="hover:border-l-fg-2 hover:bg-surface-2 hover:text-fg-2 data-active:border-l-fg-2 data-active:text-fg-2 data-active:hover:text-fg-2"
               render={
                 <RouteLink
                   transition={navSidebarTransitions.transitions.openConnections}
@@ -143,6 +142,7 @@ function SettingsButton() {
       <SidebarMenuButton
         tooltip="Settings"
         isActive={pathname.startsWith("/settings")}
+        className="hover:border-l-fg-2 hover:bg-surface-2 hover:text-fg-2 data-active:border-l-fg-2 data-active:text-fg-2 data-active:hover:text-fg-2"
         render={
           <RouteLink
             transition={navSidebarTransitions.transitions.openSettings}

@@ -23,10 +23,10 @@ export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
     >
       <div
         className={cn(
-          "max-w-[70%] rounded-md px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
+          "max-w-[70%] rounded-none px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
           role === "user"
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground",
+            ? "bg-section text-section-foreground font-medium"
+            : "bg-surface-2 text-fg-1",
         )}
       >
         {content}
@@ -87,7 +87,7 @@ export function ChatMessages({
     <>
       {visibleMessages.length === 0 && (
         <div className="flex justify-start">
-          <div className="max-w-[70%] rounded-md px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words bg-muted text-foreground">
+          <div className="max-w-[70%] rounded-none px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words bg-surface-2 text-fg-1">
             {greeting}
           </div>
         </div>
@@ -102,7 +102,7 @@ export function ChatMessages({
           if (!notice) return null;
           return (
             <div key={msg.id} className="flex justify-start">
-              <div className="max-w-[70%] rounded-md px-4 py-2.5 text-sm italic leading-relaxed text-muted-foreground">
+              <div className="max-w-[70%] rounded-none px-4 py-2.5 text-sm italic leading-relaxed text-fg-4 bg-surface-2">
                 {notice}
               </div>
             </div>
@@ -129,7 +129,7 @@ export function ChatMessages({
 
       {pending && (
         <div className="flex justify-start">
-          <div className="bg-muted rounded-md px-4 py-2.5 text-sm text-muted-foreground">
+          <div className="bg-surface-2 rounded-none px-4 py-2.5 text-sm text-fg-4">
             …
           </div>
         </div>

@@ -57,6 +57,52 @@ export function pathFor(id: RouteId, params?: Record<string, string>): string {
   return buildRoutePath(routeById(id), params);
 }
 
+export type SectionId =
+  | "dashboard"
+  | "chat"
+  | "projections"
+  | "reflections"
+  | "colours"
+  | "fragments"
+  | "connections"
+  | "settings"
+  | "onboarding";
+
+export function sectionForRoute(id: RouteId): SectionId {
+  switch (id) {
+    case "main":
+      return "dashboard";
+    case "chat":
+      return "chat";
+    case "projections":
+    case "projection-detail":
+    case "projection-review":
+    case "new-projection":
+    case "rotation":
+      return "projections";
+    case "reflections":
+    case "new-reflection":
+      return "reflections";
+    case "colours":
+      return "colours";
+    case "stream":
+      return "fragments";
+    case "connections":
+    case "import":
+      return "connections";
+    case "settings":
+      return "settings";
+    case "splash":
+    case "boot-error":
+    case "onboarding-landing":
+    case "onboarding-login":
+    case "cloud-workspaces":
+    case "kalaidoscope-setup":
+    default:
+      return "onboarding";
+  }
+}
+
 /** Registry integrity — throws at startup in dev if a page was forgotten. */
 if (import.meta.env.DEV) {
   const missing = ROUTE_IDS.filter((id) => !byId.has(id));

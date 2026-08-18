@@ -1,4 +1,4 @@
-import { DocBody, EmptyState, StatusPill } from "@/components/kalaido";
+import { DocBody, EmptyState, Pill, StatusPill } from "@/components/kalaido";
 import type { ProjectionSnapshotState } from "@/hooks/use-projection-snapshot";
 import type { ProjectionSnapshotResponse } from "@/api/kalaidoscope/types";
 
@@ -76,9 +76,9 @@ export function SnapshotPreview({
           {state.status === "ready" && (
             <>
               <div className="mb-4 flex items-center gap-2.5">
-                <StatusPill kind="magenta" dot>
+                <Pill tone="primary">
                   plan of record
-                </StatusPill>
+                </Pill>
               </div>
               <div className="max-w-[640px] whitespace-pre-wrap text-[13px] leading-relaxed">
                 {state.output.content || "(empty snapshot)"}

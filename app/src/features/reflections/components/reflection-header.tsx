@@ -1,5 +1,4 @@
-import { ColourSwatch, Mono, StatusPill } from "@/components/kalaido";
-import { swatchIndex } from "@/lib/colors";
+import { Mono, Pill } from "@/components/kalaido";
 
 export interface ReflectionHeaderProps {
   reflectionId: string;
@@ -13,7 +12,6 @@ export interface ReflectionHeaderProps {
 }
 
 export function ReflectionHeader({
-  reflectionId,
   name,
   schedDisplay,
   readOnly,
@@ -21,11 +19,7 @@ export function ReflectionHeader({
   return (
     <div className="flex items-center justify-between gap-4 border-b border-line px-6 py-4">
       <div className="flex items-center gap-3">
-        <ColourSwatch
-          c={swatchIndex(reflectionId)}
-          size={16}
-          className="rounded-md"
-        />
+        <span className="size-4 bg-section rounded-none shrink-0" />
         <div className="flex flex-col gap-0.5">
           <span className="text-base font-semibold">
             {name || "Untitled reflection"}
@@ -37,9 +31,9 @@ export function ReflectionHeader({
         </div>
       </div>
       {!readOnly && (
-        <StatusPill kind="stable" dot>
+        <Pill tone="primary">
           latest
-        </StatusPill>
+        </Pill>
       )}
     </div>
   );

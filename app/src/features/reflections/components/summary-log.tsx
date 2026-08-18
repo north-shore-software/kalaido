@@ -9,7 +9,7 @@ export function SummaryLog({ items }: SummaryLogProps) {
     <div className="flex flex-col gap-2.5">
       <Label>Summary log</Label>
       {items.length > 0 ? (
-        <Timeline items={items} tone="stable" />
+        <Timeline items={items} tone="section" />
       ) : (
         <p className="text-[11.5px] text-fg-4">No snapshots yet.</p>
       )}

@@ -64,16 +64,20 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
           }}
           onKeyDown={handleKeyDown}
           placeholder="Paste or type your content… (Enter to save, Shift+Enter for newline)"
-          className="min-h-32"
+          className="min-h-32 focus-visible:border-b-cyan"
         />
         {phase === "error" && errorMsg && (
           <p className="text-sm text-destructive break-words">{errorMsg}</p>
         )}
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button size="sm" onClick={save} disabled={!text.trim() || saving}>
+          <Button
+            onClick={save}
+            disabled={!text.trim() || saving}
+            className="border-transparent bg-cyan font-bold text-cyan-foreground hover:opacity-85"
+          >
             {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
