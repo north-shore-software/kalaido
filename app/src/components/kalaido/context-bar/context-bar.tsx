@@ -5,10 +5,7 @@ import { useFragmentLabels } from "@/hooks/use-fragment-labels";
 import { cn } from "@/lib/css-utils";
 import { withContextItem } from "@/lib/mentions";
 import { useFragmentSearch } from "../context-picker/data";
-import {
-  ItemPicker,
-  type PickerOption,
-} from "../context-picker/item-picker";
+import { ItemPicker, type PickerOption } from "../context-picker/item-picker";
 import { allowsSources, type EntityKind } from "../context-picker/types";
 import {
   type BarSources,
@@ -94,18 +91,12 @@ export function ContextBar({
       for (const p of sources.projections
         .filter((o) => !q || o.name.toLowerCase().includes(q))
         .slice(0, MAX_PER_KIND)) {
-        offer(
-          { kind: "Projection", id: p.id, label: p.name },
-          "projection",
-        );
+        offer({ kind: "Projection", id: p.id, label: p.name }, "projection");
       }
       for (const r of sources.reflections
         .filter((o) => !q || o.name.toLowerCase().includes(q))
         .slice(0, MAX_PER_KIND)) {
-        offer(
-          { kind: "Reflection", id: r.id, label: r.name },
-          "reflection",
-        );
+        offer({ kind: "Reflection", id: r.id, label: r.name }, "reflection");
       }
     }
     for (const f of fragmentSearch.options) {

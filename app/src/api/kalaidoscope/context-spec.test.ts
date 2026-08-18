@@ -1,4 +1,10 @@
-import { type ContextItem, itemsToSpec, specKey, specToItems } from "./chat";
+import {
+  type ContextItem,
+  diffContextSpecs,
+  itemsToSpec,
+  specKey,
+  specToItems,
+} from "./chat";
 
 describe("itemsToSpec", () => {
   test("maps pinned fragments to fragmentIds", () => {
@@ -88,5 +94,50 @@ describe("specKey", () => {
     expect(specKey({ fragmentIds: ["f1", "f2"] })).toBe(
       specKey({ fragmentIds: ["f2", "f1"] }),
     );
+  });
+});
+
+describe("diffContextSpecs", () => {
+  test("everything is added against a null previous spec", () => {
+    const delta = diffContextSpecs(null, {
+      fragmentTypes: ["note"],
+      fragmentIds: ["f1"],
+    });
+    expect(delta.added.map((it) => `${it.kind}:${it.id}`)).toEqual([
+      "Type:note",
+      "Fragment:f1",
+    ]);
+    expect(delta.removed).toEqual([]);
+  });
+
+  test("diffs on kind+id in both directions", () => {
+    const delta = diffContextSpecs(
+      { fragmentTypes: ["note", "email"], colourIds: ["c1"] },
+      { fragmentTypes: ["note"], sourceProjectionIds: ["p1"] },
+    );
+    expect(delta.added.map((it) => `${it.kind}:${it.id}`)).toEqual([
+      "Projection:p1",
+    ]);
+    expect(delta.removed.map((it) => `${it.kind}:${it.id}`)).toEqual([
+      "Colour:c1",
+      "Type:email",
+    ]);
+  });
+
+  test("an unchanged spec diffs to nothing", () => {
+    const spec = { wholeScope: true, fragmentIds: ["f1"] };
+    const delta = diffContextSpecs(spec, { ...spec });
+    expect(delta).toEqual({ added: [], removed: [] });
+  });
+
+  test("the whole-scope marker takes part in the diff", () => {
+    const delta = diffContextSpecs(
+      { wholeScope: true },
+      {
+        fragmentTypes: ["note"],
+      },
+    );
+    expect(delta.added.map((it) => it.kind)).toEqual(["Type"]);
+    expect(delta.removed.map((it) => it.kind)).toEqual(["WholeScope"]);
   });
 });

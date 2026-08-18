@@ -261,18 +261,50 @@ export function specKey(spec: ContextSpec): string {
  */
 export function parseActiveContext(messages: UIMessage[]): ContextSpec | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role === "system" && m.parts) {
-      // `context_spec` is a custom part type not in the SDK's part union (see
-      // its emission in chat-panel.tsx), so inspect parts as loosely-typed.
-      const parts = m.parts as { type: string; data?: unknown }[];
-      const p = parts.find((p) => p.type === "context_spec");
-      if (p && typeof p.data === "object" && p.data !== null) {
-        return p.data as ContextSpec;
-      }
-    }
+    const spec = messageContextSpec(messages[i]);
+    if (spec) return spec;
   }
   return null;
+}
+
+/** The `context_spec` a system message carries, if it is one of those. */
+export function messageContextSpec(m: UIMessage): ContextSpec | null {
+  if (m.role !== "system" || !m.parts) return null;
+  // `context_spec` is a custom part type not in the SDK's part union (see
+  // its emission in chat-panel.tsx), so inspect parts as loosely-typed.
+  const parts = m.parts as { type: string; data?: unknown }[];
+  const p = parts.find((p) => p.type === "context_spec");
+  return p && typeof p.data === "object" && p.data !== null
+    ? (p.data as ContextSpec)
+    : null;
+}
+
+export interface ContextSpecDelta {
+  added: ContextItem[];
+  removed: ContextItem[];
+}
+
+/**
+ * The item-level difference between two specs, for rendering a context change
+ * where it took effect in the transcript. Spec-level deliberately: the model's
+ * hydrated delta is at the resolved-fragment level (a colour expands to its
+ * members server-side), but the human-facing change is the selection itself.
+ * Against a `null` previous spec everything is `added` — the first spec of a
+ * conversation renders as a summary, not a diff.
+ */
+export function diffContextSpecs(
+  prev: ContextSpec | null,
+  next: ContextSpec,
+): ContextSpecDelta {
+  const prevItems = prev ? specToItems(prev) : [];
+  const nextItems = specToItems(next);
+  const key = (it: ContextItem) => `${it.kind}:${it.id}`;
+  const prevKeys = new Set(prevItems.map(key));
+  const nextKeys = new Set(nextItems.map(key));
+  return {
+    added: nextItems.filter((it) => !prevKeys.has(key(it))),
+    removed: prevItems.filter((it) => !nextKeys.has(key(it))),
+  };
 }
 
 export function createKalaidoChatTransport(options: {
