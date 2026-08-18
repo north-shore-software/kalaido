@@ -5,6 +5,7 @@ import {
 } from "ai";
 import { kalaidoscopeAuthHeaders } from "@/api/kalaidoscope/client.ts";
 import type { TypedPocketBase } from "@/api/kalaidoscope/types.ts";
+import { stripMentions } from "@/lib/mentions";
 
 export type ContextKind =
   | "Colour"
@@ -334,10 +335,9 @@ export function createKalaidoChatTransport(options: {
 function previewText(content: unknown): string {
   const msg = content as UIMessage | undefined;
   if (!msg?.parts) return "";
-  return msg.parts
-    .map((p) => (p.type === "text" ? p.text : ""))
-    .join("")
-    .trim();
+  return stripMentions(
+    msg.parts.map((p) => (p.type === "text" ? p.text : "")).join(""),
+  ).trim();
 }
 
 export async function listConversations(

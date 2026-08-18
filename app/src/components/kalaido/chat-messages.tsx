@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/css-utils";
+import { splitMentions } from "@/lib/mentions";
 import type { UIMessage } from "ai";
 
 export interface MessageBubbleProps {
@@ -11,6 +12,33 @@ export interface MessageBubbleProps {
    * message is the caller's business, not the transcript's.
    */
   actions?: ReactNode;
+}
+
+/**
+ * Message text with mention tokens rendered as chips. The raw `@[Kind:id|Label]`
+ * wire form is what persists (see lib/mentions.ts), so this is the one place
+ * transcripts translate it back into something readable. Untagged messages
+ * come back as a single text segment and render exactly as before.
+ */
+function MessageText({ content }: { content: string }) {
+  const segments = splitMentions(content);
+  if (segments.length === 1 && segments[0].type === "text") return content;
+  return segments.map((seg, i) =>
+    seg.type === "mention" ? (
+      <span
+        // biome-ignore lint/suspicious/noArrayIndexKey: segments are a pure derivation of content
+        key={i}
+        // `currentColor`-derived so the chip reads on both the primary (user)
+        // and muted (assistant) bubble backgrounds without per-role styling.
+        className="inline rounded-sm border border-current/25 bg-current/10 px-1 font-medium whitespace-nowrap"
+      >
+        @{seg.label}
+      </span>
+    ) : (
+      // biome-ignore lint/suspicious/noArrayIndexKey: segments are a pure derivation of content
+      <span key={i}>{seg.text}</span>
+    ),
+  );
 }
 
 export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
@@ -29,7 +57,7 @@ export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
             : "bg-surface-2 text-fg-1",
         )}
       >
-        {content}
+        <MessageText content={content} />
       </div>
       {actions && (
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">

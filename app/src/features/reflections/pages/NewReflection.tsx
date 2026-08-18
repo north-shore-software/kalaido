@@ -29,6 +29,7 @@ import {
 import { SchedulePill } from "@/features/reflections/components/schedule-controls";
 import { RefineConfigPanel } from "@/features/reflections/components/refine-config-panel";
 import { LivePreviewPane } from "@/features/reflections/components/live-preview-pane";
+import { withContextItem } from "@/lib/mentions";
 
 /** A readable reflection name from the opening prompt (the only "name" we have). */
 function deriveName(prompt: string): string {
@@ -159,6 +160,9 @@ export default function NewReflection() {
                 session={session}
                 title="Define the summary"
                 context={context}
+                onMention={(item) =>
+                  setContext((prev) => withContextItem(prev, item))
+                }
                 windowSpec={windowSpec}
               />
             ) : (

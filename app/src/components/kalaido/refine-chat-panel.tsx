@@ -19,6 +19,7 @@ import { ChatPanel, type ContextItem } from "@/components/kalaido";
 export function RefineChatPanel({
   session,
   context,
+  onMention,
   title,
   placeholder,
   flat = true,
@@ -27,6 +28,8 @@ export function RefineChatPanel({
   session: RefineSession;
   /** Active context selection; omit to leave the conversation's pinned context untouched. */
   context?: ContextItem[];
+  /** See {@link ChatPanel}'s onMention — the owner of `context` adds the mentioned item. */
+  onMention?: (item: ContextItem) => void;
   windowSpec?: WindowSpec;
   title?: ReactNode;
   placeholder?: string;
@@ -40,6 +43,7 @@ export function RefineChatPanel({
       initialMessages={session.initialMessages}
       initialPrompt={session.firstPrompt ?? undefined}
       context={context}
+      onMention={onMention}
       windowSpec={windowSpec}
       onMessagesChange={session.onMessagesChange}
       title={title}

@@ -1,0 +1,117 @@
+import type { ContextItem, ContextKind } from "@/api/kalaidoscope/chat";
+
+/** The kinds a message can @-mention — every context kind except the whole-scope marker. */
+export type MentionKind = Exclude<ContextKind, "WholeScope">;
+
+/**
+ * The wire form of a named-source mention: `@[Kind:id|Label]`. The @-menu
+ * resolves a mention to a concrete record at compose time, so the id is
+ * authoritative and the label is display-only. The raw token is what persists
+ * in the message; the backend expands it to a model-facing reference at
+ * prompt-assembly time (kalaidoscope/internal/llmcontext/mentions.go keeps the
+ * mirrored regex — change them together).
+ */
+const MENTION_SOURCE =
+  "@\\[(Fragment|Projection|Reflection|Colour|Type):([A-Za-z0-9_-]{1,32})\\|([^\\]\\r\\n]{0,80})\\]";
+
+const MAX_LABEL = 60;
+
+/**
+ * Make a label safe to embed in a token without an escaping grammar: the
+ * structural characters are substituted with lookalikes and newlines collapse
+ * to spaces. Lossy on purpose — the label is cosmetic.
+ */
+export function sanitizeMentionLabel(label: string): string {
+  return label
+    .replace(/\[/g, "(")
+    .replace(/\]/g, ")")
+    .replace(/\|/g, "/")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_LABEL);
+}
+
+export function buildMentionToken(
+  kind: MentionKind,
+  id: string,
+  label: string,
+): string {
+  return `@[${kind}:${id}|${sanitizeMentionLabel(label)}]`;
+}
+
+export interface MentionSegment {
+  type: "text" | "mention";
+  /** The raw slice of the message — for a mention, the whole token. */
+  text: string;
+  kind?: MentionKind;
+  id?: string;
+  label?: string;
+}
+
+/** Tokenize a message into literal runs and mention tokens, for rendering. */
+export function splitMentions(text: string): MentionSegment[] {
+  const segments: MentionSegment[] = [];
+  const re = new RegExp(MENTION_SOURCE, "g");
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > last) {
+      segments.push({ type: "text", text: text.slice(last, m.index) });
+    }
+    const [token, kind, id, label] = m;
+    segments.push({
+      type: "mention",
+      text: token,
+      kind: kind as MentionKind,
+      id,
+      label: label || id,
+    });
+    last = m.index + token.length;
+  }
+  if (last < text.length) {
+    segments.push({ type: "text", text: text.slice(last) });
+  }
+  return segments;
+}
+
+/** Replace each mention token with a plain `@Label` — for previews and other cosmetic surfaces. */
+export function stripMentions(text: string): string {
+  return text.replace(
+    new RegExp(MENTION_SOURCE, "g"),
+    (_, __, id: string, label: string) => `@${label || id}`,
+  );
+}
+
+export interface MentionQuery {
+  /** Index of the `@` in the text. */
+  start: number;
+  /** What the user has typed after the `@` so far. */
+  query: string;
+}
+
+/**
+ * The mention being typed at the caret, if any: a `@` at the start of the text
+ * or after whitespace, with no whitespace or `]` between it and the caret (so a
+ * completed token, an email address, or a mid-word `@` never triggers the menu).
+ */
+export function mentionQueryAt(
+  text: string,
+  caret: number,
+): MentionQuery | null {
+  const upto = text.slice(0, caret);
+  const start = upto.lastIndexOf("@");
+  if (start === -1) return null;
+  if (start > 0 && !/\s/.test(upto[start - 1])) return null;
+  const query = upto.slice(start + 1);
+  if (/[\s\]]/.test(query)) return null;
+  return { start, query };
+}
+
+/** Append an item to a context selection unless an equal kind+id is already there. */
+export function withContextItem(
+  items: ContextItem[],
+  item: ContextItem,
+): ContextItem[] {
+  return items.some((it) => it.kind === item.kind && it.id === item.id)
+    ? items
+    : [...items, item];
+}

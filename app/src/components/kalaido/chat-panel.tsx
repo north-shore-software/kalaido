@@ -34,6 +34,13 @@ interface ChatPanelProps {
    */
   context?: ContextItem[];
   /**
+   * Fired when the user @-mentions an entity in the composer. The owner of
+   * {@link context} must add the item to the selection, so the mention's
+   * subject is pinned by the next `context_spec`. Only meaningful alongside
+   * `context`; omit to disable the mention menu.
+   */
+  onMention?: (item: ContextItem) => void;
+  /**
    * The active reflection window selection. Like {@link context}, whenever it
    * changes between turns the panel appends a `window_spec` system message to the
    * outgoing stream so the backend can update the reflection's schedule mid-chat.
@@ -78,6 +85,7 @@ export function ChatPanel({
   greeting = "Hello! How can I help you today?",
   placeholder = "Message…",
   context,
+  onMention,
   windowSpec,
   chatId,
   initialMessages,
@@ -254,6 +262,7 @@ export function ChatPanel({
         placeholder={placeholder}
         disabled={isLoading}
         quotaMessage={quotaHit ? QUOTA_MESSAGE : undefined}
+        onMention={context !== undefined ? onMention : undefined}
       />
     </div>
   );
