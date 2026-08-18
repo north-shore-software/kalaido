@@ -155,6 +155,11 @@ var schema = []tableDef{
 			&core.RelationField{Name: "created_from_refl_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
 			&core.RelationField{Name: "parent_lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			// How many candidate lenses the distillation loop executed before
+			// settling on this one, and whether the loop actually reproduced the
+			// approved snapshot (false = budget ran out, best candidate kept).
+			&core.NumberField{Name: "iterations"},
+			&core.BoolField{Name: "converged"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 	},
@@ -169,6 +174,12 @@ var schema = []tableDef{
 			&core.JSONField{Name: "resolved_context"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
+			// Set when this snapshot was committed from a refinement conversation.
+			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
+			// True when the commit asked for the lens to be re-distilled. An
+			// immutable fact about the commit: the background worker derives its
+			// worklist as "requested && lens_id empty", so a crash loses nothing.
+			&core.BoolField{Name: "lens_distill_requested"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
 			// Non-empty when this snapshot was generated as part of a speculative
 			// "generate all" wave (it may have consumed unapproved upstream
@@ -199,6 +210,9 @@ var schema = []tableDef{
 			&core.JSONField{Name: "resolved_window"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
+			// See projection_snapshot for both fields.
+			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
+			&core.BoolField{Name: "lens_distill_requested"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
 			// See projection_snapshot.chain_origin.
 			&core.TextField{Name: "chain_origin"},

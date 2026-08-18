@@ -198,10 +198,12 @@ export type KalaidoscopeConfigRecord<Trole_models = unknown> = {
 
 export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
 	context_spec?: null | Tcontext_spec
+	converged?: boolean
 	created: IsoAutoDateString
 	created_from_proj_refinement_id?: RecordIdString
 	created_from_refl_refinement_id?: RecordIdString
 	id: string
+	iterations?: number
 	model?: string
 	parent_lens_id?: RecordIdString
 	prompt?: null | Tprompt
@@ -233,8 +235,10 @@ export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	chain_origin?: string
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
+	created_from_refinement_id?: RecordIdString
 	generation_timestamp?: IsoDateString
 	id: string
+	lens_distill_requested?: boolean
 	lens_id?: RecordIdString
 	model?: string
 	output?: null | Toutput
@@ -278,8 +282,10 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	chain_origin?: string
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
+	created_from_refinement_id?: RecordIdString
 	generation_timestamp?: IsoDateString
 	id: string
+	lens_distill_requested?: boolean
 	lens_id?: RecordIdString
 	model?: string
 	output?: null | Toutput

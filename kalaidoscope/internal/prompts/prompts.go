@@ -20,15 +20,7 @@ const (
 	BackgroundNotice = "Everything else in the active context — already established above, or listed below — is BACKGROUND: reference only, never the subject."
 )
 
-const (
-	DistillInstruction    = "You are an expert AI prompt engineer. Given the following source documents and a desired sample output, your task is to write a single, comprehensive instruction prompt. When this prompt is applied to these or similar source documents in the future, it must reliably produce the exact format, style, and structure seen in the sample output. Do not include conversational filler; output only the prompt."
-	ColourEvalInstruction = "You are an expert content evaluator. Does the target document match the given Criteria? Use the provided positive and negative examples to help you understand the criteria. You must answer strictly with 'YES' or 'NO'."
-)
-
-func DistillPrompt(sourceBlock, sample string, windowStart, windowEnd types.DateTime) string {
-	return BuildPrefix(sourceBlock, windowStart, windowEnd) +
-		"Task: " + DistillInstruction + "\n\nSample Output:\n" + sample + "\n\nPrompt:"
-}
+const ColourEvalInstruction = "You are an expert content evaluator. Does the target document match the given Criteria? Use the provided positive and negative examples to help you understand the criteria. You must answer strictly with 'YES' or 'NO'."
 
 func ApplyPrompt(lensPrompt, sourceBlock string, windowStart, windowEnd types.DateTime) string {
 	return BuildPrefix(sourceBlock, windowStart, windowEnd) +
