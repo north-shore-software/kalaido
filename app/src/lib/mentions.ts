@@ -1,4 +1,8 @@
 import type { ContextItem, ContextKind } from "@/api/kalaidoscope/chat";
+import {
+  isWholeScopeSelection,
+  WHOLE_SCOPE_ITEM,
+} from "@/api/kalaidoscope/context-items";
 
 /** The kinds a message can @-mention — every context kind except the whole-scope marker. */
 export type MentionKind = Exclude<ContextKind, "WholeScope">;
@@ -106,12 +110,26 @@ export function mentionQueryAt(
   return { start, query };
 }
 
-/** Append an item to a context selection unless an equal kind+id is already there. */
+/**
+ * Fold a tagged/picked item into a context selection under the bar's union
+ * model. Colours and types are checkbox entries: on a whole-scope selection
+ * they are already checked, so the tag is a no-op; on an enumerated one it
+ * checks them. Fragments/projections/reflections are pins that add to the
+ * union — pinning onto the empty (all-checked) selection materialises the
+ * whole-scope marker first so the scope survives instead of narrowing to the
+ * pin. Kind+id duplicates are always ignored.
+ */
 export function withContextItem(
   items: ContextItem[],
   item: ContextItem,
 ): ContextItem[] {
-  return items.some((it) => it.kind === item.kind && it.id === item.id)
-    ? items
-    : [...items, item];
+  if (items.some((it) => it.kind === item.kind && it.id === item.id))
+    return items;
+  if (item.kind === "Colour" || item.kind === "Type") {
+    return isWholeScopeSelection(items) ? items : [...items, item];
+  }
+  if (item.kind !== "WholeScope" && items.length === 0) {
+    return [WHOLE_SCOPE_ITEM, item];
+  }
+  return [...items, item];
 }

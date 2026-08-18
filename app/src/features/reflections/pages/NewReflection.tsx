@@ -11,9 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 
 import {
+  ContextBar,
   type ContextItem,
-  ContextSummary,
-  Mono,
   RefineChatPanel,
   RefineComposer,
 } from "@/components/kalaido";
@@ -134,19 +133,8 @@ export default function NewReflection() {
               freqLabel="Frequency · how often it regenerates"
               winLabel="Lookback window · fragments per run"
               gap="gap-2"
-              contextSubtitle={
-                <Mono className="-mt-1.5 text-[10.5px] text-fg-4">
-                  colours &amp; fragment types only
-                </Mono>
-              }
               className="gap-5"
-            >
-              <ContextSummary
-                entity="reflection"
-                value={context}
-                onChange={setContext}
-              />
-            </RefineConfigPanel>
+            />
 
             <SchedulePill
               freq={FREQ[freq]}
@@ -163,6 +151,8 @@ export default function NewReflection() {
                 onMention={(item) =>
                   setContext((prev) => withContextItem(prev, item))
                 }
+                onContextChange={setContext}
+                entity="reflection"
                 windowSpec={windowSpec}
               />
             ) : (
@@ -175,6 +165,13 @@ export default function NewReflection() {
                 placeholder="‘a tight weekly work-snippet of what shipped’…"
                 disabled={creating}
                 onSubmit={() => void startReflection()}
+                beforeInput={
+                  <ContextBar
+                    items={context}
+                    onChange={setContext}
+                    entity="reflection"
+                  />
+                }
               />
             )}
           </div>

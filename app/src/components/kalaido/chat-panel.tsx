@@ -1,15 +1,11 @@
 import { useChat } from "@ai-sdk/react";
-import {
-  type ChatTransport,
-  generateId,
-  type PrepareSendMessagesRequest,
-  type UIMessage,
-} from "ai";
+import { type ChatTransport, generateId, type UIMessage } from "ai";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   createKalaidoChatTransport,
   itemsToSpec,
+  parseActiveContext,
   specKey,
   type WindowSpec,
   windowSpecKey,
@@ -21,7 +17,8 @@ import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { cn } from "@/lib/css-utils";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessages, type ChatMessagesProps } from "./chat-messages";
-import type { ContextItem } from "./context-picker";
+import { ContextBar } from "./context-bar/context-bar";
+import type { ContextItem, EntityKind } from "./context-picker";
 
 interface ChatPanelProps {
   greeting?: string;
@@ -40,6 +37,14 @@ interface ChatPanelProps {
    * `context`; omit to disable the mention menu.
    */
   onMention?: (item: ContextItem) => void;
+  /**
+   * Fired when the user edits the context via the {@link ContextBar} rendered
+   * above the composer. The owner of {@link context} applies the new selection.
+   * Without it (alongside `context`) the spec still flows, but no bar renders.
+   */
+  onContextChange?: (items: ContextItem[]) => void;
+  /** Restricts the bar's pin search (a reflection can only pin fragments). */
+  entity?: EntityKind;
   /**
    * The active reflection window selection. Like {@link context}, whenever it
    * changes between turns the panel appends a `window_spec` system message to the
@@ -86,6 +91,8 @@ export function ChatPanel({
   placeholder = "Message…",
   context,
   onMention,
+  onContextChange,
+  entity,
   windowSpec,
   chatId,
   initialMessages,
@@ -112,11 +119,17 @@ export function ChatPanel({
   // Read live in the transport so the spec is always current when a turn fires.
   const specRef = useRef(itemsToSpec(context ?? []));
   specRef.current = itemsToSpec(context ?? []);
-  // The spec the backend already knows for this conversation. A fresh panel
-  // starts empty; switching conversations remounts the panel (keyed on chat id),
-  // so we never carry one conversation's baseline into another. We only emit a
+  // The spec the backend already knows for this conversation: seeded from the
+  // resumed history's last context_spec (a fresh chat has none and starts
+  // empty). Switching conversations remounts the panel (keyed on chat id), so
+  // we never carry one conversation's baseline into another. We only emit a
   // context_spec when the active spec diverges from this.
-  const lastSentSpecRef = useRef(specKey({}));
+  const lastSentSpecRef = useRef<string | null>(null);
+  if (lastSentSpecRef.current === null) {
+    lastSentSpecRef.current = specKey(
+      parseActiveContext(initialMessages ?? []) ?? {},
+    );
+  }
 
   // Same machinery for the optional reflection window spec. A caller that omits
   // `windowSpec` opts out (e.g. projections / plain chat); otherwise we emit a
@@ -131,59 +144,10 @@ export function ChatPanel({
 
   const transport = useMemo(() => {
     if (transportProp) return transportProp;
-
-    const prepareSendMessagesRequest: PrepareSendMessagesRequest<UIMessage> = ({
-      id,
-      messages,
-      body,
-      trigger,
-      messageId,
-    }) => {
-      let outgoing = messages;
-      // Collect any spec parts (context and/or window) that changed since the
-      // last turn; the backend reads both `context_spec` and `window_spec`
-      // parts off the same message.
-      const specParts: { type: string; data: unknown }[] = [];
-
-      const ctxKey = specKey(specRef.current);
-      if (manageContextRef.current && ctxKey !== lastSentSpecRef.current) {
-        specParts.push({ type: "context_spec", data: specRef.current });
-        lastSentSpecRef.current = ctxKey;
-      }
-
-      const winKey = windowSpecKey(windowSpecRef.current);
-      if (manageWindowRef.current && winKey !== lastSentWindowRef.current) {
-        specParts.push({ type: "window_spec", data: windowSpecRef.current });
-        lastSentWindowRef.current = winKey;
-      }
-
-      if (specParts.length > 0) {
-        const specMsg = {
-          id: generateId(),
-          role: "system",
-          parts: specParts,
-        } as unknown as UIMessage;
-        // The spec applies to the turn that follows it, so slot it in just
-        // before the user message being sent (or append it on regenerate).
-        // The backend persists it before streaming, so it is durably recorded
-        // even if the turn fails (e.g. quota) — baselines were advanced above.
-        outgoing =
-          trigger === "submit-message" && outgoing.length > 0
-            ? [...outgoing.slice(0, -1), specMsg, outgoing[outgoing.length - 1]]
-            : [...outgoing, specMsg];
-      }
-      return {
-        body: { ...body, id, messages: outgoing, trigger, messageId },
-      };
-    };
-
-    return createKalaidoChatTransport({
-      baseURL: client.baseURL,
-      prepareSendMessagesRequest,
-    });
+    return createKalaidoChatTransport({ baseURL: client.baseURL });
   }, [transportProp, client]);
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
     id: chatId,
     messages: initialMessages,
     transport,
@@ -213,11 +177,13 @@ export function ChatPanel({
   const isLoading = status === "submitted" || status === "streaming";
 
   const sentInitial = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges is intentionally unlisted — the send is a guarded one-shot
   useEffect(() => {
     if (sentInitial.current) return;
     if (!initialPrompt?.trim()) return;
     if (messages.length > 0) return;
     sentInitial.current = true;
+    appendSpecChanges();
     sendMessage({ text: initialPrompt });
   }, [initialPrompt, messages.length, sendMessage]);
 
@@ -230,8 +196,42 @@ export function ChatPanel({
     onMessagesChange?.(messages);
   }, [messages, onMessagesChange]);
 
+  /**
+   * Append any spec change (context and/or window) to the live transcript as a
+   * system message before a send, so the transcript the user sees — including
+   * the context-change divider it renders — is exactly what goes to the
+   * backend and what a resumed conversation loads. `sendMessage` appends the
+   * user message after it, and the backend persists the spec message before
+   * streaming, so it is durably recorded even if the turn fails (e.g. quota) —
+   * matching the baselines, which advance here.
+   */
+  function appendSpecChanges() {
+    const specParts: { type: string; data: unknown }[] = [];
+
+    const ctxKey = specKey(specRef.current);
+    if (manageContextRef.current && ctxKey !== lastSentSpecRef.current) {
+      specParts.push({ type: "context_spec", data: specRef.current });
+      lastSentSpecRef.current = ctxKey;
+    }
+
+    const winKey = windowSpecKey(windowSpecRef.current);
+    if (manageWindowRef.current && winKey !== lastSentWindowRef.current) {
+      specParts.push({ type: "window_spec", data: windowSpecRef.current });
+      lastSentWindowRef.current = winKey;
+    }
+
+    if (specParts.length === 0) return;
+    const specMsg = {
+      id: generateId(),
+      role: "system",
+      parts: specParts,
+    } as unknown as UIMessage;
+    setMessages((prev) => [...prev, specMsg]);
+  }
+
   function submit() {
     if (!input.trim() || isLoading || quotaHit) return;
+    appendSpecChanges();
     sendMessage({ text: input });
     setInput("");
   }
@@ -254,6 +254,14 @@ export function ChatPanel({
         />
         <div ref={bottomRef} />
       </div>
+
+      {context !== undefined && onContextChange && (
+        <ContextBar
+          items={context}
+          onChange={onContextChange}
+          entity={entity}
+        />
+      )}
 
       <ChatComposer
         value={input}

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { ContextItem } from "@/api/kalaidoscope/chat";
+import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import {
   buildMentionToken,
   mentionQueryAt,
@@ -93,13 +95,38 @@ describe("mentionQueryAt", () => {
 });
 
 describe("withContextItem", () => {
-  it("appends new items and ignores kind+id duplicates", () => {
-    const a = { kind: "Colour" as const, id: "c1", label: "Work" };
-    const items = withContextItem([], a);
-    expect(items).toEqual([a]);
-    expect(withContextItem(items, { ...a, label: "renamed" })).toBe(items);
+  const colour = { kind: "Colour" as const, id: "c1", label: "Work" };
+  const type = { kind: "Type" as const, id: "email", label: "Email" };
+  const pin = { kind: "Fragment" as const, id: "f1", label: "standup" };
+
+  it("treats a colour or type tag as a no-op on a whole-scope selection", () => {
+    // Everything is already checked, so there is nothing to add.
+    const empty: ContextItem[] = [];
+    expect(withContextItem(empty, colour)).toBe(empty);
+    const marked = [WHOLE_SCOPE_ITEM, pin];
+    expect(withContextItem(marked, type)).toBe(marked);
+  });
+
+  it("checks a colour or type on an enumerated selection", () => {
+    const enumerated: ContextItem[] = [type];
+    expect(withContextItem(enumerated, colour)).toEqual([type, colour]);
+  });
+
+  it("pinning onto the empty selection materialises the whole-scope marker", () => {
+    // The pin adds to the union — the scope must not narrow to just the pin.
+    expect(withContextItem([], pin)).toEqual([WHOLE_SCOPE_ITEM, pin]);
+    expect(withContextItem([WHOLE_SCOPE_ITEM], pin)).toEqual([
+      WHOLE_SCOPE_ITEM,
+      pin,
+    ]);
+  });
+
+  it("appends pins to an enumerated selection and ignores kind+id duplicates", () => {
+    const items = withContextItem([type], pin);
+    expect(items).toEqual([type, pin]);
+    expect(withContextItem(items, { ...pin, label: "renamed" })).toBe(items);
     expect(
-      withContextItem(items, { kind: "Fragment", id: "c1", label: "x" }),
-    ).toHaveLength(2);
+      withContextItem(items, { kind: "Projection", id: "f1", label: "x" }),
+    ).toHaveLength(3);
   });
 });

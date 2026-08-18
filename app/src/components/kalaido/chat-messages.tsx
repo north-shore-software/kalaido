@@ -1,7 +1,16 @@
-import type { ReactNode } from "react";
+import type { UIMessage } from "ai";
+import { type ReactNode, useMemo } from "react";
+import {
+  type ContextSpec,
+  diffContextSpecs,
+  messageContextSpec,
+} from "@/api/kalaidoscope/chat";
+import { useContextSources } from "@/hooks/use-context-sources";
+import { useFragmentLabels } from "@/hooks/use-fragment-labels";
 import { cn } from "@/lib/css-utils";
 import { splitMentions } from "@/lib/mentions";
-import type { UIMessage } from "ai";
+import { ColourSwatch } from "./colour";
+import { KIND_ABBREV } from "./context-bar/state";
 
 export interface MessageBubbleProps {
   role: string;
@@ -68,6 +77,105 @@ export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
   );
 }
 
+/**
+ * Marks where the context changed in the transcript, with the same change the
+ * next turn's prompt was built from. Spec-level and diffed against the previous
+ * spec in the stream (see {@link diffContextSpecs}); the opening spec of a
+ * conversation renders as a plain summary, except the default whole scope of a
+ * fresh chat, which is not a change worth marking. A re-emitted identical spec
+ * diffs to nothing and renders nothing.
+ */
+function ContextSpecDivider({
+  spec,
+  prevSpec,
+}: {
+  spec: ContextSpec;
+  prevSpec: ContextSpec | null;
+}) {
+  const sources = useContextSources();
+  const delta = useMemo(
+    () => diffContextSpecs(prevSpec, spec),
+    [prevSpec, spec],
+  );
+  const fragmentIds = useMemo(
+    () =>
+      [...delta.added, ...delta.removed]
+        .filter((it) => it.kind === "Fragment")
+        .map((it) => it.id),
+    [delta],
+  );
+  const fragmentLabels = useFragmentLabels(fragmentIds);
+
+  const isFirst = prevSpec === null;
+  if (delta.added.length === 0 && delta.removed.length === 0) return null;
+  if (
+    isFirst &&
+    delta.added.length === 1 &&
+    delta.added[0].kind === "WholeScope"
+  ) {
+    return null;
+  }
+
+  // A stored spec holds bare ids; resolve display labels like the bar does.
+  const display = (it: (typeof delta.added)[number]) => {
+    switch (it.kind) {
+      case "WholeScope":
+        return "whole scope";
+      case "Type":
+        return sources.types.find((s) => s.value === it.id)?.label ?? it.label;
+      case "Colour":
+        return sources.colours.find((s) => s.id === it.id)?.name ?? it.label;
+      case "Projection":
+        return (
+          sources.projections.find((s) => s.id === it.id)?.name ?? it.label
+        );
+      case "Reflection":
+        return (
+          sources.reflections.find((s) => s.id === it.id)?.name ?? it.label
+        );
+      case "Fragment":
+        return `@${fragmentLabels.get(it.id) ?? it.label}`;
+    }
+  };
+
+  const entry = (it: (typeof delta.added)[number], sign: "+" | "−" | null) => {
+    const swatch =
+      it.kind === "Colour"
+        ? sources.colours.find((s) => s.id === it.id)?.value
+        : undefined;
+    return (
+      <span
+        key={`${sign}:${it.kind}:${it.id}`}
+        className={cn(
+          "inline-flex max-w-56 items-center gap-1 whitespace-nowrap",
+          sign === "−" && "text-fg-5 line-through",
+        )}
+      >
+        {sign && <span className="shrink-0">{sign}</span>}
+        {it.kind !== "WholeScope" && it.kind !== "Fragment" && (
+          <span className="shrink-0 text-[9px] font-bold uppercase text-fg-5">
+            {KIND_ABBREV[it.kind]}
+          </span>
+        )}
+        {swatch != null && <ColourSwatch value={swatch} size={8} />}
+        <span className="min-w-0 truncate">{display(it)}</span>
+      </span>
+    );
+  };
+
+  return (
+    <div className="flex items-center gap-2.5 py-0.5">
+      <div className="h-px flex-1 bg-line" />
+      <div className="flex max-w-[80%] flex-wrap items-center justify-center gap-x-2 gap-y-0.5 font-mono text-mono-sm text-fg-4">
+        <span className="font-bold uppercase text-fg-5">Context</span>
+        {delta.added.map((it) => entry(it, isFirst ? null : "+"))}
+        {delta.removed.map((it) => entry(it, "−"))}
+      </div>
+      <div className="h-px flex-1 bg-line" />
+    </div>
+  );
+}
+
 const TOOL_MESSAGES: Record<string, string> = {
   update_draft: "Updated the draft.",
 };
@@ -106,21 +214,32 @@ export function ChatMessages({
   pending,
   assistantActions,
 }: ChatMessagesProps) {
-  // Persisted history can include the `pinned_ids`/`context_spec` system
-  // messages the backend uses to track context over time; they carry no chat
-  // text, so keep them in the stream but never render them as bubbles.
-  const visibleMessages = messages.filter((m) => m.role !== "system");
+  // System messages carry no chat text. Those with a `context_spec` part mark
+  // where the context changed and render as dividers at that position; the
+  // rest (`window_spec`, legacy `pinned_ids`) stay in the stream unrendered.
+  const chatMessageCount = messages.filter((m) => m.role !== "system").length;
+  let prevSpec: ContextSpec | null = null;
 
   return (
     <>
-      {visibleMessages.length === 0 && (
+      {chatMessageCount === 0 && (
         <div className="flex justify-start">
           <div className="max-w-[70%] rounded-none px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words bg-surface-2 text-fg-1">
             {greeting}
           </div>
         </div>
       )}
-      {visibleMessages.map((msg) => {
+      {messages.map((msg) => {
+        if (msg.role === "system") {
+          const spec = messageContextSpec(msg);
+          if (!spec) return null;
+          const before = prevSpec;
+          prevSpec = spec;
+          return (
+            <ContextSpecDivider key={msg.id} spec={spec} prevSpec={before} />
+          );
+        }
+
         const hasText = msg.parts.some(
           (part) => part.type === "text" && part.text?.trim(),
         );

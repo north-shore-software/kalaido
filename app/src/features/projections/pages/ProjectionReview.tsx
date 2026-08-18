@@ -18,9 +18,8 @@ import {
 import { Button } from "@/components/ui/button";
 
 import {
+  ContextBar,
   type ContextItem,
-  ContextSummary,
-  Label,
   RefineChatPanel,
   RefineComposer,
 } from "@/components/kalaido";
@@ -275,14 +274,6 @@ function ProjectionReviewPage() {
             )}
           </div>
           <div className="flex w-[300px] shrink-0 flex-col border-l border-line bg-surface-1">
-            <div className="flex max-h-[40%] shrink-0 flex-col gap-2 overflow-y-auto border-b border-line p-4">
-              <Label>Context</Label>
-              <ContextSummary
-                entity="projection"
-                value={context}
-                onChange={setContext}
-              />
-            </div>
             {session.started ? (
               <RefineChatPanel
                 session={session}
@@ -291,6 +282,8 @@ function ProjectionReviewPage() {
                 onMention={(item) =>
                   setContext((prev) => withContextItem(prev, item))
                 }
+                onContextChange={setContext}
+                entity="projection"
                 placeholder="Tell Kalaido what to change…"
               />
             ) : (
@@ -304,6 +297,13 @@ function ProjectionReviewPage() {
                 disabled={!pending}
                 busy={session.creating}
                 onSubmit={() => void startRefine()}
+                beforeInput={
+                  <ContextBar
+                    items={context}
+                    onChange={setContext}
+                    entity="projection"
+                  />
+                }
               />
             )}
           </div>

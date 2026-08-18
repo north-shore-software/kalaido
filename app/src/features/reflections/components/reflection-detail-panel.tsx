@@ -16,7 +16,6 @@ import {
 import { SchedulePill } from "@/features/reflections/components/schedule-controls";
 import {
   type ContextItem,
-  ContextSummary,
   Label,
   RefineChatPanel,
   RefineComposer,
@@ -249,13 +248,7 @@ export function ReflectionDetailPanel({
               win={win}
               onWinChange={setWin}
               className="max-h-[40%] shrink-0 overflow-y-auto border-b border-line p-3"
-            >
-              <ContextSummary
-                entity="reflection"
-                value={context}
-                onChange={setContext}
-              />
-            </RefineConfigPanel>
+            />
             {session.started ? (
               <RefineChatPanel
                 session={session}
@@ -263,6 +256,8 @@ export function ReflectionDetailPanel({
                 onMention={(item) =>
                   setContext((prev) => withContextItem(prev, item))
                 }
+                onContextChange={setContext}
+                entity="reflection"
                 windowSpec={windowSpec}
                 placeholder="‘group by project and lead with blockers’…"
               />

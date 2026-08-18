@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import type { WindowSpec } from "@/api/kalaidoscope/chat";
 import type { RefineSession } from "@/hooks/use-refine-session";
-import { ChatPanel, type ContextItem } from "@/components/kalaido";
+import {
+  ChatPanel,
+  type ContextItem,
+  type EntityKind,
+} from "@/components/kalaido";
 
 /**
  * A {@link ChatPanel} bound to a {@link RefineSession}. Every "refine via chat"
@@ -20,6 +24,8 @@ export function RefineChatPanel({
   session,
   context,
   onMention,
+  onContextChange,
+  entity,
   title,
   placeholder,
   flat = true,
@@ -30,6 +36,10 @@ export function RefineChatPanel({
   context?: ContextItem[];
   /** See {@link ChatPanel}'s onMention — the owner of `context` adds the mentioned item. */
   onMention?: (item: ContextItem) => void;
+  /** See {@link ChatPanel}'s onContextChange — enables the ContextBar above the composer. */
+  onContextChange?: (items: ContextItem[]) => void;
+  /** See {@link ChatPanel}'s entity — restricts the bar's pin search. */
+  entity?: EntityKind;
   windowSpec?: WindowSpec;
   title?: ReactNode;
   placeholder?: string;
@@ -44,6 +54,8 @@ export function RefineChatPanel({
       initialPrompt={session.firstPrompt ?? undefined}
       context={context}
       onMention={onMention}
+      onContextChange={onContextChange}
+      entity={entity}
       windowSpec={windowSpec}
       onMessagesChange={session.onMessagesChange}
       title={title}

@@ -1,10 +1,7 @@
-import { Label } from "@/components/kalaido";
 import { ScheduleChips } from "@/features/reflections/components/schedule-controls";
 import { cn } from "@/lib/css-utils";
 
 export interface RefineConfigPanelProps {
-  children?: React.ReactNode;
-  contextSubtitle?: React.ReactNode;
   freq: number;
   onFreqChange: (freq: number) => void;
   win: number;
@@ -16,8 +13,6 @@ export interface RefineConfigPanelProps {
 }
 
 export function RefineConfigPanel({
-  children,
-  contextSubtitle,
   freq,
   onFreqChange,
   win,
@@ -29,11 +24,6 @@ export function RefineConfigPanel({
 }: RefineConfigPanelProps) {
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      <div className="flex flex-col gap-1.5">
-        <Label>Context</Label>
-        {contextSubtitle}
-        {children}
-      </div>
       <ScheduleChips
         freq={freq}
         win={win}
