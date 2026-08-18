@@ -33,7 +33,9 @@ export function DocumentCard({
       <div className="flex items-center justify-between gap-2 px-3.5 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           {leading}
-          <span className="truncate text-row font-semibold text-fg-1 first-letter:uppercase">{title}</span>
+          <span className="truncate text-row font-semibold text-fg-1 first-letter:uppercase">
+            {title}
+          </span>
         </div>
         {trailing && (
           <div className="flex shrink-0 items-center gap-2">{trailing}</div>

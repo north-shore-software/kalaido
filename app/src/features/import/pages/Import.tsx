@@ -91,9 +91,7 @@ export default function Import() {
           <section className="flex flex-col gap-2">
             <Label>File</Label>
             <FilePicker path={path} disabled={running} onChoose={chooseFile} />
-            {pickError && (
-              <p className="text-body-sm text-fg-3">{pickError}</p>
-            )}
+            {pickError && <p className="text-body-sm text-fg-3">{pickError}</p>}
             {path && <ImportPreview entries={entries} scanning={scanning} />}
           </section>
 

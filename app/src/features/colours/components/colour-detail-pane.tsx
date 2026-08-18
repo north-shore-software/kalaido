@@ -100,10 +100,7 @@ export function ColourDetailPane({
               >
                 Save definition
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setEditingCriteria(null)}
-              >
+              <Button variant="ghost" onClick={() => setEditingCriteria(null)}>
                 Cancel
               </Button>
             </div>

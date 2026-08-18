@@ -74,7 +74,9 @@ export function ActiveRotationCard({
                 {windows.length > 1 ? "s" : ""}
               </StatusPill>
             )
-          : entropy > 0 && <StatusPill kind="drifting">{entropy} new</StatusPill>}
+          : entropy > 0 && (
+              <StatusPill kind="drifting">{entropy} new</StatusPill>
+            )}
       </div>
 
       {isReflection ? (

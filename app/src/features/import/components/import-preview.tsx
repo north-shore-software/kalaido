@@ -75,9 +75,7 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
             </li>
           ))}
       </ul>
-      {overflow > 0 && (
-        <p className="text-meta text-fg-4">+{overflow} more…</p>
-      )}
+      {overflow > 0 && <p className="text-meta text-fg-4">+{overflow} more…</p>}
       {unsupported > 0 && (
         <p className="text-meta text-fg-4">
           Unsupported files are skipped by the import.
