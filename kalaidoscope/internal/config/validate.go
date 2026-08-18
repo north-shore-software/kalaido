@@ -5,16 +5,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 // validationDeadline bounds a whole validation pass rather than each call, so a
 // config with five per-role models can't stack five timeouts onto one request.
 const validationDeadline = 20 * time.Second
-
-// validationPrompt is deliberately trivial — this is a reachability and
-// credential check, not a capability test, and every call is billed.
-const validationPrompt = "ping"
 
 // ValidateConfig makes a live call against every model the config references.
 //
@@ -59,7 +56,7 @@ func ValidateModels(ctx context.Context, cfg llm.WorkspaceConfig, models []strin
 func validateModel(ctx context.Context, cfg llm.WorkspaceConfig, model string) error {
 	comp, err := llm.SelectedProviderForConfig(model, cfg).Stream(
 		ctx,
-		[]llm.Message{{Role: "user", Content: validationPrompt}},
+		[]llm.Message{{Role: "user", Content: prompts.ValidationPing}},
 		nil,
 	)
 	if err != nil {

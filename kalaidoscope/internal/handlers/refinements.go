@@ -15,6 +15,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
 func HandleCreateProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
@@ -159,14 +160,14 @@ func seedDraftMessage(draft string) api.UIMessage {
 	id := fmt.Sprintf("seed-%d", time.Now().UnixNano())
 	data, _ := json.Marshal(map[string]any{
 		"toolCallId": id,
-		"toolName":   updateDraftToolName,
+		"toolName":   prompts.UpdateDraftToolName,
 		"input":      map[string]string{"draft": draft},
 	})
 	return api.UIMessage{
 		ID:   id,
 		Role: "assistant",
 		Parts: []api.UIMessagePart{
-			{Type: "tool-" + updateDraftToolName, Data: data},
+			{Type: "tool-" + prompts.UpdateDraftToolName, Data: data},
 		},
 	}
 }
@@ -183,7 +184,7 @@ func ExtractDraftedSnapshotAndSpec(app core.App, refRec *core.Record) (string, l
 		m := msgs[i]
 		if m.Role == "assistant" {
 			for _, p := range m.Parts {
-				if p.Type == "tool-"+updateDraftToolName {
+				if p.Type == "tool-"+prompts.UpdateDraftToolName {
 					var data struct {
 						Input struct {
 							Draft string `json:"draft"`

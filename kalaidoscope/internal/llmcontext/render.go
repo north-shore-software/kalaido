@@ -3,7 +3,6 @@ package llmcontext
 import (
 	stdctx "context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -32,7 +31,7 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 						if sb.Len() > 0 {
 							sb.WriteString("\n\n")
 						}
-						fmt.Fprintf(&sb, "[You called %s, drafting:]\n%s", data.ToolName, data.Input.Draft)
+						sb.WriteString(prompts.DraftEcho(data.ToolName, data.Input.Draft))
 					}
 				}
 			}
@@ -47,11 +46,11 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 func RenderFragmentRecords(recs []*core.Record) string {
 	var sb strings.Builder
 	for _, rec := range recs {
-		fmt.Fprintf(&sb, "--- %s from %s (ID: %s) ---\n%s\n\n",
+		sb.WriteString(prompts.FragmentBlock(
 			rec.GetString("type"),
 			rec.GetString("source"),
 			rec.Id,
-			rec.GetString("content"))
+			rec.GetString("content")))
 	}
 	return sb.String()
 }
@@ -91,7 +90,7 @@ func HydrateDeltaToText(ctx stdctx.Context, app core.App, added, removed PinnedI
 	var sb strings.Builder
 
 	if len(added.FragmentIDs) > 0 || len(added.SnapshotIDs) > 0 {
-		sb.WriteString("The following documents were ADDED to the active context:\n\n")
+		sb.WriteString(prompts.AddedNotice)
 		hydrated, err := HydrateIDsToText(ctx, app, added)
 		if err != nil {
 			return "", err
@@ -100,12 +99,12 @@ func HydrateDeltaToText(ctx stdctx.Context, app core.App, added, removed PinnedI
 	}
 
 	if len(removed.FragmentIDs) > 0 || len(removed.SnapshotIDs) > 0 {
-		sb.WriteString("The following documents were REMOVED from the active context and should no longer be relied upon:\n")
+		sb.WriteString(prompts.RemovedNotice)
 		for _, id := range removed.FragmentIDs {
-			sb.WriteString("- Fragment ID: " + id + "\n")
+			sb.WriteString(prompts.RemovedIDLine("Fragment", id))
 		}
 		for _, id := range removed.SnapshotIDs {
-			sb.WriteString("- Snapshot ID: " + id + "\n")
+			sb.WriteString(prompts.RemovedIDLine("Snapshot", id))
 		}
 		sb.WriteString("\n")
 	}
