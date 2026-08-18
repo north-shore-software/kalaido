@@ -1,6 +1,6 @@
 ---
 title: "Explicit provider config writing and mutable provider selection"
-status: "idea"
+status: "done"
 author: "human"
 created: "2026-08-14"
 ---
@@ -17,3 +17,11 @@ Leaving Ollama unwritten to avoid locking the workspace into Ollama means the se
 
 ## Open Questions
 - None raised by user.
+
+## Resolution (2026-08-18)
+Provider mutability itself had already shipped: the `provider_immutable` hook
+was removed from `config/hooks.go` and provider selections are written
+explicitly. This item closed with the follow-through: per-entity model
+overrides (`model` column on `projection`, `reflection`, `chat_conversation`)
+resolving entity → `role_models` → `default_model`, with lazy lens
+re-distillation on model drift. Provider remains workspace-level.

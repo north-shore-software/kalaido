@@ -240,3 +240,126 @@ func TestDistillPassPicksLatestApprovalPerParent(t *testing.T) {
 		t.Fatal("latest approved snapshot did not get a lens")
 	}
 }
+
+// driftFixture seeds a projection whose approved lens was distilled by
+// lensModel, with the approved distill-origin snapshot still pointing at it —
+// the state the drift scan reads.
+func driftFixture(t *testing.T, app core.App, lensModel string) (proj, lens, snap *core.Record) {
+	t.Helper()
+	frag := pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
+	spec := api.ContextSpec{WholeScope: true}
+	lens = pbtest.NewRecord(t, app, "lens", map[string]any{
+		"prompt":       pbutil.JSONString("LENS V2"),
+		"context_spec": pbutil.JSONObject(spec),
+		"model":        lensModel,
+	})
+	proj = pbtest.NewRecord(t, app, "projection", map[string]any{
+		"name":                 "P",
+		"current_context_spec": pbutil.JSONObject(spec),
+		"current_lens_id":      lens.Id,
+	})
+	snap = pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":            proj.Id,
+		"status":                   StatusApproved,
+		"output":                   pbutil.JSONString("TARGET OUTPUT"),
+		"context_spec":             pbutil.JSONObject(spec),
+		"resolved_context":         pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}),
+		"lens_id":                  lens.Id,
+		"lens_distill_requested":   true,
+		"approval_sequence_number": 1,
+		"approval_timestamp":       "2026-08-01 10:00:00.000Z",
+	})
+	return proj, lens, snap
+}
+
+func withEngineWorkspaceConfig(t *testing.T, cfg llm.WorkspaceConfig) {
+	t.Helper()
+	prev := llm.ActiveWorkspaceConfig()
+	llm.SetWorkspaceConfig(cfg)
+	t.Cleanup(func() { llm.SetWorkspaceConfig(prev) })
+}
+
+func TestDriftScanRedistillsWhenDefaultModelMoves(t *testing.T) {
+	app := pbtest.NewApp(t)
+	proj, oldLens, snap := driftFixture(t, app, "old-model")
+	withEngineWorkspaceConfig(t, llm.WorkspaceConfig{
+		Provider:     llm.ProviderGemini,
+		DefaultModel: "new-model",
+	})
+
+	runDistillPass(app)
+
+	proj, _ = app.FindRecordById("projection", proj.Id)
+	newLensID := proj.GetString("current_lens_id")
+	if newLensID == "" || newLensID == oldLens.Id {
+		t.Fatalf("current_lens_id = %q, want a replacement lens", newLensID)
+	}
+	newLens, err := app.FindRecordById("lens", newLensID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := newLens.GetString("model"); got != "new-model" {
+		t.Fatalf("replacement lens model = %q, want %q", got, "new-model")
+	}
+	if got := newLens.GetString("parent_lens_id"); got != oldLens.Id {
+		t.Fatalf("parent_lens_id = %q, want the drifted lens %q", got, oldLens.Id)
+	}
+	// Lazy: the previously approved snapshot's output was never touched; only
+	// its lens_id follows the replacement so the association survives.
+	snap, _ = app.FindRecordById("projection_snapshot", snap.Id)
+	if got := pbutil.DecodeJSONString(snap.GetString("output")); got != "TARGET OUTPUT" {
+		t.Fatalf("approved snapshot output changed to %q", got)
+	}
+	if got := snap.GetString("lens_id"); got != newLensID {
+		t.Fatalf("snapshot lens_id = %q, want re-pointed to %q", got, newLensID)
+	}
+
+	// Convergence: the replacement's model matches the effective model, so a
+	// second pass finds no drift and mints nothing.
+	runDistillPass(app)
+	lenses, err := app.FindRecordsByFilter("lens", "id != ''", "", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lenses) != 2 {
+		t.Fatalf("lens count after second pass = %d, want 2 (old + one replacement)", len(lenses))
+	}
+}
+
+func TestDriftScanHonoursEntityOverride(t *testing.T) {
+	app := pbtest.NewApp(t)
+	proj, _, _ := driftFixture(t, app, "gemma4")
+	// The workspace still resolves to gemma4 (static local set); only the
+	// entity's own override moves.
+	proj.Set("model", "override-model")
+	if err := app.Save(proj); err != nil {
+		t.Fatal(err)
+	}
+
+	runDistillPass(app)
+
+	proj, _ = app.FindRecordById("projection", proj.Id)
+	newLens, err := app.FindRecordById("lens", proj.GetString("current_lens_id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := newLens.GetString("model"); got != "override-model" {
+		t.Fatalf("replacement lens model = %q, want the entity override", got)
+	}
+}
+
+func TestDriftScanSkipsPreProvenanceLens(t *testing.T) {
+	app := pbtest.NewApp(t)
+	proj, oldLens, _ := driftFixture(t, app, "")
+	withEngineWorkspaceConfig(t, llm.WorkspaceConfig{
+		Provider:     llm.ProviderGemini,
+		DefaultModel: "new-model",
+	})
+
+	runDistillPass(app)
+
+	proj, _ = app.FindRecordById("projection", proj.Id)
+	if got := proj.GetString("current_lens_id"); got != oldLens.Id {
+		t.Fatalf("pre-provenance lens was replaced (current_lens_id = %q)", got)
+	}
+}

@@ -48,6 +48,34 @@ func TestResolveRolePrefersWorkspaceConfig(t *testing.T) {
 	}
 }
 
+func TestResolveRoleForOverrideWins(t *testing.T) {
+	withWorkspaceConfig(t, WorkspaceConfig{
+		Provider:     ProviderGemini,
+		DefaultModel: "workspace-default",
+		RoleModels:   map[Role]string{RoleSnapshot: "role-model"},
+	})
+
+	// A non-empty override beats both the per-role model and the default.
+	if got, err := ResolveRoleFor(RoleSnapshot, "entity-override"); err != nil || got != "entity-override" {
+		t.Errorf("override = (%q, %v), want (\"entity-override\", nil)", got, err)
+	}
+	// Empty and whitespace-only overrides fall back to role resolution.
+	if got, err := ResolveRoleFor(RoleSnapshot, ""); err != nil || got != "role-model" {
+		t.Errorf("empty override = (%q, %v), want (\"role-model\", nil)", got, err)
+	}
+	if got, err := ResolveRoleFor(RoleChat, "   "); err != nil || got != "workspace-default" {
+		t.Errorf("whitespace override = (%q, %v), want (\"workspace-default\", nil)", got, err)
+	}
+	// The distill→snapshot alias survives the fallback path.
+	if got, err := ResolveRoleFor(RoleDistill, ""); err != nil || got != "role-model" {
+		t.Errorf("distill fallback = (%q, %v), want the snapshot role's model", got, err)
+	}
+	// And an override applies to distill identically.
+	if got, err := ResolveRoleFor(RoleDistill, "entity-override"); err != nil || got != "entity-override" {
+		t.Errorf("distill override = (%q, %v), want (\"entity-override\", nil)", got, err)
+	}
+}
+
 func TestResolveRoleErrorsWhenConfiguredWithNoModel(t *testing.T) {
 	withWorkspaceConfig(t, WorkspaceConfig{Provider: ProviderGemini})
 

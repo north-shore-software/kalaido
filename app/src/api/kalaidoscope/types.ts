@@ -114,6 +114,7 @@ export type ChatConversationRecord = {
 	created: IsoAutoDateString
 	external_conversation_id?: string
 	id: string
+	model?: string
 }
 
 export type ChatMessageRecord<Tcontent = unknown> = {
@@ -224,6 +225,7 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	current_lens_id?: RecordIdString
 	id: string
 	last_provider_error_kind?: string
+	model?: string
 	name?: string
 	pinned_by?: RecordIdString
 	updated: IsoAutoDateString
@@ -270,6 +272,7 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	current_lens_id?: RecordIdString
 	id: string
 	last_provider_error_kind?: string
+	model?: string
 	name?: string
 	pinned_by?: RecordIdString
 	updated: IsoAutoDateString

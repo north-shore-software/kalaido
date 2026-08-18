@@ -218,6 +218,32 @@ func HandleCommitReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 	return handleCommitRefinementGeneric(app, "reflection", "refine_refl_snapshot_conversation", "reflection_snapshot_id")
 }
 
+// refinementParent resolves the projection/reflection a refinement
+// conversation refines: the direct relation when set, else via its source
+// snapshot. Nil when neither path resolves.
+func refinementParent(app core.App, refRec *core.Record) *core.Record {
+	targetCol, snapshotField := "projection", "projection_snapshot_id"
+	if refRec.Collection().Name == "refine_refl_snapshot_conversation" {
+		targetCol, snapshotField = "reflection", "reflection_snapshot_id"
+	}
+	parentID := refRec.GetString(targetCol + "_id")
+	if parentID == "" {
+		if snapID := refRec.GetString(snapshotField); snapID != "" {
+			if snap, err := app.FindRecordById(targetCol+"_snapshot", snapID); err == nil {
+				parentID = snap.GetString(targetCol + "_id")
+			}
+		}
+	}
+	if parentID == "" {
+		return nil
+	}
+	rec, err := app.FindRecordById(targetCol, parentID)
+	if err != nil {
+		return nil
+	}
+	return rec
+}
+
 func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, snapshotField string) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		type reqBody struct {

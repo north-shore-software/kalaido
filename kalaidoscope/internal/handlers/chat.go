@@ -67,7 +67,18 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 			return e.BadRequestError("messages required", nil)
 		}
 
-		comp, err := usage.Stream(ctx, app, llm.RoleChat, hydratedMsgs, nil)
+		// Re-read every turn, so a mid-conversation model change on the
+		// conversation record takes effect on the next message.
+		convModel := ""
+		if conv != nil {
+			convModel = conv.GetString("model")
+		}
+		assistantModel, err := llm.ResolveRoleFor(llm.RoleChat, convModel)
+		if err != nil {
+			return e.InternalServerError("no model configured for chat", err)
+		}
+
+		comp, err := usage.Stream(ctx, app, llm.RoleChat, assistantModel, hydratedMsgs, nil)
 		if errors.Is(err, usage.ErrExhausted) {
 			return usage.WriteExhausted(e, app)
 		}
@@ -77,10 +88,6 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		if err != nil {
 			return e.InternalServerError("llm stream failed", err)
 		}
-
-		// The same pure lookup usage.Stream just did, recorded on the assistant
-		// turn below so provenance survives a later model change.
-		assistantModel, _ := llm.ResolveRole(llm.RoleChat)
 
 		textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
 

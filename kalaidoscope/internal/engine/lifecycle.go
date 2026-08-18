@@ -95,14 +95,6 @@ func AppendSnapshot(ctx context.Context, app core.App, collectionName string, fo
 	return snap.Id, nil
 }
 
-func refinementModel() string {
-	model, err := llm.ResolveRole(llm.RoleRefinement)
-	if err != nil {
-		return ""
-	}
-	return model
-}
-
 func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshotID string) error {
 	return app.RunInTransaction(func(txApp core.App) error {
 		snap, err := txApp.FindRecordById(strat.SnapshotCollectionName(), snapshotID)
@@ -182,6 +174,14 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		snapLensID = ""
 	}
 
+	// Best-effort provenance, matching the previous silent-empty behavior: a
+	// refinement follows its parent entity's effective model.
+	parentRec, parentErr := app.FindRecordById(targetCol, parentID)
+	model := ""
+	if parentErr == nil {
+		model, _ = llm.ResolveRoleFor(llm.RoleRefinement, parentRec.GetString("model"))
+	}
+
 	newSnapID, err := AppendSnapshot(ctx, app, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
 		SourceID:        parentID,
 		LensID:          snapLensID,
@@ -192,7 +192,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		ResolvedWindow:  resWin,
 		Status:          StatusApproved,
 
-		Model:                   refinementModel(),
+		Model:                   model,
 		ChainOrigin:             chainOrigin,
 		WindowKey:               winKey,
 		WindowSpecVersionNumber: specVersionNumber,
@@ -209,7 +209,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 	}
 
 	if updateLensAndContext {
-		if parentRec, err := app.FindRecordById(targetCol, parentID); err == nil {
+		if parentErr == nil {
 			parentRec.Set("current_context_spec", pbutil.JSONObject(spec))
 			_ = app.Save(parentRec)
 		}

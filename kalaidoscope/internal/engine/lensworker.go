@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
@@ -85,6 +86,59 @@ func runDistillPass(app core.App) {
 			if parentRec != nil {
 				clearLensProviderErrorKind(app, parentRec)
 			}
+		}
+
+		// Model drift: an entity whose approved lens was distilled by a
+		// different model than the one its generations now resolve to.
+		// current_lens_id stays set the whole time — the old lens and its
+		// snapshots keep serving until a replacement lands — so drift cannot
+		// be expressed in the worklist query above (which requires
+		// lens_id = ''); it is derived here by comparison, which makes it
+		// self-healing: there is no stale marker to set, and none to miss.
+		entities, err := app.FindRecordsByFilter(strat.CollectionName(),
+			"current_lens_id != ''", "", 0, 0)
+		if err != nil {
+			log.Printf("lens distillation: %s drift scan: %v", strat.TargetType(), err)
+			continue
+		}
+		for _, rec := range entities {
+			if seen[rec.Id] {
+				continue
+			}
+			lensRec, err := app.FindRecordById(strat.LensCollectionName(), rec.GetString("current_lens_id"))
+			if err != nil {
+				continue
+			}
+			lensModel := lensRec.GetString("model")
+			if lensModel == "" {
+				// Pre-provenance lens: the model that made it is unknown, so
+				// it can never be judged drifted.
+				continue
+			}
+			effective, err := llm.ResolveRoleFor(llm.RoleDistill, rec.GetString("model"))
+			if err != nil || effective == lensModel {
+				continue
+			}
+			seen[rec.Id] = true
+			// Re-distill against the snapshot the current lens came from: the
+			// newest approved distill-origin snapshot still pointing at it.
+			// (DistillAndUpdateLens re-points that snapshot's lens_id at the
+			// replacement, so the association survives successive drifts.)
+			snaps, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(),
+				strat.ForeignKeyCol()+" = {:id} && lens_id = {:lens} && lens_distill_requested = true && status = 'approved'",
+				"-approval_timestamp", 1, 0,
+				dbx.Params{"id": rec.Id, "lens": lensRec.Id})
+			if err != nil || len(snaps) == 0 {
+				// No recoverable distillation target; the old lens keeps
+				// serving under the new model until the next refinement.
+				continue
+			}
+			if err := DistillAndUpdateLens(ctx, app, strat, snaps[0]); err != nil {
+				log.Printf("lens distillation (model drift): %s %s: %v", strat.TargetType(), rec.Id, err)
+				recordLensProviderErrorKind(app, rec, err)
+				continue
+			}
+			clearLensProviderErrorKind(app, rec)
 		}
 	}
 }

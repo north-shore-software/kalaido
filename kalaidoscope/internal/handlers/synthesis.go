@@ -220,6 +220,8 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			Name       *string         `json:"name,omitempty"`
 			Pinned     *bool           `json:"pinned,omitempty"`
 			WindowSpec *api.WindowSpec `json:"windowSpec,omitempty"`
+			// Per-entity model override; "" clears back to the workspace default.
+			Model *string `json:"model,omitempty"`
 		}
 		var req reqBody
 		if err := e.BindBody(&req); err != nil {
@@ -233,6 +235,13 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 
 		if req.Name != nil {
 			rec.Set("name", *req.Name)
+		}
+
+		modelChanged := false
+		if req.Model != nil {
+			m := strings.TrimSpace(*req.Model)
+			modelChanged = m != rec.GetString("model")
+			rec.Set("model", m)
 		}
 
 		if req.WindowSpec != nil {
@@ -275,6 +284,12 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 		if err := app.Save(rec); err != nil {
 			log.Printf("%s.update: %v", strat.TargetType(), err)
 			return e.InternalServerError("update "+strat.TargetType()+" failed", err)
+		}
+
+		if modelChanged {
+			// The drift scan re-derives everything from DB state; this only
+			// needs to fire, not carry a payload.
+			engine.RequestLensDistill()
 		}
 
 		return e.JSON(http.StatusOK, map[string]string{"id": id})

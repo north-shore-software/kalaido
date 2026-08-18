@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -11,22 +12,24 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-func Stream(ctx context.Context, app core.App, role llm.Role, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
-	comp, _, err := stream(ctx, app, role, msgs, tools)
+func Stream(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
+	comp, _, err := stream(ctx, app, role, model, msgs, tools)
 	return comp, err
 }
 
-// stream is the one path to a provider: quota check, role→model resolution,
-// scheduler admission, then the call itself, with token recording and slot
-// release once the stream drains. The run context is returned alongside so
-// GenerateOnce can tell a preempted call from a completed one.
-func stream(ctx context.Context, app core.App, role llm.Role, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, context.Context, error) {
+// stream is the one path to a provider: quota check, scheduler admission, then
+// the call itself, with token recording and slot release once the stream
+// drains. The caller resolves the model exactly once per operation (entity
+// override or role default) and threads it here, so the model a call uses and
+// the model stamped as provenance can never disagree. The run context is
+// returned alongside so GenerateOnce can tell a preempted call from a
+// completed one.
+func stream(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, context.Context, error) {
 	if err := Authorized(ctx, app); err != nil {
 		return nil, nil, err
 	}
-	model, err := llm.ResolveRole(role)
-	if err != nil {
-		return nil, nil, err
+	if model == "" {
+		return nil, nil, fmt.Errorf("usage: no model resolved for role %q", role)
 	}
 
 	prio := llmq.PriorityFromContext(ctx, llmq.DefaultPriorityForRole(role))
@@ -63,14 +66,14 @@ func stream(ctx context.Context, app core.App, role llm.Role, msgs []llm.Message
 	return &llm.Completion{Events: wrapped, Wait: comp.Wait}, runCtx, nil
 }
 
-func GenerateOnce(ctx context.Context, app core.App, prompt string, role llm.Role, tools []llm.Tool) (string, error) {
-	return GenerateOnceMsgs(ctx, app, []llm.Message{{Role: "user", Content: prompt}}, role, tools)
+func GenerateOnce(ctx context.Context, app core.App, prompt string, role llm.Role, model string, tools []llm.Tool) (string, error) {
+	return GenerateOnceMsgs(ctx, app, []llm.Message{{Role: "user", Content: prompt}}, role, model, tools)
 }
 
 // GenerateOnceMsgs is GenerateOnce over a full message transcript, for callers
 // holding a multi-turn conversation (the lens distillation loop).
-func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, tools []llm.Tool) (string, error) {
-	comp, runCtx, err := stream(ctx, app, role, msgs, tools)
+func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, model string, tools []llm.Tool) (string, error) {
+	comp, runCtx, err := stream(ctx, app, role, model, msgs, tools)
 	if err != nil {
 		return "", err
 	}
