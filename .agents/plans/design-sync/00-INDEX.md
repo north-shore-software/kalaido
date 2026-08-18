@@ -45,6 +45,10 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 2026-08-17 · §3 · Wash alpha 0.12–0.14 → 0.08 (0.04 for magenta and critical) · All washes
 2026-08-17 · §4 · Entity kinds wear their home section's hue everywhere (projection green, reflection violet, fragment lime); replaces per-entity ColourSwatch identity outside Colours · Dashboard, Projections, Reflections, Fragments
 2026-08-17 · §4 · Reassurance states ("up to date", "latest", draft/pending previews) wear the section accent; drifting/critical stay constant · Projections, Reflections, Rotation
+2026-08-18 · §3 · Yellow-as-source-tint abolished: pickers, source/pin chips and LastN controls borrow the route's section accent (magenta stays reserved for focus) · Chat, Projections, Reflections
+2026-08-18 · §3 · Fragments do not wear their Colour in the Stream: cards and timeline dots take the section accent; the Colour shows only in the fragment drawer · Fragments
+2026-08-18 · §7 · 'section' button variant chamfers on hover (rest state square, borderless) · Projections, Reflections, Colours, Fragments
+2026-08-18 · §6 · Icon stroke rule enforced globally via CSS (svg.lucide 1.5; checks/chevrons re-asserted at 2) rather than per-callsite props · All screens
 
 ## Exceptions (log)
 
