@@ -8,11 +8,7 @@ import {
   PageLayout,
 } from "@/components/layout/page-layout";
 import { ChatAnswerActions, ConversationList } from "@/features/chat";
-import {
-  ChatPanel,
-  type ContextItem,
-  ContextPicker,
-} from "@/components/kalaido";
+import { ChatPanel, type ContextItem } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -145,7 +141,6 @@ export default function Chat() {
       />
       <PageCard>
         <div className="flex flex-1 overflow-hidden">
-          <ContextPicker entity="chat" value={context} onChange={setContext} />
           <ChatPanel
             flat
             key={activeChatKey}
@@ -157,6 +152,8 @@ export default function Chat() {
                 : undefined
             }
             context={context}
+            onContextChange={setContext}
+            entity="chat"
             onMention={(item) =>
               setContext((prev) => withContextItem(prev, item))
             }

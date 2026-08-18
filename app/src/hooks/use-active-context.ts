@@ -1,59 +1,66 @@
-import { useMemo } from "react";
 import type { UIMessage } from "ai";
+import { useMemo } from "react";
+import { parseActiveContext, specToItems } from "@/api/kalaidoscope/chat";
 import type { ContextItem } from "@/components/kalaido";
 import { useContextSources } from "./use-context-sources";
-import { parseActiveContext } from "@/api/kalaidoscope/chat";
+import { useFragmentLabelsQuery } from "./use-fragment-labels";
 
+/**
+ * The context selection a resumed conversation was last using: its most recent
+ * `context_spec` system message, expanded back into items with display labels
+ * resolved (a stored spec holds bare ids). Every spec field round-trips —
+ * including fragment pins and the whole-scope marker — so syncing the result
+ * back into page state never narrows the context the next turn will send.
+ */
 export function useActiveContext(messages: UIMessage[]) {
   const sources = useContextSources();
 
-  const items = useMemo(() => {
+  const raw = useMemo(() => {
     const spec = parseActiveContext(messages);
-    if (!spec) return [];
+    return spec ? specToItems(spec) : [];
+  }, [messages]);
 
-    const out: ContextItem[] = [];
-    if (spec.fragmentTypes) {
-      for (const t of spec.fragmentTypes) {
-        const opt = sources.types.find((s) => s.value === t);
-        out.push({ kind: "Type", id: t, label: opt?.label ?? t });
-      }
-    }
-    if (spec.colourIds) {
-      for (const c of spec.colourIds) {
-        const opt = sources.colours.find((s) => s.id === c);
-        out.push({
-          kind: "Colour",
-          id: c,
-          label: opt?.name ?? "Unknown Colour",
-          value: opt?.value,
-        });
-      }
-    }
-    if (spec.sourceProjectionIds) {
-      for (const p of spec.sourceProjectionIds) {
-        const opt = sources.projections.find((s) => s.id === p);
-        out.push({
-          kind: "Projection",
-          id: p,
-          label: opt?.name ?? "Unknown Projection",
-        });
-      }
-    }
-    if (spec.sourceReflectionIds) {
-      for (const r of spec.sourceReflectionIds) {
-        const opt = sources.reflections.find((s) => s.id === r);
-        out.push({
-          kind: "Reflection",
-          id: r,
-          label: opt?.name ?? "Unknown Reflection",
-        });
-      }
-    }
-    return out;
-  }, [messages, sources]);
+  const fragmentIds = useMemo(
+    () => raw.filter((it) => it.kind === "Fragment").map((it) => it.id),
+    [raw],
+  );
+  const { labels, ready: labelsReady } = useFragmentLabelsQuery(fragmentIds);
+
+  const items = useMemo(
+    () =>
+      raw.map((it): ContextItem => {
+        switch (it.kind) {
+          case "Type": {
+            const opt = sources.types.find((s) => s.value === it.id);
+            return { ...it, label: opt?.label ?? it.id };
+          }
+          case "Colour": {
+            const opt = sources.colours.find((s) => s.id === it.id);
+            return {
+              ...it,
+              label: opt?.name ?? "Unknown Colour",
+              value: opt?.value,
+            };
+          }
+          case "Projection": {
+            const opt = sources.projections.find((s) => s.id === it.id);
+            return { ...it, label: opt?.name ?? "Unknown Projection" };
+          }
+          case "Reflection": {
+            const opt = sources.reflections.find((s) => s.id === it.id);
+            return { ...it, label: opt?.name ?? "Unknown Reflection" };
+          }
+          case "Fragment":
+            return { ...it, label: labels.get(it.id) ?? it.id };
+          default:
+            return it;
+        }
+      }),
+    [raw, sources, labels],
+  );
 
   return {
     items,
-    ready: !sources.loading,
+    ready: !sources.loading && labelsReady,
   };
 }

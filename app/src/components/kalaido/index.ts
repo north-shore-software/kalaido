@@ -20,6 +20,10 @@ export {
   type ContextKind,
   type EntityKind,
 } from "./context-picker";
+export {
+  ContextBar,
+  type ContextBarProps,
+} from "./context-bar/context-bar";
 export { ChatPanel } from "./chat-panel";
 export {
   ChatMessages,

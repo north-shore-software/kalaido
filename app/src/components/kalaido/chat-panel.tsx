@@ -21,7 +21,8 @@ import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { cn } from "@/lib/css-utils";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessages, type ChatMessagesProps } from "./chat-messages";
-import type { ContextItem } from "./context-picker";
+import { ContextBar } from "./context-bar/context-bar";
+import type { ContextItem, EntityKind } from "./context-picker";
 
 interface ChatPanelProps {
   greeting?: string;
@@ -40,6 +41,14 @@ interface ChatPanelProps {
    * `context`; omit to disable the mention menu.
    */
   onMention?: (item: ContextItem) => void;
+  /**
+   * Fired when the user edits the context via the {@link ContextBar} rendered
+   * above the composer. The owner of {@link context} applies the new selection.
+   * Without it (alongside `context`) the spec still flows, but no bar renders.
+   */
+  onContextChange?: (items: ContextItem[]) => void;
+  /** Restricts the bar's pin search (a reflection can only pin fragments). */
+  entity?: EntityKind;
   /**
    * The active reflection window selection. Like {@link context}, whenever it
    * changes between turns the panel appends a `window_spec` system message to the
@@ -86,6 +95,8 @@ export function ChatPanel({
   placeholder = "Message…",
   context,
   onMention,
+  onContextChange,
+  entity,
   windowSpec,
   chatId,
   initialMessages,
@@ -254,6 +265,10 @@ export function ChatPanel({
         />
         <div ref={bottomRef} />
       </div>
+
+      {context !== undefined && onContextChange && (
+        <ContextBar items={context} onChange={onContextChange} entity={entity} />
+      )}
 
       <ChatComposer
         value={input}
