@@ -54,7 +54,7 @@ export default function Projections() {
         title="Projections"
         actions={
           <Button
-            size="sm"
+            variant="section"
             onClick={() => go(projectionsTransitions.newProjection)}
           >
             <PlusIcon />

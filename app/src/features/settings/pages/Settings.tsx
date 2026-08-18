@@ -52,7 +52,7 @@ export default function Settings() {
                   ? "border-l-critical bg-critical-wash font-semibold text-critical-ink"
                   : "text-critical-ink/70 hover:bg-critical-wash hover:text-critical-ink"
                 : section === s.id
-                  ? "border-l-cyan bg-cyan-wash font-semibold text-cyan-ink"
+                  ? "border-l-section bg-section-wash font-semibold text-section-ink"
                   : "text-fg-3 hover:bg-surface-2 hover:text-fg-1",
             )}
           >

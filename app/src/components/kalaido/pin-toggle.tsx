@@ -18,8 +18,8 @@ export function PinToggle({
       tabIndex={0}
       aria-label={pinned ? "Unpin" : "Pin"}
       className={cn(
-        "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface-2",
-        pinned ? "text-cyan-ink" : "text-fg-4 hover:text-fg-2",
+        "flex size-6 shrink-0 items-center justify-center rounded-none transition-colors hover:bg-surface-2",
+        pinned ? "text-section-ink" : "text-fg-4 hover:text-fg-2",
       )}
       onClick={(e) => {
         e.stopPropagation();

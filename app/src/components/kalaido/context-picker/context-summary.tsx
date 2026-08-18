@@ -125,7 +125,7 @@ export function ContextSummary({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-1 w-full border border-dashed border-line-strong px-3 py-2 text-btn-sm font-semibold uppercase text-fg-3 hover:border-cyan hover:text-cyan-ink"
+        className="mt-1 w-full border border-dashed border-line-strong px-3 py-2 text-btn-sm font-semibold uppercase text-fg-3 hover:border-section hover:text-section-ink"
       >
         Edit context
       </button>

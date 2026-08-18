@@ -141,7 +141,6 @@ export default function CloudWorkspaces() {
             </EmptyHeader>
             <EmptyContent>
               <Button
-                size="lg"
                 className="gap-1.5"
                 onClick={() =>
                   go(transitions.createWorkspace, {

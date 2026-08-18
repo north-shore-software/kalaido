@@ -1,7 +1,6 @@
 import type { KeyboardEvent } from "react";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { SendIcon } from "lucide-react";
+import { ComposerSendButton } from "./composer-send-button";
 
 export interface ChatComposerProps {
   value: string;
@@ -46,9 +45,7 @@ export function ChatComposer({
           disabled={!!quotaMessage}
           className="flex-1 min-h-0 max-h-40 overflow-y-auto"
         />
-        <Button size="icon-sm" onClick={onSubmit} disabled={isSendDisabled}>
-          <SendIcon />
-        </Button>
+        <ComposerSendButton onClick={onSubmit} disabled={isSendDisabled} />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { StatusPill } from "@/components/kalaido";
+import { Pill } from "@/components/kalaido";
 import { PaneHeader } from "@/components/layout/page-layout";
 import { cn } from "@/lib/css-utils";
 
@@ -18,9 +18,9 @@ export function LivePreviewPane({
       <PaneHeader
         label="Live preview"
         status={
-          <StatusPill kind="stable" dot={preview.length > 0}>
+          <Pill tone="primary" dot>
             {preview.length > 0 ? "draft" : "pending"}
-          </StatusPill>
+          </Pill>
         }
       />
       <div className="flex-1 overflow-y-auto p-5">

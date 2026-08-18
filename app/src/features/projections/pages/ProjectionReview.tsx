@@ -221,14 +221,12 @@ function ProjectionReviewPage() {
         actions={
           <>
             <Button
-              size="sm"
               variant="outline"
               onClick={() => go(projectionReviewTransitions.backToList)}
             >
               Come back later
             </Button>
             <Button
-              size="sm"
               variant="outline"
               onClick={approve}
               disabled={!pending || busy || advancing}
@@ -237,7 +235,6 @@ function ProjectionReviewPage() {
               {refining ? "Approve refined" : "Approve"}
             </Button>
             <Button
-              size="sm"
               variant="commit"
               onClick={approveAndNext}
               disabled={!pending || busy || advancing}

@@ -152,13 +152,12 @@ export default function Chat() {
         title="Chat"
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={handleNew}>
+            <Button variant="section" onClick={handleNew}>
               <SquarePenIcon />
               New
             </Button>
             <Button
-              variant="outline"
-              size="sm"
+              className="border-section-edge bg-section-wash text-section-ink hover:border-section hover:bg-section-wash hover:text-section-ink"
               onClick={() => setHistoryOpen(true)}
             >
               <HistoryIcon />

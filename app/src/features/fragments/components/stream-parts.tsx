@@ -42,13 +42,15 @@ export interface StreamCardProps {
 export function StreamCard({ f }: StreamCardProps) {
   const Icon = fragmentTypeIcon(f.type);
   return (
-    <div className="mb-3.5 flex-1 rounded-lg border border-line border-l-2 border-l-yellow-line bg-card p-3.5 transition-all hover:border-line-strong">
+    <div className="mb-3.5 flex-1 rounded-none border border-line border-l-2 border-l-section-edge bg-card p-3.5 transition-colors hover:border-line-strong hover:border-l-2 hover:border-l-section hover:bg-section-wash">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <span className="flex size-6 items-center justify-center rounded-md bg-surface-2">
-            <Icon className="size-3.5 text-fg-3" />
+          <span className="flex size-6 items-center justify-center rounded-none bg-surface-2">
+            <Icon className="size-3.5 text-section-ink" />
           </span>
-          <span className="text-[12.5px] font-semibold">{f.type}</span>
+          <span className="text-[12.5px] font-semibold text-section-ink">
+            {f.type}
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           {f.colours.length > 0 ? (
@@ -60,7 +62,7 @@ export function StreamCard({ f }: StreamCardProps) {
           )}
         </div>
       </div>
-      <p className="line-clamp-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg-2">
+      <p className="line-clamp-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg-1">
         {f.preview}
       </p>
     </div>

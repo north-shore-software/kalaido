@@ -441,8 +441,8 @@ export function ContextPicker({
           pill: "border-critical/40 bg-critical-wash text-critical-ink",
         }
       : {
-          inset: "shadow-[inset_3px_0_0_var(--cyan-base)]",
-          pill: "border-cyan-edge bg-cyan-wash text-cyan-ink",
+          inset: "shadow-[inset_3px_0_0_var(--section)]",
+          pill: "border-section-edge bg-section-wash text-section-ink",
         };
 
   const body = (
@@ -503,7 +503,7 @@ export function ContextPicker({
                   "flex-1 border-0 px-2 py-2.5 text-center text-body-sm font-semibold",
                   i > 0 && "border-l border-line-strong",
                   mode === m
-                    ? "bg-cyan text-cyan-foreground"
+                    ? "bg-section text-section-foreground"
                     : "bg-transparent text-fg-3 hover:text-fg-1",
                 )}
               >
@@ -724,9 +724,7 @@ export function ContextPicker({
         {/* ------------------------------------------------- 03 Focus ------ */}
         <section className="p-5">
           <div className="mb-1.5 flex items-baseline gap-2.5">
-            <span className="border border-magenta-edge bg-magenta-wash px-1.5 py-0.5 font-mono text-crumb font-bold text-magenta-ink">
-              {sourcesAllowed ? "03" : "02"}
-            </span>
+            <StageNumber n={sourcesAllowed ? "03" : "02"} />
             <span className="text-item font-bold text-fg-1">Focus</span>
           </div>
           <p className="mb-3 text-meta text-fg-5 text-pretty">
@@ -838,9 +836,10 @@ function StageNumber({ n }: { n: string }) {
 }
 
 const ADDER_TINT: Record<PickerTint, string> = {
-  cyan: "hover:border-cyan hover:text-cyan-ink",
-  yellow: "hover:border-yellow hover:text-yellow-ink",
-  magenta: "hover:border-magenta hover:text-magenta-ink",
+  cyan: "hover:border-section hover:text-section-ink hover:bg-section-wash",
+  yellow: "hover:border-section hover:text-section-ink hover:bg-section-wash",
+  magenta: "hover:border-magenta hover:text-magenta-ink hover:bg-magenta-wash",
+  section: "hover:border-section hover:text-section-ink hover:bg-section-wash",
 };
 
 function Adder({
@@ -935,9 +934,9 @@ const FOCUS_TONE: Record<
     state: "text-fg-5",
   },
   added: {
-    box: "border-cyan-edge bg-cyan-veil shadow-[inset_3px_0_0_var(--cyan-base)]",
-    pill: "border-cyan-edge text-cyan-ink",
-    state: "text-cyan-ink",
+    box: "border-section-edge bg-section-veil shadow-[inset_3px_0_0_var(--section)]",
+    pill: "border-section-edge text-section-ink",
+    state: "text-section-ink",
   },
   blocked: {
     box: "border-critical/45 bg-critical-wash shadow-[inset_3px_0_0_var(--status-critical)]",

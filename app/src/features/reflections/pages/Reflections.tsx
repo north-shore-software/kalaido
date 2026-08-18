@@ -10,14 +10,8 @@ import {
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import {
-  ColourSwatch,
-  EmptyState,
-  ListRow,
-  PinToggle,
-} from "@/components/kalaido";
+import { EmptyState, ListRow, PinToggle } from "@/components/kalaido";
 import { ReflectionDetailPanel } from "../components/reflection-detail-panel";
-import { swatchIndex } from "@/lib/colors";
 import {
   currentWindowSpec,
   describeWindow,
@@ -51,7 +45,7 @@ export default function Reflections() {
         title="Reflections"
         actions={
           <Button
-            size="sm"
+            variant="section"
             onClick={() => go(reflectionsTransitions.newReflection)}
           >
             <PlusIcon />
@@ -82,10 +76,10 @@ export default function Reflections() {
                     }
                     leading={
                       <>
-                        <span className="flex size-[26px] shrink-0 items-center justify-center rounded-md border border-line bg-card">
+                        <span className="flex size-[26px] shrink-0 items-center justify-center rounded-none border border-line bg-card">
                           <ClockIcon className="size-3.5 text-fg-3" />
                         </span>
-                        <ColourSwatch c={swatchIndex(r.id)} size={11} />
+                        <span className="size-[11px] bg-section rounded-none shrink-0" />
                       </>
                     }
                     title={r.name || "Untitled reflection"}

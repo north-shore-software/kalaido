@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import {
   type ContextItem,
   ContextPicker,
+  Pill,
   RefineChatPanel,
-  StatusPill,
 } from "@/components/kalaido";
 import type { RefineSession } from "@/hooks/use-refine-session";
 
@@ -60,11 +60,10 @@ export function ProjectionDraftEditor({
         crumb={crumb}
         actions={
           <>
-            <Button size="sm" variant="ghost" onClick={onCancel}>
+            <Button variant="ghost" onClick={onCancel}>
               Cancel
             </Button>
             <Button
-              size="sm"
               variant="commit"
               disabled={!canApprove}
               onClick={() => void approve()}
@@ -95,9 +94,9 @@ export function ProjectionDraftEditor({
             <PaneHeader
               label="Live draft preview"
               status={
-                <StatusPill kind="magenta" dot={session.preview.length > 0}>
+                <Pill tone="primary" dot>
                   {session.preview.length > 0 ? "draft" : "pending"}
-                </StatusPill>
+                </Pill>
               }
             />
             <div className="flex-1 overflow-y-auto p-5">

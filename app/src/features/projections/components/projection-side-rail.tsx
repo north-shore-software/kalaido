@@ -92,7 +92,7 @@ export function ProjectionSideRail({
     freshnessCard = (
       <div className="rounded-lg border border-line p-3.5">
         <div className="mb-1 flex items-center gap-2.5">
-          <CheckIcon className="size-4 text-fg-3" />
+          <CheckIcon className="size-4 text-section-ink" />
           <span className="text-[13px] font-semibold">Up to date</span>
         </div>
         <p className="text-[11.5px] leading-relaxed text-fg-2">

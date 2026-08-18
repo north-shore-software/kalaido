@@ -4,7 +4,7 @@ import { useSnapshot } from "valtio/react";
 import { TitleBar } from "@/components/layout/title-bar";
 import { type AppStage, appState } from "@/hooks/use-app-state.ts";
 import { MenuEventListener, StateNavigationListener } from "./router-listeners";
-import { appRoutes, pathFor } from "./registry";
+import { appRoutes, pathFor, sectionForRoute } from "./registry";
 import {
   currentScope,
   missingScope,
@@ -51,6 +51,11 @@ export function AppRouter() {
  */
 function RouteGatekeeper({ def }: { def: RouteDef }) {
   const snap = useSnapshot(appState);
+  const section = sectionForRoute(def.id);
+
+  useEffect(() => {
+    document.documentElement.dataset.section = section;
+  }, [section]);
 
   if (def.featureFlag && !isFeatureEnabled(def.featureFlag)) {
     return (
@@ -86,11 +91,17 @@ function RouteGatekeeper({ def }: { def: RouteDef }) {
   ) {
     return (
       <KalaidoscopeContainer key={snap.appStage.selectedKalaidoscopeId}>
-        <Page />
+        <div data-section={section} className="contents">
+          <Page />
+        </div>
       </KalaidoscopeContainer>
     );
   }
-  return <Page />;
+  return (
+    <div data-section={section} className="contents">
+      <Page />
+    </div>
+  );
 }
 
 function KalaidoscopeContainer({ children }: { children: React.ReactNode }) {
