@@ -29,10 +29,12 @@ The files in `docs/` are **generated audit snapshots**. Each one was produced in
 | File | Covers |
 |---|---|
 | `docs/api.md` | The external HTTP surface: custom routes, hook-modified collection endpoints, auth posture, wire formats, error shapes |
-| `docs/schema.md` *(planned)* | The SQL schema: collections, fields, indexes, views, API rules |
-| `docs/projection-lifecycle.md` *(planned)* | Projection state machine: creation, candidates, approval, staleness, deletion |
-| `docs/reflection-lifecycle.md` *(planned)* | Reflection state machine: windows, snapshots, approval, staleness, deletion |
-| `docs/reflection-windows.md` *(planned)* | Window calculation: grids, materialization, pending windows, spec versioning |
-| `docs/ingestion.md` *(planned)* | Ingestion pipeline including colour tagging |
+| `docs/schema.md` | The database: collections, fields, indexes, access rules, stored-JSON shapes, cascades |
+| `docs/lifecycle-projection.md` | Projection-specific lifecycle: creation, authoring, generation, approval, deletion |
+| `docs/lifecycle-reflection.md` | Reflection-specific lifecycle: schedule, windowed generation, per-window approval |
+| `docs/lens-distillation.md` | Shared lens machinery: intent timeline, distillation loop, background worker, model aliasing |
+| `docs/rotation.md` | Shared freshness machinery: staleness evaluation and reconcile waves |
+| `docs/windows.md` | Reflection window calculation: spec versioning, tiling, window identity |
+| `docs/ingestion.md` | How content becomes fragments: entry paths, parsers, writer, colour tagging |
 
-Planned files that do not exist yet simply haven't been generated; when they appear, all rules above apply to them.
+All files above exist and are generated; any future addition to the series follows the same rules.
