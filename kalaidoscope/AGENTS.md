@@ -18,7 +18,7 @@ The files in `docs/` are **generated audit snapshots**. Each one was produced in
 
    Add nothing else — no description of what changed, no date, no second marker. If the line is already present, do nothing.
 
-3. **Regeneration only happens when a human asks for it.** To regenerate: read the current source, rewrite the file completely from scratch (never patch it incrementally), remove the stale marker, refresh the `Generated:` date in the header, and preserve the file's established section structure and table format so successive generations diff cleanly.
+3. **Regeneration only happens when a human asks for it.** Regenerate by following the `generate-audit-docs` skill (`.agents/skills/generate-audit-docs/SKILL.md` at the repository root), which encodes the series' purpose, formats, and process. In short: to regenerate: read the current source, rewrite the file completely from scratch (never patch it incrementally), remove the stale marker, refresh the `Generated:` date in the header, and preserve the file's established section structure and table format so successive generations diff cleanly.
 
 4. **Docs are purely descriptive.** They state what the code does — never what it should do, no recommendations, no design commentary, no comparisons against specs.
 
