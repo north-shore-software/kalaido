@@ -61,10 +61,10 @@ export function RecoveryScreen({
         <div className="flex w-full max-w-lg flex-col gap-5">
           <div className="flex items-center gap-3">
             <TriangleAlert className="size-6 shrink-0 text-destructive" />
-            <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           </div>
 
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-body-sm text-muted-foreground">{description}</p>
 
           {error && <ErrorDetails error={error} />}
 
@@ -106,18 +106,18 @@ export function RecoveryScreen({
           </div>
 
           {confirmingReset && !resetError && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-meta text-muted-foreground">
               Clears all saved kalaidoscopes, preferences, and app state, then
               restarts. Kalaidoscope data directories on disk are not deleted.
             </p>
           )}
           {resetError && (
-            <p className="text-xs text-destructive">{resetError}</p>
+            <p className="text-meta text-destructive">{resetError}</p>
           )}
 
           {showSwitcher && (
             <div className="flex flex-col gap-2 border-t pt-5">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="text-label uppercase text-muted-foreground">
                 Open a different kalaidoscope
               </span>
               <KalaidoscopeList
@@ -147,12 +147,12 @@ function ErrorDetails({ error }: { error: StageError }) {
 
   return (
     <Collapsible className="flex flex-col gap-2">
-      <CollapsibleTrigger className="group flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      <CollapsibleTrigger className="group flex w-fit items-center gap-1 text-meta text-muted-foreground hover:text-foreground">
         <ChevronRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
         Error details
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col items-start gap-2">
-        <pre className="max-h-48 w-full overflow-auto rounded-md border bg-surface-2 p-3 text-[11px] leading-relaxed whitespace-pre-wrap">
+        <pre className="max-h-48 w-full overflow-auto rounded-md border bg-surface-2 p-3 text-mono-sm leading-relaxed whitespace-pre-wrap">
           {text}
         </pre>
         <Button size="sm" variant="ghost" onClick={() => void handleCopy()}>

@@ -1,5 +1,3 @@
-import { useId } from "react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/css-utils";
 
 export type StorageType = "local_file" | "cloud";
@@ -34,36 +32,42 @@ export function StorageOptionCards({
   onChange,
   "aria-labelledby": ariaLabelledBy,
 }: StorageOptionCardsProps) {
-  const groupId = useId();
   return (
-    <RadioGroup
-      value={value}
-      onValueChange={(v) => onChange(v as StorageType)}
+    <div
+      role="radiogroup"
       aria-labelledby={ariaLabelledBy}
       className="grid grid-cols-2 gap-3"
     >
-      {storageOptions.map((option) => (
-        <label
-          key={option.value}
-          htmlFor={`${groupId}-${option.value}`}
-          className={cn(
-            "flex cursor-pointer flex-col gap-2 rounded-lg border p-4 transition-colors",
-            "hover:bg-muted/30 hover:border-primary/30",
-            "has-data-checked:border-primary/50 has-data-checked:bg-primary/5",
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <RadioGroupItem
-              id={`${groupId}-${option.value}`}
-              value={option.value}
-            />
-            <span className="text-sm font-medium">{option.label}</span>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed pl-[1.625rem]">
-            {option.description}
-          </p>
-        </label>
-      ))}
-    </RadioGroup>
+      {storageOptions.map((option) => {
+        const isSelected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "flex min-h-[96px] cursor-pointer flex-col justify-center gap-1 rounded-lg border p-4 text-left transition-all duration-150",
+              isSelected
+                ? "border-cyan-edge bg-cyan-veil shadow-[0_0_12px_rgba(34,211,238,0.2)]"
+                : "border-dashed hover:border-foreground/30 hover:bg-surface-2",
+            )}
+          >
+            <span
+              className={cn(
+                "text-item font-semibold",
+                isSelected ? "text-cyan" : "text-foreground",
+              )}
+            >
+              {option.label}
+            </span>
+            <p className="text-body-sm leading-relaxed text-fg-3">
+              {option.description}
+            </p>
+          </button>
+        );
+      })}
+    </div>
   );
 }

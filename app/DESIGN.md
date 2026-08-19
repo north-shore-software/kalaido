@@ -579,6 +579,15 @@ header.
 Both end in a trailing arrow that slides 2px right and turns cyan on hover — the one
 sanctioned slide in the system (§5 Motion).
 
+### Option selection cards (Setup & configuration)
+
+Two-column option selector grids (Storage, Model Provider):
+
+- Option title in `item` (14.5px / 600), promoting to solid accent when selected.
+- Option description in `body-sm` (14px / 1.55) in `fg-3` — readable, avoiding micro-text.
+- Selected state wears `border-cyan-edge bg-cyan-veil` with subtle cyan halo.
+- Unselected state wears dashed border, hovering to `bg-surface-2`.
+
 ### Not specified
 
 The mocks do not cover these. What ships is a working guess, not a rule — treat it as open,

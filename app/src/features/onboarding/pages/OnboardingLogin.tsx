@@ -43,21 +43,27 @@ export default function OnboardingLogin() {
       className="flex flex-col overflow-auto bg-background"
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
-      <main className="relative flex flex-1 flex-col items-center p-8">
+      <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
         <Button
-          variant="ghost"
+          type="button"
+          variant="outline"
           size="sm"
           onClick={() => go(transitions.back)}
-          className="absolute top-4 left-4 gap-1.5 text-muted-foreground hover:text-foreground"
+          className="absolute top-9 left-12 h-7 gap-1.5 border-border/40 px-2.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-white"
         >
-          <ArrowLeftIcon />
+          <ArrowLeftIcon className="size-3.5" />
           Back
         </Button>
 
-        <div className="mt-16 flex w-full max-w-sm flex-col gap-6">
-          <h1 className="text-xl font-semibold tracking-tight">
-            Sign in to Kalaido Cloud
-          </h1>
+        <div className="my-auto flex w-full max-w-md flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl font-semibold tracking-tight">
+              Sign in to Kalaido Cloud
+            </h1>
+            <p className="text-body-sm text-fg-3">
+              Access your cloud workspaces and sync across all your devices.
+            </p>
+          </div>
           <CloudAuthPanel onAuthenticated={handleAuthenticated} />
         </div>
       </main>

@@ -46,7 +46,6 @@ function deriveCloudId(name: string): string {
 
 export default function KalaidoscopeSetup() {
   const { goBack } = useAppNavigate();
-
   const routeState = (useLocation().state ?? {}) as KalaidoscopeSetupState;
   const { user, signedIn } = useCloudSession();
 
@@ -198,27 +197,28 @@ export default function KalaidoscopeSetup() {
       className="flex flex-col bg-background"
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
-      <main className="relative flex-1 overflow-auto p-8 flex flex-col items-center">
+      <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
         <Button
-          variant="ghost"
+          type="button"
+          variant="outline"
           size="sm"
-          onClick={() => goBack()}
-          className="absolute top-4 left-4 gap-1.5 text-muted-foreground hover:text-foreground"
+          onClick={() => (snap.gateOpen ? (state.gateOpen = false) : goBack())}
+          className="absolute top-9 left-12 h-7 gap-1.5 border-border/40 px-2.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-white"
         >
-          <ArrowLeftIcon />
+          <ArrowLeftIcon className="size-3.5" />
           Back
         </Button>
 
         {snap.gateOpen ? (
-          <div className="w-full max-w-md flex flex-col gap-5 mt-12">
+          <div className="my-auto flex w-full max-w-md translate-y-7 flex-col gap-5">
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="text-label uppercase text-muted-foreground">
                 Sign in required
               </span>
-              <h2 className="text-lg font-semibold tracking-tight">
-                Sign in to store this workspace in the cloud
+              <h2 className="text-xl font-semibold tracking-tight">
+                Create with Kalaido Cloud
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-body-sm text-fg-3">
                 Your workspace name and icon are kept.
               </p>
             </div>
@@ -229,26 +229,18 @@ export default function KalaidoscopeSetup() {
                 void runCreate();
               }}
             />
-
-            <button
-              type="button"
-              className="w-fit text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => (state.gateOpen = false)}
-            >
-              Cancel — back to setup
-            </button>
           </div>
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="w-full max-w-md flex flex-col gap-8 mt-12"
+            className="my-auto flex w-full max-w-md min-h-[700px] translate-y-7 flex-col justify-start gap-6"
           >
             {routeState.firstWorkspace && (
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="text-label uppercase text-muted-foreground">
                   New workspace
                 </span>
-                <h1 className="text-lg font-semibold tracking-tight">
+                <h1 className="text-xl font-semibold tracking-tight">
                   Welcome — create your first kalaidoscope
                 </h1>
               </div>
@@ -257,11 +249,11 @@ export default function KalaidoscopeSetup() {
             <div className="flex flex-col gap-2">
               <label
                 htmlFor={nameFieldId}
-                className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                className="text-label uppercase text-muted-foreground"
               >
                 Name
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <IconPicker
                   value={snap.icon}
                   onChange={(icon) => (state.icon = icon)}
@@ -273,14 +265,15 @@ export default function KalaidoscopeSetup() {
                   value={snap.name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="My kalaidoscope"
+                  className="h-11 text-card-title font-semibold tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/40"
                 />
               </div>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <span
                 id={storageLabelId}
-                className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                className="text-label uppercase text-muted-foreground"
               >
                 Storage
               </span>
@@ -322,12 +315,13 @@ export default function KalaidoscopeSetup() {
             )}
 
             {snap.error && (
-              <p className="text-xs text-destructive">{snap.error}</p>
+              <p className="text-meta text-destructive">{snap.error}</p>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-2">
               <Button
-                size="sm"
+                variant="commit"
+                size="default"
                 type="submit"
                 disabled={!canCreate || snap.isPending}
               >

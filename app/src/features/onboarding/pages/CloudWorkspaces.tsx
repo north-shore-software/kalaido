@@ -70,21 +70,22 @@ export default function CloudWorkspaces() {
     >
       <main className="relative mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
         <Button
-          variant="ghost"
+          type="button"
+          variant="outline"
           size="sm"
           onClick={() => go(transitions.back)}
-          className="absolute top-4 left-4 gap-1.5 text-muted-foreground hover:text-foreground"
+          className="absolute top-9 left-12 h-7 gap-1.5 border-border/40 px-2.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-white"
         >
-          <ArrowLeftIcon />
+          <ArrowLeftIcon className="size-3.5" />
           Back
         </Button>
 
-        <header className="mt-12 flex items-end justify-between gap-4">
+        <header className="flex items-end justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h1 className="text-xl font-semibold tracking-tight">
               Your cloud workspaces
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body-sm text-muted-foreground">
               Select a workspace to open, or create a new one.
             </p>
           </div>
@@ -108,7 +109,7 @@ export default function CloudWorkspaces() {
         {banner && (
           <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
-            <p className="flex-1 text-xs text-destructive">{banner}</p>
+            <p className="flex-1 text-meta text-destructive">{banner}</p>
             {listError && (
               <Button
                 variant="ghost"
@@ -153,7 +154,7 @@ export default function CloudWorkspaces() {
               </Button>
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="text-meta text-muted-foreground hover:text-foreground"
                 onClick={() => void signOutOfCloud()}
               >
                 Not you? Sign out
@@ -161,7 +162,7 @@ export default function CloudWorkspaces() {
             </EmptyContent>
           </Empty>
         ) : workspaces.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-body-sm text-muted-foreground">
             Your cloud workspaces couldn&apos;t be loaded.
           </p>
         ) : (
@@ -175,11 +176,11 @@ export default function CloudWorkspaces() {
                 className="flex h-28 flex-col items-start gap-3 rounded-lg border bg-card p-4 text-left ring-1 ring-foreground/5 transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
               >
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-md border">
-                  <span className="text-sm font-medium">
+                  <span className="text-item font-medium">
                     {workspace.displayName.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <span className="line-clamp-2 text-sm font-medium">
+                <span className="line-clamp-2 text-item font-medium">
                   {openingId === workspace.id
                     ? "Opening…"
                     : workspace.displayName}

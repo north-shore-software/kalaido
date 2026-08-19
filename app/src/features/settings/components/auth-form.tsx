@@ -32,27 +32,56 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 max-w-sm">
-      <Input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        disabled={busy}
-      />
-      <Input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        disabled={busy}
-      />
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <label className="text-label uppercase text-muted-foreground">
+          Email
+        </label>
+        <Input
+          type="email"
+          placeholder="you@domain.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          disabled={busy}
+          className="h-10 text-body-sm placeholder:text-muted-foreground/40"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-label uppercase text-muted-foreground">
+          Password
+        </label>
+        <Input
+          type="password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          disabled={busy}
+          className="h-10 text-body-sm placeholder:text-muted-foreground/40"
+        />
+      </div>
+
       {error && <p className="text-meta text-critical-ink">{error}</p>}
-      <Button type="submit" size="sm" disabled={busy}>
-        {busy ? <Spinner /> : mode === "signin" ? "Sign in" : "Create account"}
-      </Button>
+
+      <div className="flex justify-center pt-2">
+        <Button
+          type="submit"
+          variant="commit"
+          size="default"
+          disabled={busy || !email.trim() || !password.trim()}
+          className="min-w-[180px] px-8"
+        >
+          {busy ? (
+            <Spinner />
+          ) : mode === "signin" ? (
+            "Sign in"
+          ) : (
+            "Create account"
+          )}
+        </Button>
+      </div>
     </form>
   );
 }
