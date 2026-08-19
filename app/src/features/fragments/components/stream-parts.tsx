@@ -93,10 +93,13 @@ export interface StreamEmptyStateProps {
 
 export function StreamEmptyState({ onImport }: StreamEmptyStateProps) {
   return (
-    <Empty>
+    <Empty className="flex-1 justify-center pb-28">
       <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <InboxIcon />
+        <EmptyMedia
+          variant="icon"
+          className="rounded-none bg-section-wash text-section-ink"
+        >
+          <InboxIcon className="size-5 text-section-ink" />
         </EmptyMedia>
         <EmptyTitle>No fragments found</EmptyTitle>
         <EmptyDescription>
@@ -105,7 +108,7 @@ export function StreamEmptyState({ onImport }: StreamEmptyStateProps) {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button size="sm" className="gap-1.5 shadow-sm" onClick={onImport}>
+        <Button variant="section" onClick={onImport}>
           Import fragments
           <ArrowRightIcon className="size-3.5" />
         </Button>

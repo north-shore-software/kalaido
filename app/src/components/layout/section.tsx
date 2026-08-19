@@ -12,7 +12,7 @@ export function SectionHeader({ title, description }: SectionHeaderProps) {
   return (
     <div>
       <h2 className="mb-1 text-card-title font-bold">{title}</h2>
-      {description && <p className="text-meta text-fg-4">{description}</p>}
+      {description && <p className="text-body-sm text-fg-3">{description}</p>}
     </div>
   );
 }

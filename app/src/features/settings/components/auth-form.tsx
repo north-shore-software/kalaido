@@ -49,7 +49,7 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
         required
         disabled={busy}
       />
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-meta text-critical-ink">{error}</p>}
       <Button type="submit" size="sm" disabled={busy}>
         {busy ? <Spinner /> : mode === "signin" ? "Sign in" : "Create account"}
       </Button>

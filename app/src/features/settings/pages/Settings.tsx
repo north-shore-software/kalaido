@@ -61,7 +61,10 @@ export default function Settings() {
         ))}
       </nav>
       <main className="flex-1 overflow-auto px-8 pt-8 pb-12">
-        <div className="max-w-[1000px]">
+        <div className="flex max-w-[1000px] flex-col gap-8">
+          <h1 className="font-display text-display font-medium text-fg-1">
+            Settings
+          </h1>
           {section === "danger" ? (
             <DangerZoneSection />
           ) : section === "cloud-account" ? (

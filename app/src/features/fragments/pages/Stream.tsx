@@ -66,17 +66,19 @@ export default function Stream() {
       <PageHeader
         title="Stream"
         actions={
-          <Button
-            variant="section"
-            onClick={() => go(streamTransitions.openImport)}
-          >
-            <PlusIcon />
-            Import
-          </Button>
+          filteredFragments.length > 0 ? (
+            <Button
+              variant="section"
+              onClick={() => go(streamTransitions.openImport)}
+            >
+              <PlusIcon />
+              Import
+            </Button>
+          ) : undefined
         }
       />
-      <div className="min-h-0 flex-1 overflow-y-auto py-6">
-        <div className="mx-auto max-w-[720px] px-8">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto py-6">
+        <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col px-8">
           {isLoading && (
             <div className="mb-5 flex items-center gap-2.5">
               <Pill tone="primary">Loading...</Pill>

@@ -122,7 +122,7 @@ export function LocalAISection() {
 
               {models.length > 0 ? (
                 <div className="flex flex-col gap-3">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className="text-label font-semibold uppercase text-fg-3">
                     Active model
                   </span>
                   <ModelRadioList
@@ -136,7 +136,7 @@ export function LocalAISection() {
                 </div>
               ) : (
                 !recommendedInstalled && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-body-sm text-fg-3">
                     No models installed yet. Download {RECOMMENDED_MODEL} to get
                     started.
                   </p>

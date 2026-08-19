@@ -21,7 +21,7 @@ const buttonVariants = cva(
         ghost:
           "bg-transparent text-fg-2 hover:bg-surface-2 hover:text-fg-1 aria-expanded:bg-surface-2 aria-expanded:text-fg-1",
         destructive:
-          "border-destructive/40 bg-transparent text-destructive hover:border-destructive focus-visible:ring-destructive/40",
+          "border-critical/40 bg-transparent text-critical-ink hover:border-critical hover:bg-critical hover:text-white focus-visible:ring-critical/40",
       },
       size: {
         default:

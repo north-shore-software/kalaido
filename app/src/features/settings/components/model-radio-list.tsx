@@ -47,13 +47,13 @@ export function ModelRadioList({
             htmlFor={`${groupId}-${m.name}`}
             className={cn(
               surfaceCardClass,
-              "flex cursor-pointer items-center gap-2.5 p-3 transition-colors hover:border-primary/30 has-data-checked:border-primary/50 has-data-checked:bg-primary/5",
+              "flex cursor-pointer items-center gap-2.5 p-3 transition-colors hover:border-fg-3 has-data-checked:border-fg-2 has-data-checked:bg-surface-2",
             )}
           >
             <RadioGroupItem id={`${groupId}-${m.name}`} value={m.name} />
-            <span className="text-sm">{m.name}</span>
+            <span className="text-item text-fg-1">{m.name}</span>
             {recommended && <Pill>Recommended</Pill>}
-            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+            <span className="ml-auto text-mono-sm tabular-nums text-fg-3">
               {formatModelSize(m.size)}
             </span>
           </label>

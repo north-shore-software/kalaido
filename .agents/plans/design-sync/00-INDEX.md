@@ -21,8 +21,8 @@ off only after Sara has reviewed and the app + DESIGN.md are consistent.
 - [x] `11-colours.md`
 - [x] `12-fragments.md` (stream)
 - [x] `13-rotation.md`
-- [ ] `14-connections-import.md`
-- [ ] `15-settings.md`
+- [x] `14-connections-import.md`
+- [x] `15-settings.md`
 - [ ] `16-onboarding-boot.md`
 - [ ] `17-context-ui.md` — review of the post-sweep feature surface: context-bar tints, markdown rendering (#59), inline naming (#62); includes re-review of the 09/10 headers #62 changed
 

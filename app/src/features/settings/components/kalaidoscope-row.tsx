@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pill, SurfaceCard } from "@/components/kalaido";
+import { Pill, StatusPill, SurfaceCard } from "@/components/kalaido";
 import { LocationLabel } from "@/components/layout/location-label";
 import { Button } from "@/components/ui/button";
 import { kalaidoscopeTypeLabel } from "@/lib/labels";
@@ -22,7 +22,7 @@ export function KalaidoscopeRow({
     <SurfaceCard
       className={cn(
         "flex flex-col gap-2.5",
-        isActive && "border-section-edge bg-section-veil shadow-section",
+        isActive && "border-cyan-edge bg-cyan-veil",
       )}
     >
       <div className="flex items-center gap-2.5">
@@ -35,7 +35,7 @@ export function KalaidoscopeRow({
           {kalaidoscope.displayName}
         </span>
         <Pill tone="muted">{kalaidoscopeTypeLabel(kalaidoscope.type)}</Pill>
-        {isActive && <Pill>active &amp; running</Pill>}
+        {isActive && <StatusPill kind="cyan">active &amp; running</StatusPill>}
         <div className="flex-1" />
         {!isActive && (
           <Button
