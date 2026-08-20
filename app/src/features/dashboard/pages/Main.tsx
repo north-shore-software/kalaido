@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { RouteLink } from "@/routes/route-link";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { toast } from "sonner";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
@@ -299,7 +300,17 @@ export default function Main() {
 
   return (
     <PageLayout>
-      <PageHeader title="Dashboard" />
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <RouteLink
+            transition={mainTransitions.openSplashAlt}
+            className="text-meta text-fg-4 hover:text-fg-1 underline"
+          >
+            SplashAlt
+          </RouteLink>
+        }
+      />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 pt-5 pb-6">

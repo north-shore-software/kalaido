@@ -1,6 +1,7 @@
 /** Every routable screen in the app. Adding a page = adding an id here first. */
 export const ROUTE_IDS = [
   "splash",
+  "splash-alt",
   "boot-error",
   "onboarding-landing",
   "onboarding-login",
