@@ -1,6 +1,6 @@
 import { SlidersHorizontalIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { Pill } from "@/components/kalaido";
+import { type OptionCard, OptionCards, Pill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/css-utils";
 import {
   GEMINI_SUGGESTED_MODELS,
   type LlmProvider,
@@ -28,13 +27,7 @@ import {
 } from "@/api/kalaidoscope/llm-config";
 import { OllamaSetupStatus } from "./ollama-setup-status";
 
-interface ProviderOption {
-  value: LlmProvider;
-  label: string;
-  lines: [string, string];
-}
-
-const providerOptions: ProviderOption[] = [
+const providerOptions: OptionCard<LlmProvider>[] = [
   {
     value: "ollama",
     label: "Local Ollama",
@@ -71,50 +64,28 @@ export function ProviderFields({
   onRoleModelChange,
 }: ProviderFieldsProps) {
   const apiKeyFieldId = useId();
+  const providerLabelId = useId();
+  const modelFieldId = useId();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const activeCustomRoleCount =
     Object.values(roleModels).filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-label uppercase text-muted-foreground">
+      <span
+        id={providerLabelId}
+        className="text-label uppercase text-muted-foreground"
+      >
         Model provider
       </span>
 
-      <div role="radiogroup" className="grid grid-cols-2 gap-3">
-        {providerOptions.map((option) => {
-          const isSelected = provider === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              disabled={disabled}
-              onClick={() => onProviderChange(option.value)}
-              className={cn(
-                "flex min-h-[96px] cursor-pointer flex-col justify-center gap-1 rounded-lg border p-4 text-left transition-all duration-150",
-                isSelected
-                  ? "border-cyan-edge bg-cyan-veil shadow-[0_0_12px_rgba(34,211,238,0.2)]"
-                  : "border-dashed hover:border-foreground/30 hover:bg-surface-2",
-              )}
-            >
-              <span
-                className={cn(
-                  "text-item font-semibold",
-                  isSelected ? "text-cyan" : "text-foreground",
-                )}
-              >
-                {option.label}
-              </span>
-              <div className="flex flex-col text-body-sm leading-snug text-fg-3">
-                <span>{option.lines[0]}</span>
-                <span>{option.lines[1]}</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      <OptionCards
+        options={providerOptions}
+        value={provider}
+        onChange={onProviderChange}
+        disabled={disabled}
+        aria-labelledby={providerLabelId}
+      />
 
       {provider === "ollama" ? (
         <div className="flex flex-col gap-3">
@@ -146,7 +117,10 @@ export function ProviderFields({
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-label uppercase text-muted-foreground">
+            <label
+              htmlFor={modelFieldId}
+              className="text-label uppercase text-muted-foreground"
+            >
               Model
             </label>
             <Select
@@ -154,7 +128,10 @@ export function ProviderFields({
               onValueChange={(val) => onDefaultModelChange(val ?? "")}
               disabled={disabled}
             >
-              <SelectTrigger className="h-10 w-full font-mono text-body-sm">
+              <SelectTrigger
+                id={modelFieldId}
+                className="h-10 w-full font-mono text-body-sm"
+              >
                 <SelectValue placeholder="Select a Gemini model" />
               </SelectTrigger>
               <SelectContent className="font-mono">
@@ -249,9 +226,13 @@ function RoleField({
   disabled,
   onChange,
 }: RoleFieldProps) {
+  const fieldId = useId();
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-label uppercase text-muted-foreground">
+      <label
+        htmlFor={fieldId}
+        className="text-label uppercase text-muted-foreground"
+      >
         {LLM_ROLE_LABELS[role]}
       </label>
       <Select
@@ -259,7 +240,10 @@ function RoleField({
         onValueChange={(val) => onChange(val === "default" ? "" : (val ?? ""))}
         disabled={disabled}
       >
-        <SelectTrigger className="h-10 w-full font-mono text-body-sm">
+        <SelectTrigger
+          id={fieldId}
+          className="h-10 w-full font-mono text-body-sm"
+        >
           <SelectValue placeholder={`Default (${placeholder})`} />
         </SelectTrigger>
         <SelectContent className="font-mono">

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { authClient } from "@/api/cloud/auth";
+import { type OptionCard, OptionCards } from "@/components/kalaido";
 import { AuthForm } from "@/features/settings/components/auth-form";
 import { OAuthButtons } from "@/features/settings/components/oauth-buttons";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
-import { cn } from "@/lib/css-utils";
 
 export interface AuthOutcome {
   /** True when this was a registration rather than a returning sign-in. */
@@ -14,10 +14,10 @@ interface CloudAuthPanelProps {
   onAuthenticated?: (outcome: AuthOutcome) => void;
 }
 
-const AUTH_MODES = [
-  { value: "signin", label: "Sign in", desc: "Access existing workspaces" },
-  { value: "signup", label: "Sign up", desc: "Create a new account" },
-] as const;
+const AUTH_MODES: OptionCard<"signin" | "signup">[] = [
+  { value: "signin", label: "Sign in", lines: ["Access existing workspaces"] },
+  { value: "signup", label: "Sign up", lines: ["Create a new account"] },
+];
 
 export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -57,42 +57,15 @@ export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
 
   return (
     <div className="flex w-full max-w-md flex-col gap-6">
-      <div role="radiogroup" className="grid grid-cols-2 gap-3">
-        {AUTH_MODES.map((tab) => {
-          const isSelected = mode === tab.value;
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              disabled={busy}
-              onClick={() => {
-                setMode(tab.value);
-                setError(null);
-              }}
-              className={cn(
-                "flex min-h-[96px] cursor-pointer flex-col justify-center gap-1 rounded-lg border p-4 text-left transition-all duration-150",
-                isSelected
-                  ? "border-cyan-edge bg-cyan-veil shadow-[0_0_12px_rgba(34,211,238,0.2)]"
-                  : "border-dashed hover:border-foreground/30 hover:bg-surface-2",
-              )}
-            >
-              <span
-                className={cn(
-                  "text-item font-semibold",
-                  isSelected ? "text-cyan" : "text-foreground",
-                )}
-              >
-                {tab.label}
-              </span>
-              <p className="text-body-sm leading-relaxed text-fg-3">
-                {tab.desc}
-              </p>
-            </button>
-          );
-        })}
-      </div>
+      <OptionCards
+        options={AUTH_MODES}
+        value={mode}
+        onChange={(next) => {
+          setMode(next);
+          setError(null);
+        }}
+        disabled={busy}
+      />
 
       <AuthForm
         mode={mode}

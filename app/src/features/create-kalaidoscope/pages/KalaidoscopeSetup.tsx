@@ -202,7 +202,13 @@ export default function KalaidoscopeSetup() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => (snap.gateOpen ? (state.gateOpen = false) : goBack())}
+          onClick={() => {
+            if (snap.gateOpen) {
+              state.gateOpen = false;
+            } else {
+              goBack();
+            }
+          }}
           className="absolute top-9 left-12 h-7 gap-1.5 border-border/40 px-2.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-white"
         >
           <ArrowLeftIcon className="size-3.5" />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,6 +25,8 @@ export interface AuthFormProps {
 export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const emailFieldId = useId();
+  const passwordFieldId = useId();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,10 +36,14 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <label className="text-label uppercase text-muted-foreground">
+        <label
+          htmlFor={emailFieldId}
+          className="text-label uppercase text-muted-foreground"
+        >
           Email
         </label>
         <Input
+          id={emailFieldId}
           type="email"
           placeholder="you@domain.com"
           value={email}
@@ -49,10 +55,14 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <label className="text-label uppercase text-muted-foreground">
+        <label
+          htmlFor={passwordFieldId}
+          className="text-label uppercase text-muted-foreground"
+        >
           Password
         </label>
         <Input
+          id={passwordFieldId}
           type="password"
           placeholder="••••••••"
           value={password}
