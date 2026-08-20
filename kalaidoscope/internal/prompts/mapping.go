@@ -83,6 +83,8 @@ Continue: reply with only the complete updated map JSON object.`
 
 const MapExpandBudgetExhausted = "No further fragments can be expanded. Reply with only the complete updated map JSON object."
 
+const MapExpandNotFound = "(no such fragments)\n\n"
+
 const MapJSONRetryNudge = "Your last reply could not be read as a single JSON object with the required keys. Reply again with only the JSON object: no code fences, no commentary."
 
 func ParseMarkupReply(text string) (json.RawMessage, bool) {

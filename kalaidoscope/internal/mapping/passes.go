@@ -161,7 +161,7 @@ func incorporate(ctx context.Context, app core.App, mapBody, model, inputBlock s
 		expansions += len(ids)
 		block := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, ids))
 		if block == "" {
-			block = "(no such fragments)\n\n"
+			block = prompts.MapExpandNotFound
 		}
 		content := reply
 		if content != "" {
