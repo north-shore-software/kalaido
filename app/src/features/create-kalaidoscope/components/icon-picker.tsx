@@ -93,7 +93,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
         className={cn(
           "flex size-11 shrink-0 items-center justify-center rounded-lg border transition-all duration-150 outline-none",
           activeHighlight
-            ? "border-cyan-edge bg-cyan-wash text-white shadow-[0_0_10px_rgba(34,211,238,0.25)]"
+            ? "border-cyan-edge bg-cyan-wash text-fg-1 shadow-[0_0_10px_rgba(34,211,238,0.25)] dark:text-white"
             : "border-line bg-muted/30 text-fg-1 hover:border-foreground/30 hover:bg-muted",
           className,
         )}
@@ -103,7 +103,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
           <SelectedIcon
             className={cn(
               "size-5 transition-colors",
-              activeHighlight ? "text-white" : "text-foreground",
+              activeHighlight ? "text-fg-1 dark:text-white" : "text-foreground",
             )}
           />
         ) : (
@@ -125,7 +125,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
             <div className="flex items-center gap-3">
               <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-line bg-muted/30 transition-all">
                 {SelectedIcon ? (
-                  <SelectedIcon className="size-6 text-white" />
+                  <SelectedIcon className="size-6 text-fg-1 dark:text-white" />
                 ) : (
                   <SmileIcon className="size-6 text-muted-foreground" />
                 )}
@@ -157,7 +157,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
                     onClick={() => pick(name)}
                     className={cn(
                       "flex aspect-square items-center justify-center rounded-md border border-transparent transition-all duration-150",
-                      "text-muted-foreground hover:border-cyan-edge hover:bg-cyan-wash hover:text-white",
+                      "text-muted-foreground hover:border-cyan-edge hover:bg-cyan-wash hover:text-fg-1 dark:hover:text-white",
                       value === name &&
                         "border-cyan-edge bg-cyan-wash text-cyan",
                     )}

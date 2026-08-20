@@ -1,6 +1,5 @@
-import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
+import { PageBackButton } from "@/components/layout/page-back-button";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { defineRoute } from "@/routes/route-kit";
@@ -44,16 +43,7 @@ export default function OnboardingLogin() {
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
       <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => go(transitions.back)}
-          className="absolute top-9 left-12 h-7 gap-1.5 border-border/40 px-2.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-white"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back
-        </Button>
+        <PageBackButton onClick={() => go(transitions.back)} />
 
         <div className="my-auto flex w-full max-w-md flex-col gap-6">
           <div className="flex flex-col gap-1">

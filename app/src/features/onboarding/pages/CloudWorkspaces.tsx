@@ -1,7 +1,8 @@
-import { ArrowLeftIcon, PlusIcon, TriangleAlert } from "lucide-react";
+import { PlusIcon, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { Mark } from "@/components/kalaido";
+import { PageBackButton } from "@/components/layout/page-back-button";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -69,16 +70,7 @@ export default function CloudWorkspaces() {
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
       <main className="relative mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => go(transitions.back)}
-          className="absolute top-9 left-12 h-7 gap-1.5 border-border/40 px-2.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-white"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back
-        </Button>
+        <PageBackButton onClick={() => go(transitions.back)} />
 
         <header className="flex items-end justify-between gap-4">
           <div className="flex flex-col gap-1">

@@ -26,6 +26,8 @@ export function OllamaSetupStatus() {
       checkOllamaStatus(),
       new Promise((resolve) => setTimeout(resolve, 500)),
     ]);
+    // An IPC failure is indistinguishable from Ollama being down, as far as
+    // anything the user can act on goes.
     setStatus(
       result.isOk() && result.value.reachable ? "reachable" : "unreachable",
     );

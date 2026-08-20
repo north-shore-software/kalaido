@@ -1,7 +1,7 @@
-import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { proxy, useSnapshot } from "valtio";
+import { PageBackButton } from "@/components/layout/page-back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -198,10 +198,7 @@ export default function KalaidoscopeSetup() {
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
       <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
+        <PageBackButton
           onClick={() => {
             if (snap.gateOpen) {
               state.gateOpen = false;
@@ -209,11 +206,7 @@ export default function KalaidoscopeSetup() {
               goBack();
             }
           }}
-          className="absolute top-9 left-12 h-7 gap-1.5 border-border/40 px-2.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-white"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back
-        </Button>
+        />
 
         {snap.gateOpen ? (
           <div className="my-auto flex w-full max-w-md translate-y-7 flex-col gap-5">
