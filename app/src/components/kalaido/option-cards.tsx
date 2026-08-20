@@ -46,7 +46,7 @@ export function OptionCards<T extends string>({
             key={option.value}
             value={option.value}
             className={cn(
-              "flex min-h-[96px] cursor-pointer flex-col justify-center gap-1 rounded-lg border p-4 text-left transition-all duration-150",
+              "group flex min-h-[104px] cursor-pointer flex-col justify-center gap-1.5 rounded-lg border p-5 text-left transition-all duration-150",
               isSelected
                 ? "border-cyan-edge bg-cyan-veil shadow-[0_0_12px_rgba(34,211,238,0.2)]"
                 : "border-dashed hover:border-foreground/30 hover:bg-surface-2",
@@ -54,18 +54,20 @@ export function OptionCards<T extends string>({
           >
             <span
               className={cn(
-                "text-item font-semibold",
-                isSelected ? "text-cyan" : "text-foreground",
+                "text-card-title font-bold transition-colors",
+                isSelected
+                  ? "text-foreground"
+                  : "text-fg-3 group-hover:text-foreground",
               )}
             >
               {option.label}
             </span>
             {option.lines.length === 1 ? (
-              <p className="text-body-sm leading-relaxed text-fg-3">
+              <p className="text-[15px] leading-relaxed text-fg-3">
                 {option.lines[0]}
               </p>
             ) : (
-              <div className="flex flex-col text-body-sm leading-snug text-fg-3">
+              <div className="flex flex-col text-[15px] leading-snug text-fg-3">
                 {option.lines.map((line) => (
                   <span key={line}>{line}</span>
                 ))}

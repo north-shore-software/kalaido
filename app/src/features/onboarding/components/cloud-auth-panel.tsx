@@ -12,6 +12,8 @@ export interface AuthOutcome {
 
 interface CloudAuthPanelProps {
   onAuthenticated?: (outcome: AuthOutcome) => void;
+  mode?: "signin" | "signup";
+  onModeChange?: (mode: "signin" | "signup") => void;
 }
 
 const AUTH_MODES: OptionCard<"signin" | "signup">[] = [
@@ -19,8 +21,16 @@ const AUTH_MODES: OptionCard<"signin" | "signup">[] = [
   { value: "signup", label: "Sign up", lines: ["Create a new account"] },
 ];
 
-export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+export function CloudAuthPanel({
+  onAuthenticated,
+  mode: controlledMode,
+  onModeChange,
+}: CloudAuthPanelProps) {
+  const [internalMode, setInternalMode] = useState<"signin" | "signup">(
+    "signin",
+  );
+  const mode = controlledMode ?? internalMode;
+  const setMode = onModeChange ?? setInternalMode;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +66,7 @@ export function CloudAuthPanel({ onAuthenticated }: CloudAuthPanelProps) {
   }
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-6">
+    <div className="flex w-full max-w-lg flex-col gap-6">
       <OptionCards
         options={AUTH_MODES}
         value={mode}

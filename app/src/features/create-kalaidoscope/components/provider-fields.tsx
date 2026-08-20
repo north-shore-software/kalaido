@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/css-utils";
 import {
   GEMINI_SUGGESTED_MODELS,
   type LlmProvider,
@@ -31,12 +32,12 @@ const providerOptions: OptionCard<LlmProvider>[] = [
   {
     value: "ollama",
     label: "Local Ollama",
-    lines: ["Runs on this device", "Offline & private"],
+    lines: ["Runs privately on this device"],
   },
   {
     value: "gemini",
     label: "Google Gemini",
-    lines: ["Hosted by Google", "Use your API key"],
+    lines: ["Use your own Google API key"],
   },
 ];
 
@@ -46,6 +47,9 @@ export interface ProviderFieldsProps {
   defaultModel: string;
   roleModels: Partial<Record<LlmRole, string>>;
   disabled?: boolean;
+  highlightedFields?: Set<"name" | "apiKey" | "model">;
+  apiKeyFieldId?: string;
+  modelFieldId?: string;
   onProviderChange: (provider: LlmProvider) => void;
   onApiKeyChange: (apiKey: string) => void;
   onDefaultModelChange: (model: string) => void;
@@ -58,14 +62,19 @@ export function ProviderFields({
   defaultModel,
   roleModels,
   disabled,
+  highlightedFields,
+  apiKeyFieldId: externalApiKeyFieldId,
+  modelFieldId: externalModelFieldId,
   onProviderChange,
   onApiKeyChange,
   onDefaultModelChange,
   onRoleModelChange,
 }: ProviderFieldsProps) {
-  const apiKeyFieldId = useId();
+  const fallbackApiKeyFieldId = useId();
+  const apiKeyFieldId = externalApiKeyFieldId ?? fallbackApiKeyFieldId;
   const providerLabelId = useId();
-  const modelFieldId = useId();
+  const fallbackModelFieldId = useId();
+  const modelFieldId = externalModelFieldId ?? fallbackModelFieldId;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const activeCustomRoleCount =
     Object.values(roleModels).filter(Boolean).length;
@@ -74,7 +83,7 @@ export function ProviderFields({
     <div className="flex flex-col gap-3">
       <span
         id={providerLabelId}
-        className="text-label uppercase text-muted-foreground"
+        className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
       >
         Model provider
       </span>
@@ -94,58 +103,76 @@ export function ProviderFields({
       ) : (
         <div className="flex flex-col gap-5 pt-2">
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor={apiKeyFieldId}
-                className="text-label uppercase text-muted-foreground"
-              >
-                API key
-              </label>
-              <Pill className="border-critical/40 bg-critical/10 text-critical-ink">
-                Required
-              </Pill>
+            <label
+              htmlFor={apiKeyFieldId}
+              className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
+            >
+              API key
+            </label>
+            <div className="relative flex items-center">
+              <Input
+                id={apiKeyFieldId}
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                disabled={disabled}
+                onChange={(e) => onApiKeyChange(e.target.value)}
+                placeholder="Paste your Gemini API key"
+                className={cn(
+                  "h-12 w-full text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
+                  highlightedFields?.has("apiKey") &&
+                    "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-24 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+                )}
+              />
+              {highlightedFields?.has("apiKey") && (
+                <Pill className="pointer-events-none absolute right-2 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
+                  Required
+                </Pill>
+              )}
             </div>
-            <Input
-              id={apiKeyFieldId}
-              type="password"
-              autoComplete="off"
-              value={apiKey}
-              disabled={disabled}
-              onChange={(e) => onApiKeyChange(e.target.value)}
-              placeholder="Paste your Gemini API key"
-            />
           </div>
 
           <div className="flex flex-col gap-2">
             <label
               htmlFor={modelFieldId}
-              className="text-label uppercase text-muted-foreground"
+              className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
             >
               Model
             </label>
-            <Select
-              value={defaultModel || GEMINI_SUGGESTED_MODELS[0]}
-              onValueChange={(val) => onDefaultModelChange(val ?? "")}
-              disabled={disabled}
-            >
-              <SelectTrigger
-                id={modelFieldId}
-                className="h-10 w-full font-mono text-body-sm"
+            <div className="relative flex w-full items-center">
+              <Select
+                value={defaultModel}
+                onValueChange={(val) => onDefaultModelChange(val ?? "")}
+                disabled={disabled}
               >
-                <SelectValue placeholder="Select a Gemini model" />
-              </SelectTrigger>
-              <SelectContent className="font-mono">
-                {GEMINI_SUGGESTED_MODELS.map((model) => (
-                  <SelectItem
-                    key={model}
-                    value={model}
-                    className="font-mono text-body-sm"
-                  >
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  id={modelFieldId}
+                  className={cn(
+                    "h-12 w-full font-mono text-[18px] transition-all duration-150 data-placeholder:font-sans data-placeholder:text-muted-foreground/80",
+                    highlightedFields?.has("model") &&
+                      "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+                  )}
+                >
+                  <SelectValue placeholder="Please select a model" />
+                </SelectTrigger>
+                <SelectContent className="font-mono">
+                  {GEMINI_SUGGESTED_MODELS.map((model) => (
+                    <SelectItem
+                      key={model}
+                      value={model}
+                      className="font-mono text-[18px]"
+                    >
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {highlightedFields?.has("model") && (
+                <Pill className="pointer-events-none absolute right-6 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
+                  Required
+                </Pill>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 self-end">
@@ -242,19 +269,19 @@ function RoleField({
       >
         <SelectTrigger
           id={fieldId}
-          className="h-10 w-full font-mono text-body-sm"
+          className="h-11 w-full font-mono text-body data-placeholder:font-sans data-placeholder:text-muted-foreground/80"
         >
           <SelectValue placeholder={`Default (${placeholder})`} />
         </SelectTrigger>
         <SelectContent className="font-mono">
-          <SelectItem value="default" className="font-mono text-body-sm">
+          <SelectItem value="default" className="font-mono text-body">
             Default ({placeholder})
           </SelectItem>
           {GEMINI_SUGGESTED_MODELS.map((model) => (
             <SelectItem
               key={model}
               value={model}
-              className="font-mono text-body-sm"
+              className="font-mono text-body"
             >
               {model}
             </SelectItem>
