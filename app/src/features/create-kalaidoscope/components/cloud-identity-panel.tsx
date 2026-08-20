@@ -39,10 +39,10 @@ export function CloudIdentityPanel({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-item font-semibold">
-          Signed in as <span className="font-bold">{name || email}</span>
+        <span className="truncate text-card-title font-bold">
+          Signed in as <span>{name || email}</span>
         </span>
-        <span className="truncate text-body-sm text-fg-3">
+        <span className="truncate text-[15px] text-fg-3">
           {name ? `${email} · ` : ""}AI is included with cloud workspaces
         </span>
       </div>
@@ -81,10 +81,10 @@ export function CloudSignInNotice({ onSignIn }: CloudSignInNoticeProps) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-item font-semibold">
+        <span className="truncate text-card-title font-bold">
           You&apos;re not signed in
         </span>
-        <span className="truncate text-body-sm text-fg-3">
+        <span className="truncate text-[15px] text-fg-3">
           Cloud workspaces need a Kalaido account
         </span>
       </div>

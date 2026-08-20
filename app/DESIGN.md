@@ -545,6 +545,18 @@ no outline ever.
 - **Underlined** — a `line-strong` bottom border promoting to the section accent on
   focus. For free-standing form fields.
 
+**Setup forms** (pre-workspace: onboarding login, workspace setup) scale the underlined
+recipe up: 48px-tall fields at 18px (the workspace name at 20px / 600), placeholders in
+`muted-foreground` at 80%, field labels 13px / 600 uppercase with `tracking-wide`
+rather than the 11px `label` role. Required fields never disable the submit — it dims
+to 50% while incomplete, and submitting anyway pulses the empty fields critical for
+500ms (critical underline, `critical` wash, ring and glow, plus a "Required" pill),
+after which focus lands on the first missing field (`useRequiredHighlights`). Secret
+fields (password, API key) carry an eye that toggles plain text once they hold a value
+(`RevealToggle`). The model Select matches the field scale (48px, 18px mono), and
+select popups everywhere now take the trigger's width, start-aligned, with items
+highlighting brand cyan (`cyan-edge` border, `cyan-wash` fill, cyan text and check).
+
 **Inline rename** (`EditableText`) — text that is secretly a field. At rest it renders
 as plain text inheriting the surrounding type, with a 14px `fg-5` pencil revealed on
 hover or focus; clicking swaps in a bare input styled to match, marked only by a 1px
@@ -565,26 +577,28 @@ candidate reads brighter than what it would replace.
 
 ### Choice cards (pre-workspace)
 
-The onboarding landing offers one primary and N secondary choices, all ≥104px tall with
+The onboarding landing offers one primary and N secondary choices, all ≥116px tall with
 20px padding, centred in a 672px column beneath a 64px glowing mark and a centred
 header.
 
 - **primary** (one per screen): `cyan-edge` border, `cyan-veil` fill, a 48px bordered
-  icon tile. Title `card-title` / 700, description `body` in `fg-2`. Hover promotes the
+  icon tile. Title `card-title` / 700, description 15px in `fg-3`. Hover promotes the
   border to solid cyan, halos the card (*Glow*, §5) and tints the icon tile
   `cyan-wash` / `cyan-ink`.
 - **secondary**: dashed `line` border, no fill. Hover promotes the border and fills
-  `bg-2`. Description `body-sm` in `fg-3`.
+  `bg-2`. Description 15px in `fg-3`.
 
 Both end in a trailing arrow that slides 2px right and turns cyan on hover — the one
 sanctioned slide in the system (§5 Motion).
 
 ### Option selection cards (Setup & configuration)
 
-Two-column option selector grids (Storage, Model Provider):
+Two-column option selector grids (Storage, Model Provider, sign in / sign up),
+≥104px tall with 20px padding:
 
-- Option title in `item` (14.5px / 600), promoting to solid accent when selected.
-- Option description in `body-sm` (14px / 1.55) in `fg-3` — readable, avoiding micro-text.
+- Option title in `card-title` (18px / 700). Selection does not recolour it: selected
+  titles sit in `fg-1`, unselected in `fg-3`, promoting to `fg-1` on hover.
+- Option description 15px in `fg-3` — readable, avoiding micro-text.
 - Selected state wears `border-cyan-edge bg-cyan-veil` with subtle cyan halo.
 - Unselected state wears dashed border, hovering to `bg-surface-2`.
 

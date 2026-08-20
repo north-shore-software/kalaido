@@ -1,9 +1,15 @@
 import { useEffect, useId, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { proxy, useSnapshot } from "valtio";
+import {
+  RequiredPill,
+  requiredHighlightClass,
+  useRequiredHighlights,
+} from "@/components/kalaido";
 import { PageBackButton } from "@/components/layout/page-back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/css-utils";
 import {
   createKalaidoscope,
   parseLocation,
@@ -74,6 +80,15 @@ export default function KalaidoscopeSetup() {
 
   const nameFieldId = useId();
   const storageLabelId = useId();
+  const apiKeyFieldId = useId();
+  const modelFieldId = useId();
+  const [gateMode, setGateMode] = useState<"signin" | "signup">("signin");
+  const { highlighted: highlightedFields, trigger: triggerHighlights } =
+    useRequiredHighlights({
+      name: nameFieldId,
+      apiKey: apiKeyFieldId,
+      model: modelFieldId,
+    });
 
   // `useCloudSession` resolves asynchronously, and the proxy above is built
   // once, so a session that lands after first paint would otherwise leave a
@@ -182,7 +197,21 @@ export default function KalaidoscopeSetup() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canCreate || state.isPending) return;
+    if (state.isPending) return;
+
+    const missing: ("name" | "apiKey" | "model")[] = [];
+    if (!state.name.trim()) missing.push("name");
+    if (byokSelected && !state.apiKey.trim()) missing.push("apiKey");
+    if (byokSelected && !state.defaultModel.trim()) missing.push("model");
+
+    if (missing.length > 0) {
+      triggerHighlights(missing);
+      return;
+    }
+
+    if (locationIsInvalid) {
+      return;
+    }
 
     if (needsSignIn) {
       state.gateOpen = true;
@@ -209,20 +238,24 @@ export default function KalaidoscopeSetup() {
         />
 
         {snap.gateOpen ? (
-          <div className="my-auto flex w-full max-w-md translate-y-7 flex-col gap-5">
+          <div className="my-auto flex w-full max-w-lg flex-col gap-6">
             <div className="flex flex-col gap-1">
-              <span className="text-label uppercase text-muted-foreground">
+              <span className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Sign in required
               </span>
               <h2 className="text-xl font-semibold tracking-tight">
-                Create with Kalaido Cloud
+                {gateMode === "signin"
+                  ? "Create with Kalaido Cloud"
+                  : "Sign up with Kalaido Cloud"}
               </h2>
-              <p className="text-body-sm text-fg-3">
+              <p className="text-[15px] text-fg-3">
                 Your workspace name and icon are kept.
               </p>
             </div>
 
             <CloudAuthPanel
+              mode={gateMode}
+              onModeChange={setGateMode}
               onAuthenticated={() => {
                 state.gateOpen = false;
                 void runCreate();
@@ -232,11 +265,11 @@ export default function KalaidoscopeSetup() {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="my-auto flex w-full max-w-md min-h-[700px] translate-y-7 flex-col justify-start gap-6"
+            className="my-auto flex w-full max-w-[540px] min-h-[770px] translate-y-7 flex-col justify-start gap-6"
           >
             {routeState.firstWorkspace && (
               <div className="flex flex-col gap-1">
-                <span className="text-label uppercase text-muted-foreground">
+                <span className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                   New workspace
                 </span>
                 <h1 className="text-xl font-semibold tracking-tight">
@@ -248,31 +281,42 @@ export default function KalaidoscopeSetup() {
             <div className="flex flex-col gap-2">
               <label
                 htmlFor={nameFieldId}
-                className="text-label uppercase text-muted-foreground"
+                className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
               >
-                Name
+                Workspace Name
               </label>
               <div className="flex items-center gap-3">
                 <IconPicker
                   value={snap.icon}
                   onChange={(icon) => (state.icon = icon)}
                 />
-                <Input
-                  id={nameFieldId}
-                  autoFocus
-                  type="text"
-                  value={snap.name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="My kalaidoscope"
-                  className="h-11 text-card-title font-semibold tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/40"
-                />
+                <div className="relative flex flex-1 items-center">
+                  <Input
+                    id={nameFieldId}
+                    autoFocus
+                    type="text"
+                    value={snap.name}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    placeholder="My kalaidoscope"
+                    className={cn(
+                      "h-12 w-full text-[20px] font-semibold tracking-wide transition-all duration-150 placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/80",
+                      highlightedFields.has("name") && [
+                        requiredHighlightClass,
+                        "pr-24",
+                      ],
+                    )}
+                  />
+                  {highlightedFields.has("name") && (
+                    <RequiredPill className="right-2" />
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-3">
               <span
                 id={storageLabelId}
-                className="text-label uppercase text-muted-foreground"
+                className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 Storage
               </span>
@@ -301,6 +345,9 @@ export default function KalaidoscopeSetup() {
                 defaultModel={snap.defaultModel}
                 roleModels={snap.roleModels}
                 disabled={snap.isPending}
+                highlightedFields={highlightedFields}
+                apiKeyFieldId={apiKeyFieldId}
+                modelFieldId={modelFieldId}
                 onProviderChange={(provider) => {
                   state.llmProvider = provider;
                   state.error = null;
@@ -322,7 +369,8 @@ export default function KalaidoscopeSetup() {
                 variant="commit"
                 size="default"
                 type="submit"
-                disabled={!canCreate || snap.isPending}
+                disabled={snap.isPending}
+                className={cn(!canCreate && "opacity-50 hover:opacity-50")}
               >
                 {snap.isPending ? "Creating…" : submitLabel}
               </Button>

@@ -44,6 +44,12 @@ export { Pill } from "./pill";
 export { PinToggle } from "./pin-toggle";
 export { RefineChatPanel } from "./refine-chat-panel";
 export { RefineComposer } from "./refine-composer";
+export {
+  RequiredPill,
+  requiredHighlightClass,
+  useRequiredHighlights,
+} from "./required-highlight";
+export { RevealToggle, type RevealToggleProps } from "./reveal-toggle";
 export { Segmented } from "./segmented";
 export { type StatusKind, StatusPill } from "./status-pill";
 export { SurfaceCard, surfaceCardClass } from "./surface-card";

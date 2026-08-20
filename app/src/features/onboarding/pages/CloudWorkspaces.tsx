@@ -77,7 +77,7 @@ export default function CloudWorkspaces() {
             <h1 className="text-xl font-semibold tracking-tight">
               Your cloud workspaces
             </h1>
-            <p className="text-body-sm text-muted-foreground">
+            <p className="text-[15px] text-muted-foreground">
               Select a workspace to open, or create a new one.
             </p>
           </div>

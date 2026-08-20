@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PageBackButton } from "@/components/layout/page-back-button";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
@@ -10,6 +10,7 @@ import { onboardingLoginTransitions as transitions } from "./OnboardingLogin.tra
 export default function OnboardingLogin() {
   const { go } = useAppNavigate();
   const { signedIn } = useCloudSession();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
 
   // A successful sign-up navigates from its own callback. `signedIn` flips true
   // in the same beat, so without this the effect below would race it and win,
@@ -45,16 +46,24 @@ export default function OnboardingLogin() {
       <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
         <PageBackButton onClick={() => go(transitions.back)} />
 
-        <div className="my-auto flex w-full max-w-md flex-col gap-6">
+        <div className="my-auto flex w-full max-w-lg flex-col gap-6">
           <div className="flex flex-col gap-1">
             <h1 className="text-xl font-semibold tracking-tight">
-              Sign in to Kalaido Cloud
+              {mode === "signin"
+                ? "Sign in to Kalaido Cloud"
+                : "Sign up with Kalaido Cloud"}
             </h1>
-            <p className="text-body-sm text-fg-3">
-              Access your cloud workspaces and sync across all your devices.
+            <p className="text-[15px] text-fg-3">
+              {mode === "signin"
+                ? "Access your cloud workspaces and sync across all your devices."
+                : "Create an account to sync your workspaces across all your devices."}
             </p>
           </div>
-          <CloudAuthPanel onAuthenticated={handleAuthenticated} />
+          <CloudAuthPanel
+            mode={mode}
+            onModeChange={setMode}
+            onAuthenticated={handleAuthenticated}
+          />
         </div>
       </main>
     </div>
