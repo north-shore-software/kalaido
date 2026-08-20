@@ -32,8 +32,8 @@ var expandFragmentTool = llm.Tool{
 	}`),
 }
 
-func markupAndIncorporate(ctx context.Context, app core.App, m *workspaceMap, runID, model string, chunk []*core.Record) (int, error) {
-	anns, err := markupChunk(ctx, app, m.body, m.version, model, chunk)
+func markupAndIncorporate(ctx context.Context, app core.App, m *workspaceMap, runID, mapModel, annotateModel string, chunk []*core.Record) (int, error) {
+	anns, err := markupChunk(ctx, app, m.body, m.version, annotateModel, chunk)
 	if err != nil {
 		return 0, err
 	}
@@ -45,23 +45,23 @@ func markupAndIncorporate(ctx context.Context, app core.App, m *workspaceMap, ru
 			r.GetDateTime("source_time").String(),
 			string(anns[i].body)))
 	}
-	newBody, exp, err := incorporate(ctx, app, m.body, model, sb.String(), true)
+	newBody, exp, err := incorporate(ctx, app, m.body, mapModel, sb.String(), true)
 	if err != nil {
 		return exp, err
 	}
-	return exp, persistChunk(app, m, runID, model, newBody, anns)
+	return exp, persistChunk(app, m, runID, annotateModel, newBody, anns)
 }
 
-func incorporateRawThenAnnotate(ctx context.Context, app core.App, m *workspaceMap, runID, model string, chunk []*core.Record) (int, error) {
-	newBody, exp, err := incorporate(ctx, app, m.body, model, llmcontext.RenderFragmentRecords(chunk), false)
+func incorporateRawThenAnnotate(ctx context.Context, app core.App, m *workspaceMap, runID, mapModel, annotateModel string, chunk []*core.Record) (int, error) {
+	newBody, exp, err := incorporate(ctx, app, m.body, mapModel, llmcontext.RenderFragmentRecords(chunk), false)
 	if err != nil {
 		return exp, err
 	}
-	anns, err := markupChunk(ctx, app, newBody, m.version+1, model, chunk)
+	anns, err := markupChunk(ctx, app, newBody, m.version+1, annotateModel, chunk)
 	if err != nil {
 		return exp, err
 	}
-	return exp, persistChunk(app, m, runID, model, newBody, anns)
+	return exp, persistChunk(app, m, runID, annotateModel, newBody, anns)
 }
 
 func markupChunk(ctx context.Context, app core.App, mapBody string, groundedVersion int, model string, chunk []*core.Record) ([]annotation, error) {
@@ -98,7 +98,7 @@ func markupOne(ctx context.Context, app core.App, mapBody, model string, rec *co
 	var reply string
 	err := retryPreempted(func() error {
 		var err error
-		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleMap, model, nil)
+		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleAnnotate, model, nil)
 		return err
 	})
 	if err != nil {
@@ -112,7 +112,7 @@ func markupOne(ctx context.Context, app core.App, mapBody, model string, rec *co
 		llm.Message{Role: "user", Content: prompts.MapJSONRetryNudge})
 	err = retryPreempted(func() error {
 		var err error
-		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleMap, model, nil)
+		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleAnnotate, model, nil)
 		return err
 	})
 	if err != nil {

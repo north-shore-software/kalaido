@@ -25,6 +25,7 @@ var modelsBySetRole = map[ModelSet]map[Role]string{
 		RoleColour:     "gemma4",
 		RoleSnapshot:   "gemma4",
 		RoleMap:        "gemma4",
+		RoleAnnotate:   "gemma4",
 	},
 	SetCloud: {
 		RoleChat:       "gemini-3.6-flash",
@@ -32,6 +33,7 @@ var modelsBySetRole = map[ModelSet]map[Role]string{
 		RoleColour:     "gemini-3.5-flash-lite",
 		RoleSnapshot:   "gemini-3.1-pro-preview",
 		RoleMap:        "gemini-3.6-flash",
+		RoleAnnotate:   "gemini-3.5-flash-lite",
 	},
 }
 
@@ -95,7 +97,7 @@ func RequiresCredential(p ProviderID) bool {
 // purpose: it is structurally aliased to RoleSnapshot in ResolveRole, so it is
 // never configured, validated, or preflighted on its own.
 func Roles() []Role {
-	return []Role{RoleChat, RoleRefinement, RoleColour, RoleSnapshot, RoleMap}
+	return []Role{RoleChat, RoleRefinement, RoleColour, RoleSnapshot, RoleMap, RoleAnnotate}
 }
 
 // optionsByRole is the per-role generation policy. Distill and snapshot run
@@ -108,6 +110,7 @@ var optionsByRole = map[Role]GenOptions{
 	RoleSnapshot: {Temperature: f64(0)},
 	RoleColour:   {Temperature: f64(0)},
 	RoleMap:      {Temperature: f64(0)},
+	RoleAnnotate: {Temperature: f64(0)},
 }
 
 func f64(v float64) *float64 { return &v }

@@ -99,7 +99,7 @@ func ConfigForProvider(p llm.ProviderID) Config {
 // user is watching) override per call with WithPriority.
 func DefaultPriorityForRole(r llm.Role) Priority {
 	switch r {
-	case llm.RoleDistill, llm.RoleMap:
+	case llm.RoleDistill, llm.RoleMap, llm.RoleAnnotate:
 		return Background
 	case llm.RoleColour:
 		return Idle

@@ -162,7 +162,12 @@ func drain(app core.App) {
 		return
 	}
 
-	model, err := llm.ResolveRole(llm.RoleMap)
+	mapModel, err := llm.ResolveRole(llm.RoleMap)
+	if err != nil {
+		log.Printf("mapping: drain: %v", err)
+		return
+	}
+	annotateModel, err := llm.ResolveRole(llm.RoleAnnotate)
 	if err != nil {
 		log.Printf("mapping: drain: %v", err)
 		return
@@ -190,9 +195,9 @@ func drain(app core.App) {
 		var exp int
 		var err error
 		if m.version == 0 {
-			exp, err = incorporateRawThenAnnotate(ctx, app, m, run.Id, model, chunk)
+			exp, err = incorporateRawThenAnnotate(ctx, app, m, run.Id, mapModel, annotateModel, chunk)
 		} else {
-			exp, err = markupAndIncorporate(ctx, app, m, run.Id, model, chunk)
+			exp, err = markupAndIncorporate(ctx, app, m, run.Id, mapModel, annotateModel, chunk)
 		}
 		if err != nil {
 			run.Set("status", "error")
