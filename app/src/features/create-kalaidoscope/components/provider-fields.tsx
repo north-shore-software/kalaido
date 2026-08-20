@@ -1,4 +1,4 @@
-import { SlidersHorizontalIcon } from "lucide-react";
+import { Eye, EyeOff, SlidersHorizontalIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { type OptionCard, OptionCards, Pill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ export function ProviderFields({
   const fallbackModelFieldId = useId();
   const modelFieldId = externalModelFieldId ?? fallbackModelFieldId;
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const activeCustomRoleCount =
     Object.values(roleModels).filter(Boolean).length;
 
@@ -112,22 +113,37 @@ export function ProviderFields({
             <div className="relative flex items-center">
               <Input
                 id={apiKeyFieldId}
-                type="password"
+                type={showApiKey ? "text" : "password"}
                 autoComplete="off"
                 value={apiKey}
                 disabled={disabled}
                 onChange={(e) => onApiKeyChange(e.target.value)}
                 placeholder="Paste your Gemini API key"
                 className={cn(
-                  "h-12 w-full text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
+                  "h-12 w-full pr-10 text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
                   highlightedFields?.has("apiKey") &&
-                    "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-24 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+                    "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-28 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
                 )}
               />
               {highlightedFields?.has("apiKey") && (
-                <Pill className="pointer-events-none absolute right-2 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
+                <Pill className="pointer-events-none absolute right-11 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
                   Required
                 </Pill>
+              )}
+              {apiKey && (
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey((prev) => !prev)}
+                  tabIndex={-1}
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                  className="absolute right-2 flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground outline-none"
+                >
+                  {showApiKey ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
               )}
             </div>
           </div>

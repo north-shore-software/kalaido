@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Pill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ export interface AuthFormProps {
 export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const emailFieldId = useId();
   const passwordFieldId = useId();
   const [highlightedFields, setHighlightedFields] = useState<
@@ -95,21 +97,36 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
         <div className="relative flex items-center">
           <Input
             id={passwordFieldId}
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={busy}
             className={cn(
-              "h-12 w-full text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
+              "h-12 w-full pr-10 text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
               highlightedFields.has("password") &&
-                "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-24 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+                "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-28 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
             )}
           />
           {highlightedFields.has("password") && (
-            <Pill className="pointer-events-none absolute right-2 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
+            <Pill className="pointer-events-none absolute right-11 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
               Required
             </Pill>
+          )}
+          {password && (
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              tabIndex={-1}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground outline-none"
+            >
+              {showPassword ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </button>
           )}
         </div>
       </div>
