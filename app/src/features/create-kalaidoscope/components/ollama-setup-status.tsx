@@ -102,9 +102,6 @@ function StatusDot({ status }: { status: Status }) {
   }
 
   return (
-    <span
-      className="size-2.5 shrink-0 rounded-full bg-critical"
-      aria-hidden
-    />
+    <span className="size-2.5 shrink-0 rounded-full bg-critical" aria-hidden />
   );
 }

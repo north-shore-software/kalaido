@@ -21,7 +21,11 @@ export function AccountCard({ name, email, onSignOut }: AccountCardProps) {
         {initials}
       </div>
       <div className="flex flex-col min-w-0">
-        {name && <span className="text-item font-medium truncate text-fg-1">{name}</span>}
+        {name && (
+          <span className="text-item font-medium truncate text-fg-1">
+            {name}
+          </span>
+        )}
         <span className="text-meta text-fg-3 truncate">{email}</span>
       </div>
       <Button

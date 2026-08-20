@@ -72,7 +72,8 @@ export function ProviderFields({
 }: ProviderFieldsProps) {
   const apiKeyFieldId = useId();
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const activeCustomRoleCount = Object.values(roleModels).filter(Boolean).length;
+  const activeCustomRoleCount =
+    Object.values(roleModels).filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -255,9 +256,7 @@ function RoleField({
       </label>
       <Select
         value={value || "default"}
-        onValueChange={(val) =>
-          onChange(val === "default" ? "" : (val ?? ""))
-        }
+        onValueChange={(val) => onChange(val === "default" ? "" : (val ?? ""))}
         disabled={disabled}
       >
         <SelectTrigger className="h-10 w-full font-mono text-body-sm">

@@ -26,7 +26,9 @@ export function ModelDownloadCard({
     <SurfaceCard className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-0.5">
-          <span className="text-item font-medium text-fg-1">Download {modelName}</span>
+          <span className="text-item font-medium text-fg-1">
+            Download {modelName}
+          </span>
           <span className="text-meta text-fg-3">
             The recommended model. Several GB — keep this page open while it
             downloads.
