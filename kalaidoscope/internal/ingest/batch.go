@@ -11,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 )
 
 func RegisterHooks(app core.App) {
@@ -153,6 +154,7 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		log.Printf("ingest: save status for %s: %v", recID, err)
 	}
 	log.Printf("ingest: completed record %s (ingested %d fragments across %d file(s))", recID, total, len(files))
+	mapping.Signal()
 }
 
 func normalizeExtensions(s string) []string {

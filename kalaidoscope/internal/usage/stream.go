@@ -90,3 +90,24 @@ func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, rol
 	}
 	return sb.String(), nil
 }
+
+func GenerateWithToolCalls(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, model string, tools []llm.Tool) (string, []llm.ToolCall, error) {
+	comp, runCtx, err := stream(ctx, app, role, model, msgs, tools)
+	if err != nil {
+		return "", nil, err
+	}
+	var sb strings.Builder
+	var calls []llm.ToolCall
+	for ev := range comp.Events {
+		switch ev.Kind {
+		case llm.EventText:
+			sb.WriteString(ev.Text)
+		case llm.EventToolEnd:
+			calls = append(calls, llm.ToolCall{ID: ev.ToolCallID, Name: ev.ToolName, Args: ev.Args})
+		}
+	}
+	if cause := context.Cause(runCtx); errors.Is(cause, llmq.ErrPreempted) {
+		return "", nil, llmq.ErrPreempted
+	}
+	return sb.String(), calls, nil
+}

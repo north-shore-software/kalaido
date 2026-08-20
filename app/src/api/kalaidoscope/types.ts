@@ -16,10 +16,13 @@ export const Collections = {
 	Colour: "colour",
 	ColourFragment: "colour_fragment",
 	Fragment: "fragment",
+	FragmentAnnotation: "fragment_annotation",
 	Ingest: "ingest",
 	KalaidoscopeConfig: "kalaidoscope_config",
+	KalaidoscopeMap: "kalaidoscope_map",
 	Lens: "lens",
 	LlmQueueStatus: "llm_queue_status",
+	MapRun: "map_run",
 	Projection: "projection",
 	ProjectionSnapshot: "projection_snapshot",
 	RefineProjSnapshotConversation: "refine_proj_snapshot_conversation",
@@ -172,6 +175,16 @@ export type FragmentRecord = {
 	type: FragmentTypeOptions
 }
 
+export type FragmentAnnotationRecord<Tannotation = unknown> = {
+	annotation?: null | Tannotation
+	created: IsoAutoDateString
+	fragment_id: RecordIdString
+	id: string
+	map_version?: number
+	model?: string
+	run_id?: RecordIdString
+}
+
 export type IngestRecord = {
 	created: IsoAutoDateString
 	error?: string
@@ -197,6 +210,14 @@ export type KalaidoscopeConfigRecord<Trole_models = unknown> = {
 	updated: IsoAutoDateString
 }
 
+export type KalaidoscopeMapRecord<Tbody = unknown> = {
+	body?: null | Tbody
+	created: IsoAutoDateString
+	id: string
+	updated: IsoAutoDateString
+	version?: number
+}
+
 export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
 	context_spec?: null | Tcontext_spec
 	converged?: boolean
@@ -217,6 +238,26 @@ export type LlmQueueStatusRecord<Trunning = unknown, Twaiting = unknown> = {
 	state?: string
 	updated: IsoAutoDateString
 	waiting?: null | Twaiting
+}
+
+export const MapRunStatusOptions = {
+	"running": "running",
+	"done": "done",
+	"error": "error",
+} as const
+export type MapRunStatusOptions = typeof MapRunStatusOptions[keyof typeof MapRunStatusOptions]
+export type MapRunRecord = {
+	chunks?: number
+	created: IsoAutoDateString
+	error?: string
+	expansions?: number
+	fragments_processed?: number
+	fragments_total?: number
+	id: string
+	map_version_end?: number
+	map_version_start?: number
+	status: MapRunStatusOptions
+	updated: IsoAutoDateString
 }
 
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
@@ -353,10 +394,13 @@ export type ChatMessageResponse<Tcontent = unknown, Texpand = unknown> = Require
 export type ColourResponse<Texpand = unknown> = Required<ColourRecord> & BaseSystemFields<Texpand>
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>
+export type FragmentAnnotationResponse<Tannotation = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation>> & BaseSystemFields<Texpand>
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
+export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>
 export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
 export type LlmQueueStatusResponse<Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Trunning, Twaiting>> & BaseSystemFields<Texpand>
+export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
 export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
@@ -380,10 +424,13 @@ export type CollectionRecords = {
 	colour: ColourRecord
 	colour_fragment: ColourFragmentRecord
 	fragment: FragmentRecord
+	fragment_annotation: FragmentAnnotationRecord
 	ingest: IngestRecord
 	kalaidoscope_config: KalaidoscopeConfigRecord
+	kalaidoscope_map: KalaidoscopeMapRecord
 	lens: LensRecord
 	llm_queue_status: LlmQueueStatusRecord
+	map_run: MapRunRecord
 	projection: ProjectionRecord
 	projection_snapshot: ProjectionSnapshotRecord
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationRecord
@@ -406,10 +453,13 @@ export type CollectionResponses = {
 	colour: ColourResponse
 	colour_fragment: ColourFragmentResponse
 	fragment: FragmentResponse
+	fragment_annotation: FragmentAnnotationResponse
 	ingest: IngestResponse
 	kalaidoscope_config: KalaidoscopeConfigResponse
+	kalaidoscope_map: KalaidoscopeMapResponse
 	lens: LensResponse
 	llm_queue_status: LlmQueueStatusResponse
+	map_run: MapRunResponse
 	projection: ProjectionResponse
 	projection_snapshot: ProjectionSnapshotResponse
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationResponse
