@@ -22,7 +22,9 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
   const [highlightedFields, setHighlightedFields] = useState<
     Set<"email" | "password">
   >(new Set());
-  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   function triggerHighlights(fields: ("email" | "password")[]) {
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);

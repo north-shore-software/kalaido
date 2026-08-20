@@ -82,7 +82,9 @@ export default function KalaidoscopeSetup() {
   const [highlightedFields, setHighlightedFields] = useState<
     Set<"name" | "apiKey" | "model">
   >(new Set());
-  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   function triggerHighlights(fields: ("name" | "apiKey" | "model")[]) {
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
@@ -380,9 +382,7 @@ export default function KalaidoscopeSetup() {
                 size="default"
                 type="submit"
                 disabled={snap.isPending}
-                className={cn(
-                  !canCreate && "opacity-50 hover:opacity-50",
-                )}
+                className={cn(!canCreate && "opacity-50 hover:opacity-50")}
               >
                 {snap.isPending ? "Creating…" : submitLabel}
               </Button>
