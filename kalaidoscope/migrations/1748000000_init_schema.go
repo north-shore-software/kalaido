@@ -316,6 +316,57 @@ var schema = []tableDef{
 	},
 
 	{
+		Name:                   "map_run",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.SelectField{
+				Name:      "status",
+				Required:  true,
+				MaxSelect: 1,
+				Values:    []string{"running", "done", "error"},
+			},
+			&core.TextField{Name: "error"},
+			&core.NumberField{Name: "fragments_total"},
+			&core.NumberField{Name: "fragments_processed"},
+			&core.NumberField{Name: "chunks"},
+			&core.NumberField{Name: "expansions"},
+			&core.NumberField{Name: "map_version_start"},
+			&core.NumberField{Name: "map_version_end"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
+		Name:                   "fragment_annotation",
+		DisableWriteOperations: true,
+		DisableReadOperations:  true,
+		Fields: []core.Field{
+			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", Required: true, MaxSelect: 1, CascadeDelete: true},
+			&core.JSONField{Name: "annotation"},
+			&core.NumberField{Name: "map_version"},
+			&core.TextField{Name: "model"},
+			&core.RelationField{Name: "run_id", CollectionId: "map_run", MaxSelect: 1},
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_fragment_annotation_fragment", Unique: true, Columns: "fragment_id"},
+			{Name: "idx_fragment_annotation_run", Columns: "run_id"},
+		},
+	},
+
+	{
+		Name:                   "kalaidoscope_map",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.JSONField{Name: "body"},
+			&core.NumberField{Name: "version"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
 		// Live LLM scheduler state, mirrored by the server (server/queue_status.go)
 		// so the utility bar can watch the queue over the ordinary realtime
 		// channel. Server-written only, and reset to empty at boot — it

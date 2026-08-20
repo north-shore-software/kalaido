@@ -47,6 +47,7 @@ const (
 	RoleColour     Role = "colour"
 	RoleDistill    Role = "distill"  // lens distillation
 	RoleSnapshot   Role = "snapshot" // projection/reflection output
+	RoleMap        Role = "map"      // workspace map markup + incorporation
 )
 
 type Usage struct {
