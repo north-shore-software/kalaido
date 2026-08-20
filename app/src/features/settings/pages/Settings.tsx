@@ -10,7 +10,6 @@ import { CloudAccountSection } from "../components/cloud-account-section";
 import { DangerZoneSection } from "../components/danger-zone-section";
 import { KalaidoscopesSection } from "../components/kalaidoscopes-section";
 import { LocalAISection } from "../components/local-ai-section";
-import { MapSection } from "../components/map-section";
 import { settingsTransitions } from "./Settings.transitions";
 
 const sections = [
@@ -18,7 +17,6 @@ const sections = [
   { id: "cloud-account", label: "Cloud Account" },
   { id: "local-ai", label: "Local AI" },
   { id: "appearance", label: "Appearance" },
-  { id: "map", label: "Map" },
   { id: "danger", label: "Danger Zone" },
 ];
 
@@ -75,8 +73,6 @@ export default function Settings() {
             <LocalAISection />
           ) : section === "appearance" ? (
             <AppearanceSection />
-          ) : section === "map" ? (
-            <MapSection />
           ) : (
             <KalaidoscopesSection />
           )}

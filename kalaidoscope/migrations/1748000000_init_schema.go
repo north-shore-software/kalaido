@@ -43,6 +43,11 @@ var schema = []tableDef{
 				// as a group once a workspace accumulates them.
 				Values: []string{"email", "note", "whatsapp", "sms", "chat"},
 			},
+			&core.SelectField{
+				Name:      "origin",
+				MaxSelect: 1,
+				Values:    []string{"import", "app", "sync"},
+			},
 			&core.TextField{Name: "source"},
 			&core.TextField{Name: "content", Required: true, Max: fragmentContentMax},
 			&core.DateField{Name: "source_time"},

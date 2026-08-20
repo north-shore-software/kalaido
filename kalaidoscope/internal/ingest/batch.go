@@ -62,6 +62,7 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 	if err != nil {
 		return 0, err
 	}
+	w.origin = "import"
 
 	exts := opts.Extensions
 	if len(exts) == 0 {

@@ -165,11 +165,19 @@ export const FragmentTypeOptions = {
 	"chat": "chat",
 } as const
 export type FragmentTypeOptions = typeof FragmentTypeOptions[keyof typeof FragmentTypeOptions]
+
+export const FragmentOriginOptions = {
+	"import": "import",
+	"app": "app",
+	"sync": "sync",
+} as const
+export type FragmentOriginOptions = typeof FragmentOriginOptions[keyof typeof FragmentOriginOptions]
 export type FragmentRecord = {
 	content: string
 	created: IsoAutoDateString
 	deleted_at?: IsoDateString
 	id: string
+	origin?: FragmentOriginOptions
 	source?: string
 	source_time?: IsoDateString
 	type: FragmentTypeOptions

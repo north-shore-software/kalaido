@@ -67,12 +67,17 @@ func RegisterTriggers(app core.App) {
 		if e.Record.GetDateTime("source_time").IsZero() {
 			e.Record.Set("source_time", types.NowDateTime())
 		}
+		if e.Record.GetString("origin") == "" {
+			e.Record.Set("origin", "app")
+		}
 		return e.Next()
 	})
 
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
 		colour.EnqueueNewFragmentEvaluation(app, e.Record.Id)
-		mapping.SignalIfBacklog(app)
+		if e.Record.GetString("origin") != "import" {
+			mapping.SignalIfBacklog(app)
+		}
 		return e.Next()
 	})
 
