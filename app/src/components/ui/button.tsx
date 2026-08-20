@@ -4,24 +4,24 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/css-utils";
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-none border border-transparent bg-clip-padding font-semibold whitespace-nowrap uppercase transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-none font-semibold whitespace-nowrap uppercase transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
   {
     variants: {
       variant: {
         default:
-          "border-line-strong bg-transparent text-fg-2 hover:border-fg-3 hover:text-fg-1 aria-expanded:border-fg-3 aria-expanded:text-fg-1",
+          "border border-line-strong bg-transparent text-fg-2 hover:border-fg-3 hover:text-fg-1 aria-expanded:border-fg-3 aria-expanded:text-fg-1",
         commit:
-          "bg-magenta font-bold text-magenta-foreground drop-shadow-magenta clip-chamfer hover:opacity-[0.86] focus-visible:ring-magenta/50",
+          "border-0 bg-magenta font-bold text-magenta-foreground clip-chamfer hover:opacity-[0.86] focus-visible:ring-magenta/50",
         section:
-          "border-transparent bg-section font-bold text-section-foreground hover:text-section-foreground hover:clip-chamfer hover:opacity-[0.86] focus-visible:ring-section/50",
+          "border-0 bg-section font-bold text-section-foreground hover:text-section-foreground hover:clip-chamfer hover:opacity-[0.86] focus-visible:ring-section/50",
         outline:
-          "border-fg-3 bg-transparent text-fg-1 hover:border-fg-1 aria-expanded:border-fg-1",
+          "border border-fg-3 bg-transparent text-fg-1 hover:border-fg-1 aria-expanded:border-fg-1",
         secondary:
-          "bg-surface-2 text-fg-1 hover:bg-surface-3 aria-expanded:bg-surface-3",
+          "border border-transparent bg-surface-2 text-fg-1 hover:bg-surface-3 aria-expanded:bg-surface-3",
         ghost:
-          "bg-transparent text-fg-2 hover:bg-surface-2 hover:text-fg-1 aria-expanded:bg-surface-2 aria-expanded:text-fg-1",
+          "border border-transparent bg-transparent text-fg-2 hover:bg-surface-2 hover:text-fg-1 aria-expanded:bg-surface-2 aria-expanded:text-fg-1",
         destructive:
-          "border-destructive/40 bg-transparent text-destructive hover:border-destructive focus-visible:ring-destructive/40",
+          "border border-critical/40 bg-transparent text-critical-ink hover:border-critical hover:bg-critical hover:text-white focus-visible:ring-critical/40",
       },
       size: {
         default:

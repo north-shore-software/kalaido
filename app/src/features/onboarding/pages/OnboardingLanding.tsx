@@ -99,7 +99,7 @@ export default function OnboardingLanding() {
         {restoreError && (
           <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
-            <p className="flex-1 text-xs text-destructive">{restoreError}</p>
+            <p className="flex-1 text-meta text-destructive">{restoreError}</p>
             <Button
               variant="ghost"
               size="sm"
@@ -127,7 +127,7 @@ export default function OnboardingLanding() {
               description={
                 signedIn
                   ? (user?.email ?? "View cloud workspaces.")
-                  : "Access existing cloud workspaces and sync across devices."
+                  : "Access cloud workspaces and sync across devices."
               }
               onClick={() =>
                 go(
@@ -149,7 +149,7 @@ export default function OnboardingLanding() {
 
         {availableKalaidoscopes.length > 0 && (
           <section className="flex flex-col gap-2 border-t pt-6">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <span className="text-label uppercase text-muted-foreground">
               Your workspaces
             </span>
             <KalaidoscopeList className="flex flex-col" />
@@ -195,7 +195,7 @@ function PrimaryChoice({ icon, title, description, onClick }: ChoiceProps) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[104px] items-center gap-4 rounded-lg border border-cyan-edge bg-cyan-veil p-5 text-left transition-[border-color,box-shadow] duration-150 hover:border-cyan hover:shadow-[0_0_16px_rgba(34,211,238,0.35)]"
+      className="group flex min-h-[114px] items-center gap-4 rounded-lg border border-cyan-edge bg-cyan-veil p-5 text-left transition-[border-color,box-shadow] duration-150 hover:border-cyan hover:shadow-[0_0_16px_rgba(34,211,238,0.35)]"
     >
       <div className="flex size-12 shrink-0 items-center justify-center rounded-md border transition-colors group-hover:border-cyan-edge group-hover:bg-cyan-wash group-hover:text-cyan">
         {icon}
@@ -221,11 +221,11 @@ function SecondaryChoice({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="group flex h-full min-h-[104px] items-center gap-3.5 rounded-lg border border-dashed p-5 text-left transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
+      className="group flex h-full min-h-[114px] items-center gap-3.5 rounded-lg border border-dashed p-5 text-left transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
     >
       <div className="shrink-0 text-muted-foreground">{icon}</div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate text-base font-semibold">{title}</span>
+        <span className="truncate text-card-title font-semibold">{title}</span>
         <span className="text-body-sm text-fg-3">{description}</span>
       </div>
       <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />

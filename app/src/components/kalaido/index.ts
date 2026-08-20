@@ -35,6 +35,11 @@ export {
   type MarkdownVariant,
 } from "./markdown-content";
 export { Metric } from "./metric";
+export {
+  type OptionCard,
+  OptionCards,
+  type OptionCardsProps,
+} from "./option-cards";
 export { Pill } from "./pill";
 export { PinToggle } from "./pin-toggle";
 export { RefineChatPanel } from "./refine-chat-panel";

@@ -1,12 +1,23 @@
-import { ChevronRight } from "lucide-react";
-import { useId } from "react";
+import { SlidersHorizontalIcon } from "lucide-react";
+import { useId, useState } from "react";
+import { type OptionCard, OptionCards, Pill } from "@/components/kalaido";
+import { Button } from "@/components/ui/button";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Segmented } from "@/components/kalaido";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   GEMINI_SUGGESTED_MODELS,
   type LlmProvider,
@@ -16,8 +27,18 @@ import {
 } from "@/api/kalaidoscope/llm-config";
 import { OllamaSetupStatus } from "./ollama-setup-status";
 
-const PROVIDER_LABELS = ["Local Ollama", "Google Gemini"] as const;
-type ProviderLabel = (typeof PROVIDER_LABELS)[number];
+const providerOptions: OptionCard<LlmProvider>[] = [
+  {
+    value: "ollama",
+    label: "Local Ollama",
+    lines: ["Runs on this device", "Offline & private"],
+  },
+  {
+    value: "gemini",
+    label: "Google Gemini",
+    lines: ["Hosted by Google", "Use your API key"],
+  },
+];
 
 export interface ProviderFieldsProps {
   provider: LlmProvider;
@@ -42,47 +63,48 @@ export function ProviderFields({
   onDefaultModelChange,
   onRoleModelChange,
 }: ProviderFieldsProps) {
-  const modelListId = useId();
   const apiKeyFieldId = useId();
+  const providerLabelId = useId();
   const modelFieldId = useId();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const activeCustomRoleCount =
+    Object.values(roleModels).filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <span
+        id={providerLabelId}
+        className="text-label uppercase text-muted-foreground"
+      >
         Model provider
       </span>
 
-      <Segmented<ProviderLabel>
-        items={PROVIDER_LABELS}
-        value={provider === "ollama" ? "Local Ollama" : "Google Gemini"}
-        onChange={(label) =>
-          onProviderChange(label === "Local Ollama" ? "ollama" : "gemini")
-        }
-        className="self-start"
+      <OptionCards
+        options={providerOptions}
+        value={provider}
+        onChange={onProviderChange}
+        disabled={disabled}
+        aria-labelledby={providerLabelId}
       />
 
       {provider === "ollama" ? (
         <div className="flex flex-col gap-3">
-          <p className="text-xs text-muted-foreground">
-            Runs models on this device through Ollama. Nothing is sent to a
-            hosted provider.
-          </p>
           <OllamaSetupStatus />
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          <p className="text-xs text-muted-foreground">
-            Your key is stored in this workspace&apos;s own database and is used
-            only for this workspace.
-          </p>
-
+        <div className="flex flex-col gap-5 pt-2">
           <div className="flex flex-col gap-2">
-            <label
-              htmlFor={apiKeyFieldId}
-              className="text-xs font-medium text-muted-foreground"
-            >
-              API key
-            </label>
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor={apiKeyFieldId}
+                className="text-label uppercase text-muted-foreground"
+              >
+                API key
+              </label>
+              <Pill className="border-critical/40 bg-critical/10 text-critical-ink">
+                Required
+              </Pill>
+            </div>
             <Input
               id={apiKeyFieldId}
               type="password"
@@ -97,45 +119,92 @@ export function ProviderFields({
           <div className="flex flex-col gap-2">
             <label
               htmlFor={modelFieldId}
-              className="text-xs font-medium text-muted-foreground"
+              className="text-label uppercase text-muted-foreground"
             >
               Model
             </label>
-            <Input
-              id={modelFieldId}
-              type="text"
-              list={modelListId}
-              value={defaultModel}
+            <Select
+              value={defaultModel || GEMINI_SUGGESTED_MODELS[0]}
+              onValueChange={(val) => onDefaultModelChange(val ?? "")}
               disabled={disabled}
-              onChange={(e) => onDefaultModelChange(e.target.value)}
-              placeholder="Choose or type a model name"
-            />
-            <datalist id={modelListId}>
-              {GEMINI_SUGGESTED_MODELS.map((model) => (
-                <option key={model} value={model} />
-              ))}
-            </datalist>
+            >
+              <SelectTrigger
+                id={modelFieldId}
+                className="h-10 w-full font-mono text-body-sm"
+              >
+                <SelectValue placeholder="Select a Gemini model" />
+              </SelectTrigger>
+              <SelectContent className="font-mono">
+                {GEMINI_SUGGESTED_MODELS.map((model) => (
+                  <SelectItem
+                    key={model}
+                    value={model}
+                    className="font-mono text-body-sm"
+                  >
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <Collapsible className="flex flex-col gap-3">
-            <CollapsibleTrigger className="group flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <ChevronRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
-              Advanced — use a different model per task
-            </CollapsibleTrigger>
-            <CollapsibleContent className="flex flex-col gap-3">
-              {LLM_ROLES.map((role) => (
-                <RoleField
-                  key={role}
-                  role={role}
-                  value={roleModels[role] ?? ""}
-                  placeholder={defaultModel || "Uses the model above"}
-                  listId={modelListId}
-                  disabled={disabled}
-                  onChange={(model) => onRoleModelChange(role, model)}
-                />
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+          <div className="flex items-center gap-2 self-end">
+            {activeCustomRoleCount > 0 && (
+              <Pill
+                tone="primary"
+                className="h-[25px] min-w-[25px] justify-center px-2 font-mono text-btn-sm"
+              >
+                {activeCustomRoleCount}
+              </Pill>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAdvancedOpen(true)}
+              className="gap-1.5 font-mono transition-colors hover:border-cyan-edge hover:bg-cyan-wash hover:text-cyan"
+            >
+              <SlidersHorizontalIcon className="size-3.5" />
+              Advanced
+            </Button>
+          </div>
+
+          <Dialog open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <DialogContent className="max-h-[85vh] max-w-lg flex flex-col gap-6 overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Task models</DialogTitle>
+                <DialogDescription>
+                  Assign specific models to different roles in your workspace.
+                  Unset roles use the default model.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex flex-col gap-4">
+                {LLM_ROLES.map((role) => (
+                  <RoleField
+                    key={role}
+                    role={role}
+                    value={roleModels[role] ?? ""}
+                    placeholder={defaultModel || GEMINI_SUGGESTED_MODELS[0]}
+                    disabled={disabled}
+                    onChange={(model) => onRoleModelChange(role, model)}
+                  />
+                ))}
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAdvancedOpen(false)}
+                  className="font-mono transition-colors hover:border-cyan-edge hover:bg-cyan-wash hover:text-cyan"
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
     </div>
@@ -146,7 +215,6 @@ interface RoleFieldProps {
   role: LlmRole;
   value: string;
   placeholder: string;
-  listId: string;
   disabled?: boolean;
   onChange: (model: string) => void;
 }
@@ -155,28 +223,44 @@ function RoleField({
   role,
   value,
   placeholder,
-  listId,
   disabled,
   onChange,
 }: RoleFieldProps) {
   const fieldId = useId();
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-2">
       <label
         htmlFor={fieldId}
-        className="w-40 shrink-0 text-xs text-muted-foreground"
+        className="text-label uppercase text-muted-foreground"
       >
         {LLM_ROLE_LABELS[role]}
       </label>
-      <Input
-        id={fieldId}
-        type="text"
-        list={listId}
-        value={value}
+      <Select
+        value={value || "default"}
+        onValueChange={(val) => onChange(val === "default" ? "" : (val ?? ""))}
         disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
+      >
+        <SelectTrigger
+          id={fieldId}
+          className="h-10 w-full font-mono text-body-sm"
+        >
+          <SelectValue placeholder={`Default (${placeholder})`} />
+        </SelectTrigger>
+        <SelectContent className="font-mono">
+          <SelectItem value="default" className="font-mono text-body-sm">
+            Default ({placeholder})
+          </SelectItem>
+          {GEMINI_SUGGESTED_MODELS.map((model) => (
+            <SelectItem
+              key={model}
+              value={model}
+              className="font-mono text-body-sm"
+            >
+              {model}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

@@ -34,7 +34,7 @@ export function AdvancedLocationFields({
         <>
           <label
             htmlFor={locationId}
-            className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+            className="text-label uppercase text-muted-foreground"
           >
             Location
           </label>
@@ -45,7 +45,7 @@ export function AdvancedLocationFields({
               onChange={(e) => onLocationInput(e.target.value)}
               placeholder="Default location"
               className={cn(
-                "flex-1 min-w-0 font-mono text-sm",
+                "flex-1 min-w-0 text-mono-sm",
                 locationIsInvalid &&
                   "border-destructive focus-visible:ring-destructive",
               )}
@@ -61,13 +61,13 @@ export function AdvancedLocationFields({
             </Button>
           </div>
           {parsedLocation.kind === "invalid" && (
-            <p className="text-xs text-destructive">
+            <p className="text-meta text-destructive">
               {parsedLocation.reason ??
                 "Enter an absolute path (e.g. /Users/me/data) or a URL (e.g. http://localhost:8090)."}
             </p>
           )}
           {parsedLocation.kind === "dev" && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-meta text-muted-foreground">
               Dev kalaidoscope — connects to an existing PocketBase instance.
               Include credentials in the URL
               (http://user:password@localhost:8090); they are stored in plain
@@ -79,7 +79,7 @@ export function AdvancedLocationFields({
         <>
           <label
             htmlFor={cloudFieldId}
-            className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+            className="text-label uppercase text-muted-foreground"
           >
             Kalaidoscope Global ID
           </label>
@@ -88,7 +88,7 @@ export function AdvancedLocationFields({
             value={cloudId}
             onChange={(e) => onCloudId(e.target.value)}
             placeholder="my-kalaidoscope"
-            className="font-mono text-sm"
+            className="text-mono-sm"
           />
         </>
       )}

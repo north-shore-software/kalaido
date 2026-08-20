@@ -22,7 +22,10 @@ export function OllamaSetupStatus() {
 
   const check = useCallback(async () => {
     setStatus("checking");
-    const result = await checkOllamaStatus();
+    const [result] = await Promise.all([
+      checkOllamaStatus(),
+      new Promise((resolve) => setTimeout(resolve, 500)),
+    ]);
     // An IPC failure is indistinguishable from Ollama being down, as far as
     // anything the user can act on goes.
     setStatus(
@@ -35,28 +38,30 @@ export function OllamaSetupStatus() {
   }, [check]);
 
   return (
-    <div className="flex items-start gap-2.5 rounded-md border border-dashed p-3">
+    <div className="flex items-center gap-3 rounded-lg border border-dashed p-3.5">
       <StatusDot status={status} />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {status === "checking" && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-body-sm text-muted-foreground">
             Checking for Ollama…
           </span>
         )}
 
         {status === "reachable" && (
-          <span className="text-xs">Ollama running</span>
+          <span className="text-body-sm font-medium text-foreground">
+            Ollama running
+          </span>
         )}
 
         {status === "unreachable" && (
           <>
-            <span className="text-xs">
+            <span className="text-body-sm text-muted-foreground">
               Ollama not running — AI won&apos;t be available until it is
             </span>
             <button
               type="button"
-              className="w-fit text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              className="w-fit text-meta text-muted-foreground underline underline-offset-4 hover:text-foreground"
               onClick={() => void openSystemBrowser(OLLAMA_DOWNLOAD_URL)}
             >
               Download and set up Ollama
@@ -65,35 +70,40 @@ export function OllamaSetupStatus() {
         )}
       </div>
 
-      {status !== "checking" && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => void check()}
-          className="-my-1 shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCwIcon />
-          Recheck
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={status === "checking"}
+        onClick={() => void check()}
+        className="shrink-0 gap-1.5 transition-colors hover:border-cyan-edge hover:bg-cyan-wash hover:text-cyan"
+      >
+        {status === "checking" ? (
+          <>
+            <Spinner className="size-3.5" />
+            Checking…
+          </>
+        ) : (
+          <>
+            <RefreshCwIcon className="size-3.5" />
+            Recheck
+          </>
+        )}
+      </Button>
     </div>
   );
 }
 
 function StatusDot({ status }: { status: Status }) {
   if (status === "checking") {
-    return <Spinner className="mt-0.5 size-3 shrink-0 text-muted-foreground" />;
+    return <Spinner className="size-4 shrink-0 text-muted-foreground" />;
   }
 
   if (status === "reachable") {
-    return <CheckIcon className="mt-0.5 size-3 shrink-0 text-stable" />;
+    return <CheckIcon className="size-4 shrink-0 text-stable" />;
   }
 
   return (
-    <span
-      className="mt-1 size-2 shrink-0 rounded-full bg-critical"
-      aria-hidden
-    />
+    <span className="size-2.5 shrink-0 rounded-full bg-critical" aria-hidden />
   );
 }

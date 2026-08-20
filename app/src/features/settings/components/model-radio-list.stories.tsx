@@ -10,7 +10,7 @@ export const ActiveModel: Story = () => {
   const [active, setActive] = useState("gemma3:latest");
   return (
     <div className="max-w-xl p-4 bg-background border border-line flex flex-col gap-3">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-label font-semibold uppercase text-fg-3">
         Active model
       </span>
       <ModelRadioList

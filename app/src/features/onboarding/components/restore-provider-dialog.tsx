@@ -107,7 +107,7 @@ export function RestoreProviderDialog({
           }
         />
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-meta text-destructive">{error}</p>}
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>

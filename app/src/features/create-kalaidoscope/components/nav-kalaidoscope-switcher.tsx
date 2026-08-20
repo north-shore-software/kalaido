@@ -57,7 +57,7 @@ export function NavKalaidoscopeSwitcher() {
               >
                 <Mark className="size-7" />
                 <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate text-sm font-semibold">
+                  <span className="truncate text-item font-semibold">
                     {current?.displayName ?? "…"}
                   </span>
                   <Label className="mt-0.5 text-[9px] leading-none">
@@ -75,7 +75,7 @@ export function NavKalaidoscopeSwitcher() {
             sideOffset={4}
           >
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
+              <DropdownMenuLabel className="text-label uppercase text-muted-foreground">
                 Kalaidoscopes
               </DropdownMenuLabel>
               {kalaidoscopes.map((kalaidoscope, index) => (
@@ -86,7 +86,7 @@ export function NavKalaidoscopeSwitcher() {
                   className="gap-2 p-2"
                 >
                   <div className="flex size-6 items-center justify-center rounded-md border">
-                    <span className="text-xs font-medium">
+                    <span className="text-meta font-medium">
                       {kalaidoscope.displayName.charAt(0).toUpperCase()}
                     </span>
                   </div>

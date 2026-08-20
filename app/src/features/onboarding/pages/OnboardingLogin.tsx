@@ -1,6 +1,5 @@
-import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
+import { PageBackButton } from "@/components/layout/page-back-button";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { defineRoute } from "@/routes/route-kit";
@@ -43,21 +42,18 @@ export default function OnboardingLogin() {
       className="flex flex-col overflow-auto bg-background"
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
-      <main className="relative flex flex-1 flex-col items-center p-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => go(transitions.back)}
-          className="absolute top-4 left-4 gap-1.5 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeftIcon />
-          Back
-        </Button>
+      <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
+        <PageBackButton onClick={() => go(transitions.back)} />
 
-        <div className="mt-16 flex w-full max-w-sm flex-col gap-6">
-          <h1 className="text-xl font-semibold tracking-tight">
-            Sign in to Kalaido Cloud
-          </h1>
+        <div className="my-auto flex w-full max-w-md flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl font-semibold tracking-tight">
+              Sign in to Kalaido Cloud
+            </h1>
+            <p className="text-body-sm text-fg-3">
+              Access your cloud workspaces and sync across all your devices.
+            </p>
+          </div>
           <CloudAuthPanel onAuthenticated={handleAuthenticated} />
         </div>
       </main>

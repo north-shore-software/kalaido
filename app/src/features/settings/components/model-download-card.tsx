@@ -26,8 +26,10 @@ export function ModelDownloadCard({
     <SurfaceCard className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium">Download {modelName}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-item font-medium text-fg-1">
+            Download {modelName}
+          </span>
+          <span className="text-meta text-fg-3">
             The recommended model. Several GB — keep this page open while it
             downloads.
           </span>
@@ -51,13 +53,13 @@ export function ModelDownloadCard({
       {pulling && (
         <div className="flex flex-col gap-1.5">
           <Progress value={pullPct ?? null} />
-          <span className="text-xs text-muted-foreground">
+          <span className="text-meta text-fg-3">
             {pullStatus}
             {pullPct !== null && pullPct !== undefined ? ` · ${pullPct}%` : ""}
           </span>
         </div>
       )}
-      {pullError && <p className="text-xs text-destructive">{pullError}</p>}
+      {pullError && <p className="text-meta text-critical-ink">{pullError}</p>}
     </SurfaceCard>
   );
 }

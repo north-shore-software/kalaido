@@ -17,12 +17,16 @@ export function AccountCard({ name, email, onSignOut }: AccountCardProps) {
 
   return (
     <SurfaceCard className="flex max-w-sm items-center gap-4">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-none bg-surface-2 text-item font-semibold text-fg-1">
         {initials}
       </div>
       <div className="flex flex-col min-w-0">
-        {name && <span className="text-sm font-medium truncate">{name}</span>}
-        <span className="text-xs text-muted-foreground truncate">{email}</span>
+        {name && (
+          <span className="text-item font-medium truncate text-fg-1">
+            {name}
+          </span>
+        )}
+        <span className="text-meta text-fg-3 truncate">{email}</span>
       </div>
       <Button
         size="sm"

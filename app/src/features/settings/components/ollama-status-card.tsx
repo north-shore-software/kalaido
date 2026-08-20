@@ -24,10 +24,10 @@ export function OllamaStatusCard({
           )}
         />
         <div className="flex min-w-0 flex-col">
-          <span className="text-sm font-medium">
+          <span className="text-item font-medium text-fg-1">
             {reachable ? "Connected to Ollama" : "Ollama not reachable"}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
+          <span className="truncate text-meta text-fg-3">
             {reachable
               ? `${modelCount} model${modelCount === 1 ? "" : "s"} installed`
               : "Make sure Ollama is installed and running, then refresh."}

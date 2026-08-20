@@ -33,16 +33,16 @@ export function CloudIdentityPanel({
   onSignOut,
 }: CloudIdentityPanelProps) {
   return (
-    <SurfaceCard className="flex items-center gap-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+    <SurfaceCard className="flex min-h-[96px] items-center gap-3">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-cyan-wash text-meta font-semibold text-cyan">
         {initialsOf(name ?? "", email)}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm">
-          Signed in as <span className="font-medium">{name || email}</span>
+        <span className="truncate text-item font-semibold">
+          Signed in as <span className="font-bold">{name || email}</span>
         </span>
-        <span className="truncate text-xs text-muted-foreground">
+        <span className="truncate text-body-sm text-fg-3">
           {name ? `${email} · ` : ""}AI is included with cloud workspaces
         </span>
       </div>
@@ -75,23 +75,26 @@ export interface CloudSignInNoticeProps {
  */
 export function CloudSignInNotice({ onSignIn }: CloudSignInNoticeProps) {
   return (
-    <SurfaceCard className="flex items-center gap-3 border-dashed">
+    <SurfaceCard className="flex min-h-[96px] items-center gap-3 border-dashed">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <CloudIcon className="size-4" />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm">You&apos;re not signed in</span>
-        <span className="truncate text-xs text-muted-foreground">
+        <span className="truncate text-item font-semibold">
+          You&apos;re not signed in
+        </span>
+        <span className="truncate text-body-sm text-fg-3">
           Cloud workspaces need a Kalaido account
         </span>
       </div>
 
       <Button
+        type="button"
         variant="outline"
         size="sm"
         onClick={onSignIn}
-        className="shrink-0"
+        className="shrink-0 transition-colors hover:border-cyan-edge hover:bg-cyan-wash hover:text-cyan"
       >
         Sign in
       </Button>
