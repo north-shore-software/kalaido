@@ -1,6 +1,10 @@
-import { useId, useRef, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { Pill } from "@/components/kalaido";
+import { useId, useState } from "react";
+import {
+  RequiredPill,
+  requiredHighlightClass,
+  RevealToggle,
+  useRequiredHighlights,
+} from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,32 +17,25 @@ export interface AuthFormProps {
   onSubmit: (input: { email: string; password: string }) => void;
 }
 
+/**
+ * Email and password, and nothing else.
+ *
+ * Mode is chosen entirely by the caller's toggle — this form has no toggle of
+ * its own. Two controls for one piece of state is how a user ends up watching
+ * the tabs above say "Sign in" while the button below says "Create account".
+ *
+ * There is no name field: an account needs an email to be addressable and a
+ * password to be secured, and nothing about a display name is load-bearing for
+ * either. Where a name would have been shown, the email is.
+ */
 export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const emailFieldId = useId();
   const passwordFieldId = useId();
-  const [highlightedFields, setHighlightedFields] = useState<
-    Set<"email" | "password">
-  >(new Set());
-  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  function triggerHighlights(fields: ("email" | "password")[]) {
-    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
-    setHighlightedFields(new Set(fields));
-    highlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedFields(new Set());
-      const firstMissing = fields[0];
-      if (firstMissing === "email") {
-        document.getElementById(emailFieldId)?.focus();
-      } else if (firstMissing === "password") {
-        document.getElementById(passwordFieldId)?.focus();
-      }
-    }, 500);
-  }
+  const { highlighted: highlightedFields, trigger: triggerHighlights } =
+    useRequiredHighlights({ email: emailFieldId, password: passwordFieldId });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,14 +74,14 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
             disabled={busy}
             className={cn(
               "h-12 w-full text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
-              highlightedFields.has("email") &&
-                "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-24 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+              highlightedFields.has("email") && [
+                requiredHighlightClass,
+                "pr-24",
+              ],
             )}
           />
           {highlightedFields.has("email") && (
-            <Pill className="pointer-events-none absolute right-2 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
-              Required
-            </Pill>
+            <RequiredPill className="right-2" />
           )}
         </div>
       </div>
@@ -106,29 +103,21 @@ export function AuthForm({ mode, error, busy, onSubmit }: AuthFormProps) {
             disabled={busy}
             className={cn(
               "h-12 w-full pr-10 text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
-              highlightedFields.has("password") &&
-                "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-28 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+              highlightedFields.has("password") && [
+                requiredHighlightClass,
+                "pr-28",
+              ],
             )}
           />
           {highlightedFields.has("password") && (
-            <Pill className="pointer-events-none absolute right-11 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
-              Required
-            </Pill>
+            <RequiredPill className="right-11" />
           )}
           {password && (
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              tabIndex={-1}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute right-2 flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground outline-none"
-            >
-              {showPassword ? (
-                <EyeOff className="size-4" />
-              ) : (
-                <Eye className="size-4" />
-              )}
-            </button>
+            <RevealToggle
+              shown={showPassword}
+              onToggle={() => setShowPassword((prev) => !prev)}
+              subject="password"
+            />
           )}
         </div>
       </div>

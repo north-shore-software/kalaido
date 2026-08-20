@@ -1,7 +1,11 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { proxy, useSnapshot } from "valtio";
-import { Pill } from "@/components/kalaido";
+import {
+  RequiredPill,
+  requiredHighlightClass,
+  useRequiredHighlights,
+} from "@/components/kalaido";
 import { PageBackButton } from "@/components/layout/page-back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,28 +83,12 @@ export default function KalaidoscopeSetup() {
   const apiKeyFieldId = useId();
   const modelFieldId = useId();
   const [gateMode, setGateMode] = useState<"signin" | "signup">("signin");
-  const [highlightedFields, setHighlightedFields] = useState<
-    Set<"name" | "apiKey" | "model">
-  >(new Set());
-  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  function triggerHighlights(fields: ("name" | "apiKey" | "model")[]) {
-    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
-    setHighlightedFields(new Set(fields));
-    highlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedFields(new Set());
-      const firstMissing = fields[0];
-      if (firstMissing === "name") {
-        document.getElementById(nameFieldId)?.focus();
-      } else if (firstMissing === "apiKey") {
-        document.getElementById(apiKeyFieldId)?.focus();
-      } else if (firstMissing === "model") {
-        document.getElementById(modelFieldId)?.focus();
-      }
-    }, 500);
-  }
+  const { highlighted: highlightedFields, trigger: triggerHighlights } =
+    useRequiredHighlights({
+      name: nameFieldId,
+      apiKey: apiKeyFieldId,
+      model: modelFieldId,
+    });
 
   // `useCloudSession` resolves asynchronously, and the proxy above is built
   // once, so a session that lands after first paint would otherwise leave a
@@ -312,14 +300,14 @@ export default function KalaidoscopeSetup() {
                     placeholder="My kalaidoscope"
                     className={cn(
                       "h-12 w-full text-[20px] font-semibold tracking-wide transition-all duration-150 placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/80",
-                      highlightedFields.has("name") &&
-                        "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-24 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+                      highlightedFields.has("name") && [
+                        requiredHighlightClass,
+                        "pr-24",
+                      ],
                     )}
                   />
                   {highlightedFields.has("name") && (
-                    <Pill className="pointer-events-none absolute right-2 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
-                      Required
-                    </Pill>
+                    <RequiredPill className="right-2" />
                   )}
                 </div>
               </div>

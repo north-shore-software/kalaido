@@ -1,6 +1,13 @@
-import { Eye, EyeOff, SlidersHorizontalIcon } from "lucide-react";
+import { SlidersHorizontalIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { type OptionCard, OptionCards, Pill } from "@/components/kalaido";
+import {
+  type OptionCard,
+  OptionCards,
+  Pill,
+  RequiredPill,
+  requiredHighlightClass,
+  RevealToggle,
+} from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,7 +54,7 @@ export interface ProviderFieldsProps {
   defaultModel: string;
   roleModels: Partial<Record<LlmRole, string>>;
   disabled?: boolean;
-  highlightedFields?: Set<"name" | "apiKey" | "model">;
+  highlightedFields?: ReadonlySet<"name" | "apiKey" | "model">;
   apiKeyFieldId?: string;
   modelFieldId?: string;
   onProviderChange: (provider: LlmProvider) => void;
@@ -121,29 +128,21 @@ export function ProviderFields({
                 placeholder="Paste your Gemini API key"
                 className={cn(
                   "h-12 w-full pr-10 text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
-                  highlightedFields?.has("apiKey") &&
-                    "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 pr-28 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+                  highlightedFields?.has("apiKey") && [
+                    requiredHighlightClass,
+                    "pr-28",
+                  ],
                 )}
               />
               {highlightedFields?.has("apiKey") && (
-                <Pill className="pointer-events-none absolute right-11 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
-                  Required
-                </Pill>
+                <RequiredPill className="right-11" />
               )}
               {apiKey && (
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey((prev) => !prev)}
-                  tabIndex={-1}
-                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                  className="absolute right-2 flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground outline-none"
-                >
-                  {showApiKey ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
+                <RevealToggle
+                  shown={showApiKey}
+                  onToggle={() => setShowApiKey((prev) => !prev)}
+                  subject="API key"
+                />
               )}
             </div>
           </div>
@@ -165,8 +164,7 @@ export function ProviderFields({
                   id={modelFieldId}
                   className={cn(
                     "h-12 w-full font-mono text-[18px] transition-all duration-150 data-placeholder:font-sans data-placeholder:text-muted-foreground/80",
-                    highlightedFields?.has("model") &&
-                      "border-b-critical focus-visible:border-b-critical focus:border-b-critical bg-critical/10 shadow-[0_0_12px_rgba(255,51,51,0.25)] ring-1 ring-critical/40",
+                    highlightedFields?.has("model") && requiredHighlightClass,
                   )}
                 >
                   <SelectValue placeholder="Please select a model" />
@@ -184,9 +182,7 @@ export function ProviderFields({
                 </SelectContent>
               </Select>
               {highlightedFields?.has("model") && (
-                <Pill className="pointer-events-none absolute right-6 border-critical/40 bg-critical/20 text-critical-ink animate-in fade-in duration-150">
-                  Required
-                </Pill>
+                <RequiredPill className="right-6" />
               )}
             </div>
           </div>
