@@ -767,9 +767,14 @@ export default function SplashAlt({
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, W, H);
 
+      const dprRatio = canvas.width / (canvas.clientWidth || 1);
+      const pad120 = 120 * dprRatio;
+      const maxRByH = Math.max(30, (H - 2 * pad120) / (2 * Math.sqrt(3)));
+      const maxRByW = Math.max(30, (W - 2 * pad120) / 4);
+      const R = Math.min(maxRByH, maxRByW);
+
       const cx = W / 2;
       const cy = H / 2;
-      const R = Math.min(W, H) * 0.294;
 
       let b: number;
       let g = 1;
@@ -807,96 +812,116 @@ export default function SplashAlt({
           chipPos(c, ft, R, ex, t, i),
         );
 
-        const colStep = 1.5 * R;
-        const rowStep = Math.sqrt(3) * R;
-        const cols = Math.ceil((cx + R) / colStep) + 1;
-        const rows = Math.ceil((cy + R) / rowStep) + 1;
+        const Rbig = 2 * R;
 
-        for (let col = -cols; col <= cols; col++) {
-          for (let row = -rows; row <= rows; row++) {
-            const hexX = cx + col * colStep;
-            const hexY = cy + row * rowStep + (col % 2 !== 0 ? rowStep / 2 : 0);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(baseAngle);
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const a = Math.PI / 6 + (k * Math.PI) / 3;
+          if (k === 0) {
+            ctx.moveTo(Rbig * Math.cos(a), Rbig * Math.sin(a));
+          } else {
+            ctx.lineTo(Rbig * Math.cos(a), Rbig * Math.sin(a));
+          }
+        }
+        ctx.closePath();
+        ctx.clip();
 
-            if (
-              hexX < -R * 1.5 ||
-              hexX > W + R * 1.5 ||
-              hexY < -R * 1.5 ||
-              hexY > H + R * 1.5
-            ) {
-              continue;
+        const hexCenters: [number, number, boolean][] = [[0, 0, true]];
+        for (let k = 0; k < 6; k++) {
+          const a = (k * Math.PI) / 3;
+          const dist = Math.sqrt(3) * R;
+          hexCenters.push([dist * Math.cos(a), dist * Math.sin(a), false]);
+        }
+
+        for (const [hx, hy, isCenterHex] of hexCenters) {
+          ctx.save();
+          ctx.translate(hx, hy);
+          ctx.beginPath();
+          for (let k = 0; k < 6; k++) {
+            const a = Math.PI / 6 + (k * Math.PI) / 3;
+            if (k === 0) {
+              ctx.moveTo(R * Math.cos(a), R * Math.sin(a));
+            } else {
+              ctx.lineTo(R * Math.cos(a), R * Math.sin(a));
             }
+          }
+          ctx.closePath();
+          ctx.clip();
 
-            const isCenterHex = col === 0 && row === 0;
-
+          for (let k = 0; k < 6; k++) {
             ctx.save();
-            ctx.translate(hexX, hexY);
-            ctx.rotate(baseAngle);
+            ctx.rotate((k * Math.PI) / 3);
+            if (k % 2 === 1) ctx.scale(1, -1);
             ctx.beginPath();
-            for (let k = 0; k < 6; k++) {
-              const a = Math.PI / 6 + (k * Math.PI) / 3;
-              if (k === 0) {
-                ctx.moveTo(R * Math.cos(a), R * Math.sin(a));
-              } else {
-                ctx.lineTo(R * Math.cos(a), R * Math.sin(a));
-              }
-            }
+            ctx.moveTo(0, 0);
+            ctx.lineTo(R * Math.cos(-Math.PI / 6), R * Math.sin(-Math.PI / 6));
+            ctx.lineTo(R * Math.cos(Math.PI / 6), R * Math.sin(Math.PI / 6));
             ctx.closePath();
             ctx.clip();
 
-            for (let k = 0; k < 6; k++) {
+            for (const i of DRAW_ORDER) {
+              if (i >= st.chips.length) continue;
+              const c = st.chips[i];
+              if (c.hero && blending && k === 0 && isCenterHex) continue;
+              const shimmer = 0.82 + 0.18 * Math.sin(ft * c.wa + c.seed);
+              const a =
+                c.shape === "k"
+                  ? c.alpha * b * b * g
+                  : c.alpha * shimmer * b * g;
+              if (a < 0.01) continue;
+              const p = chipPositions[i];
               ctx.save();
-              ctx.rotate((k * Math.PI) / 3);
-              if (k % 2 === 1) ctx.scale(1, -1);
-              ctx.beginPath();
-              ctx.moveTo(0, 0);
-              ctx.lineTo(
-                R * Math.cos(-Math.PI / 6),
-                R * Math.sin(-Math.PI / 6),
-              );
-              ctx.lineTo(R * Math.cos(Math.PI / 6), R * Math.sin(Math.PI / 6));
-              ctx.closePath();
-              ctx.clip();
-
-              for (const i of DRAW_ORDER) {
-                if (i >= st.chips.length) continue;
-                const c = st.chips[i];
-                if (c.hero && blending && k === 0 && isCenterHex) continue;
-                const shimmer = 0.82 + 0.18 * Math.sin(ft * c.wa + c.seed);
-                const a =
-                  c.shape === "k"
-                    ? c.alpha * b * b * g
-                    : c.alpha * shimmer * b * g;
-                if (a < 0.01) continue;
-                const p = chipPositions[i];
-                ctx.save();
-                ctx.translate(p.x, p.y);
-                ctx.rotate(p.rot);
-                drawOneChip(ctx, c, c.size * R, a, lw);
-                ctx.restore();
-              }
+              ctx.translate(p.x, p.y);
+              ctx.rotate(p.rot);
+              drawOneChip(ctx, c, c.size * R, a, lw);
               ctx.restore();
             }
             ctx.restore();
-
-            ctx.save();
-            ctx.translate(hexX, hexY);
-            ctx.rotate(baseAngle);
-            ctx.globalAlpha = b * g;
-            ctx.strokeStyle = "rgba(140, 140, 140, 0.35)";
-            ctx.lineWidth = lw;
-            ctx.beginPath();
-            for (let k = 0; k < 6; k++) {
-              const a1 = -Math.PI / 6 + (k * Math.PI) / 3;
-              const a2 = Math.PI / 6 + (k * Math.PI) / 3;
-              ctx.moveTo(0, 0);
-              ctx.lineTo(R * Math.cos(a1), R * Math.sin(a1));
-              ctx.lineTo(R * Math.cos(a2), R * Math.sin(a2));
-              ctx.lineTo(0, 0);
-            }
-            ctx.stroke();
-            ctx.restore();
           }
+          ctx.restore();
         }
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(baseAngle);
+        ctx.globalAlpha = b * g;
+        ctx.strokeStyle = "rgba(140, 140, 140, 0.35)";
+        ctx.lineWidth = lw;
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const aLeft = -Math.PI / 6 + (k * Math.PI) / 3;
+          const aRight = Math.PI / 6 + (k * Math.PI) / 3;
+          const aMid = (k * Math.PI) / 3;
+          const rMid = Math.sqrt(3) * R;
+          const r1 = R;
+          const r2 = 2 * R;
+
+          ctx.moveTo(0, 0);
+          ctx.lineTo(r1 * Math.cos(aLeft), r1 * Math.sin(aLeft));
+          ctx.lineTo(r1 * Math.cos(aRight), r1 * Math.sin(aRight));
+          ctx.lineTo(0, 0);
+
+          ctx.moveTo(r1 * Math.cos(aRight), r1 * Math.sin(aRight));
+          ctx.lineTo(r2 * Math.cos(aRight), r2 * Math.sin(aRight));
+          ctx.lineTo(rMid * Math.cos(aMid), rMid * Math.sin(aMid));
+          ctx.closePath();
+
+          ctx.moveTo(r1 * Math.cos(aLeft), r1 * Math.sin(aLeft));
+          ctx.lineTo(r2 * Math.cos(aLeft), r2 * Math.sin(aLeft));
+          ctx.lineTo(rMid * Math.cos(aMid), rMid * Math.sin(aMid));
+          ctx.closePath();
+
+          ctx.moveTo(r1 * Math.cos(aLeft), r1 * Math.sin(aLeft));
+          ctx.lineTo(r1 * Math.cos(aRight), r1 * Math.sin(aRight));
+          ctx.lineTo(rMid * Math.cos(aMid), rMid * Math.sin(aMid));
+          ctx.closePath();
+        }
+        ctx.stroke();
+        ctx.restore();
       }
 
       if (blending && g > 0.003) {
