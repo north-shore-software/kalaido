@@ -10,7 +10,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ollama"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/server"
@@ -31,7 +30,7 @@ func (mockProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.
 	}, nil
 }
 
-func setupSidecar(t *testing.T) (*pocketbase.PocketBase, *pbtest.TestServer) {
+func startTestServer(t *testing.T) (*pocketbase.PocketBase, *pbtest.TestServer) {
 	t.Helper()
 
 	llm.SetActiveModelSet(llm.SetLocal)
@@ -55,8 +54,6 @@ func setupSidecar(t *testing.T) (*pocketbase.PocketBase, *pbtest.TestServer) {
 
 	resolveModelSet(a)
 	config.LoadAtBoot(a)
-	ollama.RegisterRoutes(a)
-	ollama.RegisterPreload(a)
 	seedSidecarUser(a)
 	reportPort(a)
 	server.EnsureReady()
@@ -66,7 +63,7 @@ func setupSidecar(t *testing.T) (*pocketbase.PocketBase, *pbtest.TestServer) {
 }
 
 func TestIngestFragment_Integration(t *testing.T) {
-	app, ts := setupSidecar(t)
+	app, ts := startTestServer(t)
 
 	reqBody := api.IngestMessage{
 		Type:    "note",
