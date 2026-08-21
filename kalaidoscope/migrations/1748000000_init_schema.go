@@ -144,6 +144,9 @@ var schema = []tableDef{
 			&core.TextField{Name: "last_provider_error_kind"},
 			// Set by the organize worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "organize_run", MaxSelect: 1},
+			// The story this entity was created to tell, in the organize
+			// worker's words; empty for human-created entities.
+			&core.TextField{Name: "brief"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -165,6 +168,9 @@ var schema = []tableDef{
 			&core.TextField{Name: "last_provider_error_kind"},
 			// Set by the organize worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "organize_run", MaxSelect: 1},
+			// The story this entity was created to tell, in the organize
+			// worker's words; empty for human-created entities.
+			&core.TextField{Name: "brief"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

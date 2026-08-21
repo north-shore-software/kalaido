@@ -24,6 +24,11 @@ package prompts
 //  10. Two-stage pipeline: markup annotates each fragment against the current map (proposing
 //     nodes/dimensions), then incorporate folds annotated batches into the map, occasionally
 //     expanding a fragment's full text via tool call when its annotation is too thin to place.
+//  11. Journal: alongside the tree, the map keeps a time-ordered journal of short reporter-voice
+//     entries (headlines + a short story per period) covering what happened in the workspace's
+//     "world". Period grain follows the material's density; entries are edited in place as a
+//     story moves on. The tree is for labelling; the journal is the narrative/time axis that
+//     organize reads to find stories worth surfacing.
 
 import (
 	"encoding/json"
@@ -36,7 +41,8 @@ const MapSchemaDescription = `The map is a single JSON object with this exact sh
   "dimensions": [{"name": string, "description": string, "nodes": [Node]}],
   "entities": [{"name": string, "kind": string, "notes": string}],
   "relationships": [{"from": string, "to": string, "kind": string}],
-  "narrative": string
+  "narrative": string,
+  "journal": [{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "headlines": [string], "story": string}]
 }
 A Node is {"name": string, "description": string, "aliases": [string], "fragments": number, "exemplar_ids": [string], "first_seen": string, "last_seen": string, "children": [Node]}.
 
@@ -56,7 +62,13 @@ Duration and breadth trade off against each other at every level, the same way: 
 
 Never fold a fragment onto an existing node just because it loosely fits — check every existing dimension against new material, and within each, walk down to the most specific node that genuinely applies. If it shows a pattern of variation nothing in the tree captures, add a new node or a new dimension alongside what's already there, in addition to (never instead of) the existing ones. Most fragments touch more than one dimension at once and should end up tagged in each dimension that plausibly applies to them, not just whichever single node fits best overall.
 
-"entities" are the recurring people, organisations, places, and projects. "kind" is one of "person", "organisation", "place", "project", or "other". "relationships" connect two node or entity names with a short "kind" such as "part of", "works on", or "related". "narrative" is your own running account of what this workspace is about and how it is developing over time.`
+"entities" are the recurring people, organisations, places, and projects. "kind" is one of "person", "organisation", "place", "project", or "other". "relationships" connect two node or entity names with a short "kind" such as "part of", "works on", or "related". "narrative" is your own running account of what this workspace is about and how it is developing over time.
+
+"journal" is the map's time axis, and it is deliberately not a restatement of the tree. Treat the workspace's contents as what has happened in a "world", and write each entry as a tabloid or magazine reporter covering that world's events during one period: a few "headlines" and/or a "story" — short, focused, about what happened and what developed, who did what, what changed. The tree says what kinds of things exist; the journal says what actually went on, in the order it went on.
+
+Each entry covers one period, "from" and "to" inclusive. Choose the period grain to fit the material's density, not a fixed calendar unit: a busy week earns its own entry, a quiet stretch can be one entry spanning a month or more, and the grain may vary along the journal. Keep entries in "from" order and non-overlapping. Keep each one short — at most about five headlines and a story of roughly 80 words — so the journal stays small even on a workspace spanning many years.
+
+Edit entries in place. When new material continues a story that already has an entry — including late-arriving material for an earlier period — rewrite that entry to reflect where the story now stands, rather than adding a second partial account of the same thing alongside it. Add a new entry only for a period nothing yet covers, or split an entry when its period turns out to hold more than one dense stretch. Never drop an entry that earlier material still supports.`
 
 const emptyMapNotice = "The map is empty so far: this is the first material ever added to the workspace."
 
@@ -99,6 +111,7 @@ Update the map to incorporate the new material:
 - Check the new material against every existing dimension, not just the one that first comes to mind, and within each, walk down to the most specific node that genuinely fits. If it shows a pattern of variation nothing in the tree captures, add a new node or dimension alongside what's already there — don't force it onto something it doesn't truly belong to.
 - Update "fragments" counts, "exemplar_ids" (keep the most representative, at most 5), and "first_seen"/"last_seen" dates — only on the node(s) the material actually attaches to directly, never on their ancestors.
 - Keep "narrative" a concise account of the whole space and how it has developed. Rewrite it freely, but keep it under 300 words.
+- Update "journal" for the periods the new material spans, in a reporter's voice: extend or rewrite the existing entry for a period the new material continues, and add entries only for periods nothing yet covers. Choose period grain from the density of the material, keep every entry short, and keep the list in "from" order with no overlaps.
 - If an annotation is too thin to place confidently, call expand_fragment with that fragment's ID to read its full text before deciding.
 
 Reply with only the complete updated map JSON object.`

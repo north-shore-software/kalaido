@@ -15,7 +15,7 @@ import (
 const (
 	maxOrganizeDepth      = 3
 	maxExplorations       = 25
-	maxRoundsPerLevel     = 4
+	maxRoundsPerLevel     = 6 // a level spends a round on sketch + list_existing before it can create/recurse
 	maxExpansionsPerLevel = 4
 	maxThrottledAttempts  = 6
 )
@@ -88,7 +88,7 @@ func drain(app core.App) {
 
 	ctx := context.Background()
 	budget := &sharedBudget{used: 1, limit: maxExplorations} // root pre-counted
-	registry := &contextRegistry{}
+	registry := &runRegistry{}
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 

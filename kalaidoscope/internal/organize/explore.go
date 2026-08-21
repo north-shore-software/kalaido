@@ -31,15 +31,18 @@ type scopeAssignment struct {
 
 // exploreNode is called once at root (unconfined, depth 0, directly from
 // drain) and recursively for every fork the recurse tool accepts. Every call
-// — root or forked — gets the whole map body; existence-checking and the
-// contextRegistry overlap check replace tree-subtree confinement as the
-// mechanical safety net.
+// — root or forked — gets the whole map body. The search is narrative-driven:
+// the model reads the map's journal, sketches candidate stories, checks them
+// against list_existing (persisted entities + this run's claims), and only
+// recurses on stories nobody has taken. Node existence checks and the
+// identical-set guard in runRegistry are the only mechanical nets; sharing
+// map ground between forks is expected.
 func exploreNode(ctx context.Context, app core.App, run *core.Record, mapBody, model string,
 	idx *organizeIndexes, annIdx map[NodeRef][]string, assignment scopeAssignment, depth int,
-	budget *sharedBudget, registry *contextRegistry, wg *sync.WaitGroup, mu *sync.Mutex) {
+	budget *sharedBudget, registry *runRegistry, wg *sync.WaitGroup, mu *sync.Mutex) {
 	defer wg.Done()
 
-	tools := []llm.Tool{expandFragmentTool, createProjectionTool, createReflectionTool}
+	tools := []llm.Tool{listExistingTool, expandFragmentTool, createProjectionTool, createReflectionTool}
 	if depth < maxOrganizeDepth && budget.remaining() {
 		tools = append(tools, recurseTool)
 	}

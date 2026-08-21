@@ -49,7 +49,14 @@ const (
 	createProjectionToolName = "create_projection"
 	createReflectionToolName = "create_reflection"
 	recurseToolName          = "recurse"
+	listExistingToolName     = "list_existing"
 )
+
+var listExistingTool = llm.Tool{
+	Name:        listExistingToolName,
+	Description: prompts.OrganizeListExistingToolDescription,
+	Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+}
 
 var createProjectionTool = llm.Tool{
 	Name:        createProjectionToolName,
@@ -115,15 +122,17 @@ var recurseTool = llm.Tool{
 
 func dispatchTool(ctx context.Context, app core.App, run *core.Record, mapBody, model string,
 	idx *organizeIndexes, annIdx map[NodeRef][]string, assignment scopeAssignment,
-	expansions *int, depth int, budget *sharedBudget, registry *contextRegistry,
+	expansions *int, depth int, budget *sharedBudget, registry *runRegistry,
 	wg *sync.WaitGroup, mu *sync.Mutex, c llm.ToolCall) string {
 	switch c.Name {
 	case prompts.ExpandFragmentToolName:
 		return dispatchExpandFragment(ctx, app, idx, expansions, c)
+	case listExistingToolName:
+		return listExisting(app, run, registry)
 	case createProjectionToolName:
-		return dispatchCreate(app, run, model, idx, annIdx, false, assignment, mu, wg, c)
+		return dispatchCreate(app, run, model, idx, annIdx, false, assignment, registry, mu, wg, c)
 	case createReflectionToolName:
-		return dispatchCreate(app, run, model, idx, annIdx, true, assignment, mu, wg, c)
+		return dispatchCreate(app, run, model, idx, annIdx, true, assignment, registry, mu, wg, c)
 	case recurseToolName:
 		return dispatchRecurse(ctx, app, run, mapBody, model, idx, annIdx, depth, budget, registry, wg, mu, c)
 	default:
@@ -162,7 +171,7 @@ type createArgs struct {
 }
 
 func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeIndexes, annIdx map[NodeRef][]string,
-	isReflection bool, assignment scopeAssignment, mu *sync.Mutex, wg *sync.WaitGroup, c llm.ToolCall) string {
+	isReflection bool, assignment scopeAssignment, registry *runRegistry, mu *sync.Mutex, wg *sync.WaitGroup, c llm.ToolCall) string {
 	var args createArgs
 	if err := json.Unmarshal(c.Args, &args); err != nil {
 		return "Invalid call: could not parse arguments."
@@ -201,6 +210,7 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 	}
 	entity := core.NewRecord(entityCol)
 	entity.Set("name", args.Name)
+	entity.Set("brief", args.Brief)
 	setJSON(entity, "current_context_spec", spec)
 	entity.Set("origin_run_id", run.Id)
 
@@ -230,6 +240,7 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 		}{Brief: assignment.brief, ContextNodes: assignment.contextNodes}
 	}
 	appendEntity(app, run, mu, entry)
+	registry.registerCreated(entryType, args.Name, args.Brief, args.Nodes)
 
 	wg.Add(1)
 	go generateAndPublish(context.Background(), app, run, mu, wg, entity.Id, args.Brief, spec, winSpec, strat, targetCol)
@@ -328,7 +339,7 @@ func linkColourFragments(app core.App, colourID string, fragmentIDs []string) er
 
 func dispatchRecurse(ctx context.Context, app core.App, run *core.Record, mapBody, model string,
 	idx *organizeIndexes, annIdx map[NodeRef][]string, depth int,
-	budget *sharedBudget, registry *contextRegistry, wg *sync.WaitGroup, mu *sync.Mutex, c llm.ToolCall) string {
+	budget *sharedBudget, registry *runRegistry, wg *sync.WaitGroup, mu *sync.Mutex, c llm.ToolCall) string {
 	var args struct {
 		Children []struct {
 			Brief        string    `json:"brief"`
@@ -349,20 +360,17 @@ func dispatchRecurse(ctx context.Context, app core.App, run *core.Record, mapBod
 			results = append(results, fmt.Sprintf("Rejected fork %q: these nodes don't exist: %s", child.Brief, formatNodeRefs(bad)))
 			continue
 		}
-		// Reserve budget first, then register the context set; if registration
-		// is rejected for overlap, give the reserved slot back. This keeps a
-		// rejected fork from either wasting budget or leaving a phantom
-		// registry entry that would wrongly block a later legitimate fork.
+		// Reserve budget first, then register the fork; if registration is
+		// rejected, give the reserved slot back. This keeps a rejected fork
+		// from either wasting budget or leaving a phantom registry entry.
 		if !budget.tryReserve() {
 			results = append(results, fmt.Sprintf("Rejected fork %q: exploration budget exhausted for this run.", child.Brief))
 			continue
 		}
-		ok, collidesWith := registry.tryRegister(child.ContextNodes)
+		ok, collidesWith := registry.tryRegisterFork(child.Brief, child.ContextNodes)
 		if !ok {
 			budget.release()
-			results = append(results, fmt.Sprintf(
-				"Rejected fork %q: overlaps too much with ground already being explored (%s). Narrow your focus or pick genuinely different nodes.",
-				child.Brief, formatNodeRefs(collidesWith)))
+			results = append(results, prompts.OrganizeForkIdenticalSetRejected(child.Brief, collidesWith.brief))
 			continue
 		}
 		incrementExplorations(app, run, mu)
