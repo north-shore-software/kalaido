@@ -87,6 +87,16 @@ var schema = []tableDef{
 			// worker ("auth"/"quota"), cleared on the next success. The worker
 			// has no request to fail, so this is how it surfaces a stuck key.
 			&core.TextField{Name: "last_provider_error_kind"},
+			// Set by the organize worker; empty = human-created.
+			&core.RelationField{Name: "origin_run_id", CollectionId: "organize_run", MaxSelect: 1},
+			// The map node this colour was mechanically derived from, if any —
+			// lets a re-run recognize "this node already has a colour" instead
+			// of minting a duplicate (map nodes have no other stable identifier
+			// to key on). Two plain text columns, not one JSON field, so the
+			// lookup can filter by exact equality without relying on stable
+			// JSON serialization. Empty for human-created colours.
+			&core.TextField{Name: "origin_node_dimension"},
+			&core.TextField{Name: "origin_node_name"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -102,7 +112,10 @@ var schema = []tableDef{
 				Name:      "match_type",
 				Required:  true,
 				MaxSelect: 1,
-				Values:    []string{"manual_positive", "manual_negative", "llm_matched_backfill", "llm_matched_tag_on_input"},
+				// "map_derived": mechanically linked by the organize worker from
+				// fragment_annotation's map-vocabulary tagging — no LLM call at
+				// link time, decision was already made during map incorporation.
+				Values: []string{"manual_positive", "manual_negative", "llm_matched_backfill", "llm_matched_tag_on_input", "map_derived"},
 			},
 			// Model that decided an llm_matched_* row. Empty for manual matches
 			// and for rows written before provenance was tracked.
@@ -129,6 +142,11 @@ var schema = []tableDef{
 			// Last durable provider failure seen by the background lens
 			// distillation worker ("auth"/"quota"), cleared on the next success.
 			&core.TextField{Name: "last_provider_error_kind"},
+			// Set by the organize worker; empty = human-created.
+			&core.RelationField{Name: "origin_run_id", CollectionId: "organize_run", MaxSelect: 1},
+			// The story this entity was created to tell, in the organize
+			// worker's words; empty for human-created entities.
+			&core.TextField{Name: "brief"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -148,6 +166,11 @@ var schema = []tableDef{
 			// Last durable provider failure seen by the background lens
 			// distillation worker ("auth"/"quota"), cleared on the next success.
 			&core.TextField{Name: "last_provider_error_kind"},
+			// Set by the organize worker; empty = human-created.
+			&core.RelationField{Name: "origin_run_id", CollectionId: "organize_run", MaxSelect: 1},
+			// The story this entity was created to tell, in the organize
+			// worker's words; empty for human-created entities.
+			&core.TextField{Name: "brief"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -338,6 +361,37 @@ var schema = []tableDef{
 			&core.NumberField{Name: "expansions"},
 			&core.NumberField{Name: "map_version_start"},
 			&core.NumberField{Name: "map_version_end"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+	},
+
+	{
+		Name:                   "organize_run",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.SelectField{
+				Name:      "status",
+				Required:  true,
+				MaxSelect: 1,
+				Values:    []string{"running", "done", "error"},
+			},
+			&core.TextField{Name: "error"},
+			// The kalaidoscope_map.version this run explored.
+			&core.NumberField{Name: "map_version"},
+			&core.TextField{Name: "model"},
+			// Total exploreNode calls spawned (root + every fork), for
+			// observability against the run's shared exploration budget.
+			&core.NumberField{Name: "explorations"},
+			// One entry per created projection/reflection, appended as tool
+			// calls happen and updated as its background content generation
+			// completes. The reviewable surface for this run — no
+			// cross-collection joins needed to inspect what it did.
+			&core.JSONField{Name: "entities"},
+			// Rejected tool calls (hallucinated node references, over-
+			// overlapping recurse requests) and post-run sanity warnings.
+			// Non-blocking — recorded, never enforced.
+			&core.JSONField{Name: "warnings"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

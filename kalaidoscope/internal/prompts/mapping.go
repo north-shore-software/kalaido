@@ -24,6 +24,16 @@ package prompts
 //  10. Two-stage pipeline: markup annotates each fragment against the current map (proposing
 //     nodes/dimensions), then incorporate folds annotated batches into the map, occasionally
 //     expanding a fragment's full text via tool call when its annotation is too thin to place.
+//  11. Journal: alongside the tree, the map keeps a time-ordered journal of short reporter-voice
+//     entries (headlines + a short story per period) covering what happened in the workspace's
+//     "world". Period grain follows the material's density; entries are edited in place as a
+//     story moves on. The tree is for labelling; the journal is the narrative/time axis that
+//     organize reads to find stories worth surfacing.
+//  12. Four more cross-cutting lists sit beside the journal — questions, decisions, events,
+//     projects — each a Thread {title, summary, from, to, status, nodes}. Same maintenance
+//     rules as the journal (edit in place, add only for the new, never drop what's still
+//     supported). Together with the journal they are organize's raw material; the tree is
+//     grounding.
 
 import (
 	"encoding/json"
@@ -36,9 +46,14 @@ const MapSchemaDescription = `The map is a single JSON object with this exact sh
   "dimensions": [{"name": string, "description": string, "nodes": [Node]}],
   "entities": [{"name": string, "kind": string, "notes": string}],
   "relationships": [{"from": string, "to": string, "kind": string}],
-  "narrative": string
+  "narrative": string,
+  "journal": [{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "headlines": [string], "story": string}],
+  "questions": [Thread], "decisions": [Thread], "events": [Thread], "projects": [Thread]
 }
 A Node is {"name": string, "description": string, "aliases": [string], "fragments": number, "exemplar_ids": [string], "first_seen": string, "last_seen": string, "children": [Node]}.
+A Thread is {"title": string, "summary": string, "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "status": string, "nodes": [{"dimension": string, "name": string}]}.
+
+Write every dimension, node, and alias name the way a person would write it in a sentence — "Lift maintenance", "command+k", "Client onboarding" — never as an identifier (no snake_case, no camelCase): node names become labels the user sees.
 
 A "dimension" is one independent axis along which the workspace's fragments vary — for example, what kind of activity a fragment represents, versus what tool or vendor it concerns, versus which external relationship it belongs to. Two fragments can share a node on one dimension while differing completely on another. Illustrative, non-exhaustive examples of dimensions: what kind of activity this is; what tool, product, or subject matter is involved; which external relationship (client, partner, contact) it belongs to. The actual dimensions must be discovered from the material at hand, not assumed — a workspace's real axes of variation may be nothing like these examples. Most workspaces settle around 3-8 dimensions: don't spin up a new one for a single passing distinction, but don't force unrelated material onto one that doesn't truly fit either.
 
@@ -56,7 +71,20 @@ Duration and breadth trade off against each other at every level, the same way: 
 
 Never fold a fragment onto an existing node just because it loosely fits — check every existing dimension against new material, and within each, walk down to the most specific node that genuinely applies. If it shows a pattern of variation nothing in the tree captures, add a new node or a new dimension alongside what's already there, in addition to (never instead of) the existing ones. Most fragments touch more than one dimension at once and should end up tagged in each dimension that plausibly applies to them, not just whichever single node fits best overall.
 
-"entities" are the recurring people, organisations, places, and projects. "kind" is one of "person", "organisation", "place", "project", or "other". "relationships" connect two node or entity names with a short "kind" such as "part of", "works on", or "related". "narrative" is your own running account of what this workspace is about and how it is developing over time.`
+"entities" are the recurring people, organisations, places, and projects. "kind" is one of "person", "organisation", "place", "project", or "other". "relationships" connect two node or entity names with a short "kind" such as "part of", "works on", or "related". "narrative" is your own running account of what this workspace is about and how it is developing over time.
+
+"journal" is the map's time axis, and it is deliberately not a restatement of the tree. Treat the workspace's contents as what has happened in a "world", and write each entry as a tabloid or magazine reporter covering that world's events during one period: a few "headlines" and/or a "story" — short, focused, about what happened and what developed, who did what, what changed. The tree says what kinds of things exist; the journal says what actually went on, in the order it went on.
+
+Each entry covers one period, "from" and "to" inclusive. Choose the period grain to fit the material's density, not a fixed calendar unit: a busy week earns its own entry, a quiet stretch can be one entry spanning a month or more, and the grain may vary along the journal. Keep entries in "from" order and non-overlapping. Keep each one short — at most about five headlines and a story of roughly 80 words — so the journal stays small even on a workspace spanning many years. An entry must account for its whole period: every node whose "first_seen" or "last_seen" falls inside it appeared or moved then, and an entry that mentions none of that is incomplete — a busy period with many new nodes is the one that most needs its entry to say so.
+
+Edit entries in place. When new material continues a story that already has an entry — including late-arriving material for an earlier period — rewrite that entry to reflect where the story now stands, rather than adding a second partial account of the same thing alongside it. Add a new entry only for a period nothing yet covers, or split an entry when its period turns out to hold more than one dense stretch. Never drop an entry that earlier material still supports.
+
+"questions", "decisions", "events" and "projects" are four more cross-cutting lists, kept alongside the journal and, like it, deliberately not a restatement of the tree. The tree says what kinds of things exist; these say what is going on with them, and one item usually runs through several nodes, often across dimensions:
+- "questions": things being asked, researched, or left unresolved — a question the material keeps circling. "status" is "open" or "answered"; once answered, the summary names the decision that answered it.
+- "decisions": commitments made — what was settled, and in one clause why. "status" is "decided" or "reversed".
+- "events": discrete things that happened — a launch, a meeting, a failure, an arrival, a deadline passed. Leave "status" empty.
+- "projects": creative or constructive efforts underway — something being built, written, or pursued over time, as opposed to a topic that merely exists. "status" is "active", "paused", or "done".
+Each Thread has a short "title", a "summary" of roughly 40 words, "from"/"to", and "nodes": the real tree nodes it runs through, by dimension and exact node name. "from"/"to" mean something specific per list, and are never just the span of the whole workspace: for a decision, the date it was taken (and "to" the date it was reversed, else the same date); for an event, when it happened; for a question, when it was first raised to when it was answered (or the latest material still circling it); for a project, when work began to its latest activity. Every effort the tree shows as live — a product being built, a piece being written, a venture being pursued — belongs in "projects"; if a node describes something being built and no project covers it, that is a missing item. Maintain all four lists the way the journal is maintained: edit an item in place when new material moves it on (a question gets answered, a project pauses, a decision is reversed, an event gains its outcome); add an item only for something genuinely new; fold near-duplicates into one; keep each short; never drop an item earlier material still supports. Keep each list in "from" order.`
 
 const emptyMapNotice = "The map is empty so far: this is the first material ever added to the workspace."
 
@@ -99,6 +127,8 @@ Update the map to incorporate the new material:
 - Check the new material against every existing dimension, not just the one that first comes to mind, and within each, walk down to the most specific node that genuinely fits. If it shows a pattern of variation nothing in the tree captures, add a new node or dimension alongside what's already there — don't force it onto something it doesn't truly belong to.
 - Update "fragments" counts, "exemplar_ids" (keep the most representative, at most 5), and "first_seen"/"last_seen" dates — only on the node(s) the material actually attaches to directly, never on their ancestors.
 - Keep "narrative" a concise account of the whole space and how it has developed. Rewrite it freely, but keep it under 300 words.
+- Update "journal" for the periods the new material spans, in a reporter's voice: extend or rewrite the existing entry for a period the new material continues, and add entries only for periods nothing yet covers. Choose period grain from the density of the material, keep every entry short, and keep the list in "from" order with no overlaps.
+- Update "questions", "decisions", "events" and "projects" for the new material: move existing items on (answered, reversed, paused, done) before adding new ones, and point each item at the real nodes it runs through.
 - If an annotation is too thin to place confidently, call expand_fragment with that fragment's ID to read its full text before deciding.
 
 Reply with only the complete updated map JSON object.`
