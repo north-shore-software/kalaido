@@ -12,7 +12,7 @@ export interface SplashAltProps {
 }
 
 interface Chip {
-  shape: "sq" | "arm";
+  shape: "sq" | "arm" | "k";
   flip: boolean;
   color: string;
   alpha: number;
@@ -44,39 +44,440 @@ const PHRASES = [
   "still working — this takes a few minutes",
 ];
 
-const COLORS = ["#F4C904", "#0AB9EC", "#EE029B"];
-const ALPHAS = [1, 0.72, 0.45];
-
 function smooth(x: number): number {
   const c = Math.max(0, Math.min(1, x));
   return c * c * (3 - 2 * c);
 }
 
-function fold(th: number): number {
-  const P = Math.PI / 3;
-  const m = (((th + P / 2) % (2 * P)) + 2 * P) % (2 * P);
-  return (m < P ? m : 2 * P - m) - P / 2;
+const ROUND_CONFIGS = [
+  {
+    phiPeak: 0.7 * Math.PI,
+    yLand: 0.04,
+    floorScale: 1.0,
+    toppleRot: 0.5,
+  },
+  {
+    phiPeak: 0.82 * Math.PI,
+    yLand: -0.05,
+    floorScale: 0.96,
+    toppleRot: -0.7,
+  },
+  {
+    phiPeak: 0.6 * Math.PI,
+    yLand: 0.06,
+    floorScale: 1.0,
+    toppleRot: 0.88,
+  },
+  {
+    phiPeak: 0.76 * Math.PI,
+    yLand: 0.0,
+    floorScale: 0.98,
+    toppleRot: -0.32,
+  },
+  {
+    phiPeak: 0.85 * Math.PI,
+    yLand: -0.06,
+    floorScale: 0.95,
+    toppleRot: -0.85,
+  },
+  {
+    phiPeak: 0.66 * Math.PI,
+    yLand: 0.03,
+    floorScale: 0.99,
+    toppleRot: 0.35,
+  },
+  {
+    phiPeak: 0.73 * Math.PI,
+    yLand: -0.03,
+    floorScale: 0.97,
+    toppleRot: 0.65,
+  },
+  {
+    phiPeak: 0.58 * Math.PI,
+    yLand: 0.05,
+    floorScale: 1.0,
+    toppleRot: -0.45,
+  },
+  {
+    phiPeak: 0.79 * Math.PI,
+    yLand: 0.02,
+    floorScale: 0.96,
+    toppleRot: 1.02,
+  },
+  {
+    phiPeak: 0.68 * Math.PI,
+    yLand: -0.02,
+    floorScale: 0.98,
+    toppleRot: -0.55,
+  },
+];
+
+const CYAN_ROUND_CONFIGS = [
+  {
+    tDrop: 8.0,
+    phiPeak: 0.78 * Math.PI,
+    yLand: -0.12,
+    floorScale: 0.98,
+    toppleRot: 0.45,
+  },
+  {
+    tDrop: 3.0,
+    phiPeak: 0.48 * Math.PI,
+    yLand: 0.12,
+    floorScale: 1.0,
+    toppleRot: -0.55,
+  },
+  {
+    tDrop: 10.0,
+    phiPeak: 0.85 * Math.PI,
+    yLand: -0.16,
+    floorScale: 0.96,
+    toppleRot: 0.7,
+  },
+  {
+    tDrop: 5.0,
+    phiPeak: 0.62 * Math.PI,
+    yLand: 0.08,
+    floorScale: 0.99,
+    toppleRot: 0.35,
+  },
+  {
+    tDrop: 8.5,
+    phiPeak: 0.82 * Math.PI,
+    yLand: -0.14,
+    floorScale: 0.95,
+    toppleRot: -0.4,
+  },
+  {
+    tDrop: 4.0,
+    phiPeak: 0.55 * Math.PI,
+    yLand: 0.15,
+    floorScale: 1.0,
+    toppleRot: -0.65,
+  },
+  {
+    tDrop: 7.5,
+    phiPeak: 0.72 * Math.PI,
+    yLand: -0.06,
+    floorScale: 0.97,
+    toppleRot: 0.55,
+  },
+];
+
+const YELLOW_ROUND_CONFIGS = [
+  {
+    tDrop: 6.0,
+    phiPeak: 0.74 * Math.PI,
+    yLand: -0.02,
+    floorScale: 0.98,
+    toppleRot: 0.4,
+  },
+  {
+    tDrop: 9.0,
+    phiPeak: 0.84 * Math.PI,
+    yLand: 0.08,
+    floorScale: 0.96,
+    toppleRot: -0.5,
+  },
+  {
+    tDrop: 3.5,
+    phiPeak: 0.52 * Math.PI,
+    yLand: -0.1,
+    floorScale: 1.0,
+    toppleRot: 0.75,
+  },
+  {
+    tDrop: 7.8,
+    phiPeak: 0.8 * Math.PI,
+    yLand: 0.04,
+    floorScale: 0.97,
+    toppleRot: -0.3,
+  },
+  {
+    tDrop: 5.5,
+    phiPeak: 0.65 * Math.PI,
+    yLand: -0.05,
+    floorScale: 0.99,
+    toppleRot: 0.55,
+  },
+  {
+    tDrop: 8.2,
+    phiPeak: 0.77 * Math.PI,
+    yLand: 0.12,
+    floorScale: 0.95,
+    toppleRot: -0.65,
+  },
+];
+
+const CYAN_SQ_ROUND_CONFIGS = [
+  {
+    tDrop: 4.5,
+    phiPeak: 0.58 * Math.PI,
+    yLand: -0.14,
+    floorScale: 0.97,
+    toppleRot: -0.45,
+  },
+  {
+    tDrop: 8.8,
+    phiPeak: 0.82 * Math.PI,
+    yLand: 0.05,
+    floorScale: 0.96,
+    toppleRot: 0.6,
+  },
+  {
+    tDrop: 6.8,
+    phiPeak: 0.72 * Math.PI,
+    yLand: -0.08,
+    floorScale: 1.0,
+    toppleRot: -0.35,
+  },
+  {
+    tDrop: 3.2,
+    phiPeak: 0.5 * Math.PI,
+    yLand: 0.1,
+    floorScale: 0.98,
+    toppleRot: 0.5,
+  },
+  {
+    tDrop: 9.5,
+    phiPeak: 0.86 * Math.PI,
+    yLand: -0.18,
+    floorScale: 0.95,
+    toppleRot: -0.75,
+  },
+  {
+    tDrop: 5.2,
+    phiPeak: 0.64 * Math.PI,
+    yLand: 0.02,
+    floorScale: 0.99,
+    toppleRot: 0.4,
+  },
+];
+
+const K_LOGO_ROUND_CONFIGS = [
+  {
+    tDrop: 7.2,
+    phiPeak: 0.72 * Math.PI,
+    yLand: 0.05,
+    floorScale: 0.98,
+    toppleRot: 0.45,
+  },
+  {
+    tDrop: 3.5,
+    phiPeak: 0.48 * Math.PI,
+    yLand: -0.12,
+    floorScale: 1.0,
+    toppleRot: -0.6,
+  },
+  {
+    tDrop: 9.2,
+    phiPeak: 0.84 * Math.PI,
+    yLand: 0.14,
+    floorScale: 0.96,
+    toppleRot: 0.85,
+  },
+  {
+    tDrop: 5.0,
+    phiPeak: 0.62 * Math.PI,
+    yLand: 0.0,
+    floorScale: 0.99,
+    toppleRot: -0.35,
+  },
+  {
+    tDrop: 8.6,
+    phiPeak: 0.8 * Math.PI,
+    yLand: -0.15,
+    floorScale: 0.95,
+    toppleRot: -0.75,
+  },
+  {
+    tDrop: 4.2,
+    phiPeak: 0.55 * Math.PI,
+    yLand: 0.08,
+    floorScale: 0.98,
+    toppleRot: 0.6,
+  },
+  {
+    tDrop: 9.8,
+    phiPeak: 0.86 * Math.PI,
+    yLand: -0.04,
+    floorScale: 0.96,
+    toppleRot: 0.4,
+  },
+  {
+    tDrop: 6.5,
+    phiPeak: 0.68 * Math.PI,
+    yLand: 0.16,
+    floorScale: 1.0,
+    toppleRot: -0.5,
+  },
+  {
+    tDrop: 3.0,
+    phiPeak: 0.45 * Math.PI,
+    yLand: -0.08,
+    floorScale: 0.99,
+    toppleRot: 0.7,
+  },
+  {
+    tDrop: 8.0,
+    phiPeak: 0.76 * Math.PI,
+    yLand: 0.02,
+    floorScale: 0.97,
+    toppleRot: -0.4,
+  },
+  {
+    tDrop: 5.8,
+    phiPeak: 0.65 * Math.PI,
+    yLand: -0.16,
+    floorScale: 0.95,
+    toppleRot: -0.8,
+  },
+  {
+    tDrop: 9.0,
+    phiPeak: 0.82 * Math.PI,
+    yLand: 0.1,
+    floorScale: 0.98,
+    toppleRot: 0.95,
+  },
+  {
+    tDrop: 4.8,
+    phiPeak: 0.58 * Math.PI,
+    yLand: -0.02,
+    floorScale: 1.0,
+    toppleRot: 0.3,
+  },
+  {
+    tDrop: 7.6,
+    phiPeak: 0.74 * Math.PI,
+    yLand: 0.06,
+    floorScale: 0.97,
+    toppleRot: -0.65,
+  },
+  {
+    tDrop: 6.0,
+    phiPeak: 0.7 * Math.PI,
+    yLand: -0.1,
+    floorScale: 0.99,
+    toppleRot: 0.5,
+  },
+];
+interface RoundConfig {
+  tDrop?: number;
+  phiPeak: number;
+  yLand: number;
+  floorScale: number;
+  toppleRot: number;
 }
 
-function chipPos(c: Chip, ft: number, R: number, ex: number) {
-  const raw =
-    c.th0 +
-    ft * 0.07 +
-    c.a1 * Math.sin(ft * c.w1 + c.f1) +
-    c.a2 * Math.sin(ft * c.w2 + c.f2);
-  const th = fold(raw);
-  const rr = (c.r0 + c.ar * Math.sin(ft * c.wr + c.fr)) * R * ex;
-  return {
-    x: rr * Math.cos(th),
-    y: rr * Math.sin(th),
-    rot: c.rot0 + ft * c.spin,
-  };
+function calcChipTrajectory(
+  c: Chip,
+  t: number,
+  period: number,
+  offset: number,
+  phiStart: number,
+  configs: RoundConfig[],
+  xCenter: number,
+  rTrack: number,
+  R: number,
+  ex: number,
+) {
+  const tLocal = t + offset;
+  const tau = ((tLocal % period) + period) % period;
+  const N = Math.floor(tLocal / period);
+  const roundIdx = ((N % configs.length) + configs.length) % configs.length;
+  const cfg = configs[roundIdx];
+
+  const tDrop = period - 1.25;
+  const dropDur = 0.65;
+  const toppleDur = 0.6;
+  const tImpact = tDrop + dropDur;
+
+  const xStart = xCenter + rTrack * Math.cos(phiStart);
+  const yStart = rTrack * Math.sin(phiStart);
+
+  const xTop = xCenter + rTrack * Math.cos(cfg.phiPeak);
+  const yTop = rTrack * Math.sin(cfg.phiPeak);
+  const xFloor = xCenter + rTrack * cfg.floorScale;
+  const yLand = cfg.yLand * R * ex;
+  const rotSettle = c.rot0 + cfg.toppleRot;
+  const rotDrop = c.rot0 - (cfg.phiPeak - phiStart);
+
+  let lx: number;
+  let ly: number;
+  let rot: number;
+
+  if (tau < tDrop) {
+    const p = tau / tDrop;
+    const phi = phiStart + p * (cfg.phiPeak - phiStart);
+    lx = xCenter + rTrack * Math.cos(phi);
+    ly = rTrack * Math.sin(phi);
+    rot = c.rot0 - (phi - phiStart);
+  } else if (tau < tImpact) {
+    const p = (tau - tDrop) / dropDur;
+    lx = xTop + (xFloor - xTop) * (p * p);
+    ly = yTop + (yLand - yTop) * (p * Math.sqrt(p));
+    rot = rotDrop;
+  } else {
+    const s = (tau - tImpact) / toppleDur;
+    const bounce = Math.sin(s * Math.PI) * 0.035 * R * ex * Math.exp(-3.5 * s);
+    const tipEase = 1 - Math.exp(-4.5 * s) * Math.cos(3.5 * s);
+    const rollEase = s * s;
+    lx = xFloor - bounce + (xStart - xFloor) * rollEase;
+    ly = yLand + (yStart - yLand) * s;
+    rot =
+      rotDrop +
+      (rotSettle - rotDrop) * tipEase +
+      (c.rot0 - rotSettle) * rollEase;
+  }
+
+  return { x: lx, y: ly, rot };
+}
+
+function chipPos(
+  c: Chip,
+  _ft: number,
+  R: number,
+  ex: number,
+  t: number,
+  index: number,
+) {
+  const xCenter = 0.433 * R * ex;
+  const rDrum = 0.7 * R * ex;
+  const pieceRadius = 0.72 * (c.size * R * ex);
+  const rTrack = rDrum - pieceRadius;
+
+  const CHIP_SPECS = [
+    { period: 6.4, offset: 0.0, phiStart: -0.15, configs: ROUND_CONFIGS },
+    { period: 7.6, offset: 2.5, phiStart: -0.55, configs: CYAN_ROUND_CONFIGS },
+    { period: 5.5, offset: 4.2, phiStart: 0.35, configs: YELLOW_ROUND_CONFIGS },
+    {
+      period: 6.8,
+      offset: 1.2,
+      phiStart: -0.9,
+      configs: CYAN_SQ_ROUND_CONFIGS,
+    },
+    { period: 7.2, offset: 3.5, phiStart: 0.7, configs: K_LOGO_ROUND_CONFIGS },
+  ];
+
+  const spec = CHIP_SPECS[index] ?? CHIP_SPECS[0];
+  return calcChipTrajectory(
+    c,
+    t,
+    spec.period,
+    spec.offset,
+    spec.phiStart,
+    spec.configs,
+    xCenter,
+    rTrack,
+    R,
+    ex,
+  );
 }
 
 function drawChipPath(ctx: CanvasRenderingContext2D, c: Chip, s: number) {
   if (c.shape === "sq") {
     ctx.rect(-s / 2, -s / 2, s, s);
-  } else {
+  } else if (c.shape === "arm") {
     const u = s / 18.2;
     const m = c.flip ? -1 : 1;
     const p: [number, number][] = [
@@ -91,6 +492,24 @@ function drawChipPath(ctx: CanvasRenderingContext2D, c: Chip, s: number) {
     for (let i = 1; i < 6; i++) {
       ctx.lineTo(p[i][0] * u, p[i][1] * u * m);
     }
+    ctx.closePath();
+  } else if (c.shape === "k") {
+    const u = s / 30;
+    ctx.rect((0.5 - 14.5) * u, (0.5 - 15) * u, 8.81 * u, 8.81 * u);
+    ctx.rect((0.5 - 14.5) * u, (19.5 - 15) * u, 8.81 * u, 8.81 * u);
+    ctx.moveTo((27.69 - 14.5) * u, (0.5 - 15) * u);
+    ctx.lineTo((27.69 - 14.5) * u, (9.39 - 15) * u);
+    ctx.lineTo((18.39 - 14.5) * u, (18.69 - 15) * u);
+    ctx.lineTo((9.5 - 14.5) * u, (18.69 - 15) * u);
+    ctx.lineTo((9.5 - 14.5) * u, (9.8 - 15) * u);
+    ctx.lineTo((18.8 - 14.5) * u, (0.5 - 15) * u);
+    ctx.closePath();
+    ctx.moveTo((27.69 - 14.5) * u, (28.69 - 15) * u);
+    ctx.lineTo((18.8 - 14.5) * u, (28.69 - 15) * u);
+    ctx.lineTo((9.5 - 14.5) * u, (19.39 - 15) * u);
+    ctx.lineTo((9.5 - 14.5) * u, (10.5 - 15) * u);
+    ctx.lineTo((18.39 - 14.5) * u, (10.5 - 15) * u);
+    ctx.lineTo((27.69 - 14.5) * u, (19.8 - 15) * u);
     ctx.closePath();
   }
 }
@@ -116,65 +535,109 @@ function drawOneChip(
   c: Chip,
   s: number,
   alpha: number,
-  lw: number,
+  _lw: number,
 ) {
+  const canvas = ctx.canvas;
+  const dprRatio = canvas ? canvas.width / (canvas.clientWidth || 1) : 1;
+
+  if (c.shape === "k") {
+    const strokeWidth = 10 * dprRatio;
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.beginPath();
+    drawChipPath(ctx, c, s);
+    ctx.lineWidth = strokeWidth * 2;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(0,0,0,0.9)";
+    ctx.stroke();
+
+    ctx.fillStyle = c.color;
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  const strokeWidth = 3 * dprRatio;
+
   ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
   ctx.beginPath();
   drawChipPath(ctx, c, s);
   ctx.fillStyle = c.color;
   ctx.fill();
-  ctx.lineWidth = lw;
-  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha * 0.4));
+  ctx.lineWidth = strokeWidth;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = c.color;
   ctx.stroke();
+  ctx.restore();
 }
 
-function generateChips(density: number): Chip[] {
-  const n = Math.max(6, Math.round(density));
+const DRAW_ORDER = [3, 0, 1, 2, 4];
+
+function generateChips(): Chip[] {
   const rnd = Math.random;
-  const mk = (): Chip => ({
-    shape: rnd() < 0.42 ? "sq" : "arm",
-    flip: rnd() < 0.5,
-    color: COLORS[(rnd() * 3) | 0],
-    alpha: ALPHAS[(rnd() * 3) | 0],
-    size: 0.055 + rnd() * 0.14,
-    r0: 0.14 + rnd() * 0.8,
-    th0: (rnd() - 0.5) * (Math.PI / 3) * 0.9,
-    a1: 0.1 + rnd() * 0.16,
+  const heroSpec = [
+    {
+      shape: "arm" as const,
+      color: "#EE029B",
+      flip: true,
+      size: 0.65,
+      alpha: 0.8,
+    },
+    {
+      shape: "arm" as const,
+      color: "#FF6B00",
+      flip: false,
+      size: 0.5,
+      alpha: 0.7,
+    },
+    {
+      shape: "sq" as const,
+      color: "#F4C904",
+      flip: false,
+      size: 0.3,
+      alpha: 1.0,
+    },
+    {
+      shape: "sq" as const,
+      color: "#0AB9EC",
+      flip: false,
+      size: 0.44,
+      alpha: 0.8,
+    },
+    {
+      shape: "k" as const,
+      color: "#ffffff",
+      flip: false,
+      size: 0.423,
+      alpha: 1.0,
+    },
+  ];
+
+  const th0s = [-0.06, 0.16, -0.16, 0.26, -0.02];
+
+  return heroSpec.map((spec, i) => ({
+    ...spec,
+    hero: true,
+    r0: 0.82,
+    th0: th0s[i],
+    a1: 0.08 + rnd() * 0.12,
     w1: (2 * Math.PI) / (45 + rnd() * 75),
     f1: rnd() * 6.28,
-    a2: 0.05 + rnd() * 0.1,
+    a2: 0.04 + rnd() * 0.08,
     w2: (2 * Math.PI) / (60 + rnd() * 90),
     f2: rnd() * 6.28,
-    ar: 0.04 + rnd() * 0.12,
+    ar: 0.03 + rnd() * 0.08,
     wr: (2 * Math.PI) / (50 + rnd() * 80),
     fr: rnd() * 6.28,
     rot0: rnd() * 6.28,
     spin: (rnd() - 0.5) * 0.12,
     wa: (2 * Math.PI) / (30 + rnd() * 40),
     seed: rnd() * 6.28,
-    hero: false,
-  });
-
-  const chips: Chip[] = [];
-  for (let i = 0; i < n; i++) chips.push(mk());
-
-  const heroSpec = [
-    { shape: "sq" as const, color: "#F4C904", flip: false, size: 0.115 },
-    { shape: "sq" as const, color: "#0AB9EC", flip: false, size: 0.115 },
-    { shape: "arm" as const, color: "#0AB9EC", flip: false, size: 0.165 },
-    { shape: "arm" as const, color: "#EE029B", flip: true, size: 0.165 },
-  ];
-
-  for (let i = 0; i < 4; i++) {
-    Object.assign(chips[i], heroSpec[i], {
-      alpha: 1,
-      hero: true,
-      r0: 0.25 + i * 0.18,
-      th0: (i - 1.5) * 0.22,
-    });
-  }
-
-  return chips;
+  }));
 }
 
 export default function SplashAlt({
@@ -203,7 +666,7 @@ export default function SplashAlt({
     last: performance.now(),
     ft: 0,
     pi: 0,
-    chips: generateChips(density),
+    chips: generateChips(),
   });
 
   stateRef.current.speed = speed;
@@ -228,7 +691,7 @@ export default function SplashAlt({
     stateRef.current.pi = 0;
     stateRef.current.snapshotReadyFired = false;
     stateRef.current.endedFired = false;
-    stateRef.current.chips = generateChips(stateRef.current.density);
+    stateRef.current.chips = generateChips();
     setPhase("run");
     setStatus(PHRASES[0]);
     setStatusOpacity(1);
@@ -291,11 +754,6 @@ export default function SplashAlt({
       st.last = now;
       const t = (now - st.t0) / 1000;
 
-      const desired = Math.max(6, Math.round(st.density));
-      if (desired !== st.chips.length) {
-        st.chips = generateChips(desired);
-      }
-
       let flow =
         0.7 +
         0.3 * Math.sin((2 * Math.PI * t) / 45) +
@@ -311,7 +769,7 @@ export default function SplashAlt({
 
       const cx = W / 2;
       const cy = H / 2;
-      const R = Math.min(W, H) * 0.42;
+      const R = Math.min(W, H) * 0.294;
 
       let b: number;
       let g = 1;
@@ -340,68 +798,128 @@ export default function SplashAlt({
       const ex = 0.1 + 0.9 * b;
       const lw = Math.max(1, R * 0.006);
       const blending = b < 0.999;
+      const baseAngle = Math.PI / 2;
+      const cosBase = Math.cos(baseAngle);
+      const sinBase = Math.sin(baseAngle);
 
       if (b > 0.003) {
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(-Math.PI / 2);
-        ctx.beginPath();
-        for (let k = 0; k < 6; k++) {
-          const a = Math.PI / 6 + (k * Math.PI) / 3;
-          if (k === 0) {
-            ctx.moveTo(R * Math.cos(a), R * Math.sin(a));
-          } else {
-            ctx.lineTo(R * Math.cos(a), R * Math.sin(a));
-          }
-        }
-        ctx.closePath();
-        ctx.clip();
+        const chipPositions = st.chips.map((c, i) =>
+          chipPos(c, ft, R, ex, t, i),
+        );
 
-        for (let k = 0; k < 6; k++) {
-          ctx.save();
-          ctx.rotate((k * Math.PI) / 3);
-          if (k % 2 === 1) ctx.scale(1, -1);
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(R * Math.cos(-Math.PI / 6), R * Math.sin(-Math.PI / 6));
-          ctx.lineTo(R * Math.cos(Math.PI / 6), R * Math.sin(Math.PI / 6));
-          ctx.closePath();
-          ctx.clip();
+        const colStep = 1.5 * R;
+        const rowStep = Math.sqrt(3) * R;
+        const cols = Math.ceil((cx + R) / colStep) + 1;
+        const rows = Math.ceil((cy + R) / rowStep) + 1;
 
-          for (const c of st.chips) {
-            if (c.hero && blending && k === 0) continue;
-            const shimmer = 0.82 + 0.18 * Math.sin(ft * c.wa + c.seed);
-            const a = c.alpha * shimmer * b * g;
-            if (a < 0.01) continue;
-            const p = chipPos(c, ft, R, ex);
+        for (let col = -cols; col <= cols; col++) {
+          for (let row = -rows; row <= rows; row++) {
+            const hexX = cx + col * colStep;
+            const hexY = cy + row * rowStep + (col % 2 !== 0 ? rowStep / 2 : 0);
+
+            if (
+              hexX < -R * 1.5 ||
+              hexX > W + R * 1.5 ||
+              hexY < -R * 1.5 ||
+              hexY > H + R * 1.5
+            ) {
+              continue;
+            }
+
+            const isCenterHex = col === 0 && row === 0;
+
             ctx.save();
-            ctx.translate(p.x, p.y);
-            ctx.rotate(p.rot);
-            drawOneChip(ctx, c, c.size * R, a, lw);
+            ctx.translate(hexX, hexY);
+            ctx.rotate(baseAngle);
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) {
+              const a = Math.PI / 6 + (k * Math.PI) / 3;
+              if (k === 0) {
+                ctx.moveTo(R * Math.cos(a), R * Math.sin(a));
+              } else {
+                ctx.lineTo(R * Math.cos(a), R * Math.sin(a));
+              }
+            }
+            ctx.closePath();
+            ctx.clip();
+
+            for (let k = 0; k < 6; k++) {
+              ctx.save();
+              ctx.rotate((k * Math.PI) / 3);
+              if (k % 2 === 1) ctx.scale(1, -1);
+              ctx.beginPath();
+              ctx.moveTo(0, 0);
+              ctx.lineTo(
+                R * Math.cos(-Math.PI / 6),
+                R * Math.sin(-Math.PI / 6),
+              );
+              ctx.lineTo(R * Math.cos(Math.PI / 6), R * Math.sin(Math.PI / 6));
+              ctx.closePath();
+              ctx.clip();
+
+              for (const i of DRAW_ORDER) {
+                if (i >= st.chips.length) continue;
+                const c = st.chips[i];
+                if (c.hero && blending && k === 0 && isCenterHex) continue;
+                const shimmer = 0.82 + 0.18 * Math.sin(ft * c.wa + c.seed);
+                const a =
+                  c.shape === "k"
+                    ? c.alpha * b * b * g
+                    : c.alpha * shimmer * b * g;
+                if (a < 0.01) continue;
+                const p = chipPositions[i];
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                drawOneChip(ctx, c, c.size * R, a, lw);
+                ctx.restore();
+              }
+              ctx.restore();
+            }
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(hexX, hexY);
+            ctx.rotate(baseAngle);
+            ctx.globalAlpha = b * g;
+            ctx.strokeStyle = "rgba(140, 140, 140, 0.35)";
+            ctx.lineWidth = lw;
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) {
+              const a1 = -Math.PI / 6 + (k * Math.PI) / 3;
+              const a2 = Math.PI / 6 + (k * Math.PI) / 3;
+              ctx.moveTo(0, 0);
+              ctx.lineTo(R * Math.cos(a1), R * Math.sin(a1));
+              ctx.lineTo(R * Math.cos(a2), R * Math.sin(a2));
+              ctx.lineTo(0, 0);
+            }
+            ctx.stroke();
             ctx.restore();
           }
-          ctx.restore();
         }
-        ctx.restore();
       }
 
       if (blending && g > 0.003) {
         const K = kLayout(R);
-        for (let i = 0; i < 4; i++) {
+        const kTargets = [K[3], K[2], K[0], K[1]];
+        for (const i of DRAW_ORDER) {
+          if (i >= st.chips.length) continue;
           const c = st.chips[i];
-          const p = chipPos(c, ft, R, ex);
-          const sx = cx + p.y;
-          const sy = cy - p.x;
-          const kx = cx + K[i].x;
-          const ky = cy + K[i].y;
+          if (c.shape === "k") continue;
+          const kTarget = kTargets[i] ?? K[0];
+          const p = chipPos(c, ft, R, ex, t, i);
+          const sx = cx + p.x * cosBase - p.y * sinBase;
+          const sy = cy + p.x * sinBase + p.y * cosBase;
+          const kx = cx + kTarget.x;
+          const ky = cy + kTarget.y;
           const x = kx + (sx - kx) * b;
           const y = ky + (sy - ky) * b;
-          const rot = (p.rot - Math.PI / 2) * b;
-          const s = K[i].size + (c.size * R - K[i].size) * b;
+          const rot = (p.rot + baseAngle) * b;
+          const s = kTarget.size + (c.size * R - kTarget.size) * b;
           ctx.save();
           ctx.translate(x, y);
           ctx.rotate(rot);
-          drawOneChip(ctx, c, s, g, lw);
+          drawOneChip(ctx, c, s, c.alpha * g, lw);
           ctx.restore();
         }
       }
