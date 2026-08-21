@@ -30,8 +30,7 @@ export function pipelineProgress({
     case "organizing":
       return (
         ORGANIZING_START +
-        ORGANIZING_SPAN *
-          fraction(organizeRun?.explorations, MAX_EXPLORATIONS)
+        ORGANIZING_SPAN * fraction(organizeRun?.explorations, MAX_EXPLORATIONS)
       );
     case "mapping":
       return (
