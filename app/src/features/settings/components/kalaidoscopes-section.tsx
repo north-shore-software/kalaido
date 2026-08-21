@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { Label, StatusPill } from "@/components/kalaido";
 import { SectionHeader } from "@/components/layout/section";
 import { Button } from "@/components/ui/button";
 import { appState } from "@/hooks/use-app-state.ts";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
+import { MapDebugPanel } from "./map-section";
 
 export function KalaidoscopesSection() {
   const { appStage, availableKalaidoscopes: kalaidoscopes } =
@@ -15,6 +17,7 @@ export function KalaidoscopesSection() {
   const switching = appStage.stage === "kalaidoscope_loading";
   const active = kalaidoscopes.find((k) => k.id === currentKalaidoscopeId);
   const others = kalaidoscopes.filter((k) => k.id !== currentKalaidoscopeId);
+  const [mapOpen, setMapOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,7 +34,11 @@ export function KalaidoscopesSection() {
             <Button size="sm" disabled>
               PocketBase schema &amp; backups
             </Button>
+            <Button size="sm" onClick={() => setMapOpen((open) => !open)}>
+              Map
+            </Button>
           </div>
+          {mapOpen && <MapDebugPanel />}
         </KalaidoscopeRow>
       )}
       {others.length > 0 && (

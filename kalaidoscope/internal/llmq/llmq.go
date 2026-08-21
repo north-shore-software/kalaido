@@ -86,7 +86,7 @@ func ConfigForProvider(p llm.ProviderID) Config {
 		// Hosted APIs: modest parallelism with spaced-out starts. Preemption
 		// buys little when slots are plural and calls are fast.
 		return Config{
-			MaxConcurrent:    3,
+			MaxConcurrent:    100,
 			MinStartInterval: time.Second,
 			IdleAfter:        time.Minute,
 			PreemptAtOrBelow: PreemptNone,
@@ -99,7 +99,7 @@ func ConfigForProvider(p llm.ProviderID) Config {
 // user is watching) override per call with WithPriority.
 func DefaultPriorityForRole(r llm.Role) Priority {
 	switch r {
-	case llm.RoleDistill:
+	case llm.RoleDistill, llm.RoleMap, llm.RoleAnnotate:
 		return Background
 	case llm.RoleColour:
 		return Idle
@@ -161,7 +161,22 @@ type Scheduler struct {
 	lastProgressPub time.Time
 	timer           *time.Timer
 	onChange        func(Status)
+	backoffUntil    time.Time
+	backoffStep     time.Duration
+	lastThrottle    time.Time
+	highWaterMark   int
+	highWaterMarkAt time.Time
 }
+
+const (
+	backoffInitial   = 2 * time.Second
+	backoffMax       = 60 * time.Second
+	backoffResetIdle = 2 * backoffMax
+	// highWaterWindow bounds how long a proven concurrency level stays "free to
+	// backfill" without being touched — after this, MinStartInterval pacing
+	// applies again to growth past the live running count.
+	highWaterWindow = 10 * time.Minute
+)
 
 type waiter struct {
 	req      Request
@@ -197,8 +212,36 @@ func (s *Scheduler) Reconfigure(cfg Config) {
 	}
 	s.mu.Lock()
 	s.cfg = cfg
+	s.highWaterMark = 0
+	s.highWaterMarkAt = time.Time{}
 	s.dispatchLocked()
 	s.mu.Unlock()
+}
+
+// ReportThrottled records that the provider rejected a call for rate or
+// capacity reasons (HTTP 429 / 5xx), stretching admission for every
+// non-Interactive waiter until the backoff window passes. Repeated reports
+// double the window (capped); a report after a quiet period starts over at
+// the initial step, so one-off blips don't leave a lasting penalty.
+func (s *Scheduler) ReportThrottled() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	if s.backoffStep == 0 || now.Sub(s.lastThrottle) > backoffResetIdle {
+		s.backoffStep = backoffInitial
+	} else {
+		s.backoffStep *= 2
+		if s.backoffStep > backoffMax {
+			s.backoffStep = backoffMax
+		}
+	}
+	s.lastThrottle = now
+	s.backoffUntil = now.Add(s.backoffStep)
+	// The current running count evidently wasn't all the problem, but growth
+	// past it should have to re-earn itself through the ramp again.
+	s.highWaterMark = len(s.running)
+	s.highWaterMarkAt = now
+	s.dispatchLocked()
 }
 
 func (s *Scheduler) SetOnChange(f func(Status)) {
@@ -275,8 +318,18 @@ func (s *Scheduler) dispatchLocked() {
 	now := time.Now()
 	var wakeAt time.Time
 
+	if now.Sub(s.highWaterMarkAt) > highWaterWindow {
+		s.highWaterMark = len(s.running)
+		s.highWaterMarkAt = now
+	}
+
 	for len(s.waiting) > 0 {
 		w := s.waiting[0]
+
+		if w.req.Priority != Interactive && now.Before(s.backoffUntil) {
+			wakeAt = earliest(wakeAt, s.backoffUntil)
+			break
+		}
 
 		if w.req.Priority == Idle {
 			// Idle admission: nothing higher running (nothing higher can be
@@ -299,7 +352,8 @@ func (s *Scheduler) dispatchLocked() {
 			break
 		}
 
-		if s.cfg.MinStartInterval > 0 && !s.lastStart.IsZero() {
+		growingPeak := len(s.running) >= s.highWaterMark
+		if growingPeak && s.cfg.MinStartInterval > 0 && !s.lastStart.IsZero() {
 			if ready := s.lastStart.Add(s.cfg.MinStartInterval); now.Before(ready) {
 				wakeAt = earliest(wakeAt, ready)
 				break
@@ -307,6 +361,16 @@ func (s *Scheduler) dispatchLocked() {
 		}
 
 		s.admitLocked(w, now)
+		switch {
+		case growingPeak:
+			s.highWaterMark = len(s.running)
+			s.highWaterMarkAt = now
+			s.lastStart = now
+		case len(s.running) >= s.highWaterMark:
+			// Backfilled back up to (not past) the existing mark — still
+			// sustaining it, keep it fresh so it doesn't decay mid-use.
+			s.highWaterMarkAt = now
+		}
 	}
 
 	s.armTimerLocked(wakeAt)
@@ -318,7 +382,6 @@ func (s *Scheduler) admitLocked(w *waiter, now time.Time) {
 	runCtx, cancel := context.WithCancelCause(w.ctx)
 	t := &task{req: w.req, started: now, runCtx: runCtx, cancel: cancel}
 	s.running = append(s.running, t)
-	s.lastStart = now
 	if w.req.Priority != Idle {
 		s.lastNonIdle = now
 	}
@@ -495,6 +558,8 @@ func Acquire(ctx context.Context, req Request) (context.Context, func(), error) 
 }
 
 func AddProgress(runCtx context.Context, tokens int) { std.AddProgress(runCtx, tokens) }
+
+func ReportThrottled() { std.ReportThrottled() }
 
 func Reconfigure(cfg Config) { std.Reconfigure(cfg) }
 

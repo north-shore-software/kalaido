@@ -77,6 +77,7 @@ func Record(ctx context.Context, app core.App, u *llm.Usage) {
 			rec.Set("prompt_tokens", rec.GetInt("prompt_tokens")+u.PromptTokens)
 			rec.Set("completion_tokens", rec.GetInt("completion_tokens")+u.CompletionTokens)
 			rec.Set("total_tokens", rec.GetInt("total_tokens")+u.TotalTokens)
+			rec.Set("cached_tokens", rec.GetInt("cached_tokens")+u.CachedTokens)
 			return txApp.Save(rec)
 		})
 		if lastErr == nil {

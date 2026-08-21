@@ -47,6 +47,8 @@ const (
 	RoleColour     Role = "colour"
 	RoleDistill    Role = "distill"  // lens distillation
 	RoleSnapshot   Role = "snapshot" // projection/reflection output
+	RoleMap        Role = "map"      // workspace map incorporation + structure
+	RoleAnnotate   Role = "annotate" // per-fragment markup for the map
 )
 
 type Usage struct {
@@ -55,6 +57,7 @@ type Usage struct {
 	PromptTokens     int
 	CompletionTokens int
 	TotalTokens      int
+	CachedTokens     int
 	TokensPerSecond  float64
 }
 
@@ -71,4 +74,8 @@ type GenOptions struct {
 
 type Provider interface {
 	Stream(ctx context.Context, messages []Message, tools []Tool, opts GenOptions) (*Completion, error)
+
+	// ContextWindow reports this provider instance's context window, in
+	// tokens. A hardcoded value tracked per provider for now, not queried live.
+	ContextWindow() int
 }

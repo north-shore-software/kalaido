@@ -15,6 +15,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -44,6 +45,7 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 	colour.SetWorkerApp(app)
 	engine.SetLensWorkerApp(app)
 	reconcile.Register(app)
+	mapping.Register(app)
 	registerQueueStatus(app)
 
 	// After se.Next() so it runs once the rest of the boot chain — model set
@@ -65,11 +67,17 @@ func RegisterTriggers(app core.App) {
 		if e.Record.GetDateTime("source_time").IsZero() {
 			e.Record.Set("source_time", types.NowDateTime())
 		}
+		if e.Record.GetString("origin") == "" {
+			e.Record.Set("origin", "app")
+		}
 		return e.Next()
 	})
 
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
 		colour.EnqueueNewFragmentEvaluation(app, e.Record.Id)
+		if e.Record.GetString("origin") != "import" {
+			mapping.SignalIfBacklog(app)
+		}
 		return e.Next()
 	})
 
@@ -136,6 +144,8 @@ func RegisterRoutes(app core.App) {
 
 		// Speculative "generate all" wave over the stale set
 		se.Router.POST("/api/reconcile", handlers.HandleReconcile(app))
+
+		se.Router.POST("/api/map", handlers.HandleMapKick(app))
 
 		return se.Next()
 	})

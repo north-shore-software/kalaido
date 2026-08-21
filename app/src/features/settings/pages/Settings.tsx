@@ -1,16 +1,16 @@
-import { useParams } from "react-router-dom";
 import { ArrowLeftIcon } from "lucide-react";
-import { cn } from "../../../lib/css-utils";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { KalaidoscopesSection } from "../components/kalaidoscopes-section";
-import { DangerZoneSection } from "../components/danger-zone-section";
-import { CloudAccountSection } from "../components/cloud-account-section";
-import { LocalAISection } from "../components/local-ai-section";
-import { AppearanceSection } from "../components/appearance-section";
 import { defineRoute } from "@/routes/route-kit";
-import { settingsTransitions } from "./Settings.transitions";
-import { useAppNavigate } from "@/routes/use-app-navigate";
 import { RouteLink } from "@/routes/route-link";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { cn } from "../../../lib/css-utils";
+import { AppearanceSection } from "../components/appearance-section";
+import { CloudAccountSection } from "../components/cloud-account-section";
+import { DangerZoneSection } from "../components/danger-zone-section";
+import { KalaidoscopesSection } from "../components/kalaidoscopes-section";
+import { LocalAISection } from "../components/local-ai-section";
+import { settingsTransitions } from "./Settings.transitions";
 
 const sections = [
   { id: "kalaidoscopes", label: "Manage Kalaidoscopes" },

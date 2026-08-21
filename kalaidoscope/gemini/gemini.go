@@ -30,6 +30,10 @@ func (p *Provider) model() string {
 	return p.Model
 }
 
+func (p *Provider) ContextWindow() int {
+	return 1_000_000
+}
+
 type geminiContent struct {
 	Role  string       `json:"role,omitempty"`
 	Parts []geminiPart `json:"parts"`
@@ -73,9 +77,10 @@ type geminiStreamChunk struct {
 		} `json:"content"`
 	} `json:"candidates"`
 	UsageMetadata *struct {
-		PromptTokenCount     int `json:"promptTokenCount"`
-		CandidatesTokenCount int `json:"candidatesTokenCount"`
-		TotalTokenCount      int `json:"totalTokenCount"`
+		PromptTokenCount        int `json:"promptTokenCount"`
+		CandidatesTokenCount    int `json:"candidatesTokenCount"`
+		TotalTokenCount         int `json:"totalTokenCount"`
+		CachedContentTokenCount int `json:"cachedContentTokenCount"`
 	} `json:"usageMetadata"`
 }
 
@@ -219,6 +224,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 				usage.PromptTokens = u.PromptTokenCount
 				usage.CompletionTokens = u.CandidatesTokenCount
 				usage.TotalTokens = u.TotalTokenCount
+				usage.CachedTokens = u.CachedContentTokenCount
 				sawUsage = true
 			}
 			if len(chunk.Candidates) == 0 {
