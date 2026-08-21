@@ -23,6 +23,7 @@ export const Collections = {
 	Lens: "lens",
 	LlmQueueStatus: "llm_queue_status",
 	MapRun: "map_run",
+	OrganizeRun: "organize_run",
 	Projection: "projection",
 	ProjectionSnapshot: "projection_snapshot",
 	RefineProjSnapshotConversation: "refine_proj_snapshot_conversation",
@@ -138,6 +139,9 @@ export type ColourRecord = {
 	id: string
 	last_provider_error_kind?: string
 	name: string
+	origin_node_dimension?: string
+	origin_node_name?: string
+	origin_run_id?: RecordIdString
 	updated: IsoAutoDateString
 }
 
@@ -146,6 +150,7 @@ export const ColourFragmentMatchTypeOptions = {
 	"manual_negative": "manual_negative",
 	"llm_matched_backfill": "llm_matched_backfill",
 	"llm_matched_tag_on_input": "llm_matched_tag_on_input",
+	"map_derived": "map_derived",
 } as const
 export type ColourFragmentMatchTypeOptions = typeof ColourFragmentMatchTypeOptions[keyof typeof ColourFragmentMatchTypeOptions]
 export type ColourFragmentRecord = {
@@ -268,6 +273,25 @@ export type MapRunRecord = {
 	updated: IsoAutoDateString
 }
 
+export const OrganizeRunStatusOptions = {
+	"running": "running",
+	"done": "done",
+	"error": "error",
+} as const
+export type OrganizeRunStatusOptions = typeof OrganizeRunStatusOptions[keyof typeof OrganizeRunStatusOptions]
+export type OrganizeRunRecord<Tentities = unknown, Twarnings = unknown> = {
+	created: IsoAutoDateString
+	entities?: null | Tentities
+	error?: string
+	explorations?: number
+	id: string
+	map_version?: number
+	model?: string
+	status: OrganizeRunStatusOptions
+	updated: IsoAutoDateString
+	warnings?: null | Twarnings
+}
+
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
@@ -276,6 +300,7 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	last_provider_error_kind?: string
 	model?: string
 	name?: string
+	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString
 	updated: IsoAutoDateString
 }
@@ -323,6 +348,7 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	last_provider_error_kind?: string
 	model?: string
 	name?: string
+	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString
 	updated: IsoAutoDateString
 	window_spec_versions?: null | Twindow_spec_versions
@@ -410,6 +436,7 @@ export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Requir
 export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
 export type LlmQueueStatusResponse<Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
+export type OrganizeRunResponse<Tentities = unknown, Twarnings = unknown, Texpand = unknown> = Required<OrganizeRunRecord<Tentities, Twarnings>> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
 export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
@@ -440,6 +467,7 @@ export type CollectionRecords = {
 	lens: LensRecord
 	llm_queue_status: LlmQueueStatusRecord
 	map_run: MapRunRecord
+	organize_run: OrganizeRunRecord
 	projection: ProjectionRecord
 	projection_snapshot: ProjectionSnapshotRecord
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationRecord
@@ -469,6 +497,7 @@ export type CollectionResponses = {
 	lens: LensResponse
 	llm_queue_status: LlmQueueStatusResponse
 	map_run: MapRunResponse
+	organize_run: OrganizeRunResponse
 	projection: ProjectionResponse
 	projection_snapshot: ProjectionSnapshotResponse
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationResponse
