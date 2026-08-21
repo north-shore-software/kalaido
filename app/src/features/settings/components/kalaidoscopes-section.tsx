@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { appState } from "@/hooks/use-app-state.ts";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
 import { MapDebugPanel } from "./map-section";
+import { OrganizeDebugPanel } from "./organize-section";
 
 export function KalaidoscopesSection() {
   const { appStage, availableKalaidoscopes: kalaidoscopes } =
@@ -18,6 +19,7 @@ export function KalaidoscopesSection() {
   const active = kalaidoscopes.find((k) => k.id === currentKalaidoscopeId);
   const others = kalaidoscopes.filter((k) => k.id !== currentKalaidoscopeId);
   const [mapOpen, setMapOpen] = useState(false);
+  const [organizeOpen, setOrganizeOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
@@ -37,8 +39,15 @@ export function KalaidoscopesSection() {
             <Button size="sm" onClick={() => setMapOpen((open) => !open)}>
               Map
             </Button>
+            <Button
+              size="sm"
+              onClick={() => setOrganizeOpen((open) => !open)}
+            >
+              Organize
+            </Button>
           </div>
           {mapOpen && <MapDebugPanel />}
+          {organizeOpen && <OrganizeDebugPanel />}
         </KalaidoscopeRow>
       )}
       {others.length > 0 && (

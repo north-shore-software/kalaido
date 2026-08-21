@@ -16,6 +16,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/organize"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -46,6 +47,7 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 	engine.SetLensWorkerApp(app)
 	reconcile.Register(app)
 	mapping.Register(app)
+	organize.Register(app)
 	registerQueueStatus(app)
 
 	// After se.Next() so it runs once the rest of the boot chain — model set
@@ -146,6 +148,8 @@ func RegisterRoutes(app core.App) {
 		se.Router.POST("/api/reconcile", handlers.HandleReconcile(app))
 
 		se.Router.POST("/api/map", handlers.HandleMapKick(app))
+
+		se.Router.POST("/api/organize", handlers.HandleOrganizeKick(app))
 
 		return se.Next()
 	})
