@@ -11,8 +11,13 @@ export const onboardingLandingTransitions = defineTransitions({
     trigger: "Click the 'Signed in as …' card",
     when: "A cloud session already exists",
   },
+  createForImport: {
+    to: "kalaidoscope-setup",
+    trigger: "Click the 'Import your notes' card",
+    when: "Setup then lands on the onboarding import page",
+  },
   createWorkspace: {
     to: "kalaidoscope-setup",
-    trigger: "Click the 'Create New Workspace' card",
+    trigger: "Click the 'Start from blank' card",
   },
 });

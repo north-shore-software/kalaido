@@ -1,6 +1,6 @@
 import { err, ok, type Result } from "neverthrow";
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState, type StageEntry } from "@/hooks/use-app-state.ts";
 import {
   addAvailableKalaidoscope,
   setAppStage,
@@ -33,6 +33,8 @@ export interface CreateKalaidoscopeInput {
   cloudId: string;
   locationInput: string;
   llmConfig?: WorkspaceLlmConfig;
+  /** Lands the new workspace on this route instead of the dashboard. */
+  entry?: StageEntry;
 }
 
 export type LocationResult =
@@ -184,11 +186,12 @@ export async function createKalaidoscope(
     await setSetting("lastOpenedKalaidoscopeId", id);
 
     if (type === "local_file") {
-      openKalaidoscope(id);
+      openKalaidoscope(id, input.entry);
     } else {
       setAppStage({
         stage: "kalaidoscope_load_requested",
         loadKalaidoscopeId: id,
+        ...(input.entry && { entry: input.entry }),
       });
     }
 

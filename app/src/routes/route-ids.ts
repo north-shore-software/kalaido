@@ -6,6 +6,8 @@ export const ROUTE_IDS = [
   "onboarding-login",
   "cloud-workspaces",
   "kalaidoscope-setup",
+  "onboarding-import",
+  "onboarding-organizing",
   "settings",
   "main",
   "stream",

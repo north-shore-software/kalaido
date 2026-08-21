@@ -45,7 +45,9 @@ export function StateNavigationListener() {
     handledStage.current = stageKey;
 
     if (appStage.stage === "kalaidoscope_load_requested") {
-      switchLocalKalaidoscope(appStage.loadKalaidoscopeId);
+      switchLocalKalaidoscope(appStage.loadKalaidoscopeId, {
+        entry: appStage.entry,
+      });
     } else if (appStage.stage !== "bootstrap") {
       // "bootstrap" is the initial stage and the initial location "/" already
       // renders Splash (a splash alias) — navigating would only push a

@@ -91,7 +91,7 @@ export function missingScope(
 export function stageEntryRoute(stage: AppStage): RouteId {
   switch (stage.stage) {
     case "kalaidoscope_open":
-      return "main";
+      return stage.entry ?? "main";
     case "bootstrap":
     case "kalaidoscope_loading":
     case "kalaidoscope_load_requested":

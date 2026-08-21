@@ -1,15 +1,14 @@
 import {
-  ArrowRight,
   ArchiveIcon,
   CloudIcon,
+  FolderInputIcon,
   PlusIcon,
   TriangleAlert,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
 import type { WorkspaceLlmConfig } from "@/api/kalaidoscope/llm-config.ts";
-import { Mark } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
@@ -17,7 +16,10 @@ import { appState } from "@/hooks/use-app-state.ts";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
+import { PrimaryChoice, SecondaryChoice } from "../components/choice-cards";
 import { DuplicateWorkspaceDialog } from "../components/duplicate-workspace-dialog";
+import { OnboardingShell } from "../components/onboarding-shell";
 import { RestoreProviderDialog } from "../components/restore-provider-dialog";
 import { inspectWorkspaceArchive, type RestoreInspection } from "../restore";
 import { onboardingLandingTransitions as transitions } from "./OnboardingLanding.transitions";
@@ -78,24 +80,14 @@ export default function OnboardingLanding() {
     setPending(inspected.value);
   }
 
-  return (
-    <div
-      className="flex flex-col overflow-auto bg-background"
-      style={{ height: "calc(100svh - var(--titlebar-height))" }}
-    >
-      <main className="m-auto flex w-full max-w-2xl flex-col gap-8 p-8">
-        <header className="flex flex-col items-center text-center">
-          <Mark className="mb-4 size-16 p-2 animate-glow-shimmer" />
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Get started with Kalaido
-            </h1>
-            <p className="text-body text-fg-2">
-              Choose how you&apos;d like to set up a workspace.
-            </p>
-          </div>
-        </header>
+  const importState: KalaidoscopeSetupState = { intent: "import" };
 
+  return (
+    <>
+      <OnboardingShell
+        title="Get started with Kalaido"
+        description="Choose how you'd like to set up a workspace."
+      >
         {restoreError && (
           <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
@@ -112,9 +104,17 @@ export default function OnboardingLanding() {
 
         <div className="flex flex-col gap-3">
           <PrimaryChoice
-            icon={<PlusIcon className="size-6" />}
-            title="Create New Workspace"
-            description="Start fresh with a brand new local or cloud workspace."
+            icon={<FolderInputIcon className="size-6" />}
+            title="Import your notes"
+            description="Bring in documents, notes or an email archive and let Kalaido organise them."
+            onClick={() =>
+              go(transitions.createForImport, { state: importState })
+            }
+          />
+          <SecondaryChoice
+            icon={<PlusIcon className="size-4" />}
+            title="Start from blank"
+            description="An empty local or cloud workspace."
             onClick={() => go(transitions.createWorkspace)}
           />
 
@@ -155,7 +155,7 @@ export default function OnboardingLanding() {
             <KalaidoscopeList className="flex flex-col" />
           </section>
         )}
-      </main>
+      </OnboardingShell>
 
       <DuplicateWorkspaceDialog
         open={pending?.kind === "collision"}
@@ -178,58 +178,7 @@ export default function OnboardingLanding() {
         }}
         onCancel={() => setPending(null)}
       />
-    </div>
-  );
-}
-
-interface ChoiceProps {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  disabled?: boolean;
-  onClick: () => void;
-}
-
-function PrimaryChoice({ icon, title, description, onClick }: ChoiceProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex min-h-[116px] items-center gap-4 rounded-lg border border-cyan-edge bg-cyan-veil p-5 text-left transition-[border-color,box-shadow] duration-150 hover:border-cyan hover:shadow-[0_0_16px_rgba(34,211,238,0.35)]"
-    >
-      <div className="flex size-12 shrink-0 items-center justify-center rounded-md border transition-colors group-hover:border-cyan-edge group-hover:bg-cyan-wash group-hover:text-cyan">
-        {icon}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-card-title font-bold">{title}</span>
-        <span className="text-[15px] text-fg-3">{description}</span>
-      </div>
-      <ArrowRight className="size-5 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
-    </button>
-  );
-}
-
-function SecondaryChoice({
-  icon,
-  title,
-  description,
-  disabled,
-  onClick,
-}: ChoiceProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="group flex h-full min-h-[116px] items-center gap-3.5 rounded-lg border border-dashed p-5 text-left transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
-    >
-      <div className="shrink-0 text-muted-foreground">{icon}</div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate text-card-title font-semibold">{title}</span>
-        <span className="text-[15px] text-fg-3">{description}</span>
-      </div>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
-    </button>
+    </>
   );
 }
 

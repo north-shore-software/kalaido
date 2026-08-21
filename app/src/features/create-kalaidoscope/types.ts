@@ -10,16 +10,6 @@ export interface KalaidoscopeSetupState {
   defaultStorage?: StorageType;
   /** Arrived straight from sign-up — greet them rather than showing a bare form. */
   firstWorkspace?: boolean;
-}
-
-/**
- * A post-kalaidoscope-creation action seeded from a template, rendered as a card on the
- * home page. Only `import` exists today. Persisted per kalaidoscope.
- */
-export interface KalaidoscopeAction {
-  id: string;
-  type: "import";
-  title: string;
-  description: string;
-  icon?: string;
+  /** Land on the onboarding import page once the workspace exists. */
+  intent?: "import";
 }
