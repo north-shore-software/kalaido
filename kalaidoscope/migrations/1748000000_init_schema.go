@@ -312,6 +312,7 @@ var schema = []tableDef{
 			&core.NumberField{Name: "prompt_tokens"},
 			&core.NumberField{Name: "completion_tokens"},
 			&core.NumberField{Name: "total_tokens"},
+			&core.NumberField{Name: "cached_tokens"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

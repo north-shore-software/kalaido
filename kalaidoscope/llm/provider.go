@@ -57,6 +57,7 @@ type Usage struct {
 	PromptTokens     int
 	CompletionTokens int
 	TotalTokens      int
+	CachedTokens     int
 	TokensPerSecond  float64
 }
 

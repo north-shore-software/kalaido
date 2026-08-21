@@ -73,9 +73,10 @@ type geminiStreamChunk struct {
 		} `json:"content"`
 	} `json:"candidates"`
 	UsageMetadata *struct {
-		PromptTokenCount     int `json:"promptTokenCount"`
-		CandidatesTokenCount int `json:"candidatesTokenCount"`
-		TotalTokenCount      int `json:"totalTokenCount"`
+		PromptTokenCount        int `json:"promptTokenCount"`
+		CandidatesTokenCount    int `json:"candidatesTokenCount"`
+		TotalTokenCount         int `json:"totalTokenCount"`
+		CachedContentTokenCount int `json:"cachedContentTokenCount"`
 	} `json:"usageMetadata"`
 }
 
@@ -219,6 +220,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 				usage.PromptTokens = u.PromptTokenCount
 				usage.CompletionTokens = u.CandidatesTokenCount
 				usage.TotalTokens = u.TotalTokenCount
+				usage.CachedTokens = u.CachedContentTokenCount
 				sawUsage = true
 			}
 			if len(chunk.Candidates) == 0 {
