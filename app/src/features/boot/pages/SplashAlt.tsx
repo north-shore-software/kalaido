@@ -1,5 +1,7 @@
+import { ArrowLeftIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/css-utils.ts";
+import { RouteLink } from "@/routes/route-link";
 import { defineRoute, defineTransitions } from "@/routes/route-kit";
 
 export interface SplashAltProps {
@@ -7,6 +9,7 @@ export interface SplashAltProps {
   density?: number;
   showStatus?: boolean;
   ending?: boolean;
+  progress?: number;
   onEnded?: () => void;
   onSnapshotReady?: () => void;
 }
@@ -592,7 +595,7 @@ function generateChips(): Chip[] {
       color: "#FF6B00",
       flip: false,
       size: 0.5,
-      alpha: 0.7,
+      alpha: 0.8,
     },
     {
       shape: "sq" as const,
@@ -640,23 +643,132 @@ function generateChips(): Chip[] {
   }));
 }
 
+function drawHexagonLoadingBar(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  R: number,
+  progress: number,
+  alpha: number,
+  lw: number,
+) {
+  const canvas = ctx.canvas;
+  const dprRatio = canvas ? canvas.width / (canvas.clientWidth || 1) : 1;
+  const gap8 = 8 * dprRatio;
+  const Rbar = R + gap8 / (Math.sqrt(3) / 2);
+  const H = Math.sqrt(3) * Rbar;
+  const waypoints: [number, number][] = [
+    [cx, cy - H],
+    [cx + Rbar, cy - H],
+    [cx + 2 * Rbar, cy],
+    [cx + Rbar, cy + H],
+    [cx - Rbar, cy + H],
+    [cx - 2 * Rbar, cy],
+    [cx - Rbar, cy - H],
+    [cx, cy - H],
+  ];
+  const segLengths = [
+    Rbar,
+    2 * Rbar,
+    2 * Rbar,
+    2 * Rbar,
+    2 * Rbar,
+    2 * Rbar,
+    Rbar,
+  ];
+  const totalLength = 12 * Rbar;
+  const barWidth = Math.max(7.2, lw * 5.4);
+
+  const clampedP = Math.max(0, Math.min(1, progress));
+  if (clampedP < 0.0005) return;
+
+  const targetDist = clampedP * totalLength;
+  let distSoFar = 0;
+
+  const barPath = new Path2D();
+  barPath.moveTo(waypoints[0][0], waypoints[0][1]);
+
+  for (let i = 0; i < segLengths.length; i++) {
+    const len = segLengths[i];
+    const p0 = waypoints[i];
+    const p1 = waypoints[i + 1];
+
+    if (distSoFar + len <= targetDist) {
+      barPath.lineTo(p1[0], p1[1]);
+      distSoFar += len;
+    } else {
+      const remaining = targetDist - distSoFar;
+      const frac = remaining / len;
+      const curX = p0[0] + (p1[0] - p0[0]) * frac;
+      const curY = p0[1] + (p1[1] - p0[1]) * frac;
+      barPath.lineTo(curX, curY);
+      break;
+    }
+  }
+
+  const W = canvas ? canvas.width : 2000;
+  const Hcanvas = canvas ? canvas.height : 2000;
+
+  const Hgeo = Math.sqrt(3) * R;
+  const innerHex: [number, number][] = [
+    [cx + R, cy - Hgeo],
+    [cx + 2 * R, cy],
+    [cx + R, cy + Hgeo],
+    [cx - R, cy + Hgeo],
+    [cx - 2 * R, cy],
+    [cx - R, cy - Hgeo],
+  ];
+
+  ctx.save();
+  const outerClip = new Path2D();
+  outerClip.rect(0, 0, W, Hcanvas);
+  outerClip.moveTo(innerHex[0][0], innerHex[0][1]);
+  for (let i = 1; i < innerHex.length; i++) {
+    outerClip.lineTo(innerHex[i][0], innerHex[i][1]);
+  }
+  outerClip.closePath();
+  ctx.clip(outerClip, "evenodd");
+
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.strokeStyle = "#0AB9EC";
+  ctx.lineWidth = barWidth;
+  ctx.shadowColor = "#0AB9EC";
+  ctx.shadowBlur = 8 * dprRatio;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.stroke(barPath);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.strokeStyle = "#0AB9EC";
+  ctx.lineWidth = barWidth;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.stroke(barPath);
+  ctx.restore();
+}
+
 export default function SplashAlt({
   speed = 1,
   density = 26,
   showStatus = true,
   ending = false,
+  progress,
   onEnded,
   onSnapshotReady,
 }: SplashAltProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [status, setStatus] = useState(PHRASES[0]);
   const [statusOpacity, setStatusOpacity] = useState(1);
+  const [percent, setPercent] = useState(0);
   const [phase, setPhase] = useState<"run" | "done">("run");
 
   const stateRef = useRef({
     speed,
     density,
     ending,
+    progress,
     onEnded,
     onSnapshotReady,
     endAt: null as number | null,
@@ -666,11 +778,13 @@ export default function SplashAlt({
     last: performance.now(),
     ft: 0,
     pi: 0,
+    lastPercent: 0,
     chips: generateChips(),
   });
 
   stateRef.current.speed = speed;
   stateRef.current.density = density;
+  stateRef.current.progress = progress;
   stateRef.current.onEnded = onEnded;
   stateRef.current.onSnapshotReady = onSnapshotReady;
 
@@ -771,7 +885,7 @@ export default function SplashAlt({
       const pad120 = 120 * dprRatio;
       const maxRByH = Math.max(30, (H - 2 * pad120) / (2 * Math.sqrt(3)));
       const maxRByW = Math.max(30, (W - 2 * pad120) / 4);
-      const R = Math.min(maxRByH, maxRByW);
+      const R = Math.min(maxRByH, maxRByW) * 0.8;
 
       const cx = W / 2;
       const cy = H / 2;
@@ -812,116 +926,129 @@ export default function SplashAlt({
           chipPos(c, ft, R, ex, t, i),
         );
 
-        const Rbig = 2 * R;
+        const colStep = 1.5 * R;
+        const rowStep = Math.sqrt(3) * R;
+        const cols = Math.ceil((cx + R) / colStep) + 1;
+        const rows = Math.ceil((cy + R) / rowStep) + 1;
 
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(baseAngle);
-        ctx.beginPath();
-        for (let k = 0; k < 6; k++) {
-          const a = Math.PI / 6 + (k * Math.PI) / 3;
-          if (k === 0) {
-            ctx.moveTo(Rbig * Math.cos(a), Rbig * Math.sin(a));
-          } else {
-            ctx.lineTo(Rbig * Math.cos(a), Rbig * Math.sin(a));
-          }
-        }
-        ctx.closePath();
-        ctx.clip();
+        for (let col = -cols; col <= cols; col++) {
+          for (let row = -rows; row <= rows; row++) {
+            const hexX = cx + col * colStep;
+            const hexY = cy + row * rowStep + (col % 2 !== 0 ? rowStep / 2 : 0);
 
-        const hexCenters: [number, number, boolean][] = [[0, 0, true]];
-        for (let k = 0; k < 6; k++) {
-          const a = (k * Math.PI) / 3;
-          const dist = Math.sqrt(3) * R;
-          hexCenters.push([dist * Math.cos(a), dist * Math.sin(a), false]);
-        }
-
-        for (const [hx, hy, isCenterHex] of hexCenters) {
-          ctx.save();
-          ctx.translate(hx, hy);
-          ctx.beginPath();
-          for (let k = 0; k < 6; k++) {
-            const a = Math.PI / 6 + (k * Math.PI) / 3;
-            if (k === 0) {
-              ctx.moveTo(R * Math.cos(a), R * Math.sin(a));
-            } else {
-              ctx.lineTo(R * Math.cos(a), R * Math.sin(a));
+            if (
+              hexX < -R * 1.5 ||
+              hexX > W + R * 1.5 ||
+              hexY < -R * 1.5 ||
+              hexY > H + R * 1.5
+            ) {
+              continue;
             }
-          }
-          ctx.closePath();
-          ctx.clip();
 
-          for (let k = 0; k < 6; k++) {
+            const isCenterHex = col === 0 && row === 0;
+
             ctx.save();
-            ctx.rotate((k * Math.PI) / 3);
-            if (k % 2 === 1) ctx.scale(1, -1);
+            ctx.translate(hexX, hexY);
+            ctx.rotate(baseAngle);
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(R * Math.cos(-Math.PI / 6), R * Math.sin(-Math.PI / 6));
-            ctx.lineTo(R * Math.cos(Math.PI / 6), R * Math.sin(Math.PI / 6));
+            for (let k = 0; k < 6; k++) {
+              const a = Math.PI / 6 + (k * Math.PI) / 3;
+              if (k === 0) {
+                ctx.moveTo(R * Math.cos(a), R * Math.sin(a));
+              } else {
+                ctx.lineTo(R * Math.cos(a), R * Math.sin(a));
+              }
+            }
             ctx.closePath();
             ctx.clip();
 
-            for (const i of DRAW_ORDER) {
-              if (i >= st.chips.length) continue;
-              const c = st.chips[i];
-              if (c.hero && blending && k === 0 && isCenterHex) continue;
-              const shimmer = 0.82 + 0.18 * Math.sin(ft * c.wa + c.seed);
-              const a =
-                c.shape === "k"
-                  ? c.alpha * b * b * g
-                  : c.alpha * shimmer * b * g;
-              if (a < 0.01) continue;
-              const p = chipPositions[i];
+            for (let k = 0; k < 6; k++) {
               ctx.save();
-              ctx.translate(p.x, p.y);
-              ctx.rotate(p.rot);
-              drawOneChip(ctx, c, c.size * R, a, lw);
+              ctx.rotate((k * Math.PI) / 3);
+              if (k % 2 === 1) ctx.scale(1, -1);
+              ctx.beginPath();
+              ctx.moveTo(0, 0);
+              ctx.lineTo(
+                R * Math.cos(-Math.PI / 6),
+                R * Math.sin(-Math.PI / 6),
+              );
+              ctx.lineTo(R * Math.cos(Math.PI / 6), R * Math.sin(Math.PI / 6));
+              ctx.closePath();
+              ctx.clip();
+
+              for (const i of DRAW_ORDER) {
+                if (i >= st.chips.length) continue;
+                const c = st.chips[i];
+                if (c.hero && blending && k === 0 && isCenterHex) continue;
+                const shimmer = 0.82 + 0.18 * Math.sin(ft * c.wa + c.seed);
+                const a =
+                  c.shape === "k"
+                    ? c.alpha * b * b * g
+                    : c.alpha * shimmer * b * g;
+                if (a < 0.01) continue;
+                const p = chipPositions[i];
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                drawOneChip(ctx, c, c.size * R, a, lw);
+                ctx.restore();
+              }
               ctx.restore();
             }
             ctx.restore();
+
+            ctx.save();
+            ctx.translate(hexX, hexY);
+            ctx.rotate(baseAngle);
+            ctx.globalAlpha = b * g;
+            ctx.strokeStyle = "rgba(140, 140, 140, 0.35)";
+            ctx.lineWidth = lw;
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) {
+              const a1 = -Math.PI / 6 + (k * Math.PI) / 3;
+              const a2 = Math.PI / 6 + (k * Math.PI) / 3;
+              ctx.moveTo(0, 0);
+              ctx.lineTo(R * Math.cos(a1), R * Math.sin(a1));
+              ctx.lineTo(R * Math.cos(a2), R * Math.sin(a2));
+              ctx.lineTo(0, 0);
+            }
+            ctx.stroke();
+            ctx.restore();
           }
-          ctx.restore();
         }
-        ctx.restore();
 
         ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(baseAngle);
-        ctx.globalAlpha = b * g;
-        ctx.strokeStyle = "rgba(140, 140, 140, 0.35)";
-        ctx.lineWidth = lw;
+        ctx.globalAlpha = Math.max(0, Math.min(1, b * g));
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
         ctx.beginPath();
-        for (let k = 0; k < 6; k++) {
-          const aLeft = -Math.PI / 6 + (k * Math.PI) / 3;
-          const aRight = Math.PI / 6 + (k * Math.PI) / 3;
-          const aMid = (k * Math.PI) / 3;
-          const rMid = Math.sqrt(3) * R;
-          const r1 = R;
-          const r2 = 2 * R;
+        ctx.rect(0, 0, W, H);
 
-          ctx.moveTo(0, 0);
-          ctx.lineTo(r1 * Math.cos(aLeft), r1 * Math.sin(aLeft));
-          ctx.lineTo(r1 * Math.cos(aRight), r1 * Math.sin(aRight));
-          ctx.lineTo(0, 0);
-
-          ctx.moveTo(r1 * Math.cos(aRight), r1 * Math.sin(aRight));
-          ctx.lineTo(r2 * Math.cos(aRight), r2 * Math.sin(aRight));
-          ctx.lineTo(rMid * Math.cos(aMid), rMid * Math.sin(aMid));
-          ctx.closePath();
-
-          ctx.moveTo(r1 * Math.cos(aLeft), r1 * Math.sin(aLeft));
-          ctx.lineTo(r2 * Math.cos(aLeft), r2 * Math.sin(aLeft));
-          ctx.lineTo(rMid * Math.cos(aMid), rMid * Math.sin(aMid));
-          ctx.closePath();
-
-          ctx.moveTo(r1 * Math.cos(aLeft), r1 * Math.sin(aLeft));
-          ctx.lineTo(r1 * Math.cos(aRight), r1 * Math.sin(aRight));
-          ctx.lineTo(rMid * Math.cos(aMid), rMid * Math.sin(aMid));
-          ctx.closePath();
+        const Hgeo = Math.sqrt(3) * R;
+        const hexCutout: [number, number][] = [
+          [cx + R, cy - Hgeo],
+          [cx + 2 * R, cy],
+          [cx + R, cy + Hgeo],
+          [cx - R, cy + Hgeo],
+          [cx - 2 * R, cy],
+          [cx - R, cy - Hgeo],
+        ];
+        ctx.moveTo(hexCutout[0][0], hexCutout[0][1]);
+        for (let i = 1; i < hexCutout.length; i++) {
+          ctx.lineTo(hexCutout[i][0], hexCutout[i][1]);
         }
-        ctx.stroke();
+        ctx.closePath();
+
+        ctx.fill("evenodd");
         ctx.restore();
+
+        const activeProg =
+          st.progress !== undefined ? st.progress : (t % 20.0) / 20.0;
+        const curPct = Math.round(activeProg * 100);
+        if (curPct !== st.lastPercent) {
+          st.lastPercent = curPct;
+          setPercent(curPct);
+        }
+        drawHexagonLoadingBar(ctx, cx, cy, R, activeProg, b * g, lw);
       }
 
       if (blending && g > 0.003) {
@@ -962,16 +1089,28 @@ export default function SplashAlt({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-background">
+      <RouteLink
+        transition={splashAltTransitions.backToDashboard}
+        className="absolute top-9 left-4 z-50 flex items-center gap-1.5 rounded border border-line bg-surface-1/80 px-3 py-1.5 font-mono text-[12px] text-fg-3 backdrop-blur-sm transition-colors hover:bg-surface-2 hover:text-fg-1 cursor-pointer"
+      >
+        <ArrowLeftIcon className="size-3.5" />
+        Dashboard
+      </RouteLink>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 block h-full w-full"
       />
       {showStatus && (
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-13 text-center font-mono text-[13px] tracking-[0.08em] text-fg-4 transition-opacity duration-600 ease-[cubic-bezier(0.2,0.7,0.2,1)]"
-          style={{ opacity: statusOpacity }}
-        >
-          {status}
+        <div className="pointer-events-none absolute inset-x-0 bottom-30 flex flex-col items-center justify-center gap-1 text-center font-mono select-none">
+          <div className="tabular-nums font-mono text-[14px] font-semibold tracking-[0.1em] text-[#0AB9EC]">
+            {percent}%
+          </div>
+          <div
+            className="text-[13px] tracking-[0.08em] text-white transition-opacity duration-600 ease-[cubic-bezier(0.2,0.7,0.2,1)]"
+            style={{ opacity: statusOpacity }}
+          >
+            {status}
+          </div>
         </div>
       )}
       <button
@@ -996,11 +1135,18 @@ export default function SplashAlt({
   );
 }
 
+export const splashAltTransitions = defineTransitions({
+  backToDashboard: {
+    to: "main",
+    trigger: "Click back button to dashboard",
+  },
+});
+
 export const splashAltRoute = defineRoute({
   id: "splash-alt",
   path: "/splash-alt",
   feature: "Boot",
   requiredScope: [],
-  transitions: defineTransitions({}),
+  transitions: splashAltTransitions,
   Component: SplashAlt,
 });
