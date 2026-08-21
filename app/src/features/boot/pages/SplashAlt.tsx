@@ -649,62 +649,29 @@ function drawHexagonLoadingBar(
   cy: number,
   R: number,
   progress: number,
+  t: number,
   alpha: number,
   lw: number,
 ) {
   const canvas = ctx.canvas;
   const dprRatio = canvas ? canvas.width / (canvas.clientWidth || 1) : 1;
-  const gap8 = 8 * dprRatio;
-  const Rbar = R + gap8 / (Math.sqrt(3) / 2);
+  const gap12 = 12 * dprRatio;
+  const Rbar = R + gap12 / (Math.sqrt(3) / 2);
   const H = Math.sqrt(3) * Rbar;
-  const waypoints: [number, number][] = [
-    [cx, cy - H],
+
+  const vertices: [number, number][] = [
     [cx + Rbar, cy - H],
     [cx + 2 * Rbar, cy],
     [cx + Rbar, cy + H],
     [cx - Rbar, cy + H],
     [cx - 2 * Rbar, cy],
     [cx - Rbar, cy - H],
-    [cx, cy - H],
   ];
-  const segLengths = [
-    Rbar,
-    2 * Rbar,
-    2 * Rbar,
-    2 * Rbar,
-    2 * Rbar,
-    2 * Rbar,
-    Rbar,
-  ];
-  const totalLength = 12 * Rbar;
+
   const barWidth = Math.max(7.2, lw * 5.4);
-
   const clampedP = Math.max(0, Math.min(1, progress));
-  if (clampedP < 0.0005) return;
-
-  const targetDist = clampedP * totalLength;
-  let distSoFar = 0;
-
-  const barPath = new Path2D();
-  barPath.moveTo(waypoints[0][0], waypoints[0][1]);
-
-  for (let i = 0; i < segLengths.length; i++) {
-    const len = segLengths[i];
-    const p0 = waypoints[i];
-    const p1 = waypoints[i + 1];
-
-    if (distSoFar + len <= targetDist) {
-      barPath.lineTo(p1[0], p1[1]);
-      distSoFar += len;
-    } else {
-      const remaining = targetDist - distSoFar;
-      const frac = remaining / len;
-      const curX = p0[0] + (p1[0] - p0[0]) * frac;
-      const curY = p0[1] + (p1[1] - p0[1]) * frac;
-      barPath.lineTo(curX, curY);
-      break;
-    }
-  }
+  const stage = clampedP >= 0.999 ? 6 : Math.floor(clampedP * 6);
+  const pulse = 0.55 + 0.45 * Math.sin(t * 6.0);
 
   const W = canvas ? canvas.width : 2000;
   const Hcanvas = canvas ? canvas.height : 2000;
@@ -729,23 +696,77 @@ function drawHexagonLoadingBar(
   outerClip.closePath();
   ctx.clip(outerClip, "evenodd");
 
-  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
   ctx.strokeStyle = "#0AB9EC";
-  ctx.lineWidth = barWidth;
   ctx.shadowColor = "#0AB9EC";
-  ctx.shadowBlur = 8 * dprRatio;
-  ctx.lineCap = "butt";
+  ctx.lineCap = "round";
   ctx.lineJoin = "miter";
-  ctx.stroke(barPath);
+
+  if (stage > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.lineWidth = barWidth;
+    ctx.shadowBlur = 8 * dprRatio;
+    ctx.beginPath();
+    ctx.moveTo(vertices[0][0], vertices[0][1]);
+    for (let k = 1; k <= stage; k++) {
+      const v = vertices[k % 6];
+      ctx.lineTo(v[0], v[1]);
+    }
+    if (stage === 6) {
+      ctx.closePath();
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (stage < 6) {
+    const p0 = vertices[stage];
+    const p1 = vertices[(stage + 1) % 6];
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha * pulse));
+    ctx.lineWidth = barWidth;
+    ctx.shadowBlur = (6 + 12 * pulse) * dprRatio;
+    ctx.beginPath();
+    ctx.moveTo(p0[0], p0[1]);
+    ctx.lineTo(p1[0], p1[1]);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();
 
   ctx.save();
-  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
   ctx.strokeStyle = "#0AB9EC";
-  ctx.lineWidth = barWidth;
-  ctx.lineCap = "butt";
+  ctx.lineCap = "round";
   ctx.lineJoin = "miter";
-  ctx.stroke(barPath);
+  ctx.lineWidth = barWidth;
+
+  if (stage > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.beginPath();
+    ctx.moveTo(vertices[0][0], vertices[0][1]);
+    for (let k = 1; k <= stage; k++) {
+      const v = vertices[k % 6];
+      ctx.lineTo(v[0], v[1]);
+    }
+    if (stage === 6) {
+      ctx.closePath();
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (stage < 6) {
+    const p0 = vertices[stage];
+    const p1 = vertices[(stage + 1) % 6];
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha * pulse));
+    ctx.beginPath();
+    ctx.moveTo(p0[0], p0[1]);
+    ctx.lineTo(p1[0], p1[1]);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -1048,7 +1069,7 @@ export default function SplashAlt({
           st.lastPercent = curPct;
           setPercent(curPct);
         }
-        drawHexagonLoadingBar(ctx, cx, cy, R, activeProg, b * g, lw);
+        drawHexagonLoadingBar(ctx, cx, cy, R, activeProg, t, b * g, lw);
       }
 
       if (blending && g > 0.003) {
@@ -1101,7 +1122,7 @@ export default function SplashAlt({
         className="absolute inset-0 block h-full w-full"
       />
       {showStatus && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-30 flex flex-col items-center justify-center gap-1 text-center font-mono select-none">
+        <div className="pointer-events-none absolute inset-x-0 bottom-26 flex flex-col items-center justify-center gap-1 text-center font-mono select-none">
           <div className="tabular-nums font-mono text-[14px] font-semibold tracking-[0.1em] text-[#0AB9EC]">
             {percent}%
           </div>
