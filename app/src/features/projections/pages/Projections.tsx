@@ -10,14 +10,27 @@ import {
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/kalaido";
+import { EmptyState, Mono } from "@/components/kalaido";
 import { isPinned } from "@/lib/pins";
+import { useContextSources } from "@/hooks/use-context-sources";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
+import { parseContextSpec } from "@/api/kalaidoscope/chat";
+import { resolveSources } from "@/features/projections/sources";
 import { getProjectionStatus } from "@/features/projections/status";
+import {
+  type ProjectionTier,
+  tierProjections,
+} from "@/features/projections/tiers";
 import { updateProjection } from "@/api/kalaidoscope/projections";
 import type { ProjectionResponse } from "@/api/kalaidoscope/types";
 import { ProjCard } from "@/features/projections/components/projection-card";
+
+const TIER_ORDER: { tier: ProjectionTier; label: string }[] = [
+  { tier: "direct", label: "Direct" },
+  { tier: "derived", label: "Derived" },
+  { tier: "composite", label: "Composite" },
+];
 
 async function togglePin(p: ProjectionResponse) {
   const res = await updateProjection(p.id, { pinned: !isPinned(p.pinned_by) });
@@ -47,6 +60,36 @@ export default function Projections() {
   }, [pending.records]);
 
   const { byId: statusById } = useRotationStatus();
+  const contextSources = useContextSources();
+  const tiers = useMemo(() => tierProjections(projections), [projections]);
+
+  function renderCard(p: ProjectionResponse) {
+    const candidateId = candidateByProjection.get(p.id);
+    return (
+      <ProjCard
+        key={p.id}
+        p={p}
+        candidateId={candidateId}
+        status={getProjectionStatus(statusById.get(p.id), !!candidateId)}
+        brief={p.brief}
+        sources={resolveSources(
+          parseContextSpec(p.current_context_spec),
+          contextSources,
+        )}
+        onOpen={(id) =>
+          go(projectionsTransitions.openProjection, {
+            params: { id },
+          })
+        }
+        onReview={(id, candId) =>
+          go(projectionsTransitions.reviewProjection, {
+            params: { id, snapshotId: candId },
+          })
+        }
+        onTogglePin={() => void togglePin(p)}
+      />
+    );
+  }
 
   return (
     <PageLayout>
@@ -70,32 +113,20 @@ export default function Projections() {
               : "No projections yet. Create one to get started."}
           </EmptyState>
         ) : (
-          <div className="flex flex-wrap gap-4">
-            {projections.map((p) => {
-              const candidateId = candidateByProjection.get(p.id);
-              return (
-                <ProjCard
-                  key={p.id}
-                  p={p}
-                  candidateId={candidateId}
-                  status={getProjectionStatus(
-                    statusById.get(p.id),
-                    !!candidateId,
-                  )}
-                  onOpen={(id) =>
-                    go(projectionsTransitions.openProjection, {
-                      params: { id },
-                    })
-                  }
-                  onReview={(id, candId) =>
-                    go(projectionsTransitions.reviewProjection, {
-                      params: { id, snapshotId: candId },
-                    })
-                  }
-                  onTogglePin={() => void togglePin(p)}
-                />
-              );
-            })}
+          <div className="flex items-start gap-8 overflow-x-auto">
+            {TIER_ORDER.map(({ tier, label }) =>
+              tiers[tier].length === 0 ? null : (
+                <section key={tier} className="flex shrink-0 flex-col gap-3">
+                  <Mono className="flex items-center gap-2 text-label font-semibold uppercase text-fg-4">
+                    <span className="size-[5px] rounded-full bg-fg-3" />
+                    {label} · {tiers[tier].length}
+                  </Mono>
+                  <div className="flex flex-col gap-3">
+                    {tiers[tier].map(renderCard)}
+                  </div>
+                </section>
+              ),
+            )}
           </div>
         )}
       </PageBody>

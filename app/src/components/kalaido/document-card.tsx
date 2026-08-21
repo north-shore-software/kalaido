@@ -7,7 +7,8 @@ interface DocumentCardProps {
   leading?: ReactNode;
   title: ReactNode;
   trailing?: ReactNode;
-  lines: (number | string)[];
+  lines?: (number | string)[];
+  children?: ReactNode;
   contentClassName?: string;
   footer?: ReactNode;
   onClick?: () => void;
@@ -24,6 +25,7 @@ export function DocumentCard({
   title,
   trailing,
   lines,
+  children,
   contentClassName,
   footer,
   onClick,
@@ -49,7 +51,8 @@ export function DocumentCard({
             contentClassName,
           )}
         >
-          <Lines widths={lines} h={6} className="bg-surface-2" />
+          {children ??
+            (lines && <Lines widths={lines} h={6} className="bg-surface-2" />)}
         </div>
       </div>
       {footer && <div className="p-3.5">{footer}</div>}

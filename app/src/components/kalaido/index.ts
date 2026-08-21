@@ -40,6 +40,7 @@ export {
   OptionCards,
   type OptionCardsProps,
 } from "./option-cards";
+export { KindPill, type PillKind } from "./kind-pill";
 export { Pill } from "./pill";
 export { PinToggle } from "./pin-toggle";
 export { RefineChatPanel } from "./refine-chat-panel";
