@@ -1,5 +1,6 @@
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { proxy } from "valtio";
+import type { RouteId } from "@/routes/route-ids";
 import { getAllSettings } from "@/api/app/settings.ts";
 import { toError } from "@/lib/errors.ts";
 
@@ -7,6 +8,9 @@ export type StageError = {
   message: string;
   detail?: string;
 };
+
+/** Where an opening workspace lands instead of the dashboard. */
+export type StageEntry = Extract<RouteId, "onboarding-import">;
 
 export type AppStage =
   | {
@@ -27,10 +31,12 @@ export type AppStage =
   | {
       stage: "kalaidoscope_open";
       selectedKalaidoscopeId: string;
+      entry?: StageEntry;
     }
   | {
       stage: "kalaidoscope_load_requested";
       loadKalaidoscopeId: string;
+      entry?: StageEntry;
     };
 
 export function stageError(e: unknown): StageError {

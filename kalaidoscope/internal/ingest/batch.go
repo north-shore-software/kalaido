@@ -55,6 +55,7 @@ type ingestConfig struct {
 	limit          int
 	extensions     []string
 	skipDuplicates bool
+	organizeAfter  bool
 }
 
 func run(ctx context.Context, app core.App, opts options, progress func(ingested int)) (int, error) {
@@ -96,6 +97,7 @@ func readConfig(rec *core.Record) ingestConfig {
 		limit:          int(rec.GetInt("limit")),
 		extensions:     normalizeExtensions(rec.GetString("extensions")),
 		skipDuplicates: rec.GetBool("skip_duplicates"),
+		organizeAfter:  rec.GetBool("organize_after"),
 	}
 }
 
@@ -155,7 +157,15 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		log.Printf("ingest: save status for %s: %v", recID, err)
 	}
 	log.Printf("ingest: completed record %s (ingested %d fragments across %d file(s))", recID, total, len(files))
-	mapping.Signal()
+	switch {
+	case cfg.organizeAfter && ingestErr != nil:
+		setPipeline(app, recID, "error", ingestErr)
+		mapping.Signal()
+	case cfg.organizeAfter:
+		startPipeline(app, recID)
+	default:
+		mapping.Signal()
+	}
 }
 
 func normalizeExtensions(s string) []string {

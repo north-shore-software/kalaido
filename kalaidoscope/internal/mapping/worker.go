@@ -9,6 +9,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -37,6 +38,8 @@ func mapBudgets(ctxWindowTokens int) (mapBudgetBytes, chunkBudgetBytes int) {
 
 var signal = make(chan struct{}, 1)
 
+var followUps followup.Queue
+
 var workerApp core.App
 
 func Register(app core.App) {
@@ -60,6 +63,10 @@ func Signal() {
 	}
 }
 
+func AfterDrain(fn func(err error)) {
+	followUps.Add(fn)
+}
+
 func SignalIfBacklog(app core.App) {
 	if batchIngestActive(app) {
 		return
@@ -81,7 +88,12 @@ func batchIngestActive(app core.App) bool {
 
 func loop() {
 	for range signal {
-		drain(workerApp)
+		active := followUps.Take()
+		err := drain(workerApp)
+		if err != nil {
+			log.Printf("mapping: drain: %v", err)
+		}
+		followup.Run(active, err)
 	}
 }
 
@@ -154,46 +166,40 @@ func buildChunks(frags []*core.Record, firstIsRaw bool, budget int) [][]*core.Re
 	return chunks
 }
 
-func drain(app core.App) {
+func drain(app core.App) error {
 	frags, err := pendingFragments(app)
 	if err != nil {
-		log.Printf("mapping: drain: %v", err)
-		return
+		return err
 	}
 	if len(frags) == 0 {
-		return
+		return nil
 	}
 
 	m, err := loadMap(app)
 	if err != nil {
-		log.Printf("mapping: drain: %v", err)
-		return
+		return err
 	}
 
 	mapModel, err := llm.ResolveRole(llm.RoleMap)
 	if err != nil {
-		log.Printf("mapping: drain: %v", err)
-		return
+		return err
 	}
 	mapBudgetBytes, chunkBudgetBytes := mapBudgets(llm.SelectedProvider(mapModel).ContextWindow())
 	annotateModel, err := llm.ResolveRole(llm.RoleAnnotate)
 	if err != nil {
-		log.Printf("mapping: drain: %v", err)
-		return
+		return err
 	}
 
 	runCol, err := app.FindCollectionByNameOrId("map_run")
 	if err != nil {
-		log.Printf("mapping: drain: %v", err)
-		return
+		return err
 	}
 	run := core.NewRecord(runCol)
 	run.Set("status", "running")
 	run.Set("fragments_total", len(frags))
 	run.Set("map_version_start", m.version)
 	if err := app.Save(run); err != nil {
-		log.Printf("mapping: drain: %v", err)
-		return
+		return err
 	}
 
 	ctx := context.Background()
@@ -218,8 +224,7 @@ func drain(app core.App) {
 			if serr := app.Save(run); serr != nil {
 				log.Printf("mapping: save run: %v", serr)
 			}
-			log.Printf("mapping: drain aborted at chunk %d/%d: %v", i+1, len(chunks), err)
-			return
+			return fmt.Errorf("drain aborted at chunk %d/%d: %w", i+1, len(chunks), err)
 		}
 		processed += len(chunk)
 		expansions += exp
@@ -236,6 +241,7 @@ func drain(app core.App) {
 	if err := app.Save(run); err != nil {
 		log.Printf("mapping: save run: %v", err)
 	}
+	return nil
 }
 
 func retryPreempted(f func() error) error {

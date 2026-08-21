@@ -1,7 +1,11 @@
 import { err, ok, type Result } from "neverthrow";
 import { startLocalKalaidoscope } from "@/api/app/local-scopes";
 import { setSetting } from "@/api/app/settings.ts";
-import { appState, stageError } from "@/hooks/use-app-state.ts";
+import {
+  appState,
+  type StageEntry,
+  stageError,
+} from "@/hooks/use-app-state.ts";
 import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
 import { setActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
 import { openKalaidoscope, setAppStage } from "@/hooks/app-state-actions.ts";
@@ -9,11 +13,12 @@ import { toError } from "@/lib/errors.ts";
 
 export interface SwitchOptions {
   surfaceError?: boolean;
+  entry?: StageEntry;
 }
 
 export async function switchLocalKalaidoscope(
   targetId: string,
-  { surfaceError = true }: SwitchOptions = {},
+  { surfaceError = true, entry }: SwitchOptions = {},
 ): Promise<Result<void, Error>> {
   const meta = appState.availableKalaidoscopes.find((k) => k.id === targetId);
   if (!meta) {
@@ -44,7 +49,7 @@ export async function switchLocalKalaidoscope(
     // `kalaidoscope_open` means "client ready".
     setActiveKalaidoscopeClient(await createKalaidoscopeClient(meta));
 
-    openKalaidoscope(targetId);
+    openKalaidoscope(targetId, entry);
 
     // The setting is what boot reopens on next launch, so it has to track what
     // is actually open. It used to be written only on creation, which made it

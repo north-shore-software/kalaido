@@ -7,6 +7,8 @@ import { onboardingLandingRoute } from "@/features/onboarding/pages/OnboardingLa
 import { onboardingLoginRoute } from "@/features/onboarding/pages/OnboardingLogin";
 import { cloudWorkspacesRoute } from "@/features/onboarding/pages/CloudWorkspaces";
 import { kalaidoscopeSetupRoute } from "@/features/create-kalaidoscope/pages/KalaidoscopeSetup";
+import { onboardingImportRoute } from "@/features/onboarding/pages/OnboardingImport";
+import { onboardingOrganizingRoute } from "@/features/onboarding/pages/OnboardingOrganizing";
 import { settingsRoute } from "@/features/settings/pages/Settings";
 import { mainRoute } from "@/features/dashboard/pages/Main";
 import { streamRoute } from "@/features/fragments/pages/Stream";
@@ -29,6 +31,8 @@ export const appRoutes: RouteDef[] = [
   onboardingLoginRoute,
   cloudWorkspacesRoute,
   kalaidoscopeSetupRoute,
+  onboardingImportRoute,
+  onboardingOrganizingRoute,
   settingsRoute,
   mainRoute,
   streamRoute,

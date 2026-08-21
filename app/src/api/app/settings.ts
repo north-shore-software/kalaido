@@ -1,7 +1,6 @@
 import { load, type Store } from "@tauri-apps/plugin-store";
 import type { Result } from "neverthrow";
 import { tauriResult } from "@/api/app/_invoke.ts";
-import type { KalaidoscopeAction } from "@/features/create-kalaidoscope";
 import type { AppState } from "@/hooks/use-app-state.ts";
 
 export type PersistentAppSetting = Pick<
@@ -12,8 +11,6 @@ export type PersistentAppSetting = Pick<
   ollamaModel: string;
   /** Pinned projection ids, keyed by kalaidoscope id. */
   pinnedProjections: Record<string, string[]>;
-  /** Home-page action cards, keyed by kalaidoscope id. */
-  kalaidoscopeActions: Record<string, KalaidoscopeAction[]>;
 };
 
 const STORE_FILE = "kalaido-settings.json";

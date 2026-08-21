@@ -3,11 +3,13 @@ package organize
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -20,9 +22,14 @@ const (
 	maxThrottledAttempts  = 6
 )
 
-// No automatic trigger sites — dev-button-only, per explicit ask. Same
+// Triggered by the dev button and by an onboarding ingest chained through
+// internal/ingest's pipeline — never by fragment writes. Same
 // coalescing-signal + single-goroutine shape as internal/mapping's worker.
 var signal = make(chan struct{}, 1)
+
+var followUps followup.Queue
+
+var errNoMap = errors.New("organize: no finished map to explore")
 
 var workerApp core.App
 
@@ -38,43 +45,47 @@ func Signal() {
 	}
 }
 
+func AfterDrain(fn func(err error)) {
+	followUps.Add(fn)
+}
+
 func loop() {
 	for range signal {
-		drain(workerApp)
+		active := followUps.Take()
+		err := drain(workerApp)
+		if err != nil && !errors.Is(err, errNoMap) {
+			log.Printf("organize: drain: %v", err)
+		}
+		followup.Run(active, err)
 	}
 }
 
-func drain(app core.App) {
+func drain(app core.App) error {
 	mapBody, mapVersion, err := loadFinishedMap(app)
 	if err != nil {
-		log.Printf("organize: drain: %v", err)
-		return
+		return err
 	}
 	if mapBody == "" {
-		return
+		return errNoMap
 	}
 
 	idx, err := buildMapIndexes(mapBody)
 	if err != nil {
-		log.Printf("organize: drain: %v", err)
-		return
+		return err
 	}
 	annIdx, err := buildAnnotationIndex(app)
 	if err != nil {
-		log.Printf("organize: drain: %v", err)
-		return
+		return err
 	}
 
 	model, err := llm.ResolveRole(llm.RoleMap)
 	if err != nil {
-		log.Printf("organize: drain: %v", err)
-		return
+		return err
 	}
 
 	runCol, err := app.FindCollectionByNameOrId("organize_run")
 	if err != nil {
-		log.Printf("organize: drain: %v", err)
-		return
+		return err
 	}
 	run := core.NewRecord(runCol)
 	run.Set("status", "running")
@@ -82,8 +93,7 @@ func drain(app core.App) {
 	run.Set("model", model)
 	run.Set("explorations", 1) // root itself
 	if err := app.Save(run); err != nil {
-		log.Printf("organize: drain: %v", err)
-		return
+		return err
 	}
 
 	ctx := context.Background()
@@ -101,13 +111,15 @@ func drain(app core.App) {
 	wg.Wait()
 
 	mu.Lock()
+	defer mu.Unlock()
 	if run.GetString("status") == "running" {
 		run.Set("status", "done")
 		if err := app.Save(run); err != nil {
 			log.Printf("organize: save run: %v", err)
 		}
+		return nil
 	}
-	mu.Unlock()
+	return fmt.Errorf("organize: run %s: %s", run.Id, run.GetString("error"))
 }
 
 // retryPreempted mirrors internal/mapping/worker.go's helper exactly: a

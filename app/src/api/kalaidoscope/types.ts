@@ -207,6 +207,9 @@ export type IngestRecord = {
 	id: string
 	ingested?: number
 	limit?: number
+	organize_after?: boolean
+	pipeline?: string
+	pipeline_error?: string
 	skip_duplicates?: boolean
 	status?: string
 	updated: IsoAutoDateString
