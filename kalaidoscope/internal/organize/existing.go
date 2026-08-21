@@ -34,6 +34,8 @@ func listExisting(app core.App, run *core.Record, registry *runRegistry) string 
 
 	for _, c := range registry.snapshot() {
 		switch c.status {
+		case "finished":
+			// Its creations are listed on their own.
 		case "exploring":
 			lines = append(lines, prompts.OrganizeExistingInProgress(c.brief, formatNodeRefs(c.nodes)))
 		case "created":
@@ -41,7 +43,7 @@ func listExisting(app core.App, run *core.Record, registry *runRegistry) string 
 			// window between Save and a sibling's query could miss one, and
 			// the description is cheap, so list it regardless under its own
 			// origin label and let the model see it twice at worst.
-			lines = append(lines, prompts.OrganizeExistingEntity(c.kind, c.name, c.brief, formatNodeRefs(c.nodes), "", "this run"))
+			lines = append(lines, prompts.OrganizeExistingEntity(c.kind, c.id, c.name, c.brief, formatNodeRefs(c.nodes), "", "this run"))
 		}
 	}
 
@@ -66,6 +68,12 @@ func describeEntity(app core.App, kind string, r *core.Record, runID string) str
 	scope := "whole workspace"
 	if !spec.WholeScope {
 		scope = colourNames(app, spec.ColourIDs)
+		if n := len(spec.SourceProjectionIDs) + len(spec.SourceReflectionIDs); n > 0 {
+			if scope != "" {
+				scope += "; "
+			}
+			scope += fmt.Sprintf("built on %d source entit%s", n, map[bool]string{true: "y", false: "ies"}[n == 1])
+		}
 		if scope == "" {
 			scope = "(no colours)"
 		}
@@ -81,7 +89,7 @@ func describeEntity(app core.App, kind string, r *core.Record, runID string) str
 		}
 	}
 
-	return prompts.OrganizeExistingEntity(kind, r.GetString("name"), r.GetString("brief"), scope, window, origin)
+	return prompts.OrganizeExistingEntity(kind, r.Id, r.GetString("name"), r.GetString("brief"), scope, window, origin)
 }
 
 func colourNames(app core.App, ids []string) string {

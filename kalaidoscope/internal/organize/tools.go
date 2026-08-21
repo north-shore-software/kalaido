@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -65,9 +68,11 @@ var createProjectionTool = llm.Tool{
 		"type": "object",
 		"properties": {
 			"name": {"type": "string"},
-			"brief": {"type": "string"},
+			"brief": {"type": "string", "description": ` + strconv.Quote(prompts.OrganizeBriefParamDescription) + `},
 			"wholeScope": {"type": "boolean"},
-			"nodes": {"type": "array", "items": ` + nodeRefSchema + `}
+			"nodes": {"type": "array", "items": ` + nodeRefSchema + `},
+			"sourceProjections": {"type": "array", "items": {"type": "string"}, "description": ` + strconv.Quote(prompts.OrganizeSourceProjectionsParamDescription) + `},
+			"sourceReflections": {"type": "array", "items": {"type": "string"}, "description": ` + strconv.Quote(prompts.OrganizeSourceReflectionsParamDescription) + `}
 		},
 		"required": ["name", "brief"]
 	}`),
@@ -80,7 +85,7 @@ var createReflectionTool = llm.Tool{
 		"type": "object",
 		"properties": {
 			"name": {"type": "string"},
-			"brief": {"type": "string"},
+			"brief": {"type": "string", "description": ` + strconv.Quote(prompts.OrganizeBriefParamDescription) + `},
 			"wholeScope": {"type": "boolean"},
 			"nodes": {"type": "array", "items": ` + nodeRefSchema + `},
 			"windowSpec": {
@@ -163,11 +168,13 @@ func dispatchExpandFragment(ctx context.Context, app core.App, idx *organizeInde
 }
 
 type createArgs struct {
-	Name       string          `json:"name"`
-	Brief      string          `json:"brief"`
-	WholeScope bool            `json:"wholeScope"`
-	Nodes      []NodeRef       `json:"nodes"`
-	WindowSpec *api.WindowSpec `json:"windowSpec"`
+	Name              string          `json:"name"`
+	Brief             string          `json:"brief"`
+	WholeScope        bool            `json:"wholeScope"`
+	Nodes             []NodeRef       `json:"nodes"`
+	SourceProjections []string        `json:"sourceProjections"`
+	SourceReflections []string        `json:"sourceReflections"`
+	WindowSpec        *api.WindowSpec `json:"windowSpec"`
 }
 
 func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeIndexes, annIdx map[NodeRef][]string,
@@ -182,12 +189,22 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 	if args.WholeScope && !assignment.unconfined {
 		return prompts.OrganizeWholeScopeRejected
 	}
+	if isReflection {
+		// Reflections are fragments-only in the engine (ReflectionStrategy.EnsureFragmentsOnly).
+		args.SourceProjections, args.SourceReflections = nil, nil
+	}
 	if !args.WholeScope {
 		if bad := validateNodes(idx, args.Nodes); len(bad) > 0 {
 			return fmt.Sprintf("Rejected: these nodes don't exist in the current map: %s", formatNodeRefs(bad))
 		}
-		if len(args.Nodes) == 0 {
-			return "Rejected: provide at least one node, or set wholeScope (root only)."
+		if bad := validateSources(app, registry, "projection", args.SourceProjections); len(bad) > 0 {
+			return fmt.Sprintf("Rejected: these sourceProjections don't exist: %s", strings.Join(bad, ", "))
+		}
+		if bad := validateSources(app, registry, "reflection", args.SourceReflections); len(bad) > 0 {
+			return fmt.Sprintf("Rejected: these sourceReflections don't exist: %s", strings.Join(bad, ", "))
+		}
+		if len(args.Nodes)+len(args.SourceProjections)+len(args.SourceReflections) == 0 {
+			return "Rejected: provide at least one node or source entity, or set wholeScope (root only)."
 		}
 	}
 
@@ -196,6 +213,8 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 		log.Printf("organize: materialise: %v", err)
 		return fmt.Sprintf("Internal error creating entity: %v", err)
 	}
+	spec.SourceProjectionIDs = args.SourceProjections
+	spec.SourceReflectionIDs = args.SourceReflections
 
 	targetCol := "projection"
 	var strat engine.Strategy = engine.ProjectionStrategy{}
@@ -214,10 +233,8 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 	setJSON(entity, "current_context_spec", spec)
 	entity.Set("origin_run_id", run.Id)
 
-	var winSpec api.WindowSpec
 	if isReflection && args.WindowSpec != nil {
-		winSpec = *args.WindowSpec
-		versions := engine.AppendWindowSpecVersion(nil, winSpec, time.Now())
+		versions := engine.AppendWindowSpecVersion(nil, *args.WindowSpec, time.Now())
 		setJSON(entity, "window_spec_versions", versions)
 	}
 
@@ -225,13 +242,22 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 		return fmt.Sprintf("Internal error saving entity: %v", err)
 	}
 
+	// The brief is the lens: organize knows exactly what instruction produced
+	// the entity, so there is nothing for the distillation loop to recover.
+	lensID, err := installLens(app, strat, entity, args.Brief, spec, model)
+	if err != nil {
+		return fmt.Sprintf("Internal error saving lens: %v", err)
+	}
+
 	entryType := "projection"
 	if isReflection {
 		entryType = "reflection"
 	}
 	entry := entityEntry{
-		Type: entryType, ID: entity.Id, Name: args.Name, Brief: args.Brief,
-		WholeScope: args.WholeScope, Nodes: args.Nodes, GenerationStatus: "pending",
+		Type: entryType, ID: entity.Id, Name: args.Name, Brief: args.Brief, LensID: lensID,
+		WholeScope: args.WholeScope, Nodes: args.Nodes,
+		SourceProjections: args.SourceProjections, SourceReflections: args.SourceReflections,
+		GenerationStatus: "pending",
 	}
 	if !assignment.unconfined {
 		entry.CreatedByAssignment = &struct {
@@ -240,12 +266,57 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 		}{Brief: assignment.brief, ContextNodes: assignment.contextNodes}
 	}
 	appendEntity(app, run, mu, entry)
-	registry.registerCreated(entryType, args.Name, args.Brief, args.Nodes)
+	done := registry.registerCreated(assignment.forkID, entryType, entity.Id, args.Name, args.Brief, args.Nodes)
+
+	var waitOn []chan struct{}
+	for _, id := range append(append([]string{}, args.SourceProjections...), args.SourceReflections...) {
+		if ch := registry.createdDone(id); ch != nil {
+			waitOn = append(waitOn, ch)
+		}
+	}
 
 	wg.Add(1)
-	go generateAndPublish(context.Background(), app, run, mu, wg, entity.Id, args.Brief, spec, winSpec, strat, targetCol)
+	go generateAndPublish(context.Background(), app, run, mu, wg, entity.Id, strat, waitOn, done)
 
 	return fmt.Sprintf("Created %s %q (id: %s); content generation queued.", entryType, args.Name, entity.Id)
+}
+
+// validateSources checks that every referenced source entity exists, either
+// persisted (any run, or human-created) or created earlier in this run.
+func validateSources(app core.App, registry *runRegistry, col string, ids []string) (bad []string) {
+	for _, id := range ids {
+		if registry.createdDone(id) != nil {
+			continue
+		}
+		if _, err := app.FindRecordById(col, id); err != nil {
+			bad = append(bad, id)
+		}
+	}
+	return bad
+}
+
+// installLens writes the entity's first lens directly from its brief and
+// points the entity at it. Zero LLM calls: the brief is, by construction,
+// the instruction that will generate the entity's content.
+func installLens(app core.App, strat engine.Strategy, entity *core.Record, brief string, spec api.ContextSpec, model string) (string, error) {
+	col, err := app.FindCollectionByNameOrId(strat.LensCollectionName())
+	if err != nil {
+		return "", err
+	}
+	lens := core.NewRecord(col)
+	lens.Set("prompt", pbutil.JSONString(brief))
+	lens.Set("context_spec", pbutil.JSONObject(spec))
+	lens.Set("iterations", 0)
+	lens.Set("converged", true)
+	lens.Set("model", model)
+	if err := app.Save(lens); err != nil {
+		return "", err
+	}
+	entity.Set("current_lens_id", lens.Id)
+	if err := app.Save(entity); err != nil {
+		return "", err
+	}
+	return lens.Id, nil
 }
 
 // materialiseSpec resolves (or mechanically creates) the colours backing a
@@ -337,6 +408,12 @@ func linkColourFragments(app core.App, colourID string, fragmentIDs []string) er
 	return nil
 }
 
+// dispatchRecurse forks each accepted child and then BLOCKS until every one
+// of them has finished exploring, returning what they created. That is what
+// lets the parent compose: it resumes its own conversation holding real
+// entity ids it can pass as sourceProjections. Siblings still run in
+// parallel with each other; only the parent idles, and an idle parent costs
+// nothing (no model call is in flight while it waits).
 func dispatchRecurse(ctx context.Context, app core.App, run *core.Record, mapBody, model string,
 	idx *organizeIndexes, annIdx map[NodeRef][]string, depth int,
 	budget *sharedBudget, registry *runRegistry, wg *sync.WaitGroup, mu *sync.Mutex, c llm.ToolCall) string {
@@ -351,6 +428,8 @@ func dispatchRecurse(ctx context.Context, app core.App, run *core.Record, mapBod
 	}
 
 	var results []string
+	var children sync.WaitGroup
+	var forked []int
 	for _, child := range args.Children {
 		if child.Brief == "" || len(child.ContextNodes) == 0 {
 			results = append(results, "Rejected one fork: brief and contextNodes are both required.")
@@ -367,19 +446,42 @@ func dispatchRecurse(ctx context.Context, app core.App, run *core.Record, mapBod
 			results = append(results, fmt.Sprintf("Rejected fork %q: exploration budget exhausted for this run.", child.Brief))
 			continue
 		}
-		ok, collidesWith := registry.tryRegisterFork(child.Brief, child.ContextNodes)
-		if !ok {
+		forkID, collidesWith := registry.tryRegisterFork(child.Brief, child.ContextNodes)
+		if forkID == 0 {
 			budget.release()
 			results = append(results, prompts.OrganizeForkIdenticalSetRejected(child.Brief, collidesWith.brief))
 			continue
 		}
 		incrementExplorations(app, run, mu)
-		childAssignment := scopeAssignment{brief: child.Brief, contextNodes: child.ContextNodes}
+		childAssignment := scopeAssignment{brief: child.Brief, contextNodes: child.ContextNodes, forkID: forkID}
+		forked = append(forked, forkID)
 		wg.Add(1)
-		go exploreNode(ctx, app, run, mapBody, model, idx, annIdx, childAssignment, depth+1, budget, registry, wg, mu)
-		results = append(results, fmt.Sprintf("Forked: %q over %s", child.Brief, formatNodeRefs(child.ContextNodes)))
+		children.Add(1)
+		go func() {
+			defer children.Done()
+			defer registry.finishFork(forkID)
+			exploreNode(ctx, app, run, mapBody, model, idx, annIdx, childAssignment, depth+1, budget, registry, wg, mu)
+		}()
+	}
+	children.Wait()
+
+	for _, forkID := range forked {
+		var lines []string
+		for _, cl := range registry.createdBy(forkID) {
+			lines = append(lines, prompts.OrganizeForkCreatedLine(cl.kind, cl.id, cl.name, cl.brief))
+		}
+		results = append(results, prompts.OrganizeForkResult(forkBrief(registry, forkID), lines))
 	}
 	return joinResults(results)
+}
+
+func forkBrief(registry *runRegistry, forkID int) string {
+	for _, c := range registry.snapshot() {
+		if c.forkID == forkID && c.status != "created" {
+			return c.brief
+		}
+	}
+	return ""
 }
 
 func joinResults(results []string) string {
@@ -393,49 +495,34 @@ func joinResults(results []string) string {
 	return out
 }
 
-// generateAndPublish is dispatched from a create_* tool call and never
-// awaited by the exploration loop — this is the actual parallelism: multiple
-// entities' content generation overlaps instead of serializing behind
-// exploration. It uses the same primitives the refinement-chat flow does
-// (GenerateOutput + CommitRefinement), using the entity's own brief as the
-// generation instruction in place of a distilled lens (there is none yet for
-// a freshly created entity).
+// generateAndPublish produces the entity's first approved snapshot through
+// the ordinary lens path (engine.GenerateSnapshot) — the lens was installed
+// at create time, so no distillation is requested. It is never awaited by
+// the exploration loop; content generation for many entities overlaps.
+// When the entity takes other entities created in this run as sources, it
+// first waits for their snapshots: the context resolver only sees approved
+// snapshots, so generating earlier would silently drop the source.
 func generateAndPublish(ctx context.Context, app core.App, run *core.Record, mu *sync.Mutex, wg *sync.WaitGroup,
-	entityID, brief string, spec api.ContextSpec, winSpec api.WindowSpec, strat engine.Strategy, targetCol string) {
+	entityID string, strat engine.Strategy, waitOn []chan struct{}, done chan struct{}) {
 	defer wg.Done()
+	defer close(done)
 
-	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, spec)
-	if err != nil {
-		updateEntityStatus(app, run, mu, entityID, "error", err.Error())
-		return
-	}
-	sourceBlock, err := llmcontext.HydrateIDsToText(ctx, app, pinned)
-	if err != nil {
-		updateEntityStatus(app, run, mu, entityID, "error", err.Error())
-		return
+	for _, ch := range waitOn {
+		<-ch
 	}
 
-	model, err := llm.ResolveRole(llm.RoleSnapshot)
-	if err != nil {
-		updateEntityStatus(app, run, mu, entityID, "error", err.Error())
-		return
-	}
+	// Organize is background work: never compete with a user's own
+	// interactive generation for a scheduler slot.
+	ctx = llmq.WithPriority(ctx, llmq.Background)
 
-	var output string
+	var err error
 	err = retryPreempted(func() error {
-		var genErr error
-		output, genErr = engine.GenerateOutput(ctx, app, model, brief, sourceBlock)
+		_, genErr := engine.GenerateSnapshot(ctx, app, entityID, engine.StatusApproved, strat, nil)
 		return genErr
 	})
 	if err != nil {
 		updateEntityStatus(app, run, mu, entityID, "error", err.Error())
 		return
 	}
-
-	if _, err := engine.CommitRefinement(ctx, app, strat, entityID, "", output, true, pinned, spec, winSpec, "", targetCol); err != nil {
-		updateEntityStatus(app, run, mu, entityID, "error", err.Error())
-		return
-	}
-
 	updateEntityStatus(app, run, mu, entityID, "done", "")
 }

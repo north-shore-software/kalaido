@@ -15,7 +15,7 @@ import (
 const (
 	maxOrganizeDepth      = 3
 	maxExplorations       = 25
-	maxRoundsPerLevel     = 6 // a level spends a round on sketch + list_existing before it can create/recurse
+	maxRoundsPerLevel     = 8 // sketch, list_existing, recurse (blocking), compose over the results
 	maxExpansionsPerLevel = 4
 	maxThrottledAttempts  = 6
 )

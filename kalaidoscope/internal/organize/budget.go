@@ -51,6 +51,13 @@ type claim struct {
 	status string // "exploring" | "created"
 	kind   string // "" for a fork; "projection"/"reflection" once created
 	name   string // entity name once created
+	id     string // entity id once created
+	forkID int    // the fork this claim belongs to (0 = root); creations record their creator
+	// done is closed when the entity's first snapshot has been generated
+	// (or generation gave up). A dependent entity that takes this one as a
+	// source waits on it, because the context resolver only sees approved
+	// snapshots — generating too early would silently drop the source.
+	done chan struct{}
 }
 
 // runRegistry tracks every claim for the whole run (not just siblings under
@@ -62,30 +69,75 @@ type claim struct {
 type runRegistry struct {
 	mu     sync.Mutex
 	claims []claim
+	nextID int
 }
 
 // tryRegisterFork atomically checks the candidate set against every existing
 // fork and, if none is identical, registers the fork as exploring. Check and
 // register happen under the same lock so two concurrent recurse calls can't
 // both slip past each other.
-func (r *runRegistry) tryRegisterFork(brief string, nodes []NodeRef) (ok bool, collidesWith *claim) {
+func (r *runRegistry) tryRegisterFork(brief string, nodes []NodeRef) (forkID int, collidesWith *claim) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for i := range r.claims {
 		c := &r.claims[i]
 		if c.status == "exploring" && sameNodeSet(nodes, c.nodes) {
-			return false, c
+			return 0, c
 		}
 	}
-	r.claims = append(r.claims, claim{brief: brief, nodes: nodes, status: "exploring"})
-	return true, nil
+	r.nextID++
+	r.claims = append(r.claims, claim{brief: brief, nodes: nodes, status: "exploring", forkID: r.nextID})
+	return r.nextID, nil
 }
 
-// registerCreated records an entity the run has created.
-func (r *runRegistry) registerCreated(kind, name, brief string, nodes []NodeRef) {
+// finishFork marks a fork's exploration over, so list_existing stops
+// reporting it as in progress (its creations stay listed on their own).
+func (r *runRegistry) finishFork(forkID int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.claims = append(r.claims, claim{brief: brief, nodes: nodes, status: "created", kind: kind, name: name})
+	for i := range r.claims {
+		if r.claims[i].status == "exploring" && r.claims[i].forkID == forkID {
+			r.claims[i].status = "finished"
+		}
+	}
+}
+
+// createdBy lists the entities a given fork created, for the parent's
+// recurse result.
+func (r *runRegistry) createdBy(forkID int) []claim {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []claim
+	for _, c := range r.claims {
+		if c.status == "created" && c.forkID == forkID {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// registerCreated records an entity the run has created and returns the
+// channel generateAndPublish must close when its snapshot exists.
+func (r *runRegistry) registerCreated(forkID int, kind, id, name, brief string, nodes []NodeRef) chan struct{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	done := make(chan struct{})
+	r.claims = append(r.claims, claim{brief: brief, nodes: nodes, status: "created", kind: kind, name: name, id: id, forkID: forkID, done: done})
+	return done
+}
+
+// createdDone returns the done channel for an entity this run created, or
+// nil if the id is not one of this run's creations (e.g. an entity from an
+// earlier run, which already has its snapshot and needs no waiting).
+func (r *runRegistry) createdDone(id string) chan struct{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range r.claims {
+		if r.claims[i].status == "created" && r.claims[i].id == id {
+			return r.claims[i].done
+		}
+	}
+	return nil
 }
 
 // snapshot returns a copy of the claims for rendering outside the lock.

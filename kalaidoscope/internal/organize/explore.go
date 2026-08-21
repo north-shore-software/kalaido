@@ -27,6 +27,7 @@ type scopeAssignment struct {
 	unconfined   bool
 	brief        string
 	contextNodes []NodeRef
+	forkID       int // registry id of this fork; 0 for root
 }
 
 // exploreNode is called once at root (unconfined, depth 0, directly from
@@ -145,8 +146,11 @@ type entityEntry struct {
 	ID                  string    `json:"id"`
 	Name                string    `json:"name"`
 	Brief               string    `json:"brief"`
+	LensID              string    `json:"lensId,omitempty"`
 	WholeScope          bool      `json:"wholeScope"`
 	Nodes               []NodeRef `json:"nodes,omitempty"`
+	SourceProjections   []string  `json:"sourceProjections,omitempty"`
+	SourceReflections   []string  `json:"sourceReflections,omitempty"`
 	CreatedByAssignment *struct {
 		Brief        string    `json:"brief,omitempty"`
 		ContextNodes []NodeRef `json:"contextNodes,omitempty"`

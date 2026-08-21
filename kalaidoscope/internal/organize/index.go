@@ -21,6 +21,9 @@ type organizeIndexes struct {
 	nodeExists      map[NodeRef]bool
 	nodeDescription map[NodeRef]string
 	exemplarIDs     map[string]bool // fragment ID -> is a listed exemplar of some node
+	// threadCount is observability only: how many cross-cutting items the
+	// map carried when the run started, by list name.
+	threadCount map[string]int
 }
 
 type mapNodeJSON struct {
@@ -35,8 +38,23 @@ type mapDimensionJSON struct {
 	Nodes []mapNodeJSON `json:"nodes"`
 }
 
+// mapThreadJSON mirrors the map's Thread shape (prompts.MapSchemaDescription):
+// one item on a cross-cutting list, grounded in tree nodes.
+type mapThreadJSON struct {
+	Title   string    `json:"title"`
+	Summary string    `json:"summary"`
+	From    string    `json:"from"`
+	To      string    `json:"to"`
+	Status  string    `json:"status"`
+	Nodes   []NodeRef `json:"nodes"`
+}
+
 type mapBodyJSON struct {
 	Dimensions []mapDimensionJSON `json:"dimensions"`
+	Questions  []mapThreadJSON    `json:"questions"`
+	Decisions  []mapThreadJSON    `json:"decisions"`
+	Events     []mapThreadJSON    `json:"events"`
+	Projects   []mapThreadJSON    `json:"projects"`
 }
 
 func buildMapIndexes(mapBody string) (*organizeIndexes, error) {
@@ -63,6 +81,10 @@ func buildMapIndexes(mapBody string) (*organizeIndexes, error) {
 	}
 	for _, d := range mb.Dimensions {
 		walk(d.Name, d.Nodes)
+	}
+	idx.threadCount = map[string]int{
+		"questions": len(mb.Questions), "decisions": len(mb.Decisions),
+		"events": len(mb.Events), "projects": len(mb.Projects),
 	}
 	return idx, nil
 }
