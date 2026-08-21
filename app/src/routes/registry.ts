@@ -2,7 +2,6 @@ import { ROUTE_IDS, type RouteId } from "./route-ids";
 import { buildRoutePath, type RouteDef } from "./route-kit";
 
 import { splashRoute } from "@/features/boot/pages/Splash";
-import { splashAltRoute } from "@/features/boot/pages/SplashAlt";
 import { bootErrorRoute } from "@/features/boot/pages/BootError";
 import { onboardingLandingRoute } from "@/features/onboarding/pages/OnboardingLanding";
 import { onboardingLoginRoute } from "@/features/onboarding/pages/OnboardingLogin";
@@ -27,7 +26,6 @@ import { chatRoute } from "@/features/chat/pages/Chat";
 
 export const appRoutes: RouteDef[] = [
   splashRoute,
-  splashAltRoute,
   bootErrorRoute,
   onboardingLandingRoute,
   onboardingLoginRoute,

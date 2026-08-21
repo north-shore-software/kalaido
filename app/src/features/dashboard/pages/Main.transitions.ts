@@ -13,8 +13,4 @@ export const mainTransitions = defineTransitions({
     to: "projection-review",
     trigger: "Click a projection snapshot to review",
   },
-  openSplashAlt: {
-    to: "splash-alt",
-    trigger: "Click SplashAlt dummy link",
-  },
 });

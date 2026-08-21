@@ -1,15 +1,12 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/css-utils.ts";
-import { RouteLink } from "@/routes/route-link";
-import { defineRoute, defineTransitions } from "@/routes/route-kit";
 
-export interface SplashAltProps {
+export interface OrganizingSplashProps {
   speed?: number;
-  density?: number;
   showStatus?: boolean;
   ending?: boolean;
   progress?: number;
+  onSkip?: () => void;
   onEnded?: () => void;
   onSnapshotReady?: () => void;
 }
@@ -770,24 +767,22 @@ function drawHexagonLoadingBar(
   ctx.restore();
 }
 
-export default function SplashAlt({
+export function OrganizingSplash({
   speed = 1,
-  density = 26,
   showStatus = true,
   ending = false,
   progress,
+  onSkip,
   onEnded,
   onSnapshotReady,
-}: SplashAltProps) {
+}: OrganizingSplashProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [status, setStatus] = useState(PHRASES[0]);
   const [statusOpacity, setStatusOpacity] = useState(1);
   const [percent, setPercent] = useState(0);
-  const [phase, setPhase] = useState<"run" | "done">("run");
 
   const stateRef = useRef({
     speed,
-    density,
     ending,
     progress,
     onEnded,
@@ -804,7 +799,6 @@ export default function SplashAlt({
   });
 
   stateRef.current.speed = speed;
-  stateRef.current.density = density;
   stateRef.current.progress = progress;
   stateRef.current.onEnded = onEnded;
   stateRef.current.onSnapshotReady = onSnapshotReady;
@@ -815,21 +809,6 @@ export default function SplashAlt({
       setStatus("finalizing snapshot…");
       setStatusOpacity(1);
     }
-  }, []);
-
-  const triggerRestart = useCallback(() => {
-    const now = performance.now();
-    stateRef.current.endAt = null;
-    stateRef.current.t0 = now;
-    stateRef.current.last = now;
-    stateRef.current.ft = 0;
-    stateRef.current.pi = 0;
-    stateRef.current.snapshotReadyFired = false;
-    stateRef.current.endedFired = false;
-    stateRef.current.chips = generateChips();
-    setPhase("run");
-    setStatus(PHRASES[0]);
-    setStatusOpacity(1);
   }, []);
 
   useEffect(() => {
@@ -857,17 +836,6 @@ export default function SplashAlt({
 
     window.addEventListener("resize", handleResize);
     handleResize();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "e" || e.key === "E") {
-        if (stateRef.current.endedFired) {
-          triggerRestart();
-        } else {
-          triggerEnd();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
 
     const statusTimer = setInterval(() => {
       if (stateRef.current.endAt !== null) return;
@@ -929,7 +897,6 @@ export default function SplashAlt({
 
         if (te > 5.2 && !st.endedFired) {
           st.endedFired = true;
-          setPhase("done");
           setStatusOpacity(0);
           st.onEnded?.();
         }
@@ -1104,19 +1071,21 @@ export default function SplashAlt({
       cancelAnimationFrame(rafId);
       clearInterval(statusTimer);
       window.removeEventListener("resize", handleResize);
-      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [triggerEnd, triggerRestart]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-background">
-      <RouteLink
-        transition={splashAltTransitions.backToDashboard}
-        className="absolute top-9 left-4 z-50 flex items-center gap-1.5 rounded border border-line bg-surface-1/80 px-3 py-1.5 font-mono text-[12px] text-fg-3 backdrop-blur-sm transition-colors hover:bg-surface-2 hover:text-fg-1 cursor-pointer"
-      >
-        <ArrowLeftIcon className="size-3.5" />
-        Dashboard
-      </RouteLink>
+      {onSkip && (
+        <button
+          type="button"
+          onClick={onSkip}
+          className="absolute top-9 left-4 z-50 flex items-center gap-1.5 rounded border border-line bg-surface-1/80 px-3 py-1.5 font-mono text-[12px] text-fg-3 backdrop-blur-sm transition-colors hover:bg-surface-2 hover:text-fg-1 cursor-pointer"
+        >
+          <ArrowLeftIcon className="size-3.5" />
+          Skip to app
+        </button>
+      )}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 block h-full w-full"
@@ -1134,40 +1103,6 @@ export default function SplashAlt({
           </div>
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => {
-          if (phase === "done") {
-            triggerRestart();
-          } else {
-            triggerEnd();
-          }
-        }}
-        title="dev only — press E"
-        className={cn(
-          "absolute right-4 bottom-3.5 rounded border border-line px-2.5 py-1",
-          "font-mono text-[10px] tracking-[0.1em] text-fg-4 opacity-20",
-          "cursor-pointer transition-opacity duration-150 hover:opacity-75",
-        )}
-      >
-        {phase === "done" ? "dev · restart" : "dev · complete (E)"}
-      </button>
     </div>
   );
 }
-
-export const splashAltTransitions = defineTransitions({
-  backToDashboard: {
-    to: "main",
-    trigger: "Click back button to dashboard",
-  },
-});
-
-export const splashAltRoute = defineRoute({
-  id: "splash-alt",
-  path: "/splash-alt",
-  feature: "Boot",
-  requiredScope: [],
-  transitions: splashAltTransitions,
-  Component: SplashAlt,
-});
