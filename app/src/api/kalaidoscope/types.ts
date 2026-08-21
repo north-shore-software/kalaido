@@ -293,6 +293,7 @@ export type OrganizeRunRecord<Tentities = unknown, Twarnings = unknown> = {
 }
 
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
+	brief?: string
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
@@ -341,6 +342,7 @@ export type RefineReflSnapshotConversationRecord = {
 }
 
 export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown> = {
+	brief?: string
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
