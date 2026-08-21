@@ -1,5 +1,30 @@
 package prompts
 
+// The workspace map algorithm, for humans (the prompts below are the source of truth; this is a
+// summary, not a spec):
+//  1. Map = dimensions (independent axes), each holding a tree of nodes (broad -> narrow), plus
+//     entities/relationships/narrative.
+//  2. A node is one coherent point; fragments attach at any level, never double-counted — child
+//     totals are never rolled into a parent's own count.
+//  3. Purity: if a node's description needs "and" or lists several distinct things, split it into
+//     children, regardless of duration or how related the parts seem.
+//  4. Children are cheap to create, even from a single fragment — a thin, genuinely recurring
+//     topic never looks significant in any one incorporation pass, so waiting for it to "earn" a
+//     child means it never gets one.
+//  5. Childless nodes that stay thin and go stale (no recent material relative to what's
+//     currently being processed) get folded back into their parent — this prunes one-off mentions.
+//  6. Hard cap: no node may sit more than 5 levels below its dimension root; a distinction that
+//     would need a 6th level stays as prose in the deepest allowed node instead.
+//  7. Duration/breadth trade-off: the longer a node has been open, the narrower its own directly-
+//     attached material must be to still justify that span.
+//  8. Breadth cap of roughly 3-8 children per node/dimension, judged in steady state after
+//     pruning, not per incorporation pass.
+//  9. Incorporation always walks down to the most specific existing node that genuinely fits,
+//     across every dimension that plausibly applies — never force-fit onto a loosely-related node.
+//  10. Two-stage pipeline: markup annotates each fragment against the current map (proposing
+//     nodes/dimensions), then incorporate folds annotated batches into the map, occasionally
+//     expanding a fragment's full text via tool call when its annotation is too thin to place.
+
 import (
 	"encoding/json"
 	"fmt"
@@ -19,9 +44,13 @@ A "dimension" is one independent axis along which the workspace's fragments vary
 
 Each dimension holds a tree of nodes, not a flat list. A node must be a single coherent point on its dimension — broad enough to cover many fragments, specific enough to mean something — but it may have "children" that break it into narrower sub-points, to whatever depth it earns (see below). A fragment can attach directly to any node, leaf or not: something only generically about a node's topic belongs on the node itself, not forced down into a child. "fragments" on a node counts only what is attached directly there, never its descendants — a subtree's total is always just the node's own count plus its children's, summed recursively by whoever reads the map; never fold a child's count into its parent's number.
 
-If a node's own description needs "and" to join two unrelated concerns, or lists several distinct things (several different tools, systems, physical assets, or categories of concern), it is not one node any more, no matter how long it has held together or how naturally its parts seem related — a shared actor, project, or counterparty running through everything is not by itself grounds to keep concerns fused. Give it children: one per distinct thing the description was listing. Don't reprocess or reassign what the parent has already counted — those fragments stay attributed at the coarser level; only new material needs to choose a child from now on. The same breadth guidance as dimensions applies to a node's children (most nodes that split settle around 3-8 children): too many is a sign some should be merged back into fewer, coarser ones.
+If a node's own description needs "and" to join two unrelated concerns, or lists several distinct things (several different tools, systems, physical assets, or categories of concern), it is not one node any more, no matter how long it has held together or how naturally its parts seem related — a shared actor, project, or counterparty running through everything is not by itself grounds to keep concerns fused. Give it children: one per distinct thing the description was listing. Don't reprocess or reassign what the parent has already counted — those fragments stay attributed at the coarser level; only new material needs to choose a child from now on. The same breadth guidance as dimensions applies to a node's children (most nodes that split settle around 3-8 children, once dead ends have had a chance to be pruned — see below): too many surviving long-term is a sign some should be merged back into fewer, coarser ones.
 
-A child is only worth creating once it represents a meaningful, recurring share of its parent's material — not a single passing mention. Below that bar, name the distinction in the parent's own description and let it accumulate there; promote it to a real child only once it has clearly earned its own weight. This keeps depth in check on its own: each level down only has as much material to redistribute as its parent actually has, so a node can only sustain as many levels of real structure as the corpus gives it reason to. In practice this rarely produces more than about 4 levels below a dimension root — going deeper is usually a sign a split is being driven by one memorable fragment rather than genuine recurrence, and belongs in prose, not another node.
+Create a child as soon as a fragment shows a genuinely distinct, nameable sub-pattern within a node — even from a single fragment. Don't wait for it to prove itself first: a real recurring topic that arrives thinly, one or two fragments at a time across many separate incorporation passes, will never look like a meaningful share of its parent in any single pass, so waiting for that signal means it never gets created at all, no matter how much it eventually accumulates. The cost of creating early is low, because of the check below — a node that never earns its place quietly disappears again.
+
+Each time you touch a dimension's tree, also check its existing childless nodes for dead ends: if a node has no children of its own, has stayed at only a handful of fragments, and its "last_seen" sits far behind the event time of the material you are processing now with nothing recent reinforcing it, fold it back — add its fragment count and exemplar_ids into its parent, keep what it was about as a passing mention in the parent's own description only if it still seems worth remembering, and remove the node. A node that keeps getting new material survives this indefinitely, however thin each individual addition was on its own; only genuinely one-off topics get pruned.
+
+That expiry check only prunes dead ends — a topic that keeps getting real, recurring reinforcement could otherwise keep earning deeper and deeper children forever. So treat depth itself as capped, full stop: no node may sit more than 5 levels below its dimension root. If new material would need a 6th level to stay pure, do not create it — name the distinction in the deepest allowed node's own description instead, the same way you would below the bar to create at all. A dimension whose tree keeps pressing against that cap usually means the material wants a dimension of its own alongside this one, not another layer.
 
 Duration and breadth trade off against each other at every level, the same way: the longer a node's "first_seen" to "last_seen" span grows, the narrower and more focused its own material (what's attached directly to it, not what's pushed into children) needs to be to still earn that span, relative to its siblings. A node open a long time is not by itself a problem — a single long-running negotiation or relationship can legitimately span years while staying narrow — but a node that has been open a long time and is still broad at its own level is not a stable, enduring topic, it is a container that was never given children when it should have been.
 
@@ -66,7 +95,7 @@ New material, in event-time order:
 ` + inputBlock + `
 Update the map to incorporate the new material:
 - Only add and refine. Never drop a dimension, node, or entity that earlier material still supports; fold spelling and naming variants into "aliases" instead of creating near-duplicate nodes.
-- Keep every node at a useful grain: broad enough that it covers a meaningful share of its parent's material, specific enough to mean something, and never a fusion of unrelated concerns — give it children instead. This applies to existing nodes as new material lands on them, not just when creating new ones: check whether a node is still one point or has quietly become several, and only add a child once it has earned a real, recurring share of its parent's material — not for a single passing mention.
+- Keep every node at a useful grain: broad enough that it covers a meaningful share of its parent's material, specific enough to mean something, and never a fusion of unrelated concerns — give it children instead. This applies to existing nodes as new material lands on them, not just when creating new ones: check whether a node is still one point or has quietly become several, and split off a child as soon as a distinct sub-pattern shows itself, even from a single fragment. In the same pass, check existing childless nodes for dead ends: ones that have stayed thin, gained no children, and seen nothing recent relative to the material you're processing now — fold those back into their parent rather than leaving them cluttering the tree.
 - Check the new material against every existing dimension, not just the one that first comes to mind, and within each, walk down to the most specific node that genuinely fits. If it shows a pattern of variation nothing in the tree captures, add a new node or dimension alongside what's already there — don't force it onto something it doesn't truly belong to.
 - Update "fragments" counts, "exemplar_ids" (keep the most representative, at most 5), and "first_seen"/"last_seen" dates — only on the node(s) the material actually attaches to directly, never on their ancestors.
 - Keep "narrative" a concise account of the whole space and how it has developed. Rewrite it freely, but keep it under 300 words.
