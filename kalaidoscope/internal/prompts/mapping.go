@@ -8,19 +8,26 @@ import (
 
 const MapSchemaDescription = `The map is a single JSON object with this exact shape:
 {
-  "dimensions": [{"name": string, "description": string, "themes": [{"name": string, "description": string, "aliases": [string], "fragments": number, "exemplar_ids": [string], "first_seen": string, "last_seen": string}]}],
+  "dimensions": [{"name": string, "description": string, "nodes": [Node]}],
   "entities": [{"name": string, "kind": string, "notes": string}],
   "relationships": [{"from": string, "to": string, "kind": string}],
   "narrative": string
 }
+A Node is {"name": string, "description": string, "aliases": [string], "fragments": number, "exemplar_ids": [string], "first_seen": string, "last_seen": string, "children": [Node]}.
 
-A "dimension" is one independent axis along which the workspace's fragments vary — for example, what kind of activity a fragment represents, versus what tool or vendor it concerns, versus which external relationship it belongs to. Two fragments can share a theme on one dimension while differing completely on another. Illustrative, non-exhaustive examples of dimensions: what kind of activity this is; what tool, product, or subject matter is involved; which external relationship (client, partner, contact) it belongs to. The actual dimensions must be discovered from the material at hand, not assumed — a workspace's real axes of variation may be nothing like these examples. Most workspaces settle around 3-8 dimensions: don't spin up a new one for a single passing distinction, but don't force unrelated material onto one that doesn't truly fit either.
+A "dimension" is one independent axis along which the workspace's fragments vary — for example, what kind of activity a fragment represents, versus what tool or vendor it concerns, versus which external relationship it belongs to. Two fragments can share a node on one dimension while differing completely on another. Illustrative, non-exhaustive examples of dimensions: what kind of activity this is; what tool, product, or subject matter is involved; which external relationship (client, partner, contact) it belongs to. The actual dimensions must be discovered from the material at hand, not assumed — a workspace's real axes of variation may be nothing like these examples. Most workspaces settle around 3-8 dimensions: don't spin up a new one for a single passing distinction, but don't force unrelated material onto one that doesn't truly fit either.
 
-A "theme" belongs to exactly one dimension and must be a single coherent point on that dimension — broad enough to cover many fragments, specific enough to mean something. If a theme's description needs "and" to join two unrelated concerns, it is actually two themes: split it, filing each under whichever dimension it truly belongs to (the same one, or a new one). Never fold a fragment onto an existing theme just because it loosely fits — check every existing dimension against new material, and if it shows a pattern of variation no current dimension captures, add a new dimension with its own themes, in addition to (never instead of) the existing ones. Most fragments touch more than one dimension at once and should end up tagged in each dimension that plausibly applies to them, not just whichever single theme fits best overall.
+Each dimension holds a tree of nodes, not a flat list. A node must be a single coherent point on its dimension — broad enough to cover many fragments, specific enough to mean something — but it may have "children" that break it into narrower sub-points, to whatever depth it earns (see below). A fragment can attach directly to any node, leaf or not: something only generically about a node's topic belongs on the node itself, not forced down into a child. "fragments" on a node counts only what is attached directly there, never its descendants — a subtree's total is always just the node's own count plus its children's, summed recursively by whoever reads the map; never fold a child's count into its parent's number.
 
-The purity rule applies however long a theme has existed or however naturally its parts seem to belong together — a shared actor, project, or counterparty running through everything is not by itself grounds to keep concerns fused. If a theme's description names several distinct kinds of thing (several different tools, systems, physical assets, or categories of concern) joined by "and" or commas, each named thing is a candidate for its own theme: the axis you're missing might be an existing dimension you haven't checked (e.g. a repair theme quietly listing five different building systems belongs on a "which system" dimension, not folded into "repairs"), or it might be a new dimension entirely. A theme that keeps absorbing a large share of its dimension's fragments while its description keeps growing new clauses is a theme still wearing more than one name: split it, don't widen it further.
+If a node's own description needs "and" to join two unrelated concerns, or lists several distinct things (several different tools, systems, physical assets, or categories of concern), it is not one node any more, no matter how long it has held together or how naturally its parts seem related — a shared actor, project, or counterparty running through everything is not by itself grounds to keep concerns fused. Give it children: one per distinct thing the description was listing. Don't reprocess or reassign what the parent has already counted — those fragments stay attributed at the coarser level; only new material needs to choose a child from now on. The same breadth guidance as dimensions applies to a node's children (most nodes that split settle around 3-8 children): too many is a sign some should be merged back into fewer, coarser ones.
 
-Within each theme: "fragments" counts how many fragments have touched it so far, "exemplar_ids" lists up to 5 representative fragment IDs, and "first_seen"/"last_seen" are the earliest and latest event dates that touched it. "entities" are the recurring people, organisations, places, and projects. "kind" is one of "person", "organisation", "place", "project", or "other". "relationships" connect two theme or entity names with a short "kind" such as "part of", "works on", or "related". "narrative" is your own running account of what this workspace is about and how it is developing over time.`
+A child is only worth creating once it represents a meaningful, recurring share of its parent's material — not a single passing mention. Below that bar, name the distinction in the parent's own description and let it accumulate there; promote it to a real child only once it has clearly earned its own weight. This keeps depth in check on its own: each level down only has as much material to redistribute as its parent actually has, so a node can only sustain as many levels of real structure as the corpus gives it reason to. In practice this rarely produces more than about 4 levels below a dimension root — going deeper is usually a sign a split is being driven by one memorable fragment rather than genuine recurrence, and belongs in prose, not another node.
+
+Duration and breadth trade off against each other at every level, the same way: the longer a node's "first_seen" to "last_seen" span grows, the narrower and more focused its own material (what's attached directly to it, not what's pushed into children) needs to be to still earn that span, relative to its siblings. A node open a long time is not by itself a problem — a single long-running negotiation or relationship can legitimately span years while staying narrow — but a node that has been open a long time and is still broad at its own level is not a stable, enduring topic, it is a container that was never given children when it should have been.
+
+Never fold a fragment onto an existing node just because it loosely fits — check every existing dimension against new material, and within each, walk down to the most specific node that genuinely applies. If it shows a pattern of variation nothing in the tree captures, add a new node or a new dimension alongside what's already there, in addition to (never instead of) the existing ones. Most fragments touch more than one dimension at once and should end up tagged in each dimension that plausibly applies to them, not just whichever single node fits best overall.
+
+"entities" are the recurring people, organisations, places, and projects. "kind" is one of "person", "organisation", "place", "project", or "other". "relationships" connect two node or entity names with a short "kind" such as "part of", "works on", or "related". "narrative" is your own running account of what this workspace is about and how it is developing over time.`
 
 const emptyMapNotice = "The map is empty so far: this is the first material ever added to the workspace."
 
@@ -32,24 +39,24 @@ func mapStateBlock(mapBody string) string {
 }
 
 func MapMarkupPrompt(mapBody, fragmentBlock string) string {
-	return `You are annotating one fragment from a user's personal workspace so it can be folded into the workspace map: a living index of the workspace's themes (grouped into dimensions — independent axes like what kind of activity, what tool/subject, which relationship), entities, and story.
+	return `You are annotating one fragment from a user's personal workspace so it can be folded into the workspace map: a living index of the workspace's dimensions (independent axes like what kind of activity, what tool/subject, which relationship), each holding a tree of nodes from broad topics down to narrow ones, plus entities, and story.
 
 ` + mapStateBlock(mapBody) + `
 
 Fragment:
 ` + fragmentBlock + `
 Write a JSON object with exactly these keys:
-{"summary": string, "themes": [{"theme": string, "dimension": string}], "entities": [string]}
+{"summary": string, "nodes": [{"node": string, "dimension": string}], "entities": [string]}
 
 - "summary": if the fragment is long, a dense summary of its content in at most 150 words; if it is short, a one-sentence reading of what it is about and why it likely exists.
-- "themes": one entry per dimension in the current map that plausibly applies to this fragment — most fragments touch more than one dimension, so check them all rather than stopping at the first one that feels sufficient. For each, prefer the exact "name" of an existing theme within that dimension; propose a new short theme name, and the dimension it belongs to (an existing dimension's name, or a new one), only when nothing in the map covers it.
+- "nodes": one entry per dimension in the current map that plausibly applies to this fragment — most fragments touch more than one dimension, so check them all rather than stopping at the first one that feels sufficient. For each, prefer the exact "name" of the most specific existing node within that dimension's tree that genuinely fits (walk down into children where they exist); if only a coarser node truly applies, use that rather than forcing a child. Propose a new short node name, and the dimension it belongs to (an existing dimension's name, or a new one), only when nothing in the map covers it.
 - "entities": the people, organisations, places, or projects the fragment mentions, using existing map entity names where they match.
 
 Reply with only the JSON object.`
 }
 
 func MapIncorporatePrompt(mapBody, inputBlock string) string {
-	return `You maintain the map of a user's personal workspace: a living index of its themes, entities, relationships, and story.
+	return `You maintain the map of a user's personal workspace: a living index of its dimensions (each a tree of nodes from broad topics down to narrow ones), entities, relationships, and story.
 
 ` + MapSchemaDescription + `
 
@@ -58,10 +65,10 @@ func MapIncorporatePrompt(mapBody, inputBlock string) string {
 New material, in event-time order:
 ` + inputBlock + `
 Update the map to incorporate the new material:
-- Only add and refine. Never drop a dimension, theme, or entity that earlier material still supports; fold spelling and naming variants into "aliases" instead of creating near-duplicate themes.
-- Keep themes at a useful grain: broad enough that each covers a meaningful share of the workspace, specific enough to mean something, and never a fusion of two unrelated concerns (split those into separate themes instead). This applies to existing themes too, not just new ones — when new material lands on a theme, check whether it's still one point on its dimension or whether it has quietly become several (e.g. several different systems, tools, or concern-types accreting under one familiar name because they share an actor or counterparty). A theme absorbing a disproportionate share of its dimension's fragments while its description keeps growing new clauses should be split now, not left to grow further.
-- Check the new material against every existing dimension, not just the one that first comes to mind. If it shows a pattern of variation no current dimension captures, add a new dimension with its own themes alongside the existing ones — don't force it onto a dimension it doesn't truly belong to.
-- Update "fragments" counts, "exemplar_ids" (keep the most representative, at most 5), and "first_seen"/"last_seen" dates.
+- Only add and refine. Never drop a dimension, node, or entity that earlier material still supports; fold spelling and naming variants into "aliases" instead of creating near-duplicate nodes.
+- Keep every node at a useful grain: broad enough that it covers a meaningful share of its parent's material, specific enough to mean something, and never a fusion of unrelated concerns — give it children instead. This applies to existing nodes as new material lands on them, not just when creating new ones: check whether a node is still one point or has quietly become several, and only add a child once it has earned a real, recurring share of its parent's material — not for a single passing mention.
+- Check the new material against every existing dimension, not just the one that first comes to mind, and within each, walk down to the most specific node that genuinely fits. If it shows a pattern of variation nothing in the tree captures, add a new node or dimension alongside what's already there — don't force it onto something it doesn't truly belong to.
+- Update "fragments" counts, "exemplar_ids" (keep the most representative, at most 5), and "first_seen"/"last_seen" dates — only on the node(s) the material actually attaches to directly, never on their ancestors.
 - Keep "narrative" a concise account of the whole space and how it has developed. Rewrite it freely, but keep it under 300 words.
 - If an annotation is too thin to place confidently, call expand_fragment with that fragment's ID to read its full text before deciding.
 
@@ -96,7 +103,7 @@ const MapExpandNotFound = "(no such fragments)\n\n"
 const MapJSONRetryNudge = "Your last reply could not be read as a single JSON object with the required keys. Reply again with only the JSON object: no code fences, no commentary."
 
 func ParseMarkupReply(text string) (json.RawMessage, bool) {
-	return extractJSONObject(text, "themes")
+	return extractJSONObject(text, "nodes")
 }
 
 func ParseMapReply(text string) (json.RawMessage, bool) {
