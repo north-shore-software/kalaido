@@ -21,7 +21,7 @@ const (
 	maxMapBytes           = 32 << 10
 	maxExpansionsPerChunk = 8
 	maxToolRounds         = 4
-	markupConcurrency     = 20
+	markupConcurrency     = 100
 	maxThrottledAttempts  = 6
 )
 
