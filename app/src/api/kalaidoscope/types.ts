@@ -352,6 +352,7 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 }
 
 export type UsageRecord = {
+	cached_tokens?: number
 	completion_tokens?: number
 	created: IsoAutoDateString
 	id: string
