@@ -1,5 +1,10 @@
 import type { Story } from "@ladle/react";
-import { ArchiveIcon, CloudIcon, FolderInputIcon, PlusIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  CloudIcon,
+  FolderInputIcon,
+  PlusIcon,
+} from "lucide-react";
 import { PrimaryChoice, SecondaryChoice } from "./choice-cards";
 
 export default { title: "Onboarding / Choice cards" };

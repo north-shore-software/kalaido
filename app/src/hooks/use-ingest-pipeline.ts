@@ -5,12 +5,7 @@ import {
   subscribeIngest,
 } from "@/api/kalaidoscope/ingest";
 
-export type PipelineStage =
-  | ""
-  | "mapping"
-  | "organizing"
-  | "done"
-  | "error";
+export type PipelineStage = "" | "mapping" | "organizing" | "done" | "error";
 
 export function useIngestPipeline(recordId: string) {
   const [stage, setStage] = useState<PipelineStage>("");
