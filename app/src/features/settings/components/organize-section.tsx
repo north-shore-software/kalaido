@@ -69,9 +69,7 @@ function OrganizeDebugContent() {
         </div>
       )}
       {run?.error && (
-        <p className="font-mono text-mono-sm text-critical-ink">
-          {run.error}
-        </p>
+        <p className="font-mono text-mono-sm text-critical-ink">{run.error}</p>
       )}
       {warnings.length > 0 && (
         <div className="flex flex-col gap-1">

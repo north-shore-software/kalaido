@@ -39,10 +39,7 @@ export function KalaidoscopesSection() {
             <Button size="sm" onClick={() => setMapOpen((open) => !open)}>
               Map
             </Button>
-            <Button
-              size="sm"
-              onClick={() => setOrganizeOpen((open) => !open)}
-            >
+            <Button size="sm" onClick={() => setOrganizeOpen((open) => !open)}>
               Organize
             </Button>
           </div>
