@@ -30,6 +30,8 @@ func init() {
 // prompt; the stateless execute leg has no system turn.
 type scriptedProvider struct{}
 
+func (scriptedProvider) ContextWindow() int { return 256_000 }
+
 var (
 	scriptMu    sync.Mutex
 	genCalls    [][]llm.Message

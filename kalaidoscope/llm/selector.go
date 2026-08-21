@@ -161,6 +161,8 @@ func (p errProvider) Stream(context.Context, []Message, []Tool, GenOptions) (*Co
 	return nil, p.err
 }
 
+func (p errProvider) ContextWindow() int { return 0 }
+
 // SelectedProvider builds a provider for the active workspace config.
 func SelectedProvider(model string) Provider {
 	return SelectedProviderForConfig(model, ActiveWorkspaceConfig())

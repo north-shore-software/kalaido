@@ -30,6 +30,10 @@ func (p *Provider) model() string {
 	return p.Model
 }
 
+func (p *Provider) ContextWindow() int {
+	return 1_000_000
+}
+
 type geminiContent struct {
 	Role  string       `json:"role,omitempty"`
 	Parts []geminiPart `json:"parts"`

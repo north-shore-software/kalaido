@@ -32,7 +32,7 @@ var expandFragmentTool = llm.Tool{
 	}`),
 }
 
-func markupAndIncorporate(ctx context.Context, app core.App, m *workspaceMap, runID, mapModel, annotateModel string, chunk []*core.Record) (int, error) {
+func markupAndIncorporate(ctx context.Context, app core.App, m *workspaceMap, runID, mapModel, annotateModel string, chunk []*core.Record, mapBudgetBytes int) (int, error) {
 	anns, err := markupChunk(ctx, app, m.body, m.version, annotateModel, chunk)
 	if err != nil {
 		return 0, err
@@ -45,15 +45,15 @@ func markupAndIncorporate(ctx context.Context, app core.App, m *workspaceMap, ru
 			r.GetDateTime("source_time").String(),
 			string(anns[i].body)))
 	}
-	newBody, exp, err := incorporate(ctx, app, m.body, mapModel, sb.String(), true)
+	newBody, exp, err := incorporate(ctx, app, m.body, mapModel, sb.String(), true, mapBudgetBytes)
 	if err != nil {
 		return exp, err
 	}
 	return exp, persistChunk(app, m, runID, annotateModel, newBody, anns)
 }
 
-func incorporateRawThenAnnotate(ctx context.Context, app core.App, m *workspaceMap, runID, mapModel, annotateModel string, chunk []*core.Record) (int, error) {
-	newBody, exp, err := incorporate(ctx, app, m.body, mapModel, llmcontext.RenderFragmentRecords(chunk), false)
+func incorporateRawThenAnnotate(ctx context.Context, app core.App, m *workspaceMap, runID, mapModel, annotateModel string, chunk []*core.Record, mapBudgetBytes int) (int, error) {
+	newBody, exp, err := incorporate(ctx, app, m.body, mapModel, llmcontext.RenderFragmentRecords(chunk), false, mapBudgetBytes)
 	if err != nil {
 		return exp, err
 	}
@@ -124,7 +124,7 @@ func markupOne(ctx context.Context, app core.App, mapBody, model string, rec *co
 	return nil, fmt.Errorf("unparseable markup reply")
 }
 
-func incorporate(ctx context.Context, app core.App, mapBody, model, inputBlock string, allowTools bool) (string, int, error) {
+func incorporate(ctx context.Context, app core.App, mapBody, model, inputBlock string, allowTools bool, mapBudgetBytes int) (string, int, error) {
 	msgs := []llm.Message{{Role: "user", Content: prompts.MapIncorporatePrompt(mapBody, inputBlock)}}
 	tools := []llm.Tool{expandFragmentTool}
 	if !allowTools {
@@ -173,7 +173,7 @@ func incorporate(ctx context.Context, app core.App, mapBody, model, inputBlock s
 	}
 
 	if body, ok := prompts.ParseMapReply(reply); ok {
-		return guardSize(string(body)), expansions, nil
+		return guardSize(string(body), mapBudgetBytes), expansions, nil
 	}
 	msgs = append(msgs,
 		llm.Message{Role: "assistant", Content: reply},
@@ -187,7 +187,7 @@ func incorporate(ctx context.Context, app core.App, mapBody, model, inputBlock s
 		return "", expansions, err
 	}
 	if body, ok := prompts.ParseMapReply(reply); ok {
-		return guardSize(string(body)), expansions, nil
+		return guardSize(string(body), mapBudgetBytes), expansions, nil
 	}
 	return "", expansions, fmt.Errorf("unparseable map reply")
 }
@@ -209,9 +209,9 @@ func expandIDs(calls []llm.ToolCall) []string {
 	return ids
 }
 
-func guardSize(body string) string {
-	if len(body) > maxMapBytes {
-		log.Printf("mapping: map body is %d bytes (guard: %d) — consider edit-op incorporation", len(body), maxMapBytes)
+func guardSize(body string, maxBytes int) string {
+	if len(body) > maxBytes {
+		log.Printf("mapping: map body is %d bytes (guard: %d) — consider edit-op incorporation", len(body), maxBytes)
 	}
 	return body
 }

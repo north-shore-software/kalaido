@@ -147,6 +147,10 @@ func normalizeArguments(raw json.RawMessage) json.RawMessage {
 	return raw
 }
 
+func (p *OllamaProvider) ContextWindow() int {
+	return 256_000
+}
+
 func (p *OllamaProvider) Stream(ctx context.Context, messages []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
 	modelName := p.model()
 

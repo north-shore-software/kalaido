@@ -74,4 +74,8 @@ type GenOptions struct {
 
 type Provider interface {
 	Stream(ctx context.Context, messages []Message, tools []Tool, opts GenOptions) (*Completion, error)
+
+	// ContextWindow reports this provider instance's context window, in
+	// tokens. A hardcoded value tracked per provider for now, not queried live.
+	ContextWindow() int
 }

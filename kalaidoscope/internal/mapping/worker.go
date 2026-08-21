@@ -15,15 +15,25 @@ import (
 
 const (
 	threshold             = 10
-	chunkRawBudgetBytes   = 96 << 10
-	chunkAnnBudgetBytes   = 96 << 10
 	estAnnotationBytes    = 1 << 10
-	maxMapBytes           = 32 << 10
 	maxExpansionsPerChunk = 8
 	maxToolRounds         = 4
 	markupConcurrency     = 100
 	maxThrottledAttempts  = 6
+
+	bytesPerToken = 4 // rough English-text estimate
 )
+
+// mapBudgets derives the map-body and chunk byte budgets from a provider's
+// context window: half the window is reserved for prompt scaffolding and the
+// reply (incorporate's reply is the full updated map body), split 1:3 between
+// the map body and the new-material chunk.
+func mapBudgets(ctxWindowTokens int) (mapBudgetBytes, chunkBudgetBytes int) {
+	usable := ctxWindowTokens * bytesPerToken / 2
+	mapBudgetBytes = usable / 4
+	chunkBudgetBytes = usable - mapBudgetBytes
+	return
+}
 
 var signal = make(chan struct{}, 1)
 
@@ -116,14 +126,12 @@ func pendingCount(app core.App) (int, error) {
 	return len(pending), nil
 }
 
-func buildChunks(frags []*core.Record, firstIsRaw bool) [][]*core.Record {
+func buildChunks(frags []*core.Record, firstIsRaw bool, budget int) [][]*core.Record {
 	var chunks [][]*core.Record
 	var cur []*core.Record
 	size := 0
-	budget := chunkAnnBudgetBytes
 	sizeOf := func(r *core.Record) int { return min(len(r.GetString("content")), estAnnotationBytes) }
 	if firstIsRaw {
-		budget = chunkRawBudgetBytes
 		sizeOf = func(r *core.Record) int { return len(r.GetString("content")) }
 	}
 	for _, f := range frags {
@@ -133,7 +141,6 @@ func buildChunks(frags []*core.Record, firstIsRaw bool) [][]*core.Record {
 			cur, size = nil, 0
 			if firstIsRaw {
 				firstIsRaw = false
-				budget = chunkAnnBudgetBytes
 				sizeOf = func(r *core.Record) int { return min(len(r.GetString("content")), estAnnotationBytes) }
 				s = sizeOf(f)
 			}
@@ -168,6 +175,7 @@ func drain(app core.App) {
 		log.Printf("mapping: drain: %v", err)
 		return
 	}
+	mapBudgetBytes, chunkBudgetBytes := mapBudgets(llm.SelectedProvider(mapModel).ContextWindow())
 	annotateModel, err := llm.ResolveRole(llm.RoleAnnotate)
 	if err != nil {
 		log.Printf("mapping: drain: %v", err)
@@ -189,16 +197,16 @@ func drain(app core.App) {
 	}
 
 	ctx := context.Background()
-	chunks := buildChunks(frags, m.version == 0)
+	chunks := buildChunks(frags, m.version == 0, chunkBudgetBytes)
 	processed, expansions := 0, 0
 
 	for i, chunk := range chunks {
 		var exp int
 		var err error
 		if m.version == 0 {
-			exp, err = incorporateRawThenAnnotate(ctx, app, m, run.Id, mapModel, annotateModel, chunk)
+			exp, err = incorporateRawThenAnnotate(ctx, app, m, run.Id, mapModel, annotateModel, chunk, mapBudgetBytes)
 		} else {
-			exp, err = markupAndIncorporate(ctx, app, m, run.Id, mapModel, annotateModel, chunk)
+			exp, err = markupAndIncorporate(ctx, app, m, run.Id, mapModel, annotateModel, chunk, mapBudgetBytes)
 		}
 		if err != nil {
 			run.Set("status", "error")
