@@ -215,6 +215,10 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 	}
 	spec.SourceProjectionIDs = args.SourceProjections
 	spec.SourceReflectionIDs = args.SourceReflections
+	// A composite reads its sources' content; re-listing the colours those
+	// sources were built from would hydrate the same fragments a second time
+	// alongside the snapshots. Keep only ground the sources don't cover.
+	spec.ColourIDs = dropCoveredColours(app, spec.ColourIDs, args.SourceProjections, args.SourceReflections)
 
 	targetCol := "projection"
 	var strat engine.Strategy = engine.ProjectionStrategy{}
@@ -279,6 +283,40 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 	go generateAndPublish(context.Background(), app, run, mu, wg, entity.Id, strat, waitOn, done)
 
 	return fmt.Sprintf("Created %s %q (id: %s); content generation queued.", entryType, args.Name, entity.Id)
+}
+
+// dropCoveredColours removes colours that already appear in a source
+// entity's own context spec, so a composite's context is its sources plus
+// genuinely new ground, never the same fragments twice.
+func dropCoveredColours(app core.App, colourIDs, sourceProjections, sourceReflections []string) []string {
+	if len(colourIDs) == 0 || len(sourceProjections)+len(sourceReflections) == 0 {
+		return colourIDs
+	}
+	covered := make(map[string]bool)
+	collect := func(col string, ids []string) {
+		for _, id := range ids {
+			rec, err := app.FindRecordById(col, id)
+			if err != nil {
+				continue
+			}
+			var spec api.ContextSpec
+			if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
+				continue
+			}
+			for _, c := range spec.ColourIDs {
+				covered[c] = true
+			}
+		}
+	}
+	collect("projection", sourceProjections)
+	collect("reflection", sourceReflections)
+	var kept []string
+	for _, c := range colourIDs {
+		if !covered[c] {
+			kept = append(kept, c)
+		}
+	}
+	return kept
 }
 
 // validateSources checks that every referenced source entity exists, either
