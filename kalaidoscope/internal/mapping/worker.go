@@ -21,7 +21,8 @@ const (
 	maxMapBytes           = 32 << 10
 	maxExpansionsPerChunk = 8
 	maxToolRounds         = 4
-	markupConcurrency     = 8
+	markupConcurrency     = 20
+	maxThrottledAttempts  = 6
 )
 
 var signal = make(chan struct{}, 1)
@@ -230,10 +231,18 @@ func drain(app core.App) {
 }
 
 func retryPreempted(f func() error) error {
+	throttled := 0
 	for {
 		err := f()
 		if errors.Is(err, llmq.ErrPreempted) {
 			continue
+		}
+		var perr *llm.ProviderError
+		if errors.As(err, &perr) && (perr.Kind == llm.ErrKindQuota || perr.Kind == llm.ErrKindTransient) {
+			throttled++
+			if throttled <= maxThrottledAttempts {
+				continue
+			}
 		}
 		return err
 	}
