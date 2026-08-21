@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowRightIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface OrganizingSplashProps {
@@ -837,10 +837,12 @@ export function OrganizingSplash({
     window.addEventListener("resize", handleResize);
     handleResize();
 
+    let swapTimer: ReturnType<typeof setTimeout> | undefined;
     const statusTimer = setInterval(() => {
       if (stateRef.current.endAt !== null) return;
       setStatusOpacity(0);
-      setTimeout(() => {
+      swapTimer = setTimeout(() => {
+        if (stateRef.current.endAt !== null) return;
         stateRef.current.pi = (stateRef.current.pi + 1) % PHRASES.length;
         setStatus(PHRASES[stateRef.current.pi]);
         setStatusOpacity(1);
@@ -1070,6 +1072,7 @@ export function OrganizingSplash({
     return () => {
       cancelAnimationFrame(rafId);
       clearInterval(statusTimer);
+      clearTimeout(swapTimer);
       window.removeEventListener("resize", handleResize);
     };
   }, []);
@@ -1080,10 +1083,10 @@ export function OrganizingSplash({
         <button
           type="button"
           onClick={onSkip}
-          className="absolute top-9 left-4 z-50 flex items-center gap-1.5 rounded border border-line bg-surface-1/80 px-3 py-1.5 font-mono text-[12px] text-fg-3 backdrop-blur-sm transition-colors hover:bg-surface-2 hover:text-fg-1 cursor-pointer"
+          className="absolute top-9 right-4 z-50 flex items-center gap-1.5 rounded border border-line bg-surface-1/80 px-3 py-1.5 font-mono text-[12px] text-fg-3 backdrop-blur-sm transition-colors hover:bg-surface-2 hover:text-fg-1 cursor-pointer"
         >
-          <ArrowLeftIcon className="size-3.5" />
           Skip to app
+          <ArrowRightIcon className="size-3.5" />
         </button>
       )}
       <canvas
@@ -1099,7 +1102,7 @@ export function OrganizingSplash({
             className="text-[13px] tracking-[0.08em] text-white transition-opacity duration-600 ease-[cubic-bezier(0.2,0.7,0.2,1)]"
             style={{ opacity: statusOpacity }}
           >
-            {status}
+            <span key={status}>{status}</span>
           </div>
         </div>
       )}
