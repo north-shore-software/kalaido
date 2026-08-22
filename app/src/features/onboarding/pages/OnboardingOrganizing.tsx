@@ -1,34 +1,31 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { useIngestPipeline } from "@/hooks/use-ingest-pipeline";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
-import { OnboardingShell } from "../components/onboarding-shell";
+import { OrganizingSplash } from "../components/organizing-splash";
+import { usePipelineProgress } from "../hooks/use-pipeline-progress";
 import { onboardingOrganizingTransitions as transitions } from "./OnboardingOrganizing.transitions";
 
 export default function OnboardingOrganizing() {
   const { go } = useAppNavigate();
   const { ingestId = "" } = useParams<{ ingestId: string }>();
-  const { stage } = useIngestPipeline(ingestId);
+  const { stage, progress } = usePipelineProgress(ingestId);
+
+  const toApp = () => go(transitions.toApp, { replace: true });
 
   useEffect(() => {
-    if (stage === "done" || stage === "error") {
+    if (stage === "error") {
       go(transitions.toApp, { replace: true });
     }
   }, [stage, go]);
 
   return (
-    <OnboardingShell title="Organising your notes">
-      <div className="flex justify-center">
-        <Button
-          variant="ghost"
-          onClick={() => go(transitions.toApp, { replace: true })}
-        >
-          Skip to app
-        </Button>
-      </div>
-    </OnboardingShell>
+    <OrganizingSplash
+      progress={progress}
+      ending={stage === "done"}
+      onSkip={toApp}
+      onEnded={toApp}
+    />
   );
 }
 
