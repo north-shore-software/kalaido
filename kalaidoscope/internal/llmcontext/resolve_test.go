@@ -10,7 +10,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
 func sortedCopy(ids []string) []string {
@@ -21,7 +21,7 @@ func sortedCopy(ids []string) []string {
 
 func addFragment(t *testing.T, app core.App, fragType, content string) *core.Record {
 	t.Helper()
-	return pbtest.NewRecord(t, app, "fragment", map[string]any{
+	return testutil.NewRecord(t, app, "fragment", map[string]any{
 		"type":    fragType,
 		"content": content,
 	})
@@ -59,7 +59,7 @@ func assertIDs(t *testing.T, got, want []string) {
 // Explicit Fragments (spec/model.md "Context Spec"): a spec may pin individual
 // fragments by id, and they come back whatever their type or colours.
 func TestResolveExplicitFragments(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
 	note := addFragment(t, app, "note", "a note")
 	email := addFragment(t, app, "email", "an email")
@@ -108,7 +108,7 @@ func TestResolveExplicitFragments(t *testing.T) {
 // Deletion removes a fragment from all future context resolution whether it was
 // pinned or matched by rule — a pin is not a way to hold on to deleted material.
 func TestResolveExplicitFragmentsSkipsDeleted(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
 	kept := addFragment(t, app, "note", "kept")
 	gone := addFragment(t, app, "note", "deleted")

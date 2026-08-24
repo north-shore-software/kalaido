@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,33 +9,18 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ollama"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/server"
 	"github.com/pocketbase/pocketbase"
 )
 
-type mockProvider struct{}
-
-func (mockProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
-	ch := make(chan llm.StreamEvent, 1)
-	ch <- llm.StreamEvent{Kind: llm.EventText, Text: "mock response"}
-	close(ch)
-	return &llm.Completion{
-		Events: ch,
-		Wait: func() *llm.Usage {
-			return &llm.Usage{Provider: "mock", Model: "mock"}
-		},
-	}, nil
-}
-
-func setupSidecar(t *testing.T) (*pocketbase.PocketBase, *pbtest.TestServer) {
+func startTestServer(t *testing.T) (*pocketbase.PocketBase, *testutil.TestServer) {
 	t.Helper()
 
 	llm.SetActiveModelSet(llm.SetLocal)
 	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
-		return mockProvider{}
+		return testutil.MockProvider{}
 	})
 
 	a := server.NewWithConfig(pocketbase.Config{
@@ -55,18 +39,16 @@ func setupSidecar(t *testing.T) (*pocketbase.PocketBase, *pbtest.TestServer) {
 
 	resolveModelSet(a)
 	config.LoadAtBoot(a)
-	ollama.RegisterRoutes(a)
-	ollama.RegisterPreload(a)
 	seedSidecarUser(a)
 	reportPort(a)
 	server.EnsureReady()
 
-	ts := pbtest.NewTestServer(t, a)
+	ts := testutil.NewTestServer(t, a)
 	return a, ts
 }
 
 func TestIngestFragment_Integration(t *testing.T) {
-	app, ts := setupSidecar(t)
+	app, ts := startTestServer(t)
 
 	reqBody := api.IngestMessage{
 		Type:    "note",

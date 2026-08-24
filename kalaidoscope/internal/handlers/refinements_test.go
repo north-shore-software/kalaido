@@ -10,15 +10,15 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
 // newRefinement opens an empty projection refinement conversation to seed into.
 func newRefinement(t *testing.T, app core.App) *core.Record {
 	t.Helper()
 
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{"name": "target"})
-	return pbtest.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "target"})
+	return testutil.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "client-1",
 	})
@@ -44,7 +44,7 @@ func persist(t *testing.T, app core.App, ref *core.Record, msg api.UIMessage) {
 // without a model call, because the commit path cannot tell it apart from a
 // draft the assistant produced.
 func TestSeededDraftIsCommittable(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	ref := newRefinement(t, app)
 
 	persist(t, app, ref, seedDraftMessage("SEEDED CONTENT"))
@@ -61,7 +61,7 @@ func TestSeededDraftIsCommittable(t *testing.T) {
 // A seed is a starting point, not a floor: once the user refines it, their
 // version is what gets committed.
 func TestARealDraftSupersedesTheSeed(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	ref := newRefinement(t, app)
 
 	persist(t, app, ref, seedDraftMessage("SEEDED CONTENT"))
@@ -86,10 +86,10 @@ func TestARealDraftSupersedesTheSeed(t *testing.T) {
 // commit would record that nothing went in, leaving the new projection stale the
 // instant it was created.
 func TestSeededContextCarriesItsResolvedIDs(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	ref := newRefinement(t, app)
 
-	fragment := pbtest.NewRecord(t, app, "fragment", map[string]any{
+	fragment := testutil.NewRecord(t, app, "fragment", map[string]any{
 		"type": "chat", "content": "the graduated answer",
 	})
 	spec := api.ContextSpec{FragmentIDs: []string{fragment.Id}}

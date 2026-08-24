@@ -10,14 +10,14 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
 func addFragment(t *testing.T, app core.App, content string) *core.Record {
 	t.Helper()
-	return pbtest.NewRecord(t, app, "fragment", map[string]any{
+	return testutil.NewRecord(t, app, "fragment", map[string]any{
 		"type":    "note",
 		"content": content,
 	})
@@ -27,7 +27,7 @@ func addFragment(t *testing.T, app core.App, content string) *core.Record {
 // exactly what it consumed as its resolved context.
 func approveSnapshot(t *testing.T, app core.App, projectionID string, seq int, pinned llmcontext.PinnedIDs) *core.Record {
 	t.Helper()
-	return pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
+	return testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":            projectionID,
 		"status":                   "approved",
 		"approval_sequence_number": seq,
@@ -54,7 +54,7 @@ func evaluate(t *testing.T, app core.App) map[string]api.EntityStatus {
 // generated against.
 func pendingSnapshot(t *testing.T, app core.App, projectionID string, pinned llmcontext.PinnedIDs) *core.Record {
 	t.Helper()
-	return pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
+	return testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":    projectionID,
 		"status":           "pending",
 		"resolved_context": pbutil.JSONObject(pinned),
@@ -68,13 +68,13 @@ func pendingSnapshot(t *testing.T, app core.App, projectionID string, pinned llm
 // and approving it settles nothing. This is why candidate generation refuses to
 // run while an upstream is still awaiting approval.
 func TestApprovingACandidateGeneratedAgainstOldContext(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
-	upstream := pbtest.NewRecord(t, app, "projection", map[string]any{
+	upstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "upstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
 	})
-	downstream := pbtest.NewRecord(t, app, "projection", map[string]any{
+	downstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name": "downstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{
 			SourceProjectionIDs: []string{upstream.Id},
@@ -126,9 +126,9 @@ func TestApprovingACandidateGeneratedAgainstOldContext(t *testing.T) {
 // Nothing can prevent this one — the world moves while you review — so the UI
 // has to report it rather than swallow it.
 func TestApprovingACandidateAfterAFragmentLands(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "notes",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
 	})
@@ -165,13 +165,13 @@ func TestApprovingACandidateAfterAFragmentLands(t *testing.T) {
 // into StaleDependencies: its upstream has published something new (stale —
 // regenerate now) versus its upstream is not itself up to date (blocked — wait).
 func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
-	upstream := pbtest.NewRecord(t, app, "projection", map[string]any{
+	upstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "upstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
 	})
-	downstream := pbtest.NewRecord(t, app, "projection", map[string]any{
+	downstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name": "downstream",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{
 			SourceProjectionIDs: []string{upstream.Id},
@@ -250,11 +250,11 @@ func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
 // pins stays up to date no matter what else lands. It goes stale when the pinned
 // set itself is edited, which is the only way it can change.
 func TestExplicitlyPinnedFragmentsDoNotGoStaleOnTheirOwn(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
 	f1 := addFragment(t, app, "pinned")
 
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name": "pinned only",
 		"current_context_spec": pbutil.JSONObject(api.ContextSpec{
 			FragmentIDs: []string{f1.Id},

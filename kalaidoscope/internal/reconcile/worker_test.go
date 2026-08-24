@@ -11,9 +11,9 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -46,7 +46,7 @@ type chainGraph struct {
 
 func newLens(t *testing.T, app core.App, spec api.ContextSpec) *core.Record {
 	t.Helper()
-	return pbtest.NewRecord(t, app, "lens", map[string]any{
+	return testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt":       pbutil.JSONString("Summarize the sources."),
 		"context_spec": pbutil.JSONObject(spec),
 	})
@@ -54,7 +54,7 @@ func newLens(t *testing.T, app core.App, spec api.ContextSpec) *core.Record {
 
 func newApprovedSnapshot(t *testing.T, app core.App, col, fk, parentID, lensID string, pinned llmcontext.PinnedIDs) *core.Record {
 	t.Helper()
-	return pbtest.NewRecord(t, app, col, map[string]any{
+	return testutil.NewRecord(t, app, col, map[string]any{
 		fk:                         parentID,
 		"lens_id":                  lensID,
 		"output":                   pbutil.JSONString("old output"),
@@ -68,11 +68,11 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 	t.Helper()
 	g := chainGraph{}
 
-	g.f0 = pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "old fragment"})
+	g.f0 = testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "old fragment"})
 
 	reflSpec := api.ContextSpec{WholeScope: true}
 	reflLens := newLens(t, app, reflSpec)
-	g.refl = pbtest.NewRecord(t, app, "reflection", map[string]any{
+	g.refl = testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name":                 "R",
 		"current_context_spec": pbutil.JSONObject(reflSpec),
 		"current_lens_id":      reflLens.Id,
@@ -82,7 +82,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 
 	p1Spec := api.ContextSpec{SourceReflectionIDs: []string{g.refl.Id}}
 	p1Lens := newLens(t, app, p1Spec)
-	g.p1 = pbtest.NewRecord(t, app, "projection", map[string]any{
+	g.p1 = testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P1",
 		"current_context_spec": pbutil.JSONObject(p1Spec),
 		"current_lens_id":      p1Lens.Id,
@@ -92,7 +92,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 
 	p2Spec := api.ContextSpec{SourceProjectionIDs: []string{g.p1.Id}}
 	p2Lens := newLens(t, app, p2Spec)
-	g.p2 = pbtest.NewRecord(t, app, "projection", map[string]any{
+	g.p2 = testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P2",
 		"current_context_spec": pbutil.JSONObject(p2Spec),
 		"current_lens_id":      p2Lens.Id,
@@ -101,7 +101,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 		llmcontext.PinnedIDs{SnapshotIDs: []string{g.p1Snap0.Id}})
 
 	// The new fragment that makes R stale and, transitively, blocks P1 and P2.
-	g.f1 = pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "new fragment"})
+	g.f1 = testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "new fragment"})
 
 	// Snapshot ordering inside speculative resolution is by `created`, which
 	// has millisecond granularity; make sure wave-written rows sort after the
@@ -142,7 +142,7 @@ func countAllSnapshots(t *testing.T, app core.App) int {
 }
 
 func TestWaveSpeculativelyGeneratesWholeChain(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	g := buildChain(t, app)
 
 	runWave(app)
@@ -191,7 +191,7 @@ func TestWaveSpeculativelyGeneratesWholeChain(t *testing.T) {
 }
 
 func TestRepeatWaveGeneratesNothing(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	buildChain(t, app)
 
 	runWave(app)
@@ -205,7 +205,7 @@ func TestRepeatWaveGeneratesNothing(t *testing.T) {
 }
 
 func TestApprovingAsIsSettlesChainWithoutRegeneration(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	g := buildChain(t, app)
 
 	runWave(app)
@@ -239,7 +239,7 @@ func TestApprovingAsIsSettlesChainWithoutRegeneration(t *testing.T) {
 }
 
 func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	g := buildChain(t, app)
 
 	runWave(app)

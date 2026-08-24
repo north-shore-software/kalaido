@@ -1,4 +1,4 @@
-package pbtest
+package testutil
 
 import (
 	"net/http"
