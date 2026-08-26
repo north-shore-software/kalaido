@@ -15,6 +15,32 @@ func ApplyPrompt(lensPrompt, sourceBlock string, windowStart, windowEnd types.Da
 		"Instruction:\n" + lensPrompt + "\n\nOutput:"
 }
 
+// SnapshotNoChanges is the exact reply the delta turn gives when the fresh
+// candidate differs from the previously published output only in wording. The
+// engine checks it by trimmed equality, so the prompt must keep demanding it
+// appear alone.
+const SnapshotNoChanges = "NO CHANGES"
+
+// SnapshotDeltaPrompt continues the generation conversation ApplyPrompt opened
+// — the fresh candidate is the assistant turn directly above. Even at
+// temperature 0 a regeneration rewords lines whose information did not change,
+// so the candidate is never published directly when a predecessor exists;
+// instead this turn names what actually changed, and those bullets become the
+// only channel through which the candidate can alter the published text.
+func SnapshotDeltaPrompt(previous string) string {
+	return "Previously published version:\n" + previous + "\n\n" +
+		"Task: List, as bullet points, the semantic delta between the previously published version above and the version you just produced — information that was added, updated, or removed. Only actual information counts: ignore differences that are purely wording, phrasing, ordering, or formatting. If there is no semantic difference, reply with exactly \"" + SnapshotNoChanges + "\" and nothing else.\n\n" +
+		"Semantic delta:"
+}
+
+// SnapshotMergePrompt closes the delta conversation: the previous text with
+// only the bullets integrated, so unchanged information keeps its published
+// wording and a regeneration diffs quietly.
+func SnapshotMergePrompt() string {
+	return "Task: Produce the final document. Take the previously published version and integrate the new or updated information from your bullet points into it. Reproduce everything else verbatim — do not rephrase, reorder, or reformat content whose meaning is unchanged — so that as few lines as possible differ from the previously published version. Output only the final document.\n\n" +
+		"Final document:"
+}
+
 func ColourEvalPrompt(criteria, positiveBlock, negativeBlock, targetDocument string) string {
 	var sb strings.Builder
 	sb.WriteString("Task: " + ColourEvalInstruction + "\n\n")

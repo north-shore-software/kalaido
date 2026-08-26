@@ -115,21 +115,30 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 	})
 }
 
-func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int, error) {
+// approvedSnapshotFilter selects a parent's approved snapshots, scoped for
+// reflections to one window — each window key carries its own approval chain.
+func approvedSnapshotFilter(strat Strategy, parentID, windowKey string) (string, dbx.Params) {
 	filter := strat.ForeignKeyCol() + " = {:parent} && status = 'approved'"
-	params := dbx.Params{"parent": snap.GetString(strat.ForeignKeyCol())}
+	params := dbx.Params{"parent": parentID}
 	if strat.TargetType() == "reflection" {
-		if wk := snap.GetString("window_key"); wk == "" {
+		if windowKey == "" {
 			// A bound empty param compares `= ''` in SQL and misses rows whose
 			// window_key was never written (NULL); PocketBase's literal ''
 			// matches empty-or-null. Without this, every windowless snapshot
-			// sequences from 1 and the second approval hits the unique index.
+			// would live in its own chain: approvals would all sequence from 1
+			// (and the second one hit the unique index), and the minimal-diff
+			// rewrite would never find its predecessor.
 			filter += " && window_key = ''"
 		} else {
 			filter += " && window_key = {:wk}"
-			params["wk"] = wk
+			params["wk"] = windowKey
 		}
 	}
+	return filter, params
+}
+
+func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int, error) {
+	filter, params := approvedSnapshotFilter(strat, snap.GetString(strat.ForeignKeyCol()), snap.GetString("window_key"))
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
 	if err != nil {

@@ -2,7 +2,9 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -47,22 +51,6 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("prepare context: %w", err)
 	}
 
-	var outputStr string
-
-	var outputModel string
-
-	if strings.TrimSpace(lensPrompt) == "" {
-
-		outputStr = ""
-	} else {
-		out, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
-		if err != nil {
-			return "", fmt.Errorf("generate standard: %w", err)
-		}
-		outputStr = out
-		outputModel = model
-	}
-
 	var winSpec, resWin any
 	var winKey string
 	var specVersionNumber int
@@ -78,6 +66,39 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 				"end":   window.End,
 			}
 			winKey = window.Start + "_" + window.End
+		}
+	}
+
+	var outputStr string
+
+	var outputModel string
+
+	if strings.TrimSpace(lensPrompt) == "" {
+
+		outputStr = ""
+	} else {
+		out, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
+		if err != nil {
+			return "", fmt.Errorf("generate standard: %w", err)
+		}
+		outputStr = out
+		outputModel = model
+
+		if prev := latestApprovedOutput(app, strat, rec.Id, winKey); strings.TrimSpace(prev) != "" && out != prev {
+			merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, prev, out)
+			switch {
+			case err == nil:
+				outputStr = merged
+			case errors.Is(err, llmq.ErrPreempted):
+				// The same contract as a preempted GenerateOutput: the caller
+				// (the reconcile worker) retries the whole generation rather
+				// than publishing a half-processed candidate.
+				return "", err
+			default:
+				// The polish steps failing must not fail the generation; the
+				// raw candidate is correct, just noisier to diff.
+				log.Printf("snapshot %s %s: minimal-diff rewrite failed, keeping raw candidate: %v", strat.TargetType(), rec.Id, err)
+			}
 		}
 	}
 
@@ -105,6 +126,54 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		}
 	}
 	return snapID, nil
+}
+
+// latestApprovedOutput returns the output of the entity's newest approved
+// snapshot (per window for reflections) — the text the review pane diffs
+// candidates against — or "" when none exists yet.
+func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey string) string {
+	filter, params := approvedSnapshotFilter(strat, parentID, windowKey)
+	recs, err := app.FindRecordsByFilter(
+		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
+	if err != nil || len(recs) == 0 {
+		return ""
+	}
+	return pbutil.DecodeJSONString(recs[0].GetString("output"))
+}
+
+// minimizeAgainstPrevious rewrites a freshly generated candidate as a minimal
+// edit of the previously approved output. Even at temperature 0 a regeneration
+// rewords lines whose information did not change, so a raw candidate diffs
+// noisily against its predecessor. The generation conversation continues with
+// two turns — name the semantic delta from the previous output as bullets,
+// then integrate just those bullets into the previous text — so wording only
+// moves where meaning did. A delta of prompts.SnapshotNoChanges short-circuits
+// to the previous output verbatim.
+func minimizeAgainstPrevious(ctx context.Context, app core.App, model, lensPrompt, sourceBlock, previous, candidate string) (string, error) {
+	msgs := []llm.Message{
+		{Role: "user", Content: prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{})},
+		{Role: "assistant", Content: candidate},
+		{Role: "user", Content: prompts.SnapshotDeltaPrompt(previous)},
+	}
+	delta, err := usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleSnapshot, model, nil)
+	if err != nil {
+		return "", fmt.Errorf("semantic delta: %w", err)
+	}
+	if strings.TrimSpace(delta) == prompts.SnapshotNoChanges {
+		return previous, nil
+	}
+	msgs = append(msgs,
+		llm.Message{Role: "assistant", Content: delta},
+		llm.Message{Role: "user", Content: prompts.SnapshotMergePrompt()},
+	)
+	merged, err := usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleSnapshot, model, nil)
+	if err != nil {
+		return "", fmt.Errorf("merge: %w", err)
+	}
+	if strings.TrimSpace(merged) == "" {
+		return "", fmt.Errorf("merge returned empty output")
+	}
+	return strings.TrimSpace(merged), nil
 }
 
 // SnapshotIsCurrent reports whether the entity's newest snapshot — pending or

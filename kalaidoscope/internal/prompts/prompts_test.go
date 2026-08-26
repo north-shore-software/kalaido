@@ -33,6 +33,22 @@ func TestMentionLegendComposition(t *testing.T) {
 	}
 }
 
+// The snapshot delta turn is checked by the engine with trimmed equality
+// against SnapshotNoChanges, so the prompt must quote that exact sentinel and
+// carry the previous output it asks to be compared against.
+func TestSnapshotDeltaPromptContract(t *testing.T) {
+	p := SnapshotDeltaPrompt("PREV DOC")
+	if !strings.Contains(p, "PREV DOC") {
+		t.Error("SnapshotDeltaPrompt does not carry the previous output")
+	}
+	if !strings.Contains(p, `"`+SnapshotNoChanges+`"`) {
+		t.Errorf("SnapshotDeltaPrompt does not quote the sentinel %q", SnapshotNoChanges)
+	}
+	if !strings.Contains(SnapshotMergePrompt(), "verbatim") {
+		t.Error("SnapshotMergePrompt lost the verbatim-reproduction instruction")
+	}
+}
+
 // The refinement prompt's naming instructions must quote the exact tool names
 // the handler advertises — the constants are wire identifiers, so a drifted
 // quote silently detaches the instruction from the tool it governs.
