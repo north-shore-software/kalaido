@@ -48,13 +48,19 @@ export default function Projections() {
   const pending = useLiveCollection("projection_snapshot", {
     filter: 'status="pending"',
     sort: "-created",
-    fields: "id,projection_id",
+    fields: "id,projection_id,resolved_context",
   });
   const candidateByProjection = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { id: string; fragmentIds: Set<string> }>();
     for (const s of pending.records) {
       // records are newest-first, so the first seen per projection is latest.
-      if (!map.has(s.projection_id)) map.set(s.projection_id, s.id);
+      if (!map.has(s.projection_id)) {
+        const ctx = s.resolved_context as { fragmentIds?: string[] } | null;
+        map.set(s.projection_id, {
+          id: s.id,
+          fragmentIds: new Set(ctx?.fragmentIds ?? []),
+        });
+      }
     }
     return map;
   }, [pending.records]);
@@ -64,13 +70,21 @@ export default function Projections() {
   const tiers = useMemo(() => tierProjections(projections), [projections]);
 
   function renderCard(p: ProjectionResponse) {
-    const candidateId = candidateByProjection.get(p.id);
+    const candidate = candidateByProjection.get(p.id);
+    // Rotation entropy counts against the live (approved) snapshot; only the
+    // fragments the candidate's own resolved context misses make it outdated.
+    const newSinceCandidate = candidate
+      ? (statusById.get(p.id)?.newFragmentIds ?? []).filter(
+          (id) => !candidate.fragmentIds.has(id),
+        ).length
+      : 0;
     return (
       <ProjCard
         key={p.id}
         p={p}
-        candidateId={candidateId}
-        status={getProjectionStatus(statusById.get(p.id), !!candidateId)}
+        candidateId={candidate?.id}
+        newSinceCandidate={newSinceCandidate}
+        status={getProjectionStatus(statusById.get(p.id), !!candidate)}
         brief={p.brief}
         sources={resolveSources(
           parseContextSpec(p.current_context_spec),

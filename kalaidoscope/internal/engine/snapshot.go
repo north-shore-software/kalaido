@@ -84,10 +84,20 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		outputStr = out
 		outputModel = model
 
-		if prev := latestApprovedOutput(app, strat, rec.Id, winKey); strings.TrimSpace(prev) != "" && out != prev {
+		switch prev := latestApprovedOutput(app, strat, rec.Id, winKey); {
+		case strings.TrimSpace(prev) == "":
+			// First generation for this target (and window): nothing to anchor to.
+		case out == prev:
+			log.Printf("snapshot %s %s: candidate matches the approved output byte-for-byte; nothing to rewrite", strat.TargetType(), rec.Id)
+		default:
 			merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, prev, out)
 			switch {
 			case err == nil:
+				if merged == prev {
+					log.Printf("snapshot %s %s: delta reported no semantic change; republishing the approved output verbatim", strat.TargetType(), rec.Id)
+				} else {
+					log.Printf("snapshot %s %s: stored minimal-diff rewrite of the candidate", strat.TargetType(), rec.Id)
+				}
 				outputStr = merged
 			case errors.Is(err, llmq.ErrPreempted):
 				// The same contract as a preempted GenerateOutput: the caller
