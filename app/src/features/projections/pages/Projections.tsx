@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { PlusIcon } from "lucide-react";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { defineRoute } from "@/routes/route-kit";
@@ -46,13 +46,14 @@ export default function Projections() {
     sort: "-updated",
   });
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending"',
+    filter: 'status="pending" || status="generating"',
     sort: "-created",
-    fields: "id,projection_id,resolved_context",
+    fields: "id,projection_id,resolved_context,status",
   });
   const candidateByProjection = useMemo(() => {
     const map = new Map<string, { id: string; fragmentIds: Set<string> }>();
     for (const s of pending.records) {
+      if (s.status !== "pending") continue;
       // records are newest-first, so the first seen per projection is latest.
       if (!map.has(s.projection_id)) {
         const ctx = s.resolved_context as { fragmentIds?: string[] } | null;
@@ -64,8 +65,30 @@ export default function Projections() {
     }
     return map;
   }, [pending.records]);
+  // status='generating' rows are the server's in-flight claims, one per
+  // running generation — they drive the card's "generating…" badge.
+  const generatingProjections = useMemo(
+    () =>
+      new Set(
+        pending.records
+          .filter((s) => s.status === "generating")
+          .map((s) => s.projection_id),
+      ),
+    [pending.records],
+  );
 
-  const { byId: statusById } = useRotationStatus();
+  const { byId: statusById, refetch: refetchRotation } = useRotationStatus();
+  // /api/rotation is a plain fetch, not realtime — recompute whenever the
+  // candidate/claim set changes (generate, approve, supersede) so the badges
+  // don't sit stale while the page is open.
+  const planInputsKey = useMemo(
+    () => pending.records.map((s) => `${s.id}:${s.status}`).join(","),
+    [pending.records],
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch on snapshot-set changes.
+  useEffect(() => {
+    refetchRotation();
+  }, [planInputsKey, refetchRotation]);
   const contextSources = useContextSources();
   const tiers = useMemo(() => tierProjections(projections), [projections]);
 
@@ -84,7 +107,9 @@ export default function Projections() {
         p={p}
         candidateId={candidate?.id}
         newSinceCandidate={newSinceCandidate}
-        status={getProjectionStatus(statusById.get(p.id), !!candidate)}
+        status={getProjectionStatus(statusById.get(p.id), !!candidate, {
+          generating: generatingProjections.has(p.id),
+        })}
         brief={p.brief}
         sources={resolveSources(
           parseContextSpec(p.current_context_spec),

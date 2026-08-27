@@ -50,3 +50,6 @@ Candidate rows keep `status='pending'` with their original `resolved_context` in
 review UI offered them as the projection's current action while staleness was hidden; approval
 of such a candidate (e.g. `vo88388jo329u92` on projection `y9cjy1a540g802d` would have) leaves
 the projection stale.
+
+## Update (2026-08-27)
+Partially mitigated: a new generation now supersedes the old pending (at most one pending per target), the detail side rail shows "N new since candidate" with a Refresh button even while a candidate exists, and approving a stale candidate leaves staleness visible because approval discards siblings and the rotation plan is refetched on snapshot changes. Auto-regeneration of an outdated pending candidate remains unimplemented.

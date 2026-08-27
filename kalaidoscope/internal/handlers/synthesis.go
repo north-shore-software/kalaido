@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -24,6 +25,13 @@ func resolveCandidate(e *core.RequestEvent, app core.App, strat engine.Strategy)
 	snapID := e.Request.PathValue("rid")
 	if snapID == "" {
 		return "", e.BadRequestError("candidate id required", nil)
+	}
+	snap, err := app.FindRecordById(strat.SnapshotCollectionName(), snapID)
+	if err != nil {
+		return "", e.NotFoundError("candidate not found", err)
+	}
+	if snap.GetString(strat.ForeignKeyCol()) != id {
+		return "", e.NotFoundError("candidate does not belong to this "+strat.TargetType(), nil)
 	}
 	return snapID, nil
 }
@@ -115,12 +123,25 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 			windowsToGenerate = append(windowsToGenerate, nil)
 		}
 
+		// Detached from the request context: once a generation starts it runs
+		// to completion — a client that navigates away or re-triggers must
+		// never truncate the stream mid-document. The result lands in the DB
+		// and reaches the UI over the live subscription even if this response
+		// is never read.
+		genCtx := context.WithoutCancel(e.Request.Context())
+
 		var snapIDs []string
 		for _, w := range windowsToGenerate {
-			snapID, err := engine.GenerateSnapshot(e.Request.Context(), app, id, status, strat, w)
+			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, strat, w)
 			switch {
 			case errors.Is(err, usage.ErrExhausted):
 				return usage.WriteExhausted(e, app)
+			case errors.Is(err, engine.ErrLensNotReady):
+				return e.Error(http.StatusConflict,
+					"This "+strat.TargetType()+"'s lens is still being prepared — try again in a moment.", err)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict,
+					"A generation for this "+strat.TargetType()+" is already running.", err)
 			case err != nil:
 				log.Printf("%s.generate: %v", strat.TargetType(), err)
 				if usage.WriteProviderError(e, err) {
@@ -155,6 +176,9 @@ func handleApproveCandidate(app core.App, strat engine.Strategy) func(e *core.Re
 		}
 		if err := engine.ApproveSnapshot(e.Request.Context(), app, strat, snapID); err != nil {
 			log.Printf("%s.approve: %v", strat.TargetType(), err)
+			if errors.Is(err, engine.ErrNotApprovable) {
+				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
+			}
 			return e.InternalServerError("approve failed", err)
 		}
 		if strat.TargetType() == "projection" {

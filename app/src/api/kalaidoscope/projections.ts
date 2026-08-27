@@ -39,7 +39,10 @@ export async function regenerateProjection(
   return withActiveClient((client) =>
     client.send<RegenerateProjectionResult>(
       `/api/projections/${projectionId}/candidates`,
-      { method: "POST", body: { preview: !autoApprove } },
+      // requestKey: null opts out of the SDK's auto-cancellation — without it
+      // a second generate call aborts the first client-side while the server
+      // keeps running both, surfacing as a phantom "Failed to refresh".
+      { method: "POST", body: { preview: !autoApprove }, requestKey: null },
     ),
   );
 }

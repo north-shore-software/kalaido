@@ -76,9 +76,15 @@ export default function Rotation() {
       const res = await regenerateProjection(currentId, false);
       if (res.isErr()) {
         generatingFor.current.delete(currentId);
-        toast.error("Failed to generate draft", {
-          description: res.error.message,
-        });
+        // 409 = the server is already generating this one (or its lens is
+        // still distilling); the candidate will arrive on its own, so a
+        // benign conflict must not read as a failure.
+        const status = (res.error as { status?: number }).status;
+        if (status !== 409) {
+          toast.error("Failed to generate draft", {
+            description: res.error.message,
+          });
+        }
       }
     })();
   }, [currentId, currentType, candidateByProjection]);

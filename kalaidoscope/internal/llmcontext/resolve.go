@@ -93,7 +93,9 @@ func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec) ([
 // consumed a candidate becomes consistent the moment that candidate lands.
 func snapshotFilterAndSort(ctx stdctx.Context, entityFilter string) (filter, sort string) {
 	if ChainOriginFromContext(ctx) != "" {
-		return entityFilter, "-created"
+		// "Regardless of status" still excludes rows that are not output:
+		// in-flight generation claims and superseded candidates.
+		return entityFilter + " && status != 'generating' && status != 'discarded'", "-created"
 	}
 	return entityFilter + " && status = 'approved'", "-approval_sequence_number"
 }

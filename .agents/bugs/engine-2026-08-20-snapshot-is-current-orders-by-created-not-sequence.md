@@ -1,6 +1,6 @@
 ---
 title: "SnapshotIsCurrent picks the latest snapshot by -created, racing same-millisecond ties"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-08-20"
 ---
@@ -31,3 +31,6 @@ consult the wrong snapshot (worst case a spurious regeneration in a reconcile wa
 - `internal/engine/snapshot_test.go:13-67`
 - Ordering rationale for `approval_sequence_number`: `.agents/spec` "Approval sequence
   numbers".
+
+## Resolution (2026-08-27)
+SnapshotIsCurrent now sorts `-created,-approval_sequence_number` (deterministic tie-break) and only considers pending/approved rows. `internal/engine/snapshot.go`; TestSnapshotIsCurrentConsidersModel passes at -count=20.

@@ -1,6 +1,6 @@
 ---
 title: "Cancelled LLM stream returns partial output as a complete result; truncated snapshot stored"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-08-26"
 ---
@@ -49,3 +49,6 @@ not):
 followed by `INSERT INTO projection_snapshot ... id='m27z34i013629ud', status='pending'` with the
 truncated output above. Root cause is in the stream-consumption layer: the event channel closes on
 cancellation and the accumulated text is returned as a successful completion.
+
+## Resolution (2026-08-27)
+Two layers: `usage.GenerateOnceMsgs`/`GenerateWithToolCalls` now return an error when the caller's ctx died mid-stream instead of partial text (`internal/usage/stream.go`); and candidate/commit generation is detached from the HTTP request context via `context.WithoutCancel` (`internal/handlers/synthesis.go`, `refinements.go`) so a client disconnect can no longer truncate a stream. Residual: a pure provider-side drop with a live ctx is still undetectable (`Completion.Wait` carries no error); covered by test TestGenerateSnapshotCancelledStreamPersistsNothing.

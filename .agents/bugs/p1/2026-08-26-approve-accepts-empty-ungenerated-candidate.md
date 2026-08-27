@@ -1,6 +1,6 @@
 ---
 title: "ApproveSnapshot accepts empty/ungenerated candidates as the new plan of record"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-08-26"
 ---
@@ -58,3 +58,6 @@ Empty candidate approved without complaint; `UPDATE projection_snapshot SET
 approval_sequence_number=2, status='approved' ... output='""',
 resolved_context='{}' WHERE id='0z2o4bflqb6i511'` in the sidecar log, followed by the
 dashboard reporting "26 new fragments" for the projection.
+
+## Resolution (2026-08-27)
+ApproveSnapshot now refuses empty-output, generating, and discarded candidates (`engine.ErrNotApprovable` → 422) and discards pending siblings of the promoted one; GenerateSnapshot also refuses to persist empty model output; resolveCandidate verifies the snapshot belongs to the URL's projection; the review UI disables Approve on an empty candidate. Test TestApproveSnapshotGuards.

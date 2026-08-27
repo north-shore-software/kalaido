@@ -30,6 +30,11 @@ import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 
 type EntityKind = "projection" | "reflection";
 
+// Demo stability switch (2026-08-27): the speculative "generate all" wave is
+// disabled backend-side (reconcile.waveEnabled) so every generation traces to
+// an explicit user action; this hides its button. Flip both to restore.
+const GENERATE_ALL_ENABLED = false;
+
 /** Parse a `view_stream.colours` cell (JSON string or array) into indices. */
 function parseColours(raw: unknown): number[] {
   if (Array.isArray(raw)) return raw as number[];
@@ -248,7 +253,9 @@ export default function Main() {
     const res = await regenerateProjection(it.id);
     setRefreshing(null);
     if (res.isErr()) {
-      toast.error("Failed to refresh", { description: res.error.message });
+      // 409s carry a specific reason (lens still preparing, generation
+      // already running) — surface the server's own message.
+      toast.error("Couldn't refresh", { description: res.error.message });
       return;
     }
     go(mainTransitions.reviewProjection, {
@@ -309,7 +316,14 @@ export default function Main() {
               items={needsAction}
               onAction={startWork}
               busyId={refreshing}
-              onGenerateAll={generateAllHasWork ? generateAll : undefined}
+              onGenerateAll={
+                // Demo stability switch (2026-08-27): the backend wave is
+                // parked (reconcile.waveEnabled = false), so the button is
+                // hidden with it. Restore both together.
+                GENERATE_ALL_ENABLED && generateAllHasWork
+                  ? generateAll
+                  : undefined
+              }
               generating={waveGenerating || waveKicked}
             />
 

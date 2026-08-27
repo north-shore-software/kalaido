@@ -55,4 +55,27 @@ describe("getProjectionStatus", () => {
   test("no plan entry reads as stable", () => {
     expect(getProjectionStatus(undefined, false).status).toBe("stable");
   });
+
+  test("a running generation outranks even a pending candidate", () => {
+    const info = getProjectionStatus(
+      status({ newFragmentIds: ["f1"], blockedBy: ["p1"] }),
+      true,
+      { generating: true },
+    );
+    expect(info.status).toBe("generating");
+  });
+
+  test("a missing lens reads as preparing, not stale or blocked", () => {
+    const info = getProjectionStatus(
+      status({ newFragmentIds: ["f1"], blockedBy: ["p1"] }),
+      false,
+      { lensMissing: true },
+    );
+    expect(info.status).toBe("preparing");
+  });
+
+  test("a pending candidate outranks a missing lens", () => {
+    const info = getProjectionStatus(status({}), true, { lensMissing: true });
+    expect(info.status).toBe("pending");
+  });
 });

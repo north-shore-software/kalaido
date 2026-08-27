@@ -42,8 +42,17 @@ func Register(app core.App) {
 	go workerLoop()
 }
 
+// waveEnabled parks the speculative wave entirely: every snapshot generation
+// must trace to an explicit user action. Temporary demo-stability switch
+// (2026-08-27) — flip to true to restore "generate all" behaviour.
+const waveEnabled = false
+
 // EnqueueWave requests a speculative generation wave and returns immediately.
 func EnqueueWave() {
+	if !waveEnabled {
+		log.Printf("reconcile wave: disabled; ignoring request")
+		return
+	}
 	select {
 	case waveSignal <- struct{}{}:
 	default:
@@ -130,6 +139,13 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 				// still in hand — the retry blocks in the scheduler until a
 				// slot frees up.
 				continue
+			}
+			if errors.Is(err, engine.ErrLensNotReady) || errors.Is(err, engine.ErrGenerationInFlight) {
+				// Someone else is already producing this entity's output (an
+				// interactive generation, or the pending lens distillation).
+				// Skip it; the next wave re-evaluates from scratch.
+				log.Printf("reconcile wave: %s %s: %v; skipping", s.Type, s.ID, err)
+				break
 			}
 			if err != nil {
 				return err

@@ -134,9 +134,14 @@ function ProjectionReviewPage() {
 
   const title = projection?.name || "Projection";
 
+  // A candidate with no content must never become the plan of record (the
+  // server refuses it too — this just keeps the buttons honest). Old rows from
+  // before the server-side guard may still be empty.
+  const pendingEmpty = !!pending && !refining && !(pendingContent ?? "").trim();
+
   // Approve either commits the refinement (when the chat produced a draft) or
-  // promotes the pending candidate as-is. Discarding superseded candidates is
-  // implicit — committing a refinement discards the old pending server-side.
+  // promotes the pending candidate as-is. Approval discards superseded pending
+  // candidates server-side, for commits and as-is approvals alike.
   // Returns whether the approval landed, so callers can decide where to go.
   async function runApprove(): Promise<boolean> {
     if (!id || !pending || busy) return false;
@@ -220,6 +225,11 @@ function ProjectionReviewPage() {
         crumb={["Projections", title, "Review"]}
         actions={
           <>
+            {pendingEmpty && (
+              <span className="text-meta text-fg-3">
+                Empty candidate — refresh the projection to regenerate it.
+              </span>
+            )}
             <Button
               variant="outline"
               onClick={() => go(projectionReviewTransitions.backToList)}
@@ -229,7 +239,7 @@ function ProjectionReviewPage() {
             <Button
               variant="outline"
               onClick={approve}
-              disabled={!pending || busy || advancing}
+              disabled={!pending || pendingEmpty || busy || advancing}
             >
               <CheckIcon />
               {refining ? "Approve refined" : "Approve"}
@@ -237,7 +247,7 @@ function ProjectionReviewPage() {
             <Button
               variant="commit"
               onClick={approveAndNext}
-              disabled={!pending || busy || advancing}
+              disabled={!pending || pendingEmpty || busy || advancing}
             >
               {advancing ? "Finding next…" : "Approve & next"}
               <ArrowRightIcon />

@@ -1,6 +1,6 @@
 ---
 title: "Refresh before lens distillation completes silently writes an empty snapshot; approving it poisons staleness counts"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-08-26"
 ---
@@ -70,3 +70,6 @@ Empty pending snapshot silently created and surfaced as a reviewable candidate; 
 approved it becomes the live snapshot with an empty `resolved_context`, corrupting the
 staleness/new-fragment computation for the projection (reported 26 new fragments when 1
 was new) and giving `SnapshotIsCurrent` / minimal-diff anchoring an empty baseline.
+
+## Resolution (2026-08-27)
+GenerateSnapshot now refuses with `engine.ErrLensNotReady` when the lens prompt is empty (no model call, nothing persisted); the handler maps it to 409 and the UI shows a Preparing card while `current_lens_id` is empty. `internal/engine/snapshot.go`, `internal/handlers/synthesis.go`; test TestGenerateSnapshotLensNotReadyRefuses.

@@ -23,7 +23,7 @@ export function RefreshCard({ regenerating, onRefresh }: RefreshCardProps) {
         onClick={onRefresh}
         disabled={regenerating}
       >
-        {regenerating ? "Refreshing…" : "Regenerate"}
+        {regenerating ? "Refreshing…" : "Refresh"}
       </Button>
     </div>
   );

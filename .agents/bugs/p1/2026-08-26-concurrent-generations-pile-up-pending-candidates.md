@@ -1,6 +1,6 @@
 ---
 title: "Concurrent generations for the same projection race and pile up duplicate/orphaned pending candidates"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-08-26"
 ---
@@ -48,3 +48,6 @@ per projection.
 (background + interactive); `projection_snapshot` accumulated multiple pending rows per
 projection; the cancelled loser stored a truncated document (see p0 bug
 `2026-08-26-cancelled-stream-returns-partial-output-as-complete.md`).
+
+## Resolution (2026-08-27)
+Generation is now serialized per target by a DB claim row (`status='generating'`, TTL takeover, startup sweep) — a second request gets 409 `ErrGenerationInFlight`; completing a generation and approving a candidate both discard pending siblings, so at most one pending exists per target. The speculative wave is additionally disabled for now (reconcile.waveEnabled=false). Tests TestGenerateSnapshotInFlightGuard, TestGenerateSnapshotSupersedesPriorPending.

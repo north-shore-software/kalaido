@@ -18,6 +18,10 @@ export interface StatusBadgeProps {
 
 export function StatusBadge({ info }: StatusBadgeProps) {
   switch (info.status) {
+    case "generating":
+      return <Mono className="text-mono-sm text-fg-3">generating…</Mono>;
+    case "preparing":
+      return <Mono className="text-mono-sm text-fg-3">preparing lens…</Mono>;
     case "stale":
       return (
         <Mono className="text-mono-sm text-drifting-ink">

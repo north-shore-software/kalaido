@@ -10,6 +10,8 @@ export interface ProjectionSideRailProps {
   info: ProjectionStatusInfo | undefined;
   /** Set only while a pending candidate exists; navigates to its review. */
   onReviewCandidate?: () => void;
+  /** In-scope fragments the pending candidate's resolved context misses. */
+  newSinceCandidate?: number;
   /** Display names for `info.blockedBy`, in the same order. */
   blockedNames?: string[];
   regenerating: boolean;
@@ -25,6 +27,7 @@ export function ProjectionSideRail({
   rotLoading,
   info,
   onReviewCandidate,
+  newSinceCandidate = 0,
   blockedNames,
   regenerating,
   onRefresh,
@@ -36,15 +39,63 @@ export function ProjectionSideRail({
   let freshnessCard: ReactNode = null;
   if (rotLoading && !info) {
     freshnessCard = null;
+  } else if (info?.status === "generating") {
+    freshnessCard = (
+      <div className="rounded-none border border-line p-3.5">
+        <div className="mb-2 flex items-center gap-2.5">
+          <RefreshCwIcon className="size-4 animate-spin text-fg-3" />
+          <span className="text-item font-semibold">Generating…</span>
+        </div>
+        <p className="text-body-sm leading-relaxed text-fg-2">
+          A new candidate is being generated. It will appear here for review
+          when it's ready.
+        </p>
+      </div>
+    );
   } else if (info?.status === "pending" && onReviewCandidate) {
     freshnessCard = (
       <div className="rounded-none border border-line p-3.5">
         <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
           A candidate is awaiting review.
+          {newSinceCandidate > 0 && (
+            <>
+              {" "}
+              <span className="text-drifting-ink">
+                {newSinceCandidate} new fragment
+                {newSinceCandidate > 1 ? "s" : ""} arrived since it was
+                generated
+              </span>{" "}
+              — refresh to fold them in.
+            </>
+          )}
         </p>
-        <Button size="sm" className="w-full" onClick={onReviewCandidate}>
-          Review candidate
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button size="sm" className="w-full" onClick={onReviewCandidate}>
+            Review candidate
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={onRefresh}
+            disabled={regenerating}
+          >
+            {regenerating ? "Refreshing…" : "Refresh candidate"}
+          </Button>
+        </div>
+      </div>
+    );
+  } else if (info?.status === "preparing") {
+    freshnessCard = (
+      <div className="rounded-none border border-line p-3.5">
+        <div className="mb-2 flex items-center gap-2.5">
+          <ClockIcon className="size-4 text-fg-3" />
+          <span className="text-item font-semibold">Preparing</span>
+        </div>
+        <p className="text-body-sm leading-relaxed text-fg-2">
+          This projection's lens is still being prepared. Refresh will be
+          available in a moment.
+        </p>
       </div>
     );
   } else if (info?.status === "blocked") {

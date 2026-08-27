@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -57,6 +59,17 @@ func AppendSnapshot(ctx context.Context, app core.App, collectionName string, fo
 		return "", err
 	}
 	snap := core.NewRecord(sCol)
+	applySnapshotSpec(ctx, snap, collectionName, foreignKeyCol, s)
+	if err := app.Save(snap); err != nil {
+		return "", err
+	}
+	return snap.Id, nil
+}
+
+// applySnapshotSpec stamps a SnapshotSpec onto a record — a fresh one
+// (AppendSnapshot) or the generation claim row being filled in place
+// (completeClaimedSnapshot).
+func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName string, foreignKeyCol string, s SnapshotSpec) {
 	snap.Set(foreignKeyCol, s.SourceID)
 	snap.Set("lens_id", s.LensID)
 	snap.Set("output", pbutil.JSONString(s.Output))
@@ -88,11 +101,23 @@ func AppendSnapshot(ctx context.Context, app core.App, collectionName string, fo
 	}
 	snap.Set("chain_origin", origin)
 	snap.Set("generation_timestamp", types.NowDateTime())
+}
 
-	if err := app.Save(snap); err != nil {
-		return "", err
-	}
-	return snap.Id, nil
+// completeClaimedSnapshot fills the generation claim row with the finished
+// output, in the same transaction discarding any pending siblings so at most
+// one reviewable candidate exists per target (and window).
+func completeClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, claimID string, s SnapshotSpec) error {
+	return app.RunInTransaction(func(tx core.App) error {
+		snap, err := tx.FindRecordById(strat.SnapshotCollectionName(), claimID)
+		if err != nil {
+			return err
+		}
+		applySnapshotSpec(ctx, snap, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), s)
+		if err := tx.Save(snap); err != nil {
+			return err
+		}
+		return discardOtherPending(tx, strat, s.SourceID, s.WindowKey, snap.Id)
+	})
 }
 
 func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshotID string) error {
@@ -104,6 +129,19 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		if snap.GetInt("approval_sequence_number") > 0 {
 			return nil
 		}
+		// Circuit breaker: never promote a candidate that was never actually
+		// generated (empty output), is still generating (a claim row), or was
+		// already superseded. An empty snapshot as the plan of record poisons
+		// staleness counts and gives downstream consumers "" as approved truth.
+		switch snap.GetString("status") {
+		case StatusGenerating:
+			return fmt.Errorf("%w: generation still running", ErrNotApprovable)
+		case StatusDiscarded:
+			return fmt.Errorf("%w: candidate was superseded", ErrNotApprovable)
+		}
+		if strings.TrimSpace(pbutil.DecodeJSONString(snap.GetString("output"))) == "" {
+			return fmt.Errorf("%w: candidate has no content", ErrNotApprovable)
+		}
 		seq, err := nextApprovalSequence(txApp, strat, snap)
 		if err != nil {
 			return err
@@ -111,15 +149,25 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		snap.Set("approval_sequence_number", seq)
 		snap.Set("approval_timestamp", types.NowDateTime())
 		snap.Set("status", StatusApproved)
-		return txApp.Save(snap)
+		if err := txApp.Save(snap); err != nil {
+			return err
+		}
+		return discardOtherPending(txApp, strat,
+			snap.GetString(strat.ForeignKeyCol()), snap.GetString("window_key"), snap.Id)
 	})
 }
 
 // approvedSnapshotFilter selects a parent's approved snapshots, scoped for
 // reflections to one window — each window key carries its own approval chain.
 func approvedSnapshotFilter(strat Strategy, parentID, windowKey string) (string, dbx.Params) {
-	filter := strat.ForeignKeyCol() + " = {:parent} && status = 'approved'"
-	params := dbx.Params{"parent": parentID}
+	return statusSnapshotFilter(strat, parentID, windowKey, StatusApproved)
+}
+
+// statusSnapshotFilter selects a parent's snapshots of one status, with the
+// same reflection window scoping as approvedSnapshotFilter.
+func statusSnapshotFilter(strat Strategy, parentID, windowKey, status string) (string, dbx.Params) {
+	filter := strat.ForeignKeyCol() + " = {:parent} && status = {:status}"
+	params := dbx.Params{"parent": parentID, "status": status}
 	if strat.TargetType() == "reflection" {
 		if windowKey == "" {
 			// A bound empty param compares `= ''` in SQL and misses rows whose

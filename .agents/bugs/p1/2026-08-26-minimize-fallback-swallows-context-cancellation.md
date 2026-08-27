@@ -1,6 +1,6 @@
 ---
 title: "minimizeAgainstPrevious falls back to raw candidate on context cancellation instead of aborting"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-08-26"
 ---
@@ -42,3 +42,6 @@ wanted.
 ```
 
 followed by a pending snapshot INSERT for the abandoned (and truncated) candidate.
+
+## Resolution (2026-08-27)
+The raw-candidate fallback in GenerateSnapshot now aborts when `ctx.Err() != nil` (same contract as ErrPreempted) instead of persisting the possibly-truncated raw candidate. `internal/engine/snapshot.go`.
