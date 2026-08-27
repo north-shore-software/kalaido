@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -30,10 +31,27 @@ func HandleIngest(app core.App) func(e *core.RequestEvent) error {
 		ingested := 0
 		if id != "" {
 			ingested = 1
+			fragType := strings.TrimSpace(msg.Type)
+			if fragType == "" {
+				fragType = "note"
+			}
+			log.Printf("ingest: fragment %s (%s): %s", id, fragType, contentPreview(msg.Content))
+		} else {
+			log.Printf("ingest: duplicate entry skipped: %s", contentPreview(msg.Content))
 		}
 		return e.JSON(http.StatusOK, api.IngestResponse{
 			FragmentID: id,
 			Ingested:   ingested,
 		})
 	}
+}
+
+// contentPreview compacts free text to one quoted log-friendly line.
+func contentPreview(s string) string {
+	const maxRunes = 120
+	compact := strings.Join(strings.Fields(s), " ")
+	if r := []rune(compact); len(r) > maxRunes {
+		compact = string(r[:maxRunes]) + "…"
+	}
+	return fmt.Sprintf("%q", compact)
 }

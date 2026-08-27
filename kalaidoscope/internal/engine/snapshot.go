@@ -86,6 +86,11 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("prepare context: %w", err)
 	}
 
+	started := time.Now()
+	log.Printf("snapshot %s %s (%q): generating via %s — context: %d fragments, %d snapshots",
+		strat.TargetType(), rec.Id, rec.GetString("name"), model,
+		len(pinnedCtx.FragmentIDs), len(pinnedCtx.SnapshotIDs))
+
 	outputStr, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
 	if err != nil {
 		return "", fmt.Errorf("generate standard: %w", err)
@@ -143,6 +148,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
 	completed = true
+	log.Printf("snapshot %s %s (%q): stored %s snapshot %s (%d chars, %s)",
+		strat.TargetType(), rec.Id, rec.GetString("name"), status, claimID,
+		len(outputStr), time.Since(started).Round(time.Millisecond))
 
 	if status == StatusApproved {
 

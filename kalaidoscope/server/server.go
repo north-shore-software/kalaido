@@ -43,6 +43,7 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 		return se.Next()
 	})
 
+	registerWriteEcho(app)
 	RegisterTriggers(app)
 	RegisterRoutes(app)
 	usage.Setup(app)

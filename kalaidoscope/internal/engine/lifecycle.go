@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -121,7 +122,9 @@ func completeClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, 
 }
 
 func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshotID string) error {
-	return app.RunInTransaction(func(txApp core.App) error {
+	var approvedSeq int
+	var parentID string
+	err := app.RunInTransaction(func(txApp core.App) error {
 		snap, err := txApp.FindRecordById(strat.SnapshotCollectionName(), snapshotID)
 		if err != nil {
 			return err
@@ -152,9 +155,16 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		if err := txApp.Save(snap); err != nil {
 			return err
 		}
+		approvedSeq = seq
+		parentID = snap.GetString(strat.ForeignKeyCol())
 		return discardOtherPending(txApp, strat,
-			snap.GetString(strat.ForeignKeyCol()), snap.GetString("window_key"), snap.Id)
+			parentID, snap.GetString("window_key"), snap.Id)
 	})
+	if err == nil && approvedSeq > 0 {
+		log.Printf("approve %s %s: snapshot %s is now the approved output (sequence %d)",
+			strat.TargetType(), parentID, snapshotID, approvedSeq)
+	}
+	return err
 }
 
 // approvedSnapshotFilter selects a parent's approved snapshots, scoped for

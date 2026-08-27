@@ -355,6 +355,9 @@ func DistillAndUpdateLens(ctx context.Context, app core.App, strat Strategy, sna
 		return err
 	}
 
+	log.Printf("lens distillation: %s %s (%q): distilling from snapshot %s via %s",
+		strat.TargetType(), parentID, rec.GetString("name"), snap.Id, model)
+
 	newLensPrompt, iterations, converged, err := distillLensLoop(ctx, app, strat, snap, model)
 	if err != nil {
 		return err
@@ -391,5 +394,11 @@ func DistillAndUpdateLens(ctx context.Context, app core.App, strat Strategy, sna
 	}
 
 	snap.Set("lens_id", lensRec.Id)
-	return app.Save(snap)
+	if err := app.Save(snap); err != nil {
+		return err
+	}
+
+	log.Printf("lens distillation: %s %s (%q): installed lens %s (iterations=%d, converged=%v)\n--- lens text ---\n%s\n--- end lens text ---",
+		strat.TargetType(), parentID, rec.GetString("name"), lensRec.Id, iterations, converged, newLensPrompt)
+	return nil
 }

@@ -310,6 +310,7 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 			log.Printf("refinement.commit: %v", err)
 			return e.InternalServerError("failed to commit refinement", err)
 		}
+		log.Printf("refinement.commit: %s %s: refinement %s committed as snapshot %s", targetCol, parentID, refRec.Id, newSnapID)
 
 		return e.JSON(http.StatusOK, map[string]string{"snapshotId": newSnapID})
 	}
