@@ -302,7 +302,9 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 
 		sourceSnapID := refRec.GetString(snapshotField)
 
-		ctx := e.Request.Context()
+		// Detached: a commit must run to completion once started — the client
+		// giving up mid-request must not leave a half-committed refinement.
+		ctx := context.WithoutCancel(e.Request.Context())
 		newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, output, req.UpdateLensAndContext, pinned, spec, winSpec, refRec.Id, targetCol)
 		if err != nil {
 			log.Printf("refinement.commit: %v", err)

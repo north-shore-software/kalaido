@@ -37,6 +37,9 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 	// dashboard stays reachable at /_/ for anyone who creates a superuser by hand.
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		se.InstallerFunc = nil
+		// A generation claim row is only live while its goroutine runs in this
+		// process; anything present at boot belongs to a crashed run.
+		engine.SweepGenerationClaims(app)
 		return se.Next()
 	})
 

@@ -53,7 +53,13 @@ export function useReflectionSnapshot(
   });
 
   const reflection = reflectionsQuery.records[0];
-  const snapshots = snapshotsQuery.records;
+  // A status='generating' row is the server's in-flight claim, not a snapshot:
+  // it has no output yet and must never render as a document or timeline entry.
+  const allRecords = snapshotsQuery.records;
+  const snapshots = useMemo(
+    () => allRecords.filter((s) => s.status !== "generating"),
+    [allRecords],
+  );
 
   // Snapshots are newest-first, so the first approved one is the live snapshot.
   const liveSnapshot = useMemo(

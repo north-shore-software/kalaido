@@ -36,6 +36,12 @@ func mapBudgets(ctxWindowTokens int) (mapBudgetBytes, chunkBudgetBytes int) {
 	return
 }
 
+// autoMapEnabled gates the automatic map triggers: ingest completion, the
+// fragment-create backlog check, and the boot-time backlog sweep. Temporarily
+// disabled; the manual kick (POST /api/map -> Signal) and the explicit
+// organize-after pipeline stay live.
+const autoMapEnabled = false
+
 var signal = make(chan struct{}, 1)
 
 var followUps followup.Queue
@@ -50,7 +56,7 @@ func Register(app core.App) {
 			return err
 		}
 		if n, err := pendingCount(app); err == nil && n > 0 {
-			Signal()
+			SignalAuto()
 		}
 		return nil
 	})
@@ -63,11 +69,23 @@ func Signal() {
 	}
 }
 
+// SignalAuto is the entry point for automatic triggers; unlike Signal it
+// honours the autoMapEnabled gate.
+func SignalAuto() {
+	if !autoMapEnabled {
+		return
+	}
+	Signal()
+}
+
 func AfterDrain(fn func(err error)) {
 	followUps.Add(fn)
 }
 
 func SignalIfBacklog(app core.App) {
+	if !autoMapEnabled {
+		return
+	}
 	if batchIngestActive(app) {
 		return
 	}

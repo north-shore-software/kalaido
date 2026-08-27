@@ -18,6 +18,10 @@ export interface StatusBadgeProps {
 
 export function StatusBadge({ info }: StatusBadgeProps) {
   switch (info.status) {
+    case "generating":
+      return <Mono className="text-mono-sm text-fg-3">generating…</Mono>;
+    case "preparing":
+      return <Mono className="text-mono-sm text-fg-3">preparing lens…</Mono>;
     case "stale":
       return (
         <Mono className="text-mono-sm text-drifting-ink">
@@ -36,6 +40,8 @@ export function StatusBadge({ info }: StatusBadgeProps) {
 export interface ProjCardProps {
   p: ProjectionResponse;
   candidateId?: string;
+  /** In-scope fragments the pending candidate's resolved context misses. */
+  newSinceCandidate?: number;
   status: ProjectionStatusInfo;
   brief: string;
   sources: SourceItem[];
@@ -47,6 +53,7 @@ export interface ProjCardProps {
 export function ProjCard({
   p,
   candidateId,
+  newSinceCandidate = 0,
   status,
   brief,
   sources,
@@ -56,18 +63,25 @@ export function ProjCard({
 }: ProjCardProps) {
   const pinned = isPinned(p.pinned_by);
   const action = candidateId ? (
-    <Button
-      size="sm"
-      variant="outline"
-      className="w-full"
-      onClick={(e) => {
-        e.stopPropagation();
-        onReview(p.id, candidateId);
-      }}
-    >
-      <RefreshCwIcon />
-      Review candidate
-    </Button>
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        onClick={(e) => {
+          e.stopPropagation();
+          onReview(p.id, candidateId);
+        }}
+      >
+        <RefreshCwIcon />
+        Review candidate
+      </Button>
+      {newSinceCandidate > 0 && (
+        <Mono className="text-mono-sm text-drifting-ink">
+          {newSinceCandidate} new since candidate · stale
+        </Mono>
+      )}
+    </>
   ) : (
     <StatusBadge info={status} />
   );

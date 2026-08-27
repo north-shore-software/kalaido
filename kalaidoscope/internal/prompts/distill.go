@@ -25,7 +25,7 @@ You will be shown the document's full history: the user's refinement conversatio
 
 Hard rules for every lens you write:
 - The lens must be data-agnostic: it describes HOW to transform source documents into an output. It must not contain facts, names, dates, numbers, or verbatim sentences copied from the source documents.
-- The lens must not pin the output to specific content: no fixed item counts, no enumerated titles, no fixed orderings. Selection, ordering, and grouping must be expressed as rules the applying model evaluates against whatever the source documents contain at the time.
+- The lens must not pin the output to specific content: no fixed item counts, no enumerated titles, no fixed orderings. Selection, ordering, and grouping must be expressed as rules the applying model evaluates against whatever the source documents contain at the time. Example of this failure: the sources currently describe 8 use cases, so the lens says "capture all distinct use cases (8 in total)" — when a 9th use case is later added to the sources, the applying model obeys the count and silently drops an existing item to stay at 8. Write "capture every distinct use case found in the source documents" instead; the count is whatever the sources yield.
 - The lens must stand alone: the model applying it sees only the lens and the source documents, never this conversation.
 
 Every reply you send must be the full text of the lens and nothing else — no preamble, no commentary.`

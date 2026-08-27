@@ -1,6 +1,12 @@
 import type { EntityStatus } from "@/api/kalaidoscope/rotation";
 
-export type ProjectionStatus = "stable" | "pending" | "stale" | "blocked";
+export type ProjectionStatus =
+  | "stable"
+  | "generating"
+  | "pending"
+  | "preparing"
+  | "stale"
+  | "blocked";
 
 export interface ProjectionStatusInfo {
   status: ProjectionStatus;
@@ -12,10 +18,12 @@ export interface ProjectionStatusInfo {
 
 /**
  * Resolve a projection's headline status from the server's freshness plan
- * (`EntityStatus` from `GET /api/rotation`) combined with whether a pending
- * candidate exists locally. Precedence: a pending candidate to review trumps
- * everything; then blocked-on-upstream; then stale (new fragments, due windows,
- * or an upstream that has published since); otherwise stable.
+ * (`EntityStatus` from `GET /api/rotation`) combined with local snapshot state.
+ * Precedence: a generation running right now (the server's claim row) trumps
+ * everything; then a pending candidate to review; then a lens still being
+ * distilled (nothing can generate yet); then blocked-on-upstream; then stale
+ * (new fragments, due windows, or an upstream that has published since);
+ * otherwise stable.
  *
  * Note that `staleDependencies` counts as stale, not blocked — an upstream that
  * has moved on is work this projection can do right now.
@@ -23,6 +31,12 @@ export interface ProjectionStatusInfo {
 export function getProjectionStatus(
   status: EntityStatus | undefined,
   hasPending: boolean,
+  opts?: {
+    /** A status='generating' claim row exists — a generation is in flight. */
+    generating?: boolean;
+    /** Committed, but current_lens_id is still empty (distillation pending). */
+    lensMissing?: boolean;
+  },
 ): ProjectionStatusInfo {
   const entropy = status?.newFragmentIds?.length ?? 0;
   const blockedBy = status?.blockedBy ?? [];
@@ -30,7 +44,9 @@ export function getProjectionStatus(
   const dueWindows = status?.pendingWindows?.length ?? 0;
 
   let kind: ProjectionStatus = "stable";
-  if (hasPending) kind = "pending";
+  if (opts?.generating) kind = "generating";
+  else if (hasPending) kind = "pending";
+  else if (opts?.lensMissing) kind = "preparing";
   else if (blockedBy.length > 0) kind = "blocked";
   else if (entropy > 0 || dueWindows > 0 || staleDeps > 0) kind = "stale";
 
@@ -41,8 +57,12 @@ export function statusLabel(status: ProjectionStatus): string {
   switch (status) {
     case "stable":
       return "up to date";
+    case "generating":
+      return "generating";
     case "pending":
       return "review candidate";
+    case "preparing":
+      return "preparing";
     case "stale":
       return "stale";
     case "blocked":

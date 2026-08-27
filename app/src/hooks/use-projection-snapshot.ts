@@ -25,8 +25,8 @@ export interface ProjectionOutput {
  * - `ready`    — a live snapshot is available.
  * - `error`    — the snapshot or projection fetch failed.
  *
- * (A `regenerating` state is intentionally omitted for now — the backend has no
- * in-flight flag to drive it.)
+ * (An in-flight generation is reported via the separate `generating` flag,
+ * driven by the server's status='generating' claim row.)
  */
 export type ProjectionSnapshotState =
   | { status: "loading" }
@@ -44,6 +44,8 @@ export interface UseProjectionSnapshotResult {
   /** Full snapshot history, newest first (for a timeline). */
   snapshots: ProjectionSnapshotResponse[];
   liveSnapshot: ProjectionSnapshotResponse | undefined;
+  /** A generation is running server-side (a status='generating' claim row). */
+  generating: boolean;
 }
 
 /**
@@ -78,7 +80,14 @@ export function useProjectionSnapshot(
   });
 
   const projection = projectionsQuery.records[0];
-  const snapshots = snapshotsQuery.records;
+  // A status='generating' row is the server's in-flight claim, not a snapshot:
+  // it has no output yet and must never render as a document or timeline entry.
+  const allRecords = snapshotsQuery.records;
+  const snapshots = useMemo(
+    () => allRecords.filter((s) => s.status !== "generating"),
+    [allRecords],
+  );
+  const generating = allRecords.some((s) => s.status === "generating");
 
   // Snapshots are newest-first, so the first approved one is the live snapshot.
   const liveSnapshot = useMemo(
@@ -119,7 +128,7 @@ export function useProjectionSnapshot(
     projectionsQuery.error,
   ]);
 
-  return { state, projection, snapshots, liveSnapshot };
+  return { state, projection, snapshots, liveSnapshot, generating };
 }
 
 /**

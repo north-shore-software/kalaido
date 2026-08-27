@@ -160,11 +160,11 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 	switch {
 	case cfg.organizeAfter && ingestErr != nil:
 		setPipeline(app, recID, "error", ingestErr)
-		mapping.Signal()
+		mapping.SignalAuto()
 	case cfg.organizeAfter:
 		startPipeline(app, recID)
 	default:
-		mapping.Signal()
+		mapping.SignalAuto()
 	}
 }
 

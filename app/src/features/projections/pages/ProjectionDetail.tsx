@@ -43,7 +43,7 @@ import { projectionDetailTransitions } from "./ProjectionDetail.transitions";
 export default function ProjectionDetail() {
   const { id, snapshotId } = useParams<{ id: string; snapshotId?: string }>();
   const { go } = useAppNavigate();
-  const { state, projection, snapshots, liveSnapshot } =
+  const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
   const [regenerating, setRegenerating] = useState(false);
 
@@ -113,7 +113,9 @@ export default function ProjectionDetail() {
     const res = await regenerateProjection(id);
     setRegenerating(false);
     if (res.isErr()) {
-      toast.error("Failed to refresh", { description: res.error.message });
+      // 409s carry a specific reason (lens still preparing, generation
+      // already running) — surface the server's own message.
+      toast.error("Couldn't refresh", { description: res.error.message });
       return;
     }
     go(projectionDetailTransitions.reviewCandidate, {
@@ -131,8 +133,26 @@ export default function ProjectionDetail() {
     refetch: refetchRotation,
   } = useRotationStatus();
   const info = id
-    ? getProjectionStatus(statusById.get(id), !!pendingCandidate)
+    ? getProjectionStatus(statusById.get(id), !!pendingCandidate, {
+        generating: generating || regenerating,
+        // Committed (snapshots exist) but the lens distillation hasn't
+        // finished yet — generation would be refused, so say "preparing".
+        lensMissing: snapshots.length > 0 && !projection?.current_lens_id,
+      })
     : undefined;
+  // In-scope fragments that arrived after the pending candidate was generated
+  // (rotation entropy counts against the *live* snapshot, so subtract what the
+  // candidate's own resolved context already covers).
+  const newSinceCandidate = useMemo(() => {
+    if (!id || !pendingCandidate) return 0;
+    const ctx = pendingCandidate.resolved_context as {
+      fragmentIds?: string[];
+    } | null;
+    const covered = new Set(ctx?.fragmentIds ?? []);
+    return (statusById.get(id)?.newFragmentIds ?? []).filter(
+      (fid) => !covered.has(fid),
+    ).length;
+  }, [id, pendingCandidate, statusById]);
   // /api/rotation is a plain fetch, not realtime — recompute it whenever the
   // snapshot set changes (approve, regenerate, or a new snapshot streaming in)
   // so the card reflects the current state without a manual reload.
@@ -324,6 +344,7 @@ export default function ProjectionDetail() {
                     })
                 : undefined
             }
+            newSinceCandidate={newSinceCandidate}
             regenerating={regenerating}
             onRefresh={() => void handleRefresh()}
             onBackToLive={() =>

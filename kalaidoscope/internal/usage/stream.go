@@ -92,6 +92,13 @@ func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, rol
 	if cause := context.Cause(runCtx); errors.Is(cause, llmq.ErrPreempted) {
 		return "", llmq.ErrPreempted
 	}
+	// So does a call whose caller's context died mid-stream (the provider
+	// aborts and the channel drains early): never return a truncation as if it
+	// were the whole answer. runCtx can't distinguish this — its cause is
+	// stamped Canceled on normal release too — so check the caller's ctx.
+	if ctx.Err() != nil {
+		return "", fmt.Errorf("stream interrupted: %w", context.Cause(ctx))
+	}
 	return sb.String(), nil
 }
 
@@ -112,6 +119,9 @@ func GenerateWithToolCalls(ctx context.Context, app core.App, msgs []llm.Message
 	}
 	if cause := context.Cause(runCtx); errors.Is(cause, llmq.ErrPreempted) {
 		return "", nil, llmq.ErrPreempted
+	}
+	if ctx.Err() != nil {
+		return "", nil, fmt.Errorf("stream interrupted: %w", context.Cause(ctx))
 	}
 	return sb.String(), calls, nil
 }

@@ -2,7 +2,9 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -36,31 +40,16 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 
 	lensPrompt, lensSpec, _ := resolveActiveLens(app, strat, rec)
+	if strings.TrimSpace(lensPrompt) == "" {
+		// Normal right after a refinement commit: current_lens_id stays empty
+		// until the background distillation worker mints the lens. Refuse
+		// rather than persist an empty document as a reviewable candidate.
+		return "", fmt.Errorf("%s %s: %w", strat.TargetType(), rec.Id, ErrLensNotReady)
+	}
 
 	model, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model"))
 	if err != nil {
 		return "", err
-	}
-
-	sourceBlock, pinnedCtx, err := prepareGenerationContext(ctx, app, strat, rec, lensSpec)
-	if err != nil {
-		return "", fmt.Errorf("prepare context: %w", err)
-	}
-
-	var outputStr string
-
-	var outputModel string
-
-	if strings.TrimSpace(lensPrompt) == "" {
-
-		outputStr = ""
-	} else {
-		out, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
-		if err != nil {
-			return "", fmt.Errorf("generate standard: %w", err)
-		}
-		outputStr = out
-		outputModel = model
 	}
 
 	var winSpec, resWin any
@@ -81,7 +70,64 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		}
 	}
 
-	snapID, err := AppendSnapshot(ctx, app, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
+	claimID, err := claimGeneration(app, strat, rec.Id, winKey)
+	if err != nil {
+		return "", err
+	}
+	completed := false
+	defer func() {
+		if !completed {
+			releaseClaim(app, strat, claimID)
+		}
+	}()
+
+	sourceBlock, pinnedCtx, err := prepareGenerationContext(ctx, app, strat, rec, lensSpec)
+	if err != nil {
+		return "", fmt.Errorf("prepare context: %w", err)
+	}
+
+	outputStr, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
+	if err != nil {
+		return "", fmt.Errorf("generate standard: %w", err)
+	}
+	outputModel := model
+
+	switch prev := latestApprovedOutput(app, strat, rec.Id, winKey); {
+	case strings.TrimSpace(prev) == "":
+		// First generation for this target (and window): nothing to anchor to.
+	case outputStr == prev:
+		log.Printf("snapshot %s %s: candidate matches the approved output byte-for-byte; nothing to rewrite", strat.TargetType(), rec.Id)
+	default:
+		merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, prev, outputStr)
+		switch {
+		case err == nil:
+			if merged == prev {
+				log.Printf("snapshot %s %s: delta reported no semantic change; republishing the approved output verbatim", strat.TargetType(), rec.Id)
+			} else {
+				log.Printf("snapshot %s %s: stored minimal-diff rewrite of the candidate", strat.TargetType(), rec.Id)
+			}
+			outputStr = merged
+		case errors.Is(err, llmq.ErrPreempted):
+			// The same contract as a preempted GenerateOutput: the caller
+			// (the reconcile worker) retries the whole generation rather
+			// than publishing a half-processed candidate.
+			return "", err
+		case ctx.Err() != nil:
+			// The whole generation is being abandoned, and the raw candidate
+			// itself may be a mid-stream truncation. Abort; persist nothing.
+			return "", fmt.Errorf("minimal-diff rewrite: %w", context.Cause(ctx))
+		default:
+			// The polish steps failing must not fail the generation; the
+			// raw candidate is correct, just noisier to diff.
+			log.Printf("snapshot %s %s: minimal-diff rewrite failed, keeping raw candidate: %v", strat.TargetType(), rec.Id, err)
+		}
+	}
+
+	if strings.TrimSpace(outputStr) == "" {
+		return "", fmt.Errorf("%s %s: model returned empty output", strat.TargetType(), rec.Id)
+	}
+
+	if err := completeClaimedSnapshot(ctx, app, strat, claimID, SnapshotSpec{
 		SourceID:                rec.Id,
 		LensID:                  rec.GetString("current_lens_id"),
 		Output:                  outputStr,
@@ -93,18 +139,66 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		Model:                   outputModel,
 		WindowKey:               winKey,
 		WindowSpecVersionNumber: specVersionNumber,
-	})
-	if err != nil {
+	}); err != nil {
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
+	completed = true
 
 	if status == StatusApproved {
 
-		if err := ApproveSnapshot(ctx, app, strat, snapID); err != nil {
+		if err := ApproveSnapshot(ctx, app, strat, claimID); err != nil {
 			return "", fmt.Errorf("%s approve: %w", strat.TargetType(), err)
 		}
 	}
-	return snapID, nil
+	return claimID, nil
+}
+
+// latestApprovedOutput returns the output of the entity's newest approved
+// snapshot (per window for reflections) — the text the review pane diffs
+// candidates against — or "" when none exists yet.
+func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey string) string {
+	filter, params := approvedSnapshotFilter(strat, parentID, windowKey)
+	recs, err := app.FindRecordsByFilter(
+		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
+	if err != nil || len(recs) == 0 {
+		return ""
+	}
+	return pbutil.DecodeJSONString(recs[0].GetString("output"))
+}
+
+// minimizeAgainstPrevious rewrites a freshly generated candidate as a minimal
+// edit of the previously approved output. Even at temperature 0 a regeneration
+// rewords lines whose information did not change, so a raw candidate diffs
+// noisily against its predecessor. The generation conversation continues with
+// two turns — name the semantic delta from the previous output as bullets,
+// then integrate just those bullets into the previous text — so wording only
+// moves where meaning did. A delta of prompts.SnapshotNoChanges short-circuits
+// to the previous output verbatim.
+func minimizeAgainstPrevious(ctx context.Context, app core.App, model, lensPrompt, sourceBlock, previous, candidate string) (string, error) {
+	msgs := []llm.Message{
+		{Role: "user", Content: prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{})},
+		{Role: "assistant", Content: candidate},
+		{Role: "user", Content: prompts.SnapshotDeltaPrompt(previous)},
+	}
+	delta, err := usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleSnapshot, model, nil)
+	if err != nil {
+		return "", fmt.Errorf("semantic delta: %w", err)
+	}
+	if strings.TrimSpace(delta) == prompts.SnapshotNoChanges {
+		return previous, nil
+	}
+	msgs = append(msgs,
+		llm.Message{Role: "assistant", Content: delta},
+		llm.Message{Role: "user", Content: prompts.SnapshotMergePrompt()},
+	)
+	merged, err := usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleSnapshot, model, nil)
+	if err != nil {
+		return "", fmt.Errorf("merge: %w", err)
+	}
+	if strings.TrimSpace(merged) == "" {
+		return "", fmt.Errorf("merge returned empty output")
+	}
+	return strings.TrimSpace(merged), nil
 }
 
 // SnapshotIsCurrent reports whether the entity's newest snapshot — pending or
@@ -114,8 +208,12 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 // refinement re-triggers) skips entities whose speculative candidate is still
 // fresh instead of burning a model call to reproduce it.
 func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *core.Record) bool {
+	// Claim rows and superseded candidates are not output; only pending and
+	// approved snapshots count. -approval_sequence_number breaks same-millisecond
+	// `created` ties deterministically (see .agents/bugs/engine-2026-08-20…).
 	recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(),
-		strat.ForeignKeyCol()+" = {:id}", "-created", 1, 0, dbx.Params{"id": rec.Id})
+		strat.ForeignKeyCol()+" = {:id} && (status = 'pending' || status = 'approved')",
+		"-created,-approval_sequence_number", 1, 0, dbx.Params{"id": rec.Id})
 	if err != nil || len(recs) == 0 {
 		return false
 	}
