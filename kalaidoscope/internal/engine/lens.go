@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -168,6 +169,33 @@ func normalizeWords(s string) []string {
 	return words
 }
 
+// countPinPatterns match a number in totality phrasings — a lens that pins the
+// output's overall item count ("(8 in total)", "all 9 use cases") silently
+// drops content when the sources later grow past the pinned count. Per-item
+// structural counts ("exactly two bullet points under each section") are
+// deliberately not matched: they are legitimate formatting rules, and flagging
+// them would burn the candidate budget rewriting correct lenses.
+var countPinPatterns = func() []*regexp.Regexp {
+	const num = `(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)`
+	return []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b` + num + `\s+in\s+total\b`),
+		regexp.MustCompile(`(?i)\btotal\s+of\s+` + num + `\b`),
+		regexp.MustCompile(`(?i)\b` + num + `\s+total\b`),
+		regexp.MustCompile(`(?i)\ball\s+` + num + `\b`),
+	}
+}()
+
+// lensCountPin returns the first phrase pinning the lens's output to a fixed
+// item count, or "" when the lens is clean.
+func lensCountPin(lens string) string {
+	for _, re := range countPinPatterns {
+		if m := re.FindString(lens); m != "" {
+			return m
+		}
+	}
+	return ""
+}
+
 // sharesVerbatimRun reports whether a and b share a run of leakRunWords
 // consecutive normalized words — long enough that legitimate short echoes
 // (a heading, a term of art) never trip it, only copying does.
@@ -247,6 +275,21 @@ func distillLensLoop(ctx context.Context, app core.App, strat Strategy, snap *co
 			// The generator can only copy the target if the critic leaked it.
 			log.Printf("lens distillation: %s %s: candidate %d quotes the target verbatim (critic leak); keeping best prior candidate", strat.TargetType(), snap.Id, iterations)
 			break
+		}
+
+		// A count-pinned lens is doomed by construction — it will drop content
+		// the day the sources grow past the pinned count — so don't spend an
+		// execute+critique leg on it; send it straight back for a rewrite. On
+		// the final candidate there is no budget left to rewrite, so fall
+		// through and score it: shipping a lens that works against today's
+		// sources beats failing distillation outright.
+		if match := lensCountPin(lens); match != "" {
+			if i < maxLensCandidates-1 {
+				log.Printf("lens distillation: %s %s: candidate %d pins item count (%q); asking for a rewrite", strat.TargetType(), snap.Id, iterations, match)
+				genChat = append(genChat, llm.Message{Role: "user", Content: prompts.DistillGenCountFeedback(match)})
+				continue
+			}
+			log.Printf("lens distillation: %s %s: final candidate %d still pins item count (%q); scoring it anyway", strat.TargetType(), snap.Id, iterations, match)
 		}
 
 		candidate, err := retryPreempted(func() (string, error) {

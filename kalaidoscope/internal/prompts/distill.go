@@ -78,6 +78,17 @@ func DistillGenFeedback(diagnosis string) string {
 		"Rewrite the lens to address this feedback, keeping the hard rules. Reply with the full text of the revised lens only."
 }
 
+// DistillGenCountFeedback rejects a candidate that the mechanical lint caught
+// pinning the output to a fixed item count, quoting the offending phrase. Sent
+// in place of executing the candidate — a count-pinned lens is doomed by
+// construction, so running and critiquing it would waste a loop leg.
+func DistillGenCountFeedback(match string) string {
+	return "Your lens pins the output to a fixed item count: «" + match + "». " +
+		"This violates a hard rule — no fixed item counts. The count is whatever the source documents yield at the time the lens is applied; " +
+		"express selection as a rule the applying model evaluates against them, for example \"every distinct use case found in the source documents\".\n\n" +
+		"Rewrite the lens without pinning any count, keeping the hard rules. Reply with the full text of the revised lens only."
+}
+
 const DistillCriticSystem = `You are a meticulous reviewer. You hold the target document — the exact output the user approved. Another model writes "lenses": instruction prompts that transform source documents into an output. You will be shown, one at a time, the output each candidate lens produced when executed against the current source documents. Decide whether the user would accept the candidate output as the same document as the target.
 
 Reply in exactly one of these two formats.
@@ -90,7 +101,7 @@ VERDICT: MISMATCH
 SCORE: <0-100, how close the candidate is to the target>
 DIAGNOSIS: <what to fix>
 
-Hard rules for the diagnosis: it is relayed to the lens writer, who must never see the target. Describe what differs as generalizable rules about structure, formatting, style, tone, length, and coverage — for example "each item should be a single italicized sentence" or "the output over-explains mechanics". Never name, list, count, or quote specific content from the target: no titles, no names, no facts, no verbatim phrases. A diagnosis that reveals target content defeats the purpose of the review. Never repeat feedback that was already addressed; judge each candidate on its own output.`
+Hard rules for the diagnosis: it is relayed to the lens writer, who must never see the target. Describe what differs as generalizable rules about structure, formatting, style, tone, length, and coverage — for example "each item should be a single italicized sentence" or "the output over-explains mechanics". Never name, list, count, or quote specific content from the target: no titles, no names, no facts, no verbatim phrases. A diagnosis that reveals target content defeats the purpose of the review. Coverage feedback must be phrased as selection rules ("the output misses material of kind X present in the sources"), never as a number of items the output should contain — a lens that pins an item count silently drops content when the sources later grow. Never repeat feedback that was already addressed; judge each candidate on its own output.`
 
 // DistillCriticInitial opens the critic conversation: the target (this thread
 // is the only place it exists) together with the first candidate.

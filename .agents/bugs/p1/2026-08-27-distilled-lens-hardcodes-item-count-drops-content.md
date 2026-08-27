@@ -1,6 +1,6 @@
 ---
 title: "Distilled lens hardcodes the exemplar's item count, silently dropping content on refresh"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-08-27"
 ---
@@ -44,18 +44,31 @@ best-effort, not converged.
 3. Ingest a fragment that adds an (N+1)th item in scope; Refresh the projection.
 4. The candidate holds N sections: one prior item is dropped/replaced rather than appended.
 
-## Ideas
+## Resolution (2026-08-27)
 
-- **Done (2026-08-27):** `DistillGenSystem` now carries a negative example of exactly this
-  failure ("(8 in total)" → silent drop) inline in the hard rule at distill.go:28 — the
-  abstract rule alone was insufficient for gemini-3.6-flash. Prompt-only mitigation; the
-  model can still violate it, so the bug stays open for a mechanical guard.
-- **Lint the lens text post-generation**: reject/regenerate candidates whose prompt contains
-  digit-count phrases tied to output cardinality ("in total", "exactly N sections"). Cheap
-  and mechanical; catches the observed failure without another model call.
-- Longer-term: a critic variant that runs the candidate lens against a *perturbed* source set
-  (one item added/removed) and checks the output adapts — directly tests the "must keep
-  working when the source documents later change" contract.
+Three layers, all landed:
+
+- **Generator prompt**: `DistillGenSystem` carries a negative example of exactly this failure
+  ("(8 in total)" → silent drop) inline in the hard rule (`internal/prompts/distill.go`).
+- **Mechanical lint**: `lensCountPin` (`internal/engine/lens.go`, beside the verbatim-leak
+  tripwire) matches totality phrasings — "N in total", "total of N", "N total", "all N",
+  digits or spelled numbers. `distillLensLoop` runs it on every candidate before execution;
+  on a hit it replies in the same generator conversation (`prompts.DistillGenCountFeedback`,
+  quoting the offending phrase) and skips the execute+critique leg. If the *final* candidate
+  still pins a count it is executed and scored anyway — shipping a lens that works against
+  today's sources beats failing distillation outright. Per-item structural counts ("exactly
+  two bullet points under each section") are deliberately not flagged; they are legitimate
+  formatting rules and flagging them would burn the candidate budget on correct lenses.
+- **Critic prompt**: `DistillCriticSystem` now requires coverage feedback to be phrased as
+  selection rules, never as a number of items — closing the channel by which the critic
+  could steer the generator back into pinning.
+
+Covered by `internal/engine/lens_lint_test.go`: a `lensCountPin` table test plus a scripted
+loop test asserting the pinned candidate is never executed/critiqued and the rewrite ships.
+
+Possible future hardening (not planned): a critic pass that executes the candidate lens
+against a perturbed source set (one item added/removed) and checks the output adapts —
+directly testing the "must keep working when the source documents later change" contract.
 
 ## Collateral note
 
