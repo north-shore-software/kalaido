@@ -30,8 +30,7 @@ export const LLM_ROLE_LABELS: Record<LlmRole, string> = {
 export const RECOMMENDED_MODEL = "gemma4";
 
 export const GEMINI_SUGGESTED_MODELS = [
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
+  "gemini-3.7-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
 ] as const;

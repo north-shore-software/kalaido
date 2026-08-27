@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -17,6 +18,13 @@ import (
 )
 
 const geminiBase = "https://generativelanguage.googleapis.com/v1beta"
+
+// Demo 2026-08-27: every request rides the Priority tier. Make this
+// configurable (kalaidoscope_config) when the demo hardcode is lifted.
+// Requests beyond the account's priority limits are served at the standard
+// tier rather than failing; usageMetadata.trafficType reports which tier
+// actually served the request.
+const serviceTier = "priority"
 
 type Provider struct {
 	Model string
@@ -68,6 +76,7 @@ type geminiRequest struct {
 	SystemInstruction *geminiContent          `json:"systemInstruction,omitempty"`
 	Tools             []geminiTool            `json:"tools,omitempty"`
 	GenerationConfig  *geminiGenerationConfig `json:"generationConfig,omitempty"`
+	ServiceTier       string                  `json:"service_tier,omitempty"`
 }
 
 type geminiStreamChunk struct {
@@ -77,10 +86,11 @@ type geminiStreamChunk struct {
 		} `json:"content"`
 	} `json:"candidates"`
 	UsageMetadata *struct {
-		PromptTokenCount        int `json:"promptTokenCount"`
-		CandidatesTokenCount    int `json:"candidatesTokenCount"`
-		TotalTokenCount         int `json:"totalTokenCount"`
-		CachedContentTokenCount int `json:"cachedContentTokenCount"`
+		PromptTokenCount        int    `json:"promptTokenCount"`
+		CandidatesTokenCount    int    `json:"candidatesTokenCount"`
+		TotalTokenCount         int    `json:"totalTokenCount"`
+		CachedContentTokenCount int    `json:"cachedContentTokenCount"`
+		TrafficType             string `json:"trafficType"`
 	} `json:"usageMetadata"`
 }
 
@@ -150,6 +160,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		SystemInstruction: systemInstruction,
 		Tools:             gTools,
 		GenerationConfig:  genConfig,
+		ServiceTier:       serviceTier,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gemini: marshal: %w", err)
@@ -200,6 +211,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 
 		usage := llm.Usage{Provider: "gemini", Model: p.model()}
 		var sawUsage bool
+		var trafficType string
 
 		activeCalls := make(map[string]string)
 		completedCalls := make(map[string]bool)
@@ -225,6 +237,9 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 				usage.CompletionTokens = u.CandidatesTokenCount
 				usage.TotalTokens = u.TotalTokenCount
 				usage.CachedTokens = u.CachedContentTokenCount
+				if u.TrafficType != "" {
+					trafficType = u.TrafficType
+				}
 				sawUsage = true
 			}
 			if len(chunk.Candidates) == 0 {
@@ -272,6 +287,10 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		}
 		if sawUsage {
 			finalUsage = &usage
+			// Priority overflow downgrades silently to the standard tier, so
+			// this line is the only place that shows which tier actually
+			// served the request (ON_DEMAND_PRIORITY vs ON_DEMAND).
+			log.Printf("gemini: traffic_type=%s model=%s", trafficType, p.model())
 		}
 	}()
 
