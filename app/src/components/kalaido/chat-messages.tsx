@@ -309,6 +309,7 @@ export function ChatMessages({
         );
         const dataNotices = msg.role === "assistant" ? dataNoticesFor(msg) : [];
         const noticeRows = dataNotices.map((notice, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: notices are a pure derivation of the message's parts
           <div key={`${msg.id}-notice-${i}`} className="flex justify-start">
             <div className="max-w-[70%] rounded-none px-4 py-1.5 text-body-sm italic leading-relaxed text-fg-4">
               {notice}
