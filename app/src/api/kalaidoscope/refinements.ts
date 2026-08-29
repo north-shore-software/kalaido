@@ -174,7 +174,10 @@ export function extractSuggestedNameFromMessages(
 }
 
 /** One apply_result part's output, or null. Streaming partials included unless `terminalOnly`. */
-function applyOutputFromPart(part: unknown, terminalOnly = false): string | null {
+function applyOutputFromPart(
+  part: unknown,
+  terminalOnly = false,
+): string | null {
   const input = toolInputFromPart(part, APPLY_RESULT_TOOL, terminalOnly);
   if (!input) return null;
   const output = input.output;

@@ -155,8 +155,7 @@ export function ReflectionDetailPanel({
   }
 
   async function commitRefine() {
-    if (!session.started || !session.previewReady || session.committing)
-      return;
+    if (!session.started || !session.previewReady || session.committing) return;
     if (await session.commit(reflectionId)) {
       // Drop the session; the live snapshot id will change via realtime and the
       // effect spins up a fresh session over the new live snapshot.

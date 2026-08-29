@@ -307,8 +307,7 @@ export function ChatMessages({
         const hasText = msg.parts.some(
           (part) => part.type === "text" && part.text?.trim(),
         );
-        const dataNotices =
-          msg.role === "assistant" ? dataNoticesFor(msg) : [];
+        const dataNotices = msg.role === "assistant" ? dataNoticesFor(msg) : [];
         const noticeRows = dataNotices.map((notice, i) => (
           <div key={`${msg.id}-notice-${i}`} className="flex justify-start">
             <div className="max-w-[70%] rounded-none px-4 py-1.5 text-body-sm italic leading-relaxed text-fg-4">

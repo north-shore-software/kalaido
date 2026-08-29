@@ -71,7 +71,11 @@ describe("extractPreviewFromMessages", () => {
     const msgs = [
       assistant(
         "a1",
-        liveTool(APPLY_RESULT_TOOL, { output: "# partial…" }, "input-streaming"),
+        liveTool(
+          APPLY_RESULT_TOOL,
+          { output: "# partial…" },
+          "input-streaming",
+        ),
       ),
     ];
     expect(extractPreviewFromMessages(msgs)).toBe("# partial…");
@@ -125,11 +129,10 @@ describe("extractPreviewReady", () => {
   it("survives a newer failed-apply turn (lens without apply part)", () => {
     const msgs = [
       draftingTurn("a1", "LENS V1", "# v1"),
-      assistant(
-        "a2",
-        liveTool(UPDATE_LENS_TOOL, { lens: "LENS V2" }),
-        { type: "data-refine_error", data: { kind: "apply_failed" } },
-      ),
+      assistant("a2", liveTool(UPDATE_LENS_TOOL, { lens: "LENS V2" }), {
+        type: "data-refine_error",
+        data: { kind: "apply_failed" },
+      }),
     ];
     // Still committable — the server pairs lens+output per message and will
     // refuse the un-previewed V2, but the standing preview from V1 remains.
@@ -187,11 +190,10 @@ describe("extractRefinePhase", () => {
     ).toBe("idle");
     expect(
       extractRefinePhase([
-        assistant(
-          "a1",
-          liveTool(UPDATE_LENS_TOOL, { lens: "L" }),
-          { type: "data-refine_error", data: { kind: "apply_failed" } },
-        ),
+        assistant("a1", liveTool(UPDATE_LENS_TOOL, { lens: "L" }), {
+          type: "data-refine_error",
+          data: { kind: "apply_failed" },
+        }),
       ]),
     ).toBe("idle");
   });
