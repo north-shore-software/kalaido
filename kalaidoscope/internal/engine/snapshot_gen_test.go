@@ -10,9 +10,9 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -66,13 +66,13 @@ func (p snapshotScriptProvider) Stream(ctx context.Context, msgs []llm.Message, 
 
 func genFixture(t *testing.T, app core.App, collection string) *core.Record {
 	t.Helper()
-	pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{WholeScope: true}
-	lens := pbtest.NewRecord(t, app, "lens", map[string]any{
+	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt":       pbutil.JSONString("LENS"),
 		"context_spec": pbutil.JSONObject(spec),
 	})
-	return pbtest.NewRecord(t, app, collection, map[string]any{
+	return testutil.NewRecord(t, app, collection, map[string]any{
 		"name":                 "T",
 		"current_context_spec": pbutil.JSONObject(spec),
 		"current_lens_id":      lens.Id,
@@ -91,7 +91,7 @@ func priorApproved(t *testing.T, app core.App, strat Strategy, parent *core.Reco
 	for k, v := range extra {
 		fields[k] = v
 	}
-	pbtest.NewRecord(t, app, strat.SnapshotCollectionName(), fields)
+	testutil.NewRecord(t, app, strat.SnapshotCollectionName(), fields)
 }
 
 func storedOutput(t *testing.T, app core.App, strat Strategy, snapID string) string {
@@ -106,7 +106,7 @@ func storedOutput(t *testing.T, app core.App, strat Strategy, snapID string) str
 // With no approved predecessor the raw candidate is the snapshot — one model
 // call, no delta conversation.
 func TestGenerateSnapshotFirstGenerationStoresRawCandidate(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
@@ -129,7 +129,7 @@ func TestGenerateSnapshotFirstGenerationStoresRawCandidate(t *testing.T) {
 // With an approved predecessor the flow continues the generation conversation
 // — delta then merge — and stores the merge result, not the raw candidate.
 func TestGenerateSnapshotMinimizesAgainstApproved(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 	priorApproved(t, app, strat, proj, "OLD V1", nil)
@@ -175,7 +175,7 @@ func TestGenerateSnapshotMinimizesAgainstApproved(t *testing.T) {
 // A delta of NO CHANGES republishes the previous output verbatim and skips the
 // merge call entirely.
 func TestGenerateSnapshotNoChangesKeepsPreviousVerbatim(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 	priorApproved(t, app, strat, proj, "OLD V1", nil)
@@ -203,7 +203,7 @@ func TestGenerateSnapshotNoChangesKeepsPreviousVerbatim(t *testing.T) {
 // The polish steps failing must not fail the generation: the raw candidate is
 // correct, just noisier to diff.
 func TestGenerateSnapshotFallsBackToRawCandidateOnDeltaError(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 	priorApproved(t, app, strat, proj, "OLD V1", nil)
@@ -228,7 +228,7 @@ func TestGenerateSnapshotFallsBackToRawCandidateOnDeltaError(t *testing.T) {
 // A reflection's merge base is the approved output of its own window, not
 // whichever window was approved last.
 func TestGenerateSnapshotReflectionScopesBaseToWindow(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ReflectionStrategy{}
 	refl := genFixture(t, app, "reflection")
 

@@ -1,4 +1,4 @@
-package main
+package server_test
 
 import (
 	"bytes"
@@ -37,10 +37,7 @@ func startTestServer(t *testing.T) (*pocketbase.PocketBase, *testutil.TestServer
 		t.Fatalf("migrate: %v", err)
 	}
 
-	resolveModelSet(a)
 	config.LoadAtBoot(a)
-	seedSidecarUser(a)
-	reportPort(a)
 	server.EnsureReady()
 
 	ts := testutil.NewTestServer(t, a)

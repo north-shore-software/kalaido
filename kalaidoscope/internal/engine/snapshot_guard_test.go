@@ -10,8 +10,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -28,9 +28,9 @@ func snapshotRows(t *testing.T, app core.App, strat Strategy, parentID string) [
 // A target whose lens has not been distilled yet must refuse to generate — not
 // persist an empty document as a reviewable candidate.
 func TestGenerateSnapshotLensNotReadyRefuses(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":            "T",
 		"current_lens_id": "", // distillation still pending
 	})
@@ -52,7 +52,7 @@ func TestGenerateSnapshotLensNotReadyRefuses(t *testing.T) {
 // A live claim row blocks a second generation for the same target; a claim
 // older than the TTL belongs to a dead run and is taken over.
 func TestGenerateSnapshotInFlightGuard(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
@@ -96,7 +96,7 @@ func TestGenerateSnapshotInFlightGuard(t *testing.T) {
 // A generation whose caller context dies mid-stream must persist nothing: no
 // truncated candidate, no leftover claim row.
 func TestGenerateSnapshotCancelledStreamPersistsNothing(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 
@@ -119,10 +119,10 @@ func TestGenerateSnapshotCancelledStreamPersistsNothing(t *testing.T) {
 // A fresh pending candidate supersedes the previous one: at most one
 // reviewable candidate per target.
 func TestGenerateSnapshotSupersedesPriorPending(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
-	old := pbtest.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
+	old := testutil.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
 		strat.ForeignKeyCol(): proj.Id,
 		"lens_id":             proj.GetString("current_lens_id"),
 		"output":              pbutil.JSONString("OLD CANDIDATE"),
@@ -156,12 +156,12 @@ func TestGenerateSnapshotSupersedesPriorPending(t *testing.T) {
 // Approve is the circuit breaker: it refuses candidates that were never really
 // generated, and discards pending siblings of the one it promotes.
 func TestApproveSnapshotGuards(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 
 	newPending := func(output string) *core.Record {
-		return pbtest.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
+		return testutil.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
 			strat.ForeignKeyCol(): proj.Id,
 			"output":              pbutil.JSONString(output),
 			"status":              StatusPending,
