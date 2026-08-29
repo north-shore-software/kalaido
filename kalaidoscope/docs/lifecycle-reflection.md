@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Reflection Lifecycle — Generated Audit Snapshot
 
 > **Generated:** 2026-08-18, from source at commit `f272f1c`.

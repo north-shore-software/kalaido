@@ -2,8 +2,8 @@ import { diffArrays, diffLines, diffWordsWithSpace } from "diff";
 
 /**
  * Block-level markdown diff for the compare views. Both sides arrive as whole
- * documents (refinement drafts are always full replacements — see
- * extractDraftFromMessages), so the diff is recomputed from scratch and must
+ * documents (refinement previews are always full replacements — see
+ * extractPreviewFromMessages), so the diff is recomputed from scratch and must
  * yield markdown that still parses: changes are carried as <ins>/<del> tags
  * injected outside the structural syntax, and anything too entangled to tag
  * safely falls back to whole-block removed/added rows, which need no inline

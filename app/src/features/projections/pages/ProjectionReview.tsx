@@ -120,13 +120,17 @@ function ProjectionReviewPage() {
   }
 
   const refinedDraft = session.preview;
-  const refining = refinedDraft.length > 0;
+  // Display shows the refined preview as soon as it starts streaming, but the
+  // approve routing only treats the session as a refinement once a terminal
+  // applied preview exists — the server refuses to commit anything less.
+  const showRefined = refinedDraft.length > 0;
+  const refining = session.previewReady;
 
   const live = liveSnapshot;
   const currentContent = live
     ? parseProjectionOutput(live.output).content
     : undefined;
-  const pendingContent = refining
+  const pendingContent = showRefined
     ? refinedDraft
     : pending
       ? parseProjectionOutput(pending.output).content
@@ -137,7 +141,8 @@ function ProjectionReviewPage() {
   // A candidate with no content must never become the plan of record (the
   // server refuses it too — this just keeps the buttons honest). Old rows from
   // before the server-side guard may still be empty.
-  const pendingEmpty = !!pending && !refining && !(pendingContent ?? "").trim();
+  const pendingEmpty =
+    !!pending && !showRefined && !(pendingContent ?? "").trim();
 
   // Approve either commits the refinement (when the chat produced a draft) or
   // promotes the pending candidate as-is. Approval discards superseded pending
@@ -239,7 +244,15 @@ function ProjectionReviewPage() {
             <Button
               variant="outline"
               onClick={approve}
-              disabled={!pending || pendingEmpty || busy || advancing}
+              disabled={
+                !pending ||
+                pendingEmpty ||
+                busy ||
+                advancing ||
+                // A refined preview is showing but not terminal yet: approving
+                // now would silently promote the un-refined candidate instead.
+                (showRefined && !refining)
+              }
             >
               <CheckIcon />
               {refining ? "Approve refined" : "Approve"}
@@ -247,7 +260,13 @@ function ProjectionReviewPage() {
             <Button
               variant="commit"
               onClick={approveAndNext}
-              disabled={!pending || pendingEmpty || busy || advancing}
+              disabled={
+                !pending ||
+                pendingEmpty ||
+                busy ||
+                advancing ||
+                (showRefined && !refining)
+              }
             >
               {advancing ? "Finding next…" : "Approve & next"}
               <ArrowRightIcon />

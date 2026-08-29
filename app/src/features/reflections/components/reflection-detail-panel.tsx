@@ -135,8 +135,6 @@ export function ReflectionDetailPanel({
     })();
   }, [readOnly, liveSnapId, sessionSnapId, reflectionId, session.start]);
 
-  const refinedDraft = session.preview;
-
   async function handleRefresh() {
     if (!reflectionId || regenerating) return;
     setRegenerating(true);
@@ -157,7 +155,7 @@ export function ReflectionDetailPanel({
   }
 
   async function commitRefine() {
-    if (!session.started || refinedDraft.length === 0 || session.committing)
+    if (!session.started || !session.previewReady || session.committing)
       return;
     if (await session.commit(reflectionId)) {
       // Drop the session; the live snapshot id will change via realtime and the
@@ -234,7 +232,7 @@ export function ReflectionDetailPanel({
                 variant="commit"
                 disabled={
                   !session.started ||
-                  refinedDraft.length === 0 ||
+                  !session.previewReady ||
                   session.committing
                 }
                 onClick={() => void commitRefine()}

@@ -26,8 +26,8 @@ type snapshotScript struct {
 }
 
 // install points the provider factory at this script for one test, then hands
-// it back to the distillation scriptedProvider the package init registered, so
-// the lensworker tests keep their script regardless of execution order.
+// it back to the package-default scriptedProvider the init registered, so
+// other tests keep a working provider regardless of execution order.
 func (s *snapshotScript) install(t *testing.T) {
 	t.Helper()
 	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {

@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { type ReactNode, useMemo } from "react";
+import { Fragment, type ReactNode, useMemo } from "react";
 import {
   type ContextSpec,
   diffContextSpecs,
@@ -207,10 +207,40 @@ function ContextSpecDivider({
 
 // null = the tool is bookkeeping the user never needs narrated (its effect
 // shows up elsewhere in the UI), so a text-less turn stays silent.
+// apply_result is the server-fabricated part carrying the executed preview —
+// its effect is the preview pane itself.
 const TOOL_MESSAGES: Record<string, string | null> = {
-  update_draft: "Updated the draft.",
+  update_lens: "Updated the lens.",
+  apply_result: null,
   suggest_name: null,
 };
+
+/**
+ * Notices the refinement server attaches to an assistant turn as `data-*`
+ * parts (persisted and live shapes are identical): the count-pin lint and
+ * apply failures. Rendered as italic rows under the turn; styling is minimal
+ * on purpose (visual pass tracked in the design handoff).
+ */
+function dataNoticesFor(msg: UIMessage): string[] {
+  const notices: string[] = [];
+  for (const part of msg.parts) {
+    const p = part as {
+      type?: string;
+      data?: { match?: string; message?: string };
+    };
+    if (p.type === "data-refine_lint" && p.data?.match) {
+      notices.push(
+        `Heads up: the lens pins a fixed count (“${p.data.match}”), so it may drop content when the sources change.`,
+      );
+    } else if (p.type === "data-refine_error") {
+      notices.push(
+        p.data?.message ||
+          "Generating the preview failed — send another message to retry.",
+      );
+    }
+  }
+  return notices;
+}
 
 function toolNoticeFor(msg: UIMessage): string | null {
   for (const part of msg.parts) {
@@ -277,16 +307,30 @@ export function ChatMessages({
         const hasText = msg.parts.some(
           (part) => part.type === "text" && part.text?.trim(),
         );
+        const dataNotices =
+          msg.role === "assistant" ? dataNoticesFor(msg) : [];
+        const noticeRows = dataNotices.map((notice, i) => (
+          <div key={`${msg.id}-notice-${i}`} className="flex justify-start">
+            <div className="max-w-[70%] rounded-none px-4 py-1.5 text-body-sm italic leading-relaxed text-fg-4">
+              {notice}
+            </div>
+          </div>
+        ));
 
         if (!hasText) {
           const notice = toolNoticeFor(msg);
-          if (!notice) return null;
+          if (!notice && noticeRows.length === 0) return null;
           return (
-            <div key={msg.id} className="flex justify-start">
-              <div className="max-w-[70%] rounded-none px-4 py-2.5 text-body-sm italic leading-relaxed text-fg-4 bg-surface-2">
-                {notice}
-              </div>
-            </div>
+            <Fragment key={msg.id}>
+              {notice && (
+                <div className="flex justify-start">
+                  <div className="max-w-[70%] rounded-none px-4 py-2.5 text-body-sm italic leading-relaxed text-fg-4 bg-surface-2">
+                    {notice}
+                  </div>
+                </div>
+              )}
+              {noticeRows}
+            </Fragment>
           );
         }
 
@@ -295,16 +339,18 @@ export function ChatMessages({
           .join("");
 
         return (
-          <MessageBubble
-            key={msg.id}
-            role={msg.role}
-            content={content}
-            actions={
-              msg.role === "assistant"
-                ? assistantActions?.({ message: msg, content })
-                : undefined
-            }
-          />
+          <Fragment key={msg.id}>
+            <MessageBubble
+              role={msg.role}
+              content={content}
+              actions={
+                msg.role === "assistant"
+                  ? assistantActions?.({ message: msg, content })
+                  : undefined
+              }
+            />
+            {noticeRows}
+          </Fragment>
         );
       })}
 

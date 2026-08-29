@@ -142,8 +142,8 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 			}
 			if errors.Is(err, engine.ErrLensNotReady) || errors.Is(err, engine.ErrGenerationInFlight) {
 				// Someone else is already producing this entity's output (an
-				// interactive generation, or the pending lens distillation).
-				// Skip it; the next wave re-evaluates from scratch.
+				// interactive generation), or it has never had a refinement
+				// committed. Skip it; the next wave re-evaluates from scratch.
 				log.Printf("reconcile wave: %s %s: %v; skipping", s.Type, s.ID, err)
 				break
 			}

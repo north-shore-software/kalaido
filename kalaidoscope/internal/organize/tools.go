@@ -243,8 +243,8 @@ func dispatchCreate(app core.App, run *core.Record, model string, idx *organizeI
 	}
 
 	// The brief is the lens: organize knows exactly what instruction produced
-	// the entity, so there is nothing for the distillation loop to recover.
-	lensID, err := installLens(app, strat, entity, args.Brief, spec, model)
+	// the entity, so there is nothing for a refinement to draft first.
+	lensID, err := installLens(app, strat, entity, args.Brief, spec)
 	if err != nil {
 		return fmt.Sprintf("Internal error saving lens: %v", err)
 	}
@@ -298,7 +298,7 @@ func validateSources(app core.App, registry *runRegistry, col string, ids []stri
 // installLens writes the entity's first lens directly from its brief and
 // points the entity at it. Zero LLM calls: the brief is, by construction,
 // the instruction that will generate the entity's content.
-func installLens(app core.App, strat engine.Strategy, entity *core.Record, brief string, spec api.ContextSpec, model string) (string, error) {
+func installLens(app core.App, strat engine.Strategy, entity *core.Record, brief string, spec api.ContextSpec) (string, error) {
 	col, err := app.FindCollectionByNameOrId(strat.LensCollectionName())
 	if err != nil {
 		return "", err
@@ -306,9 +306,6 @@ func installLens(app core.App, strat engine.Strategy, entity *core.Record, brief
 	lens := core.NewRecord(col)
 	lens.Set("prompt", pbutil.JSONString(brief))
 	lens.Set("context_spec", pbutil.JSONObject(spec))
-	lens.Set("iterations", 0)
-	lens.Set("converged", true)
-	lens.Set("model", model)
 	if err := app.Save(lens); err != nil {
 		return "", err
 	}
@@ -497,7 +494,7 @@ func joinResults(results []string) string {
 
 // generateAndPublish produces the entity's first approved snapshot through
 // the ordinary lens path (engine.GenerateSnapshot) — the lens was installed
-// at create time, so no distillation is requested. It is never awaited by
+// at create time. It is never awaited by
 // the exploration loop; content generation for many entities overlaps.
 // When the entity takes other entities created in this run as sources, it
 // first waits for their snapshots: the context resolver only sees approved

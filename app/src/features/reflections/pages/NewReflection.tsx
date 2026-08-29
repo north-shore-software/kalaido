@@ -54,7 +54,7 @@ export default function NewReflection() {
 
   const started = reflectionId != null && session.started;
   const preview = session.preview;
-  const canCommit = started && preview.length > 0 && !session.committing;
+  const canCommit = started && session.previewReady && !session.committing;
 
   // The schedule chips become a window_spec carried through the refine chat;
   // editing them mid-chat re-emits it (ChatPanel), and commit persists it.
@@ -193,7 +193,11 @@ export default function NewReflection() {
             )}
           </div>
 
-          <LivePreviewPane started={started} preview={preview} />
+          <LivePreviewPane
+            started={started}
+            preview={preview}
+            phase={session.phase}
+          />
         </div>
       </PageCard>
     </PageLayout>

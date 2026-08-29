@@ -41,9 +41,10 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 
 	lensPrompt, lensSpec, _ := resolveActiveLens(app, strat, rec)
 	if strings.TrimSpace(lensPrompt) == "" {
-		// Normal right after a refinement commit: current_lens_id stays empty
-		// until the background distillation worker mints the lens. Refuse
-		// rather than persist an empty document as a reviewable candidate.
+		// The entity has never had a refinement committed — a commit installs
+		// the drafted lens in the same transaction as the approved snapshot,
+		// so this is unreachable for anything the user has ever approved.
+		// Refuse rather than persist an empty document as a candidate.
 		return "", fmt.Errorf("%s %s: %w", strat.TargetType(), rec.Id, ErrLensNotReady)
 	}
 
@@ -85,6 +86,11 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	if err != nil {
 		return "", fmt.Errorf("prepare context: %w", err)
 	}
+
+	started := time.Now()
+	log.Printf("snapshot %s %s (%q): generating via %s — context: %d fragments, %d snapshots",
+		strat.TargetType(), rec.Id, rec.GetString("name"), model,
+		len(pinnedCtx.FragmentIDs), len(pinnedCtx.SnapshotIDs))
 
 	outputStr, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
 	if err != nil {
@@ -143,6 +149,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
 	completed = true
+	log.Printf("snapshot %s %s (%q): stored %s snapshot %s (%d chars, %s)",
+		strat.TargetType(), rec.Id, rec.GetString("name"), status, claimID,
+		len(outputStr), time.Since(started).Round(time.Millisecond))
 
 	if status == StatusApproved {
 

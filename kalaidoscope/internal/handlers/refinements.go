@@ -94,11 +94,10 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				parts = append(parts, api.UIMessagePart{Type: "context_spec", Data: data})
 
 				// Resolve it now, as a chat turn would (chat.ResolveContextSpecs).
-				// A seeded session can be committed without a single message being
-				// sent — graduating a fragment, then approving it as-is — and the
-				// commit reads its resolved context straight off the transcript. No
-				// pinned_ids here would mean a snapshot whose receipt claims nothing
-				// went into it, and which is therefore stale the moment it exists.
+				// The first turn's apply step and the commit both read the
+				// session's resolved context straight off the transcript
+				// (LatestPinnedAndSpec); without pinned_ids here the seeded
+				// context would be invisible to both.
 				if pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), txApp, *ctxSpec); err == nil {
 					data, _ := json.Marshal(pinned)
 					parts = append(parts, api.UIMessagePart{Type: "pinned_ids", Data: data})
@@ -128,14 +127,6 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				seeded = append(seeded, msg)
 			}
 
-			if draft := strings.TrimSpace(req.SeedDraft); draft != "" {
-				msg := seedDraftMessage(draft)
-				if _, err := chat.PersistMessage(context.Background(), txApp, rec, msg, ""); err != nil {
-					return err
-				}
-				seeded = append(seeded, msg)
-			}
-
 			return nil
 		})
 
@@ -151,51 +142,55 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 	}
 }
 
-// seedDraftMessage records a draft the assistant did not actually produce, in
-// exactly the shape a real `update_draft` tool call is persisted in (see
-// toolCallPart). Everything downstream — the commit-time extraction below, the
-// client's preview pane, resumed-session normalisation — then treats it as an
-// ordinary drafted snapshot, because it is indistinguishable from one.
-func seedDraftMessage(draft string) api.UIMessage {
-	id := fmt.Sprintf("seed-%d", time.Now().UnixNano())
-	data, _ := json.Marshal(map[string]any{
-		"toolCallId": id,
-		"toolName":   prompts.UpdateDraftToolName,
-		"input":      map[string]string{"draft": draft},
-	})
-	return api.UIMessage{
-		ID:   id,
-		Role: "assistant",
-		Parts: []api.UIMessagePart{
-			{Type: "tool-" + prompts.UpdateDraftToolName, Data: data},
-		},
-	}
-}
-
-func ExtractDraftedSnapshotAndSpec(app core.App, refRec *core.Record) (string, llmcontext.PinnedIDs, api.ContextSpec, api.WindowSpec, error) {
+// ExtractDraftedLensAndSpec reads a refinement conversation's commit payload:
+// the newest drafted lens, the applied output produced for that same lens, and
+// the latest context. Lens and output are paired on one assistant message —
+// the handler persists each turn's apply_result beside the update_lens that
+// produced it — so a commit can never install lens N with output N-1, which
+// would break "what the user approved is what the lens reproduces". An empty
+// output with a non-empty lens means that turn's apply failed (or is still
+// running); the commit handler refuses it.
+func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, winSpec api.WindowSpec, err error) {
 	msgs, err := chat.LoadMessages(nil, app, refRec)
 	if err != nil {
-		return "", llmcontext.PinnedIDs{}, api.ContextSpec{}, api.WindowSpec{}, err
+		return "", "", llmcontext.PinnedIDs{}, api.ContextSpec{}, api.WindowSpec{}, err
 	}
 
-	pinned, spec, winSpec := llmcontext.LatestPinnedAndSpec(msgs)
+	pinned, spec, winSpec = llmcontext.LatestPinnedAndSpec(msgs)
 
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
-		if m.Role == "assistant" {
-			for _, p := range m.Parts {
-				if p.Type == "tool-"+prompts.UpdateDraftToolName {
-					var data struct {
-						Input struct {
-							Draft string `json:"draft"`
-						} `json:"input"`
-					}
-					if err := json.Unmarshal(p.Data, &data); err == nil && data.Input.Draft != "" {
-						return strings.TrimSpace(data.Input.Draft), pinned, spec, winSpec, nil
-					}
+		if m.Role != "assistant" {
+			continue
+		}
+		for _, p := range m.Parts {
+			switch p.Type {
+			case "tool-" + prompts.UpdateLensToolName:
+				var data struct {
+					Input struct {
+						Lens string `json:"lens"`
+					} `json:"input"`
+				}
+				if err := json.Unmarshal(p.Data, &data); err == nil {
+					lens = strings.TrimSpace(data.Input.Lens)
+				}
+			case "tool-" + prompts.ApplyResultToolName:
+				var data struct {
+					Input struct {
+						Output string `json:"output"`
+					} `json:"input"`
+				}
+				if err := json.Unmarshal(p.Data, &data); err == nil {
+					output = strings.TrimSpace(data.Input.Output)
 				}
 			}
 		}
+		if lens != "" {
+			return lens, output, pinned, spec, winSpec, nil
+		}
+		// A clarify-only turn has neither part; keep scanning. An apply part
+		// never exists without its lens on the same message.
+		output = ""
 	}
 
 	scanned := make([]string, 0, len(msgs))
@@ -204,10 +199,10 @@ func ExtractDraftedSnapshotAndSpec(app core.App, refRec *core.Record) (string, l
 			scanned = append(scanned, m.Role+"/"+p.Type)
 		}
 	}
-	log.Printf("refinement.extract: no draft in %s (%d messages: %s)",
+	log.Printf("refinement.extract: no drafted lens in %s (%d messages: %s)",
 		refRec.Id, len(msgs), strings.Join(scanned, ", "))
 
-	return "", pinned, spec, winSpec, nil
+	return "", "", pinned, spec, winSpec, nil
 }
 
 func HandleCommitProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
@@ -246,12 +241,6 @@ func refinementParent(app core.App, refRec *core.Record) *core.Record {
 
 func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, snapshotField string) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		type reqBody struct {
-			UpdateLensAndContext bool `json:"updateLensAndContext"`
-		}
-		var req reqBody
-		_ = e.BindBody(&req)
-
 		rid := e.Request.PathValue("rid")
 		if rid == "" {
 			return e.BadRequestError("refinement id required", nil)
@@ -262,12 +251,18 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 			return e.NotFoundError("refinement not found", err)
 		}
 
-		output, pinned, spec, winSpec, err := ExtractDraftedSnapshotAndSpec(app, refRec)
+		lens, output, pinned, spec, winSpec, err := ExtractDraftedLensAndSpec(app, refRec)
 		if err != nil {
-			return e.InternalServerError("failed to extract draft", err)
+			return e.InternalServerError("failed to extract drafted lens", err)
+		}
+		if lens == "" {
+			// Also the seeded-session zero-turn case: graduate/fork sessions
+			// start with context only, and committing requires at least one
+			// turn in which the model drafts a lens.
+			return e.BadRequestError("no drafted lens found in chat", nil)
 		}
 		if output == "" {
-			return e.BadRequestError("no drafted snapshot found in chat", nil)
+			return e.Error(http.StatusConflict, "the latest lens has no generated preview — send another message to regenerate", nil)
 		}
 
 		var parentID string
@@ -305,11 +300,12 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 		// Detached: a commit must run to completion once started — the client
 		// giving up mid-request must not leave a half-committed refinement.
 		ctx := context.WithoutCancel(e.Request.Context())
-		newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, output, req.UpdateLensAndContext, pinned, spec, winSpec, refRec.Id, targetCol)
+		newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, lens, output, pinned, spec, winSpec, refRec.Id, targetCol)
 		if err != nil {
 			log.Printf("refinement.commit: %v", err)
 			return e.InternalServerError("failed to commit refinement", err)
 		}
+		log.Printf("refinement.commit: %s %s: refinement %s committed as snapshot %s", targetCol, parentID, refRec.Id, newSnapID)
 
 		return e.JSON(http.StatusOK, map[string]string{"snapshotId": newSnapID})
 	}

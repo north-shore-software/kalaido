@@ -16,8 +16,6 @@ const (
 	ProviderGemini ProviderID = "gemini"
 )
 
-// RoleDistill has no row: ResolveRole aliases it to RoleSnapshot (the
-// distillation loop must optimize against the model that will apply the lens).
 var modelsBySetRole = map[ModelSet]map[Role]string{
 	SetLocal: {
 		RoleChat:       "gemma4",
@@ -93,20 +91,16 @@ func RequiresCredential(p ProviderID) bool {
 	return credentialEnv[p] != ""
 }
 
-// Roles lists the independently configurable roles. RoleDistill is absent on
-// purpose: it is structurally aliased to RoleSnapshot in ResolveRole, so it is
-// never configured, validated, or preflighted on its own.
+// Roles lists the independently configurable roles.
 func Roles() []Role {
 	return []Role{RoleChat, RoleRefinement, RoleColour, RoleSnapshot, RoleMap, RoleAnnotate}
 }
 
-// optionsByRole is the per-role generation policy. Distill and snapshot run
-// deterministically: a lens must produce the same output on every application,
-// and verifying a lens by re-applying it is meaningless at nonzero temperature.
+// optionsByRole is the per-role generation policy. Snapshot runs
+// deterministically: a lens must produce the same output on every application.
 // Colour is a strict YES/NO classifier, so sampling noise only hurts it. Roles
 // absent here use provider defaults.
 var optionsByRole = map[Role]GenOptions{
-	RoleDistill:  {Temperature: f64(0)},
 	RoleSnapshot: {Temperature: f64(0)},
 	RoleColour:   {Temperature: f64(0)},
 	RoleMap:      {Temperature: f64(0)},

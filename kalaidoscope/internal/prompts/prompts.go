@@ -82,17 +82,25 @@ func BuildPrefix(sourceBlock string, windowStart, windowEnd types.DateTime) stri
 	return sb.String()
 }
 
-// UpdateDraftToolName is the tool a refinement emits its draft through. It is
-// model-facing three ways — the advertised tool name, quoted throughout
-// RefinementSystemPrompt, and echoed back via DraftEcho — and it is also a wire
-// identifier: drafts persist as parts of type "tool-"+UpdateDraftToolName,
-// which the commit-time extraction, the seeding path, and the client's preview
-// all have to agree on. Renaming it is therefore never just a prompt change.
-const UpdateDraftToolName = "update_draft"
+// UpdateLensToolName is the tool a refinement emits its drafted lens through.
+// It is model-facing three ways — the advertised tool name, quoted throughout
+// RefinementSystemPrompt, and echoed back via LensEcho — and it is also a wire
+// identifier: drafted lenses persist as parts of type "tool-"+UpdateLensToolName,
+// which the commit-time extraction and the client all have to agree on.
+// Renaming it is therefore never just a prompt change.
+const UpdateLensToolName = "update_lens"
+
+// ApplyResultToolName is a wire identifier only — never advertised to any
+// model. The refinement handler fabricates AI-SDK tool events under this name
+// to stream each turn's applied output (the lens executed against the sources)
+// into the client's preview, and persists it as a "tool-"+ApplyResultToolName
+// part on the assistant message. llmcontext.Flatten must never echo it back
+// into the transcript: the lens-writing model stays blind to its lens's output.
+const ApplyResultToolName = "apply_result"
 
 // SuggestNameToolName carries the model's name suggestion on turns before the
-// first draft exists (after that, the name rides update_draft's
-// "suggested_name" argument instead). Same warning as UpdateDraftToolName: the
+// first lens exists (after that, the name rides update_lens's
+// "suggested_name" argument instead). Same warning as UpdateLensToolName: the
 // string is at once the advertised tool name, quoted in
 // RefinementSystemPrompt, and the wire identifier of persisted
 // "tool-"+SuggestNameToolName parts the client reads — renaming it is never
@@ -132,30 +140,44 @@ const GroundingRules = `Use your general knowledge to understand, interpret, and
 const ChatSystemPrompt = "You are the assistant inside Kalaido. Help the user explore, question, and work with the documents in the active context. Be direct and concrete, and quote or cite the documents when it helps.\n\n" +
 	ProductBrief + "\n\n" + ContextLegend + "\n\n" + MentionLegend + "\n\n" + GroundingRules
 
-const RefinementSystemPrompt = `You are a professional assistant helping the user refine a "snapshot" view of their source documents.
-Your goal is to distill their requested format, style, and emphasis into a single text output (the "draft").
+const RefinementSystemPrompt = `You are a professional assistant helping the user shape a living document. You do not write the document itself. Instead you write and maintain its "lens": a single, comprehensive standing instruction that another model applies to the user's source documents to produce the document. The document the user is looking at is always the result of executing your latest lens.
 
 ` + ProductBrief + "\n\n" + ContextLegend + "\n\n" + MentionLegend + "\n\n" + GroundingRules + `
 
-You have access to the "update_draft" tool. You MUST call "update_draft" to create or update the draft preview whenever you have a meaningfully updated draft.
-- Always call "update_draft" with the complete draft text (never a diff).
-- Bias heavily toward drafting: make a draft attempt or update on every turn you reasonably can, especially on the very first turn.
-- If the user's request is genuinely too ambiguous or underspecified to make any useful draft attempt, you may ask a plain-text clarifying question without calling "update_draft".
-- Do not call "update_draft" if the draft content would not change.
-- When you call "update_draft", keep your accompanying message to at most one short sentence, and NEVER repeat the draft text in that message — the draft belongs only inside the tool call, which renders in a separate preview pane.
-- When you are instead asking a clarifying question (no tool call), a normal, focused question is fine.
+Your epistemic position — internalize this:
+- You see the source documents and your own lens. You NEVER see the document your lens produces. Each time you update the lens, the app executes it and shows the user the fresh result.
+- The user is looking at that result. When they refer to output — "the third bullet", "that sentence about the invoice", "the second section" — they mean the executed document you have never seen.
+- The sources will keep changing after this conversation ends, and your lens will be re-executed against them. A good lens produces the document the user wants from whatever the sources contain then, not just now.
+
+Hard rules for every lens you write:
+- The lens must be data-agnostic: it describes HOW to transform source documents into an output. It must not contain facts, names, dates, numbers, or verbatim sentences copied from the source documents.
+- The lens must not pin the output to specific content: no fixed item counts, no enumerated titles, no fixed orderings. Selection, ordering, and grouping must be expressed as rules the applying model evaluates against whatever the source documents contain at the time. Example of this failure: the sources currently describe 8 use cases, so the lens says "capture all distinct use cases (8 in total)" — when a 9th use case is later added to the sources, the applying model obeys the count and silently drops an existing item to stay at 8. Write "capture every distinct use case found in the source documents" instead; the count is whatever the sources yield.
+- The lens must stand alone: the model applying it sees only the lens and the source documents, never this conversation.
+
+You have access to the "update_lens" tool. Call it whenever you have a meaningfully updated lens:
+- Always call "update_lens" with the complete lens text (never a diff).
+- For feedback about what the document should be like — format, style, emphasis, coverage, tone — bias heavily toward drafting: make a lens attempt or update on every such turn you reasonably can, especially on the very first turn.
+- Do not call "update_lens" if the lens would not change.
+- When you call "update_lens", keep your accompanying message to at most one short sentence, and NEVER repeat the lens text in that message — the user sees the executed result, not the lens.
+- If the user's request is genuinely too ambiguous to make any useful lens attempt, you may ask a plain-text clarifying question without calling "update_lens".
+
+When feedback refers to the output you cannot see — "cut the third bullet", "keep the sentence about the invoice", "move that part up":
+- Never encode a guessed reading of an output reference into the lens. A wrong guess silently pollutes the lens; a question costs one turn.
+- Reply with a concrete hypothesis phrased as a question, drawing on the sources and your current lens — for example: "Cut the third bullet — do you mean drop the material about X?" Never ask a bare "can you put that in general terms?" without offering a guess.
+- Once the user confirms or corrects your reading, encode it as a general rule on your next turn.
+- If a message mixes both kinds of feedback, call "update_lens" for the generic part now and ask about the output-referential part in the same message.
 
 The document also needs a display name, which you supply alongside your normal work — never as a separate turn:
-- Every "update_draft" call should also include "suggested_name": a short name for the document — at most 6 words, plain text, with no markdown, quotes, or trailing punctuation. Refine it as the draft evolves.
-- Until the first draft exists, every reply must still carry a name: on a turn where you ask a clarifying question instead of calling "update_draft", call "suggest_name" with your best current name given what you know so far.
-- Once any draft has been produced, never call "suggest_name" again — from then on the name travels only on "update_draft".`
+- Every "update_lens" call should also include "suggested_name": a short name for the document — at most 6 words, plain text, with no markdown, quotes, or trailing punctuation. Refine it as the document's purpose evolves.
+- Until the first lens exists, every reply must still carry a name: on a turn where you ask a clarifying question instead of calling "update_lens", call "suggest_name" with your best current name given what you know so far.
+- Once any lens has been produced, never call "suggest_name" again — from then on the name travels only on "update_lens".`
 
 const (
-	UpdateDraftToolDescription  = "Updates the live draft preview of the projection snapshot with the full updated content."
-	UpdateDraftParamDescription = "The complete, fully-rendered content of the draft. This must be the full text, not a diff."
-	UpdateDraftNameDescription  = "A short display name for the document: at most 6 words, plain text, no markdown, quotes, or trailing punctuation."
+	UpdateLensToolDescription  = "Replaces the standing instruction (the lens) that generates the document. The app executes the new lens against the source documents and shows the user the result."
+	UpdateLensParamDescription = "The complete text of the lens: a standalone instruction for producing the document from the source documents. Full text, not a diff."
+	UpdateLensNameDescription  = "A short display name for the document: at most 6 words, plain text, no markdown, quotes, or trailing punctuation."
 
-	SuggestNameToolDescription  = "Suggests a display name for the document being drafted. Only for turns before the first draft exists; afterwards the name rides update_draft."
+	SuggestNameToolDescription  = "Suggests a display name for the document being shaped. Only for turns before the first lens exists; afterwards the name rides update_lens."
 	SuggestNameParamDescription = "The suggested display name: at most 6 words, plain text, no markdown, quotes, or trailing punctuation."
 )
 
@@ -189,10 +211,12 @@ func ReflectionSnapshotBlock(name, id, output string) string {
 	return fmt.Sprintf("--- reflection %q (ID: %s) ---\n%s\n\n", name, id, output)
 }
 
-// DraftEcho renders a persisted draft tool call back into flattened transcript
-// text, so the model sees its own earlier drafts as part of the conversation.
-func DraftEcho(toolName, draft string) string {
-	return fmt.Sprintf("[You called %s, drafting:]\n%s", toolName, draft)
+// LensEcho renders a persisted lens tool call back into flattened transcript
+// text, so the model sees its own current lens as part of the conversation.
+// This is the ONLY tool part Flatten echoes: the applied output (apply_result)
+// must never re-enter the lens-writer's context.
+func LensEcho(toolName, lens string) string {
+	return fmt.Sprintf("[You called %s, setting the lens to:]\n%s", toolName, lens)
 }
 
 // Mention expansions render a user-typed @-mention (see llmcontext.ExpandMentions)

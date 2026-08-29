@@ -24,10 +24,10 @@ const (
 )
 
 var (
-	// ErrLensNotReady: the target has no distilled lens yet — the normal state
-	// between a refinement commit and the background distillation worker
-	// minting the lens. Generation is refused rather than persisting an empty
-	// document as a reviewable candidate.
+	// ErrLensNotReady: the target has no lens — it has never had a refinement
+	// committed (a commit installs the drafted lens atomically). Generation is
+	// refused rather than persisting an empty document as a reviewable
+	// candidate.
 	ErrLensNotReady = errors.New("lens not ready")
 	// ErrGenerationInFlight: a live claim row already exists for this target.
 	ErrGenerationInFlight = errors.New("generation already running")

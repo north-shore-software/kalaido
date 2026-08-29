@@ -236,13 +236,10 @@ export type KalaidoscopeMapRecord<Tbody = unknown> = {
 
 export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
 	context_spec?: null | Tcontext_spec
-	converged?: boolean
 	created: IsoAutoDateString
 	created_from_proj_refinement_id?: RecordIdString
 	created_from_refl_refinement_id?: RecordIdString
 	id: string
-	iterations?: number
-	model?: string
 	parent_lens_id?: RecordIdString
 	prompt?: null | Tprompt
 }
@@ -301,7 +298,6 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
 	id: string
-	last_provider_error_kind?: string
 	model?: string
 	name?: string
 	origin_run_id?: RecordIdString
@@ -318,7 +314,6 @@ export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	created_from_refinement_id?: RecordIdString
 	generation_timestamp?: IsoDateString
 	id: string
-	lens_distill_requested?: boolean
 	lens_id?: RecordIdString
 	model?: string
 	output?: null | Toutput
@@ -350,7 +345,6 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
 	id: string
-	last_provider_error_kind?: string
 	model?: string
 	name?: string
 	origin_run_id?: RecordIdString
@@ -368,7 +362,6 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	created_from_refinement_id?: RecordIdString
 	generation_timestamp?: IsoDateString
 	id: string
-	lens_distill_requested?: boolean
 	lens_id?: RecordIdString
 	model?: string
 	output?: null | Toutput

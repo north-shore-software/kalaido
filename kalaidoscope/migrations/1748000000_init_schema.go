@@ -142,9 +142,6 @@ var schema = []tableDef{
 			// Optional per-entity model override; empty = workspace role default.
 			&core.TextField{Name: "model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
-			// Last durable provider failure seen by the background lens
-			// distillation worker ("auth"/"quota"), cleared on the next success.
-			&core.TextField{Name: "last_provider_error_kind"},
 			// Set by the organize worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "organize_run", MaxSelect: 1},
 			// The story this entity was created to tell, in the organize
@@ -166,9 +163,6 @@ var schema = []tableDef{
 			// Optional per-entity model override; empty = workspace role default.
 			&core.TextField{Name: "model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
-			// Last durable provider failure seen by the background lens
-			// distillation worker ("auth"/"quota"), cleared on the next success.
-			&core.TextField{Name: "last_provider_error_kind"},
 			// Set by the organize worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "organize_run", MaxSelect: 1},
 			// The story this entity was created to tell, in the organize
@@ -189,12 +183,6 @@ var schema = []tableDef{
 			&core.RelationField{Name: "created_from_proj_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
 			&core.RelationField{Name: "created_from_refl_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
 			&core.RelationField{Name: "parent_lens_id", CollectionId: "lens", MaxSelect: 1},
-			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
-			// How many candidate lenses the distillation loop executed before
-			// settling on this one, and whether the loop actually reproduced the
-			// approved snapshot (false = budget ran out, best candidate kept).
-			&core.NumberField{Name: "iterations"},
-			&core.BoolField{Name: "converged"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 	},
@@ -211,10 +199,6 @@ var schema = []tableDef{
 			&core.JSONField{Name: "output"},
 			// Set when this snapshot was committed from a refinement conversation.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
-			// True when the commit asked for the lens to be re-distilled. An
-			// immutable fact about the commit: the background worker derives its
-			// worklist as "requested && lens_id empty", so a crash loses nothing.
-			&core.BoolField{Name: "lens_distill_requested"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
 			// Non-empty when this snapshot was generated as part of a speculative
 			// "generate all" wave (it may have consumed unapproved upstream
@@ -245,9 +229,8 @@ var schema = []tableDef{
 			&core.JSONField{Name: "resolved_window"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
-			// See projection_snapshot for both fields.
+			// See projection_snapshot.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
-			&core.BoolField{Name: "lens_distill_requested"},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
 			// See projection_snapshot.chain_origin.
 			&core.TextField{Name: "chain_origin"},

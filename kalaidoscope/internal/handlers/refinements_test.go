@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
-// newRefinement opens an empty projection refinement conversation to seed into.
+// newRefinement opens an empty projection refinement conversation.
 func newRefinement(t *testing.T, app core.App) *core.Record {
 	t.Helper()
 
@@ -40,52 +40,91 @@ func persist(t *testing.T, app core.App, ref *core.Record, msg api.UIMessage) {
 	}
 }
 
-// The point of seeding: text that came from somewhere else is committable
-// without a model call, because the commit path cannot tell it apart from a
-// draft the assistant produced.
-func TestSeededDraftIsCommittable(t *testing.T) {
+// lensTurn builds an assistant message the way the chat handler persists one:
+// the update_lens tool part, and — when the apply succeeded — the apply_result
+// part beside it on the same message.
+func lensTurn(t *testing.T, id, lens, output string) api.UIMessage {
+	t.Helper()
+	parts := []api.UIMessagePart{
+		{Type: "tool-" + prompts.UpdateLensToolName, Data: raw(t, map[string]any{
+			"toolCallId": id + "-lens",
+			"toolName":   prompts.UpdateLensToolName,
+			"input":      map[string]string{"lens": lens},
+		})},
+	}
+	if output != "" {
+		parts = append(parts, api.UIMessagePart{
+			Type: "tool-" + prompts.ApplyResultToolName, Data: raw(t, map[string]any{
+				"toolCallId": id + "-apply",
+				"toolName":   prompts.ApplyResultToolName,
+				"input":      map[string]string{"output": output},
+			})})
+	}
+	return api.UIMessage{ID: id, Role: "assistant", Parts: parts}
+}
+
+// The commit payload is the newest lens together with the output of that same
+// turn's apply — never a newer lens paired with an older output.
+func TestExtractPairsLensWithItsOwnApply(t *testing.T) {
 	app := testutil.NewApp(t)
 	ref := newRefinement(t, app)
 
-	persist(t, app, ref, seedDraftMessage("SEEDED CONTENT"))
+	persist(t, app, ref, lensTurn(t, "turn-1", "LENS V1", "OUTPUT V1"))
+	persist(t, app, ref, lensTurn(t, "turn-2", "LENS V2", "OUTPUT V2"))
 
-	draft, _, _, _, err := ExtractDraftedSnapshotAndSpec(app, ref)
+	lens, output, _, _, _, err := ExtractDraftedLensAndSpec(app, ref)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
-	if draft != "SEEDED CONTENT" {
-		t.Errorf("draft = %q, want %q", draft, "SEEDED CONTENT")
+	if lens != "LENS V2" || output != "OUTPUT V2" {
+		t.Errorf("extract = (%q, %q), want the newest turn's pair", lens, output)
 	}
 }
 
-// A seed is a starting point, not a floor: once the user refines it, their
-// version is what gets committed.
-func TestARealDraftSupersedesTheSeed(t *testing.T) {
+// A clarify turn (no lens) after a drafting turn must not hide the draft.
+func TestExtractSkipsClarifyTurns(t *testing.T) {
 	app := testutil.NewApp(t)
 	ref := newRefinement(t, app)
 
-	persist(t, app, ref, seedDraftMessage("SEEDED CONTENT"))
-	// Messages are ordered by `created`, which has millisecond granularity, and
-	// two back-to-back writes land in the same millisecond — the tie then breaks
-	// arbitrarily. Real drafts are always separated by a model call, so this only
-	// bites here; wait out the tie rather than assert on luck.
-	time.Sleep(2 * time.Millisecond)
-	persist(t, app, ref, seedDraftMessage("REFINED CONTENT"))
+	persist(t, app, ref, lensTurn(t, "turn-1", "LENS V1", "OUTPUT V1"))
+	persist(t, app, ref, api.UIMessage{ID: "turn-2", Role: "assistant", Parts: []api.UIMessagePart{
+		{Type: "text", Text: "Cut the third bullet — do you mean the invoice material?"},
+	}})
 
-	draft, _, _, _, err := ExtractDraftedSnapshotAndSpec(app, ref)
+	lens, output, _, _, _, err := ExtractDraftedLensAndSpec(app, ref)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
-	if draft != "REFINED CONTENT" {
-		t.Errorf("draft = %q, want the later one", draft)
+	if lens != "LENS V1" || output != "OUTPUT V1" {
+		t.Errorf("extract = (%q, %q), want the drafting turn's pair", lens, output)
 	}
 }
 
-// Committing straight after seeding — graduate, then approve as-is — must still
-// produce a snapshot with an honest receipt. Without the resolved pinned_ids the
-// commit would record that nothing went in, leaving the new projection stale the
-// instant it was created.
-func TestSeededContextCarriesItsResolvedIDs(t *testing.T) {
+// A lens whose apply failed extracts with an empty output — the commit handler
+// refuses it rather than committing a lens the user never previewed.
+func TestExtractLensWithFailedApplyHasNoOutput(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+
+	persist(t, app, ref, lensTurn(t, "turn-1", "LENS V1", "OUTPUT V1"))
+	persist(t, app, ref, lensTurn(t, "turn-2", "LENS V2", ""))
+
+	lens, output, _, _, _, err := ExtractDraftedLensAndSpec(app, ref)
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if lens != "LENS V2" {
+		t.Errorf("lens = %q, want the newest lens", lens)
+	}
+	if output != "" {
+		t.Errorf("output = %q, want empty (that turn's apply never landed)", output)
+	}
+}
+
+// A seeded session carries context only: with no chat turn there is no lens,
+// and the commit handler turns that into a 400 — the zero-turn approve-as-is
+// flow is gone by design.
+func TestExtractSeededContextOnlyHasNoLens(t *testing.T) {
 	app := testutil.NewApp(t)
 	ref := newRefinement(t, app)
 
@@ -105,11 +144,13 @@ func TestSeededContextCarriesItsResolvedIDs(t *testing.T) {
 			})},
 		},
 	})
-	persist(t, app, ref, seedDraftMessage("SEEDED CONTENT"))
 
-	_, pinned, gotSpec, _, err := ExtractDraftedSnapshotAndSpec(app, ref)
+	lens, output, pinned, gotSpec, _, err := ExtractDraftedLensAndSpec(app, ref)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
+	}
+	if lens != "" || output != "" {
+		t.Errorf("extract = (%q, %q), want no lens and no output", lens, output)
 	}
 	if len(pinned.FragmentIDs) != 1 || pinned.FragmentIDs[0] != fragment.Id {
 		t.Errorf("resolved context = %v, want [%s]", pinned.FragmentIDs, fragment.Id)

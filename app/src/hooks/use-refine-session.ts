@@ -5,9 +5,12 @@ import type { ContextSpec } from "@/api/kalaidoscope/chat";
 import {
   commitRefinement,
   createRefinement,
-  extractDraftFromMessages,
+  extractPreviewFromMessages,
+  extractPreviewReady,
+  extractRefinePhase,
   extractSuggestedNameFromMessages,
   normalizeRefinementMessages,
+  type RefinePhase,
 } from "@/api/kalaidoscope/refinements";
 
 /**
@@ -38,12 +41,24 @@ export interface RefineSession {
   /** Live message list (mid-stream included), fed by `onMessagesChange`. */
   messages: UIMessage[];
   onMessagesChange: (m: UIMessage[]) => void;
-  /** The latest drafted snapshot scraped from the chat (empty until one lands). */
+  /**
+   * The latest applied output scraped from the chat — the drafted lens
+   * executed against the sources, mid-stream partials included (empty until
+   * the first apply starts streaming).
+   */
   preview: string;
   /**
-   * The model's latest name suggestion for the document being drafted (empty
-   * until one lands). Rides `suggest_name` calls before the first draft and
-   * `update_draft`'s `suggested_name` argument afterwards.
+   * A terminal applied output exists, so the session is committable. This is
+   * the approve gate: `preview` alone can be a mid-stream partial or stale
+   * next to a newer lens whose apply failed.
+   */
+  previewReady: boolean;
+  /** Where the current turn stands: drafting the lens, applying it, or done. */
+  phase: RefinePhase;
+  /**
+   * The model's latest name suggestion for the document being shaped (empty
+   * until one lands). Rides `suggest_name` calls before the first lens and
+   * `update_lens`'s `suggested_name` argument afterwards.
    */
   suggestedName: string;
   /** A refinement is open. */
@@ -58,18 +73,18 @@ export interface RefineSession {
    * snapshot (its context/window spec seeds the conversation). Returns whether it
    * succeeded (errors are toasted).
    *
-   * `contextSpec` and `seedDraft` open a session that already has a context
-   * and/or a draft — how authoring flows that start from something existing
-   * (graduating a fragment, forking a projection) avoid spending a model call to
-   * produce what they already have. Whatever the server seeds comes back as the
-   * session's history, so the draft is in the preview immediately.
+   * `contextSpec` opens a session that already has a context — how authoring
+   * flows that start from something existing (graduating a fragment, forking a
+   * projection) pin their sources up front. Flows that used to seed a draft
+   * now pass the material as `prompt` instead: the first turn's lens is what
+   * makes the session committable, so the preview stays empty until the model
+   * drafts one.
    */
   start: (args: {
     parentId: string;
     prompt?: string;
     snapshotId?: string;
     contextSpec?: ContextSpec;
-    seedDraft?: string;
   }) => Promise<boolean>;
   /** Adopt an already-persisted refinement, seeding the chat with its history. */
   resume: (args: {
@@ -106,12 +121,14 @@ export function useRefineSession({
 
   const onMessagesChange = useCallback((m: UIMessage[]) => setMessages(m), []);
 
-  const preview = extractDraftFromMessages(messages);
+  const preview = extractPreviewFromMessages(messages);
+  const previewReady = extractPreviewReady(messages);
+  const phase = extractRefinePhase(messages);
   const suggestedName = extractSuggestedNameFromMessages(messages);
   const started = refinementId != null;
 
   const start = useCallback<RefineSession["start"]>(
-    async ({ parentId, prompt, snapshotId, contextSpec, seedDraft }) => {
+    async ({ parentId, prompt, snapshotId, contextSpec }) => {
       if (creating) return false;
       setCreating(true);
       // Mint a fresh chat id per session so re-opening (e.g. re-targeting a new
@@ -123,7 +140,6 @@ export function useRefineSession({
         clientId: newClientId,
         snapshotId,
         contextSpec,
-        seedDraft,
       });
       setCreating(false);
       if (res.isErr()) {
@@ -132,8 +148,8 @@ export function useRefineSession({
         });
         return false;
       }
-      // Adopt whatever the server seeded, normalised into the shape the live
-      // stream produces so the drafted preview picks it up. These carry the
+      // Adopt whatever the server seeded (the context system message),
+      // normalised into the shape the live stream produces. These carry the
       // server's own message ids, so the next turn recognises them as history
       // rather than persisting a second copy.
       const seeded = res.value.messages ?? [];
@@ -190,6 +206,8 @@ export function useRefineSession({
     messages,
     onMessagesChange,
     preview,
+    previewReady,
+    phase,
     suggestedName,
     started,
     creating,

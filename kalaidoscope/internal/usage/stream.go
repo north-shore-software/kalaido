@@ -75,7 +75,7 @@ func GenerateOnce(ctx context.Context, app core.App, prompt string, role llm.Rol
 }
 
 // GenerateOnceMsgs is GenerateOnce over a full message transcript, for callers
-// holding a multi-turn conversation (the lens distillation loop).
+// holding a multi-turn conversation (the snapshot delta/merge continuation).
 func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, model string, tools []llm.Tool) (string, error) {
 	comp, runCtx, err := stream(ctx, app, role, model, msgs, tools)
 	if err != nil {
@@ -96,6 +96,34 @@ func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, rol
 	// aborts and the channel drains early): never return a truncation as if it
 	// were the whole answer. runCtx can't distinguish this — its cause is
 	// stamped Canceled on normal release too — so check the caller's ctx.
+	if ctx.Err() != nil {
+		return "", fmt.Errorf("stream interrupted: %w", context.Cause(ctx))
+	}
+	return sb.String(), nil
+}
+
+// GenerateStreamMsgs is GenerateOnceMsgs with the text deltas additionally
+// forwarded through onDelta as they arrive, for callers relaying the
+// generation into a live stream (the refinement apply). The returned string
+// remains the authoritative full text; the same truncation guards apply, so a
+// caller must discard what it relayed when an error comes back.
+func GenerateStreamMsgs(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, model string, onDelta func(string)) (string, error) {
+	comp, runCtx, err := stream(ctx, app, role, model, msgs, nil)
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	for ev := range comp.Events {
+		if ev.Kind == llm.EventText {
+			sb.WriteString(ev.Text)
+			if onDelta != nil {
+				onDelta(ev.Text)
+			}
+		}
+	}
+	if cause := context.Cause(runCtx); errors.Is(cause, llmq.ErrPreempted) {
+		return "", llmq.ErrPreempted
+	}
 	if ctx.Err() != nil {
 		return "", fmt.Errorf("stream interrupted: %w", context.Cause(ctx))
 	}

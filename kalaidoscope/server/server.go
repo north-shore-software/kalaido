@@ -47,11 +47,11 @@ func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
 		return se.Next()
 	})
 
+	registerWriteEcho(app)
 	RegisterTriggers(app)
 	RegisterRoutes(app)
 	usage.Setup(app)
 	colour.SetWorkerApp(app)
-	engine.SetLensWorkerApp(app)
 	reconcile.Register(app)
 	mapping.Register(app)
 	organize.Register(app)
@@ -102,16 +102,6 @@ func RegisterTriggers(app core.App) {
 
 	ingest.RegisterHooks(app)
 	config.RegisterHooks(app)
-
-	// Any committed config change may move a role's effective model out from
-	// under an approved lens; the drift pass is cheap when nothing moved.
-	// Registered here rather than in config to keep config free of an engine
-	// dependency; it fires after the hook above has published the new config,
-	// so the pass resolves against the new state.
-	app.OnRecordAfterUpdateSuccess(config.CollectionName).BindFunc(func(e *core.RecordEvent) error {
-		engine.RequestLensDistill()
-		return e.Next()
-	})
 }
 
 func RegisterRoutes(app core.App) {

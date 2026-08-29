@@ -12,27 +12,30 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-var updateDraftTool = llm.Tool{
-	Name:        prompts.UpdateDraftToolName,
-	Description: prompts.UpdateDraftToolDescription,
+var updateLensTool = llm.Tool{
+	Name:        prompts.UpdateLensToolName,
+	Description: prompts.UpdateLensToolDescription,
 	Parameters: json.RawMessage(`{
 		"type": "object",
 		"properties": {
-			"draft": {
+			"lens": {
 				"type": "string",
-				"description": ` + strconv.Quote(prompts.UpdateDraftParamDescription) + `
+				"description": ` + strconv.Quote(prompts.UpdateLensParamDescription) + `
 			},
 			"suggested_name": {
 				"type": "string",
-				"description": ` + strconv.Quote(prompts.UpdateDraftNameDescription) + `
+				"description": ` + strconv.Quote(prompts.UpdateLensNameDescription) + `
 			}
 		},
-		"required": ["draft"]
+		"required": ["lens"]
 	}`),
 }
 
@@ -61,6 +64,75 @@ func toolCallPart(tc llm.ToolCall) (api.UIMessagePart, bool) {
 		return api.UIMessagePart{}, false
 	}
 	return api.UIMessagePart{Type: "tool-" + tc.Name, Data: dataBytes}, true
+}
+
+// latestLensArg returns the lens from the turn's last update_lens call, or ""
+// when the turn drafted none (a clarify question, or an unchanged lens).
+func latestLensArg(toolCalls []llm.ToolCall) string {
+	for i := len(toolCalls) - 1; i >= 0; i-- {
+		if toolCalls[i].Name != prompts.UpdateLensToolName {
+			continue
+		}
+		var args struct {
+			Lens string `json:"lens"`
+		}
+		if err := json.Unmarshal(toolCalls[i].Args, &args); err == nil && args.Lens != "" {
+			return args.Lens
+		}
+	}
+	return ""
+}
+
+// lastApplyOutput finds the newest applied output on the persisted transcript
+// — the anchor the next apply minimizes against so consecutive previews diff
+// quietly.
+func lastApplyOutput(msgs []api.UIMessage) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != "assistant" {
+			continue
+		}
+		for _, p := range msgs[i].Parts {
+			if p.Type != "tool-"+prompts.ApplyResultToolName {
+				continue
+			}
+			var data struct {
+				Input struct {
+					Output string `json:"output"`
+				} `json:"input"`
+			}
+			if err := json.Unmarshal(p.Data, &data); err == nil && data.Input.Output != "" {
+				return data.Input.Output
+			}
+		}
+	}
+	return ""
+}
+
+// refinedSnapshotOutput is the first-turn anchor: the output of the snapshot
+// this session refines, so the very first preview already diffs minimally
+// against the document the user is looking at. "" for sessions that refine
+// nothing existing (fresh authoring).
+func refinedSnapshotOutput(app core.App, refRec *core.Record) string {
+	targetCol, snapshotField := "projection", "projection_snapshot_id"
+	if refRec.Collection().Name == "refine_refl_snapshot_conversation" {
+		targetCol, snapshotField = "reflection", "reflection_snapshot_id"
+	}
+	snapID := refRec.GetString(snapshotField)
+	if snapID == "" {
+		return ""
+	}
+	snap, err := app.FindRecordById(targetCol+"_snapshot", snapID)
+	if err != nil {
+		return ""
+	}
+	return pbutil.DecodeJSONString(snap.GetString("output"))
+}
+
+// jsonStringChunk escapes one streamed text chunk for insertion into an
+// in-progress JSON string literal (the fabricated apply_result args stream).
+func jsonStringChunk(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b[1 : len(b)-1])
 }
 
 func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
@@ -100,7 +172,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			return e.InternalServerError("no model configured for refinement", err)
 		}
 
-		comp, err := usage.Stream(ctx, app, llm.RoleRefinement, assistantModel, hydratedMsgs, []llm.Tool{updateDraftTool, suggestNameTool})
+		comp, err := usage.Stream(ctx, app, llm.RoleRefinement, assistantModel, hydratedMsgs, []llm.Tool{updateLensTool, suggestNameTool})
 		if errors.Is(err, usage.ErrExhausted) {
 			return usage.WriteExhausted(e, app)
 		}
@@ -136,7 +208,8 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			draftRec = rec
 		}
 
-		turn := chat.StreamAssistantResponse(e.Response, comp, textID, func(tc llm.ToolCall) {
+		sse := chat.BeginSSE(e.Response, textID)
+		turn := sse.StreamTurn(comp, textID, func(tc llm.ToolCall) {
 			part, ok := toolCallPart(tc)
 			if !ok {
 				return
@@ -158,6 +231,95 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			writeTurn(parts)
 		}
 
+		// Phase two: execute the drafted lens so the user previews what it
+		// actually produces — the same RoleSnapshot call a future regeneration
+		// makes. The lens-writing model never sees this output; it streams to
+		// the client as a fabricated apply_result tool part and persists beside
+		// the lens on the same assistant message.
+		lens := latestLensArg(turn.ToolCalls)
+		if lens == "" {
+			// A clarify turn, or an unchanged lens: nothing to apply, the
+			// preview keeps its prior output.
+			sse.Finish()
+			return nil
+		}
+
+		emitTurnError := func(kind, message string) {
+			data, err := json.Marshal(map[string]string{"kind": kind, "message": message})
+			if err != nil {
+				return
+			}
+			sse.DataPart("refine_error", json.RawMessage(data), false)
+			parts = append(parts, api.UIMessagePart{Type: "data-refine_error", Data: data})
+			writeTurn(parts)
+		}
+
+		if match := engine.LensCountPin(lens); match != "" {
+			// Surfaced, not auto-redrafted: the user sees that the lens pinned
+			// a count; the apply still runs so they can judge the result.
+			log.Printf("refinement chat %s: drafted lens pins a count: %q", refRec.Id, match)
+			if data, err := json.Marshal(map[string]string{"match": match}); err == nil {
+				sse.DataPart("refine_lint", json.RawMessage(data), false)
+				parts = append(parts, api.UIMessagePart{Type: "data-refine_lint", Data: data})
+				writeTurn(parts)
+			}
+		}
+
+		pinned, _, _ := llmcontext.LatestPinnedAndSpec(allMsgs)
+		sourceBlock := ""
+		if len(pinned.FragmentIDs)+len(pinned.SnapshotIDs) > 0 {
+			sourceBlock, _ = llmcontext.HydrateIDsToText(ctx, app, pinned)
+		}
+
+		previous := lastApplyOutput(allMsgs)
+		if previous == "" {
+			previous = refinedSnapshotOutput(app, refRec)
+		}
+
+		applyModel, err := llm.ResolveRoleFor(llm.RoleSnapshot, parentModel)
+		if err != nil {
+			emitTurnError("apply_failed", "no model configured for generation")
+			sse.Finish()
+			return nil
+		}
+
+		applyID := fmt.Sprintf("apply-%d", time.Now().UnixNano())
+		// The start event goes out before the model call: its arrival is what
+		// moves the client's preview into the "applying" phase, covering the
+		// dead period before the first token.
+		sse.ToolInputStart(applyID, prompts.ApplyResultToolName)
+		sse.ToolInputDelta(applyID, `{"output":"`)
+
+		final, err := engine.ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, previous, func(chunk string) {
+			sse.ToolInputDelta(applyID, jsonStringChunk(chunk))
+		})
+		if err != nil {
+			log.Printf("refinement chat %s: apply failed: %v", refRec.Id, err)
+			kind := "apply_failed"
+			if errors.Is(err, usage.ErrExhausted) {
+				kind = "quota_exhausted"
+			}
+			// No tool-input-available and no persisted apply part: the turn
+			// keeps its lens, the preview keeps the last successful output,
+			// and a commit of this lens is refused until a later apply lands.
+			emitTurnError(kind, "generating the preview failed — send another message to retry")
+			sse.Finish()
+			return nil
+		}
+
+		// The available event replaces the streamed partial args with the
+		// authoritative (possibly minimized) output.
+		sse.ToolInputDelta(applyID, `"}`)
+		sse.ToolInputAvailable(applyID, prompts.ApplyResultToolName, map[string]string{"output": final})
+
+		if args, err := json.Marshal(map[string]string{"output": final}); err == nil {
+			if part, ok := toolCallPart(llm.ToolCall{ID: applyID, Name: prompts.ApplyResultToolName, Args: args}); ok {
+				parts = append(parts, part)
+				writeTurn(parts)
+			}
+		}
+
+		sse.Finish()
 		return nil
 	}
 }
