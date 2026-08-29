@@ -8,9 +8,9 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
 func TestSharesVerbatimRun(t *testing.T) {
@@ -31,12 +31,12 @@ func TestSharesVerbatimRun(t *testing.T) {
 }
 
 func TestLoadIntentTimelineDeltasInline(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
-	frag1 := pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "first idea notes"})
-	frag2 := pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "second idea notes"})
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{"name": "P"})
-	ref := pbtest.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
+	frag1 := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "first idea notes"})
+	frag2 := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "second idea notes"})
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "P"})
+	ref := testutil.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "ext-t1",
 	})
@@ -46,7 +46,7 @@ func TestLoadIntentTimelineDeltasInline(t *testing.T) {
 		return b
 	}
 	addMsg := func(id string, msg api.UIMessage) {
-		pbtest.NewRecord(t, app, "chat_message", map[string]any{
+		testutil.NewRecord(t, app, "chat_message", map[string]any{
 			"refine_proj_conversation_id": ref.Id,
 			"content":                     pbutil.JSONObject(msg),
 		})
@@ -92,14 +92,14 @@ func TestLoadIntentTimelineDeltasInline(t *testing.T) {
 }
 
 func TestLoadIntentTimelineFallbackWithoutPinned(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{"name": "P"})
-	ref := pbtest.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "P"})
+	ref := testutil.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "ext-t2",
 	})
-	pbtest.NewRecord(t, app, "chat_message", map[string]any{
+	testutil.NewRecord(t, app, "chat_message", map[string]any{
 		"refine_proj_conversation_id": ref.Id,
 		"content": pbutil.JSONObject(api.UIMessage{
 			ID: "m1", Role: "user",

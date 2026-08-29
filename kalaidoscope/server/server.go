@@ -25,7 +25,11 @@ import (
 )
 
 func New(hideStartBanner bool) *pocketbase.PocketBase {
-	app := pocketbase.NewWithConfig(pocketbase.Config{HideStartBanner: hideStartBanner})
+	return NewWithConfig(pocketbase.Config{HideStartBanner: hideStartBanner})
+}
+
+func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
+	app := pocketbase.NewWithConfig(config)
 
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
 		Automigrate: false,

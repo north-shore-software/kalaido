@@ -17,7 +17,7 @@ Items marked **[OPTIONAL]** are a genuine choice, not a spec requirement. Items 
 ## Suite 1: Fragment Ingestion, Types, Immutability & Event Dates
 
 ### Test 1.1: Canonical Fragment Type Ingestion
-- [ ] **Test 1.1: Canonical Fragment Type Ingestion**
+- [x] **Test 1.1: Canonical Fragment Type Ingestion**
 
 | Property | Detail |
 |---|---|

@@ -11,9 +11,9 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbtest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -71,39 +71,39 @@ func (scriptedProvider) Stream(ctx context.Context, msgs []llm.Message, tools []
 }
 
 func TestDistillPassRunsLoopFromDBState(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	scriptMu.Lock()
 	genCalls, criticCalls = nil, nil
 	scriptMu.Unlock()
 
-	frag := pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
+	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{WholeScope: true}
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P",
 		"current_context_spec": pbutil.JSONObject(spec),
 	})
-	ref := pbtest.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
+	ref := testutil.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "ext-1",
 	})
 	// The conversation's context seed, as the refinement handler writes it:
 	// the timeline renders this as the initial source state.
 	pinnedData, _ := json.Marshal(llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}})
-	pbtest.NewRecord(t, app, "chat_message", map[string]any{
+	testutil.NewRecord(t, app, "chat_message", map[string]any{
 		"refine_proj_conversation_id": ref.Id,
 		"content": pbutil.JSONObject(api.UIMessage{
 			ID: "s1", Role: "system",
 			Parts: []api.UIMessagePart{{Type: "pinned_ids", Data: pinnedData}},
 		}),
 	})
-	pbtest.NewRecord(t, app, "chat_message", map[string]any{
+	testutil.NewRecord(t, app, "chat_message", map[string]any{
 		"refine_proj_conversation_id": ref.Id,
 		"content": pbutil.JSONObject(api.UIMessage{
 			ID: "m1", Role: "user",
 			Parts: []api.UIMessagePart{{Type: "text", Text: "make it a haiku"}},
 		}),
 	})
-	snap := pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
+	snap := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":              proj.Id,
 		"status":                     StatusApproved,
 		"output":                     pbutil.JSONString("TARGET OUTPUT"),
@@ -208,16 +208,16 @@ func TestDistillPassRunsLoopFromDBState(t *testing.T) {
 }
 
 func TestDistillPassPicksLatestApprovalPerParent(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 
-	frag := pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
+	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{WholeScope: true}
-	proj := pbtest.NewRecord(t, app, "projection", map[string]any{
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P",
 		"current_context_spec": pbutil.JSONObject(spec),
 	})
 	newSnap := func(seq int, ts string) *core.Record {
-		return pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
+		return testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 			"projection_id":            proj.Id,
 			"status":                   StatusApproved,
 			"output":                   pbutil.JSONString("TARGET OUTPUT"),
@@ -248,19 +248,19 @@ func TestDistillPassPicksLatestApprovalPerParent(t *testing.T) {
 // the state the drift scan reads.
 func driftFixture(t *testing.T, app core.App, lensModel string) (proj, lens, snap *core.Record) {
 	t.Helper()
-	frag := pbtest.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
+	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{WholeScope: true}
-	lens = pbtest.NewRecord(t, app, "lens", map[string]any{
+	lens = testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt":       pbutil.JSONString("LENS V2"),
 		"context_spec": pbutil.JSONObject(spec),
 		"model":        lensModel,
 	})
-	proj = pbtest.NewRecord(t, app, "projection", map[string]any{
+	proj = testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P",
 		"current_context_spec": pbutil.JSONObject(spec),
 		"current_lens_id":      lens.Id,
 	})
-	snap = pbtest.NewRecord(t, app, "projection_snapshot", map[string]any{
+	snap = testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":            proj.Id,
 		"status":                   StatusApproved,
 		"output":                   pbutil.JSONString("TARGET OUTPUT"),
@@ -282,7 +282,7 @@ func withEngineWorkspaceConfig(t *testing.T, cfg llm.WorkspaceConfig) {
 }
 
 func TestDriftScanRedistillsWhenDefaultModelMoves(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	proj, oldLens, snap := driftFixture(t, app, "old-model")
 	withEngineWorkspaceConfig(t, llm.WorkspaceConfig{
 		Provider:     llm.ProviderGemini,
@@ -329,7 +329,7 @@ func TestDriftScanRedistillsWhenDefaultModelMoves(t *testing.T) {
 }
 
 func TestDriftScanHonoursEntityOverride(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	proj, _, _ := driftFixture(t, app, "gemma4")
 	// The workspace still resolves to gemma4 (static local set); only the
 	// entity's own override moves.
@@ -351,7 +351,7 @@ func TestDriftScanHonoursEntityOverride(t *testing.T) {
 }
 
 func TestDriftScanSkipsPreProvenanceLens(t *testing.T) {
-	app := pbtest.NewApp(t)
+	app := testutil.NewApp(t)
 	proj, oldLens, _ := driftFixture(t, app, "")
 	withEngineWorkspaceConfig(t, llm.WorkspaceConfig{
 		Provider:     llm.ProviderGemini,
