@@ -126,6 +126,35 @@ func TestGenerateSnapshotFirstGenerationStoresRawCandidate(t *testing.T) {
 	}
 }
 
+// An approved predecessor produced by a different lens is not an anchor: the
+// minimal-diff rewrite would preserve the old lens's wording and shape, so the
+// raw candidate is stored as for a first generation — one model call.
+func TestGenerateSnapshotLensChangeSkipsMinimize(t *testing.T) {
+	app := testutil.NewApp(t)
+	strat := ProjectionStrategy{}
+	proj := genFixture(t, app, "projection")
+	oldLens := testutil.NewRecord(t, app, "lens", map[string]any{
+		"prompt":       pbutil.JSONString("OLD LENS"),
+		"context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
+	})
+	priorApproved(t, app, strat, proj, "OLD V1", map[string]any{"lens_id": oldLens.Id})
+	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
+		return "RAW V2", nil
+	}}
+	script.install(t)
+
+	snapID, err := GenerateSnapshot(context.Background(), app, proj.Id, StatusApproved, strat, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := storedOutput(t, app, strat, snapID); got != "RAW V2" {
+		t.Errorf("output = %q, want the raw candidate (no rewrite against another lens's output)", got)
+	}
+	if n := len(script.transcripts()); n != 1 {
+		t.Errorf("model calls = %d, want 1", n)
+	}
+}
+
 // With an approved predecessor the flow continues the generation conversation
 // — delta then merge — and stores the merge result, not the raw candidate.
 func TestGenerateSnapshotMinimizesAgainstApproved(t *testing.T) {

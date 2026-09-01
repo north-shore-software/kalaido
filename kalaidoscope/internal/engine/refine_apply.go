@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -15,16 +14,19 @@ import (
 )
 
 // ApplyDraftLens executes a drafted lens against the hydrated sources — the
-// exact call a future regeneration makes, so what the user previews is what
-// the lens actually reproduces. When a previous output exists, the candidate
-// is rewritten as a minimal edit of it (the same delta/merge continuation
-// production regeneration uses) so each turn's preview diffs quietly against
-// the last.
+// exact call a future regeneration under a new lens makes, so what the user
+// previews is what the lens actually reproduces.
+//
+// The preview is always generated from scratch. A drafted lens is by
+// definition a changed lens, and the minimal-diff rewrite production
+// regeneration applies (minimizeAgainstPrevious) is only valid when the same
+// lens is re-run over new sources: its delta/merge prompts deliberately
+// discard wording, ordering and formatting differences, which are precisely
+// what a lens iteration is meant to change.
 //
 // Raw candidate text streams through onDelta as it generates; the returned
-// string is the final, possibly minimized, output and is authoritative — a
-// caller relaying deltas into a live preview must replace them with it.
-func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, sourceBlock, previous string, onDelta func(string)) (string, error) {
+// string is the trimmed final output.
+func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, onDelta func(string)) (string, error) {
 	candidate, err := usage.GenerateStreamMsgs(ctx, app,
 		[]llm.Message{{Role: "user", Content: prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{})}},
 		llm.RoleSnapshot, model, onDelta)
@@ -35,24 +37,5 @@ func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, source
 	if candidate == "" {
 		return "", fmt.Errorf("apply lens: model returned empty output")
 	}
-
-	previous = strings.TrimSpace(previous)
-	if previous == "" || candidate == previous {
-		return candidate, nil
-	}
-
-	merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, previous, candidate)
-	switch {
-	case err == nil:
-		return merged, nil
-	case ctx.Err() != nil:
-		// The turn is being abandoned; the raw candidate may itself be a
-		// truncation. Abort rather than hand back half a document.
-		return "", fmt.Errorf("minimal-diff rewrite: %w", context.Cause(ctx))
-	default:
-		// Same policy as production generation: the polish step failing must
-		// not fail the apply — the raw candidate is correct, just noisier.
-		log.Printf("refinement apply: minimal-diff rewrite failed, keeping raw candidate: %v", err)
-		return candidate, nil
-	}
+	return candidate, nil
 }

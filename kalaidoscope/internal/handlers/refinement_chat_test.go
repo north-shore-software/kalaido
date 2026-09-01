@@ -13,6 +13,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -88,11 +89,18 @@ func (p refineScriptProvider) Stream(ctx context.Context, msgs []llm.Message, to
 // and returns the raw SSE body and the persisted transcript.
 func runRefinementTurn(t *testing.T, app core.App, refRec *core.Record, userText string) (string, []api.UIMessage) {
 	t.Helper()
+	return runRefinementTurnID(t, app, refRec, "user-1", userText)
+}
+
+// runRefinementTurnID is runRefinementTurn with an explicit user message id,
+// for tests that send more than one turn into the same conversation.
+func runRefinementTurnID(t *testing.T, app core.App, refRec *core.Record, msgID, userText string) (string, []api.UIMessage) {
+	t.Helper()
 
 	req := api.ChatRequest{
 		ID: refRec.GetString("external_conversation_id"),
 		Messages: []api.UIMessage{{
-			ID:    "user-1",
+			ID:    msgID,
 			Role:  "user",
 			Parts: []api.UIMessagePart{{Type: "text", Text: userText}},
 		}},
@@ -192,6 +200,96 @@ func TestRefinementTurnStreamsLensThenApply(t *testing.T) {
 	if applies != 1 {
 		t.Errorf("apply model calls = %d, want 1", applies)
 	}
+}
+
+// persistedApplyOutput returns the apply_result output on the newest
+// assistant message.
+func persistedApplyOutput(t *testing.T, msgs []api.UIMessage) string {
+	t.Helper()
+	applyData, ok := assistantParts(t, msgs)["tool-"+prompts.ApplyResultToolName]
+	if !ok {
+		t.Fatal("persisted turn is missing the apply part")
+	}
+	var apply struct {
+		Input struct {
+			Output string `json:"output"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(applyData, &apply); err != nil {
+		t.Fatalf("apply part: %v", err)
+	}
+	return apply.Input.Output
+}
+
+// assertAppliesFromScratch checks that every apply leg was a bare ApplyPrompt
+// — never the delta/merge continuation that minimizes against a previous
+// output, which would erase the form changes a redrafted lens exists to make.
+func assertAppliesFromScratch(t *testing.T, script *refineScript, want int) {
+	t.Helper()
+	script.mu.Lock()
+	calls := append([]string(nil), script.applyCalls...)
+	script.mu.Unlock()
+	if len(calls) != want {
+		t.Fatalf("apply model calls = %d, want %d", len(calls), want)
+	}
+	for i, c := range calls {
+		if !strings.HasPrefix(c, "Source Documents") {
+			t.Errorf("apply call %d does not open with the apply prompt: %.60q", i, c)
+		}
+		if strings.Contains(c, "Previously published version") {
+			t.Errorf("apply call %d minimizes against a previous output", i)
+		}
+	}
+}
+
+// A second drafting turn applies its redrafted lens from scratch: the previous
+// turn's preview is not an anchor, so the persisted output is exactly what the
+// new lens produced.
+func TestRefinementSecondTurnAppliesFromScratch(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	script := &refineScript{lens: "LENS ONE", applyOut: "LONG STRUCTURED OUTPUT"}
+	script.install(t)
+
+	_, msgs := runRefinementTurnID(t, app, ref, "user-1", "I want all of the personas")
+	if got := persistedApplyOutput(t, msgs); got != "LONG STRUCTURED OUTPUT" {
+		t.Fatalf("first turn output = %q", got)
+	}
+
+	script.mu.Lock()
+	script.lens, script.applyOut = "LENS TWO", "SHORT FLAT OUTPUT"
+	script.mu.Unlock()
+
+	_, msgs = runRefinementTurnID(t, app, ref, "user-2", "much more concise, no grouping")
+	if got := persistedApplyOutput(t, msgs); got != "SHORT FLAT OUTPUT" {
+		t.Errorf("second turn output = %q, want the redrafted lens's raw output", got)
+	}
+	assertAppliesFromScratch(t, script, 2)
+}
+
+// Refining an existing snapshot: its published output is what the user is
+// looking at, but it is not an anchor for the first preview either — the lens
+// being drafted differs from the one that produced it.
+func TestRefinementOfExistingSnapshotAppliesFromScratch(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	snap := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id": ref.GetString("projection_id"),
+		"status":        "approved",
+		"output":        pbutil.JSONString("PUBLISHED OUTPUT"),
+	})
+	ref.Set("projection_snapshot_id", snap.Id)
+	if err := app.Save(ref); err != nil {
+		t.Fatal(err)
+	}
+	script := &refineScript{lens: "NEW LENS", applyOut: "NEW OUTPUT"}
+	script.install(t)
+
+	_, msgs := runRefinementTurn(t, app, ref, "make it a digest")
+	if got := persistedApplyOutput(t, msgs); got != "NEW OUTPUT" {
+		t.Errorf("output = %q, want the new lens's raw output", got)
+	}
+	assertAppliesFromScratch(t, script, 1)
 }
 
 // A clarify turn (no lens) performs no apply at all.

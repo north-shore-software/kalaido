@@ -14,7 +14,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -81,51 +80,6 @@ func latestLensArg(toolCalls []llm.ToolCall) string {
 		}
 	}
 	return ""
-}
-
-// lastApplyOutput finds the newest applied output on the persisted transcript
-// — the anchor the next apply minimizes against so consecutive previews diff
-// quietly.
-func lastApplyOutput(msgs []api.UIMessage) string {
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role != "assistant" {
-			continue
-		}
-		for _, p := range msgs[i].Parts {
-			if p.Type != "tool-"+prompts.ApplyResultToolName {
-				continue
-			}
-			var data struct {
-				Input struct {
-					Output string `json:"output"`
-				} `json:"input"`
-			}
-			if err := json.Unmarshal(p.Data, &data); err == nil && data.Input.Output != "" {
-				return data.Input.Output
-			}
-		}
-	}
-	return ""
-}
-
-// refinedSnapshotOutput is the first-turn anchor: the output of the snapshot
-// this session refines, so the very first preview already diffs minimally
-// against the document the user is looking at. "" for sessions that refine
-// nothing existing (fresh authoring).
-func refinedSnapshotOutput(app core.App, refRec *core.Record) string {
-	targetCol, snapshotField := "projection", "projection_snapshot_id"
-	if refRec.Collection().Name == "refine_refl_snapshot_conversation" {
-		targetCol, snapshotField = "reflection", "reflection_snapshot_id"
-	}
-	snapID := refRec.GetString(snapshotField)
-	if snapID == "" {
-		return ""
-	}
-	snap, err := app.FindRecordById(targetCol+"_snapshot", snapID)
-	if err != nil {
-		return ""
-	}
-	return pbutil.DecodeJSONString(snap.GetString("output"))
 }
 
 // jsonStringChunk escapes one streamed text chunk for insertion into an
@@ -233,9 +187,11 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 
 		// Phase two: execute the drafted lens so the user previews what it
 		// actually produces — the same RoleSnapshot call a future regeneration
-		// makes. The lens-writing model never sees this output; it streams to
-		// the client as a fabricated apply_result tool part and persists beside
-		// the lens on the same assistant message.
+		// under this lens makes, always from scratch (a drafted lens is a
+		// changed lens; see engine.ApplyDraftLens). The lens-writing model
+		// never sees this output; it streams to the client as a fabricated
+		// apply_result tool part and persists beside the lens on the same
+		// assistant message.
 		lens := latestLensArg(turn.ToolCalls)
 		if lens == "" {
 			// A clarify turn, or an unchanged lens: nothing to apply, the
@@ -271,11 +227,6 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			sourceBlock, _ = llmcontext.HydrateIDsToText(ctx, app, pinned)
 		}
 
-		previous := lastApplyOutput(allMsgs)
-		if previous == "" {
-			previous = refinedSnapshotOutput(app, refRec)
-		}
-
 		applyModel, err := llm.ResolveRoleFor(llm.RoleSnapshot, parentModel)
 		if err != nil {
 			emitTurnError("apply_failed", "no model configured for generation")
@@ -290,7 +241,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		sse.ToolInputStart(applyID, prompts.ApplyResultToolName)
 		sse.ToolInputDelta(applyID, `{"output":"`)
 
-		final, err := engine.ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, previous, func(chunk string) {
+		final, err := engine.ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, func(chunk string) {
 			sse.ToolInputDelta(applyID, jsonStringChunk(chunk))
 		})
 		if err != nil {
@@ -308,7 +259,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		}
 
 		// The available event replaces the streamed partial args with the
-		// authoritative (possibly minimized) output.
+		// authoritative (trimmed) output.
 		sse.ToolInputDelta(applyID, `"}`)
 		sse.ToolInputAvailable(applyID, prompts.ApplyResultToolName, map[string]string{"output": final})
 
