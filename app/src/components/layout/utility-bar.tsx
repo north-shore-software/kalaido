@@ -82,6 +82,13 @@ type QueueTask = {
   tokens_per_second?: number;
 };
 
+const queueHeldLabels: Record<string, string> = {
+  backoff: "provider back-off",
+  idle_blocked: "waiting for quiet",
+  idle_quiet: "waiting for quiet",
+  rate_spacing: "pacing",
+};
+
 const queueRoleLabels: Record<string, string> = {
   chat: "chat",
   refinement: "refining",
@@ -134,6 +141,7 @@ function QueueStatusLine() {
 
   const running = (status.running ?? []) as QueueTask[];
   const waiting = (status.waiting ?? {}) as Record<string, number>;
+  const held = (status as { held?: { reason?: string } | null }).held;
   const queued = Object.values(waiting).reduce((a, b) => a + b, 0);
   const liveRate = running.reduce(
     (sum, t) => sum + (t.tokens_per_second ?? 0),
@@ -148,6 +156,9 @@ function QueueStatusLine() {
   }
   if (queued > 0) {
     parts.push(`${queued} queued`);
+  }
+  if (queued > 0 && held?.reason && queueHeldLabels[held.reason]) {
+    parts.push(queueHeldLabels[held.reason]);
   }
   if (liveRate > 0) {
     parts.push(`~${liveRate.toFixed(0)} tok/s`);

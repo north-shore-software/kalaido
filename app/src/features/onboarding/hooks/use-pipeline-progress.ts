@@ -1,22 +1,20 @@
 import { useRef } from "react";
-import { useIngestPipeline } from "@/hooks/use-ingest-pipeline";
-import { useLiveCollection } from "@/hooks/use-live-collection";
-import { pipelineProgress } from "../pipeline-progress";
+import { useOrganizeStatus } from "@/hooks/use-organize-status";
+import { organizeStage, pipelineProgress } from "../pipeline-progress";
 
-export function usePipelineProgress(ingestId: string) {
-  const { stage, error } = useIngestPipeline(ingestId);
-  const { records: maps } = useLiveCollection("kalaidoscope_map");
-  const { records: discoverRuns } = useLiveCollection("discover_run", {
-    sort: "-created",
-  });
+/**
+ * Splash-facing view of the workspace organise pipeline. The status is
+ * workspace-wide, not per import: an `organize_after` import drains every
+ * pending fragment anyway, so this is what actually happens. A fetch failure
+ * reads as idle so the splash ends rather than spinning.
+ */
+export function usePipelineProgress() {
+  const { status, error } = useOrganizeStatus();
+
+  const stage = error ? "idle" : organizeStage(status);
+  const next = error ? 1 : pipelineProgress(status);
 
   const highWater = useRef(0);
-  const next = pipelineProgress({
-    stage,
-    map: maps[0],
-    discoverRun: discoverRuns[0],
-  });
-
   highWater.current = Math.max(highWater.current, next);
 
   return { stage, error, progress: highWater.current };

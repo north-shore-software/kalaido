@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-import { useParams } from "react-router-dom";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { OrganizingSplash } from "../components/organizing-splash";
@@ -8,21 +6,14 @@ import { onboardingOrganizingTransitions as transitions } from "./OnboardingOrga
 
 export default function OnboardingOrganizing() {
   const { go } = useAppNavigate();
-  const { ingestId = "" } = useParams<{ ingestId: string }>();
-  const { stage, progress } = usePipelineProgress(ingestId);
+  const { stage, progress } = usePipelineProgress();
 
   const toApp = () => go(transitions.toApp, { replace: true });
-
-  useEffect(() => {
-    if (stage === "error") {
-      go(transitions.toApp, { replace: true });
-    }
-  }, [stage, go]);
 
   return (
     <OrganizingSplash
       progress={progress}
-      ending={stage === "done"}
+      ending={stage === "idle"}
       onSkip={toApp}
       onEnded={toApp}
     />

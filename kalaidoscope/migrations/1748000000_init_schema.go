@@ -72,8 +72,6 @@ var schema = []tableDef{
 			&core.NumberField{Name: "ingested"},
 			&core.TextField{Name: "error"},
 			&core.BoolField{Name: "organize_after"},
-			&core.TextField{Name: "pipeline"},
-			&core.TextField{Name: "pipeline_error"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

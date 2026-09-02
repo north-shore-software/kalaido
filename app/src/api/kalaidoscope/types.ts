@@ -242,8 +242,6 @@ export type IngestRecord = {
 	ingested?: number
 	limit?: number
 	organize_after?: boolean
-	pipeline?: string
-	pipeline_error?: string
 	skip_duplicates?: boolean
 	status?: string
 	updated: IsoAutoDateString
@@ -281,8 +279,9 @@ export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
 	prompt?: null | Tprompt
 }
 
-export type LlmQueueStatusRecord<Trunning = unknown, Twaiting = unknown> = {
+export type LlmQueueStatusRecord<Theld = unknown, Trunning = unknown, Twaiting = unknown> = {
 	created: IsoAutoDateString
+	held?: null | Theld
 	id: string
 	running?: null | Trunning
 	state?: string
@@ -473,7 +472,7 @@ export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSys
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>
 export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
-export type LlmQueueStatusResponse<Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Trunning, Twaiting>> & BaseSystemFields<Texpand>
+export type LlmQueueStatusResponse<Theld = unknown, Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Theld, Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
