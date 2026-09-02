@@ -3,6 +3,7 @@ package mapping
 import (
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -16,6 +17,10 @@ const (
 )
 
 var aggregateMu sync.Mutex
+
+var consolidating atomic.Bool
+
+func Consolidating() bool { return consolidating.Load() }
 
 // settleHooks run after every cycle, outside the aggregate lock, so readers
 // that derive from the map (colour membership) follow it without the map
@@ -70,6 +75,8 @@ func cycle(app core.App) {
 func integrate(app core.App) {
 	aggregateMu.Lock()
 	defer aggregateMu.Unlock()
+	consolidating.Store(true)
+	defer consolidating.Store(false)
 	if err := consolidate(app); err != nil {
 		log.Printf("mapping: consolidate: %v", err)
 	}

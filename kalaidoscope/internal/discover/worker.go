@@ -20,7 +20,35 @@ var (
 	pending   = map[string]bool{}
 	followUps followup.Queue
 	workerApp core.App
+	runningMu sync.Mutex
+	running   string
 )
+
+func Running() string {
+	runningMu.Lock()
+	defer runningMu.Unlock()
+	return running
+}
+
+func setRunning(kind string) {
+	runningMu.Lock()
+	running = kind
+	runningMu.Unlock()
+}
+
+func Pending() []string {
+	pendingMu.Lock()
+	defer pendingMu.Unlock()
+	kinds := make([]string, 0, len(pending))
+	for _, k := range kindOrder {
+		if pending[k] {
+			kinds = append(kinds, k)
+		}
+	}
+	return kinds
+}
+
+func KindOrder() []string { return append([]string(nil), kindOrder...) }
 
 func Register(app core.App) {
 	workerApp = app
@@ -66,7 +94,10 @@ func loop() {
 		active := followUps.Take()
 		var last error
 		for _, kind := range takePending() {
-			if err := Run(workerApp, flows[kind]); err != nil {
+			setRunning(kind)
+			err := Run(workerApp, flows[kind])
+			setRunning("")
+			if err != nil {
 				log.Printf("discover: %s: %v", kind, err)
 				last = err
 			}

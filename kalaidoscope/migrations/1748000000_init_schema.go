@@ -477,6 +477,7 @@ var schema = []tableDef{
 			&core.TextField{Name: "state"}, // "idle" | "active"
 			&core.JSONField{Name: "running"},
 			&core.JSONField{Name: "waiting"},
+			&core.JSONField{Name: "held"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

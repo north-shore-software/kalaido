@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # LLM Queue & Quota — Generated Audit Snapshot
 
 > **Generated:** 2026-09-02, from source at commit `3998ebd`.

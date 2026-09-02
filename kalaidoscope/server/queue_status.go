@@ -76,10 +76,12 @@ func writeQueueStatus(app core.App, st llmq.Status) {
 	}
 	running, _ := json.Marshal(st.Running)
 	waiting, _ := json.Marshal(st.Waiting)
+	held, _ := json.Marshal(st.Held)
 
 	rec.Set("state", state)
 	rec.Set("running", string(running))
 	rec.Set("waiting", string(waiting))
+	rec.Set("held", string(held))
 	if err := app.Save(rec); err != nil {
 		log.Printf("queue status: save failed: %v", err)
 	}
