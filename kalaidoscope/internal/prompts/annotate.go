@@ -89,15 +89,15 @@ Reply with only the JSON object.`
 }
 
 type ThingCitation struct {
-	Ref  string
-	Name string
-	Kind string
-	Note string
+	Ref  string `json:"ref,omitempty"`
+	Name string `json:"name,omitempty"`
+	Kind string `json:"kind,omitempty"`
+	Note string `json:"note,omitempty"`
 }
 
 type Assertion struct {
-	Text string
-	Refs []string
+	Text string   `json:"text"`
+	Refs []string `json:"refs"`
 }
 
 type Annotation struct {
