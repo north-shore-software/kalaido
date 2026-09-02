@@ -11,9 +11,13 @@ package api
 // draft now send the material as the session's first user message instead.
 type CreateRefinementRequest struct {
 	ClientID string `json:"clientId"`
-	// Scopes the session to an existing snapshot, whose context (and window, for
-	// reflections) seeds the conversation.
+	// Projections: scopes the session to an existing snapshot, whose context
+	// seeds the conversation. Ignored for reflections — a reflection's lens is
+	// refined independently of any one window's snapshot.
 	SnapshotID string `json:"snapshotId"`
+	// Reflections: the window the preview is generated against to begin with.
+	// Defaults to the reflection's current window.
+	Window *Window `json:"window,omitempty"`
 
 	// ContextSpec seeds the conversation's context directly. Takes precedence
 	// over the snapshot's own, so a session can start from a context that no

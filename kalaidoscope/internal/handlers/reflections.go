@@ -68,15 +68,17 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 			}
 		}
 		series := engine.SeriesWindows(app, rec, time.Now())
+		currentLens := rec.GetString("current_lens_id")
 		res := api.ReflectionWindowsResponse{Windows: make([]api.WindowInfo, 0, len(series))}
 		for _, st := range series {
 			res.Windows = append(res.Windows, api.WindowInfo{
-				Window:      st.Window,
-				Key:         st.Key,
-				HasApproved: st.HasApproved,
-				Generating:  st.Generating,
-				Backfilled:  st.Backfilled,
-				Stale:       stale[st.ID],
+				Window:       st.Window,
+				Key:          st.Key,
+				HasApproved:  st.HasApproved,
+				Generating:   st.Generating,
+				Backfilled:   st.Backfilled,
+				Stale:        stale[st.ID],
+				LensOutdated: st.HasApproved && st.LensID != currentLens,
 			})
 		}
 		if win := engine.DefaultRefinementWindow(rec, time.Now()); win != nil {

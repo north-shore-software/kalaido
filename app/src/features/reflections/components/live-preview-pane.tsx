@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { RefinePhase } from "@/api/kalaidoscope/refinements";
 import { MarkdownContent, Pill } from "@/components/kalaido";
 import { PaneHeader } from "@/components/layout/page-layout";
@@ -12,6 +13,8 @@ export interface LivePreviewPaneProps {
    * pane names the stage so the pre-preview delay reads as progress.
    */
   phase?: RefinePhase;
+  /** Controls beside the status pill — the window selector on reflections. */
+  header?: ReactNode;
   className?: string;
 }
 
@@ -19,6 +22,7 @@ export function LivePreviewPane({
   started,
   preview = "",
   phase = "idle",
+  header,
   className,
 }: LivePreviewPaneProps) {
   return (
@@ -26,15 +30,18 @@ export function LivePreviewPane({
       <PaneHeader
         label="Live preview"
         status={
-          <Pill tone="primary" dot>
-            {phase === "drafting"
-              ? "drafting"
-              : phase === "applying"
-                ? "generating"
-                : preview.length > 0
-                  ? "draft"
-                  : "pending"}
-          </Pill>
+          <div className="flex min-w-0 items-center gap-2">
+            {header}
+            <Pill tone="primary" dot>
+              {phase === "drafting"
+                ? "drafting"
+                : phase === "applying"
+                  ? "generating"
+                  : preview.length > 0
+                    ? "draft"
+                    : "pending"}
+            </Pill>
+          </div>
         }
       />
       <div className="flex-1 overflow-y-auto p-5">

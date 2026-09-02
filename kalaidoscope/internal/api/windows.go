@@ -13,6 +13,9 @@ type WindowInfo struct {
 	// Filled by the status evaluator: an approved snapshot exists but the
 	// window's context has changed since it was generated.
 	Stale bool `json:"stale,omitempty"`
+	// The approved snapshot was produced by a lens other than the
+	// reflection's current one — a refinement was committed since.
+	LensOutdated bool `json:"lensOutdated,omitempty"`
 }
 
 type ReflectionWindowsResponse struct {

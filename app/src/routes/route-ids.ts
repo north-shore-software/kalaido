@@ -18,6 +18,7 @@ export const ROUTE_IDS = [
   "new-projection",
   "reflections",
   "new-reflection",
+  "refine-reflection",
   "colours",
   "connections",
   "rotation",

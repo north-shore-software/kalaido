@@ -187,7 +187,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 // newest approved snapshot exists but belongs to another lens — so the caller
 // can say why it is generating from scratch.
 func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey, lensID string) (output string, otherLens bool) {
-	filter, params := approvedSnapshotFilter(strat, parentID, windowKey)
+	filter, params := ApprovedSnapshotFilter(strat, parentID, windowKey)
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
 	if err != nil || len(recs) == 0 {

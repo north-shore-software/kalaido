@@ -18,7 +18,10 @@ import { projectionDetailRoute } from "@/features/projections/pages/ProjectionDe
 import { projectionReviewRoute } from "@/features/projections/pages/ProjectionReview";
 import { newProjectionRoute } from "@/features/projections/pages/NewProjection";
 import { reflectionsRoute } from "@/features/reflections/pages/Reflections";
-import { newReflectionRoute } from "@/features/reflections/pages/NewReflection";
+import {
+  newReflectionRoute,
+  refineReflectionRoute,
+} from "@/features/reflections/pages/ReflectionRefine";
 import { coloursRoute } from "@/features/colours/pages/Colours";
 import { connectionsRoute } from "@/features/connections/pages/Connections";
 import { rotationRoute } from "@/features/rotation/pages/Rotation";
@@ -43,6 +46,7 @@ export const appRoutes: RouteDef[] = [
   newProjectionRoute,
   reflectionsRoute,
   newReflectionRoute,
+  refineReflectionRoute,
   coloursRoute,
   connectionsRoute,
   rotationRoute,

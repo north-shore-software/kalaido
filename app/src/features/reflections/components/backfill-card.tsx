@@ -53,7 +53,7 @@ export function BackfillCard({
           type="date"
           value={from}
           max={new Date().toISOString().slice(0, 10)}
-          onChange={(e) => setFrom(e.target.value)}
+          onValueChange={setFrom}
           aria-label="Backfill from date"
           disabled={busy}
         />

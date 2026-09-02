@@ -53,13 +53,15 @@ func entityStatus(ctx context.Context, app core.App, id string) (api.EntityStatu
 
 // reflectionWindowsToGenerate picks the windows one generate call covers. An
 // explicit windowId may name any materialized window (a re-run of history);
-// otherwise the candidates are the windows owed (pending) plus those gone
-// stale, all of them with all=true; and when nothing is owed, the current
-// window — never a windowless snapshot for a scheduled reflection.
+// otherwise the candidates are the windows owed (pending), those gone stale,
+// and those whose snapshot predates the current lens — all of them with
+// all=true; and when nothing is owed, the current window — never a windowless
+// snapshot for a scheduled reflection.
 func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
 	now := time.Now()
+	series := engine.SeriesWindows(app, rec, now)
 	if req.WindowID != "" {
-		for _, s := range engine.SeriesWindows(app, rec, now) {
+		for _, s := range series {
 			if s.ID == req.WindowID {
 				w := s.Window
 				return []*api.Window{&w}, nil
@@ -67,11 +69,26 @@ func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.R
 		}
 		return nil, e.BadRequestError("window ID not found in this reflection's windows", nil)
 	}
-	candidates := append(append([]api.Window(nil), st.PendingWindows...), st.StaleWindows...)
-	if len(candidates) == 0 {
-		// A draft (no approved snapshot) is not evaluated; ask the engine
-		// directly so a first Refresh still catches up.
-		candidates = engine.PendingWindows(app, rec, now)
+	seen := map[string]bool{}
+	var candidates []api.Window
+	add := func(w api.Window) {
+		if !seen[w.ID] {
+			seen[w.ID] = true
+			candidates = append(candidates, w)
+		}
+	}
+	currentLens := rec.GetString("current_lens_id")
+	for _, s := range series {
+		switch {
+		case s.Generating:
+		case !s.HasApproved:
+			add(s.Window)
+		case s.LensID != currentLens:
+			add(s.Window)
+		}
+	}
+	for _, w := range st.StaleWindows {
+		add(w)
 	}
 	switch {
 	case len(candidates) == 0:

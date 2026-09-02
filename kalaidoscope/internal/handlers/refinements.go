@@ -15,7 +15,9 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 func HandleCreateProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
@@ -50,15 +52,25 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			rec := core.NewRecord(col)
 			rec.Set("external_conversation_id", req.ClientID)
 
+			// A projection refinement may be scoped to one snapshot (a review
+			// candidate). A reflection's is not: its lens is refined
+			// independently of any window's snapshot, so snapshotId is ignored.
+			var snap *core.Record
+			var parent *core.Record
 			if targetCol == "projection" {
 				rec.Set("projection_id", targetID)
 				if req.SnapshotID != "" {
 					rec.Set("projection_snapshot_id", req.SnapshotID)
+					snap, err = txApp.FindRecordById(snapColName, req.SnapshotID)
+					if err != nil {
+						return err
+					}
 				}
 			} else {
 				rec.Set("reflection_id", targetID)
-				if req.SnapshotID != "" {
-					rec.Set("reflection_snapshot_id", req.SnapshotID)
+				parent, err = txApp.FindRecordById(targetCol, targetID)
+				if err != nil {
+					return err
 				}
 			}
 
@@ -67,44 +79,39 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			}
 			refID = rec.Id
 
-			var snap *core.Record
-			if req.SnapshotID != "" {
-				snap, err = txApp.FindRecordById(snapColName, req.SnapshotID)
-				if err != nil {
-					return err
-				}
-			}
-
 			// An explicit spec wins: it is how a session starts from a context no
 			// snapshot has ever been generated against (a fork's new inputs, a
-			// graduated fragment). Otherwise inherit the snapshot's.
+			// graduated fragment). Otherwise inherit the snapshot's — or, for a
+			// reflection, the reflection's own current context.
 			var ctxSpec *api.ContextSpec
-			if req.ContextSpec != nil {
+			switch {
+			case req.ContextSpec != nil:
 				ctxSpec = req.ContextSpec
-			} else if snap != nil {
+			case snap != nil:
 				var fromSnap api.ContextSpec
 				if err := snap.UnmarshalJSONField("context_spec", &fromSnap); err == nil {
 					ctxSpec = &fromSnap
 				}
-			}
-
-			// A reflection refinement always names a target window
-			// (spec/model.md §Refinement Approval, "Target Window"): the source
-			// snapshot's own window when refining one, else the reflection's
-			// current window. The client can move it later by sending a new
-			// `window` part; this is only the starting point.
-			var win *api.Window
-			if targetCol == "reflection" {
-				if snap != nil {
-					var rw map[string]string
-					if err := snap.UnmarshalJSONField("resolved_window", &rw); err == nil && rw["start"] != "" && rw["end"] != "" {
-						win = &api.Window{Start: rw["start"], End: rw["end"]}
+			case parent != nil:
+				var fromParent api.ContextSpec
+				if raw := parent.GetString("current_context_spec"); raw != "" && raw != "null" {
+					if err := parent.UnmarshalJSONField("current_context_spec", &fromParent); err == nil {
+						ctxSpec = &fromParent
 					}
 				}
-				if win == nil {
-					if parent, err := txApp.FindRecordById(targetCol, targetID); err == nil {
-						win = engine.DefaultRefinementWindow(parent, time.Now())
-					}
+			}
+
+			// A reflection refinement always names the window its preview is
+			// generated against (spec/model.md §Refinement Approval, "Target
+			// Window"): the caller's choice, else the reflection's current
+			// window. The client can move it later by sending a new `window`
+			// part; this is only the starting point.
+			var win *api.Window
+			if parent != nil {
+				if req.Window != nil && req.Window.Start != "" && req.Window.End != "" {
+					win = &api.Window{Start: req.Window.Start, End: req.Window.End}
+				} else {
+					win = engine.DefaultRefinementWindow(parent, time.Now())
 				}
 				if win != nil {
 					win.ID = engine.WindowID(targetID, *win)
@@ -144,6 +151,20 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				seeded = append(seeded, msg)
 			}
 
+			// An existing reflection opens with its current lens already
+			// drafted, paired with the chosen window's approved output as the
+			// starting preview — shaped exactly like a drafting turn, so the
+			// lens-writer sees the lens (LensEcho), the preview is never blank,
+			// and the commit-time pairing invariant holds from the first turn.
+			if parent != nil {
+				if lensMsg, ok := seedLensTurn(txApp, parent, win); ok {
+					if _, err := chat.PersistMessage(context.Background(), txApp, rec, lensMsg, ""); err != nil {
+						return err
+					}
+					seeded = append(seeded, lensMsg)
+				}
+			}
+
 			return nil
 		})
 
@@ -157,6 +178,53 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			Messages:     seeded,
 		})
 	}
+}
+
+// LensSeedPartType marks the assistant turn a reflection refinement is seeded
+// with: the reflection's current lens and, when the window has one, its
+// approved output. The client renders it as "starting from the current lens"
+// rather than as a drafted change.
+const LensSeedPartType = "data-lens_seed"
+
+// seedLensTurn builds that turn. ok is false when the reflection has no lens
+// yet (a brand-new one: the first turn drafts it).
+func seedLensTurn(app core.App, parent *core.Record, win *api.Window) (api.UIMessage, bool) {
+	lensID := parent.GetString("current_lens_id")
+	if lensID == "" {
+		return api.UIMessage{}, false
+	}
+	lensRec, err := app.FindRecordById("lens", lensID)
+	if err != nil {
+		return api.UIMessage{}, false
+	}
+	lens := strings.TrimSpace(pbutil.DecodeJSONString(lensRec.GetString("prompt")))
+	if lens == "" {
+		return api.UIMessage{}, false
+	}
+
+	now := time.Now().UnixNano()
+	parts := []api.UIMessagePart{{Type: LensSeedPartType, Data: json.RawMessage(`{}`)}}
+	if p, ok := toolCallPart(llm.ToolCall{ID: fmt.Sprintf("seed-lens-%d", now), Name: prompts.UpdateLensToolName,
+		Args: mustJSON(map[string]string{"lens": lens})}); ok {
+		parts = append(parts, p)
+	}
+	if win != nil {
+		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, parent.Id, engine.WindowKey(*win))
+		if snaps, err := app.FindRecordsByFilter("reflection_snapshot", filter, "-approval_sequence_number", 1, 0, params); err == nil && len(snaps) > 0 {
+			if output := strings.TrimSpace(pbutil.DecodeJSONString(snaps[0].GetString("output"))); output != "" {
+				if p, ok := toolCallPart(llm.ToolCall{ID: fmt.Sprintf("seed-apply-%d", now), Name: prompts.ApplyResultToolName,
+					Args: mustJSON(map[string]string{"output": output})}); ok {
+					parts = append(parts, p)
+				}
+			}
+		}
+	}
+	return api.UIMessage{ID: fmt.Sprintf("seed-%d", now), Role: "assistant", Parts: parts}, true
+}
+
+func mustJSON(v any) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 // ExtractDraftedLensAndSpec reads a refinement conversation's commit payload:
@@ -322,14 +390,16 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 			log.Printf("refinement.commit: %v", err)
 			return e.InternalServerError("failed to commit refinement", err)
 		}
-		log.Printf("refinement.commit: %s %s: refinement %s committed as snapshot %s", targetCol, parentID, refRec.Id, newSnapID)
-
-		// The lens now exists, so the windows the schedule already owes (a
-		// "summarize from" start in the past, a backfill requested before the
-		// first commit) can be generated. The committed window itself is
-		// approved and not among them.
 		if targetCol == "reflection" {
+			log.Printf("refinement.commit: reflection %s: refinement %s installed a new lens", parentID, refRec.Id)
+			// The lens exists (or changed), so the windows the series owes
+			// can be generated: for a brand-new reflection that is the whole
+			// grid. Windows that already have a snapshot keep it, marked as
+			// produced by an older lens, until Refresh or a per-window
+			// regenerate brings them forward.
 			engine.RunPendingWindows(app, parentID)
+		} else {
+			log.Printf("refinement.commit: %s %s: refinement %s committed as snapshot %s", targetCol, parentID, refRec.Id, newSnapID)
 		}
 
 		return e.JSON(http.StatusOK, map[string]string{"snapshotId": newSnapID})

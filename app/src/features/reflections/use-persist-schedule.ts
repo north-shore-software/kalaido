@@ -8,7 +8,7 @@ import { scheduleKey } from "@/features/reflections/schedule";
  * Persist schedule-chip edits onto the reflection (a new `window_spec_versions`
  * entry) instead of carrying them through the chat. The first spec seen once
  * `ready` is true is taken as the already-persisted baseline — the creation
- * spec on NewReflection, the record's own on the detail panel — so mounting
+ * spec when creating, the record's own when refining an existing one — so mounting
  * never appends a redundant version; only a later change does, debounced.
  * `onPersisted` lets the owner refresh anything derived from the schedule
  * (the window list).

@@ -205,6 +205,21 @@ export function ChatPanel({
     onMessagesChange?.(messages);
   }, [messages, onMessagesChange]);
 
+  // A target-window change is acted on at once, not on the next message: the
+  // window part goes onto the transcript and a message-less send asks the
+  // server to re-apply the standing lens to it (the preview moves, the lens
+  // does not). Before the first assistant turn there is no lens to re-apply,
+  // so the window simply rides the first send.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges reads refs; messages/isLoading are the gates
+  useEffect(() => {
+    if (!manageWindowRef.current || !timeWindow) return;
+    if (timeWindowKey(timeWindow) === lastSentWindowRef.current) return;
+    if (isLoading || quotaHit) return;
+    if (!messages.some((m) => m.role === "assistant")) return;
+    appendSpecChanges();
+    sendMessage();
+  }, [timeWindow, isLoading, quotaHit, messages, sendMessage]);
+
   /**
    * Append any spec change (context and/or window) to the live transcript as a
    * system message before a send, so the transcript the user sees — including

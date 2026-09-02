@@ -1,7 +1,7 @@
 import { parseWindowSpec, type WindowSpec } from "@/api/kalaidoscope/chat";
 
-// Reflection schedule UI options, shared by NewReflection (authoring) and the
-// reflection detail view (editing). Frequency = how often it regenerates;
+// Reflection schedule UI options for the refine screen (creating and the
+// existing case alike). Frequency = how often it regenerates;
 // lookback = the data window each run summarizes. A reflection's schedule lives
 // on `window_spec_versions`, an append-only list: it is set at creation and
 // updated by PATCHing the reflection (see `usePersistSchedule`).

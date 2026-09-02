@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -167,9 +166,9 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 	return err
 }
 
-// approvedSnapshotFilter selects a parent's approved snapshots, scoped for
+// ApprovedSnapshotFilter selects a parent's approved snapshots, scoped for
 // reflections to one window — each window key carries its own approval chain.
-func approvedSnapshotFilter(strat Strategy, parentID, windowKey string) (string, dbx.Params) {
+func ApprovedSnapshotFilter(strat Strategy, parentID, windowKey string) (string, dbx.Params) {
 	return statusSnapshotFilter(strat, parentID, windowKey, StatusApproved)
 }
 
@@ -196,7 +195,7 @@ func statusSnapshotFilter(strat Strategy, parentID, windowKey, status string) (s
 }
 
 func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int, error) {
-	filter, params := approvedSnapshotFilter(strat, snap.GetString(strat.ForeignKeyCol()), snap.GetString("window_key"))
+	filter, params := ApprovedSnapshotFilter(strat, snap.GetString(strat.ForeignKeyCol()), snap.GetString("window_key"))
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
 	if err != nil {
@@ -215,25 +214,17 @@ func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int,
 // the commit lands, there is no window in which the entity is approved but
 // lensless — a follow-up generation can never hit ErrLensNotReady from here.
 //
-// For a reflection the snapshot is filed under the refinement's target window
-// (win, read off the transcript): resolved_window and window_key come from it,
-// and window_spec records the schedule version governing at commit time. A
-// nil window falls back to the source snapshot's, and failing that the
-// snapshot is windowless — the unscheduled-reflection case.
-func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, win *api.Window, refinementID, targetCol string) (string, error) {
+// A reflection's lens is refined independently of its windows: the commit
+// installs the lens and publishes nothing — the previewed window was a
+// sample, and every window's existing snapshot now reads as produced by an
+// older lens until it is regenerated (Refresh, or one window at a time). The
+// returned snapshot id is therefore empty for reflections.
+func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, _ *api.Window, refinementID, targetCol string) (string, error) {
 	var newSnapID string
 	var chainOrigin string
 
 	err := app.RunInTransaction(func(tx core.App) error {
-		var resWin any
-		var winKey string
-		var specVersionNumber int
-		var winSpec any
-		if strat.TargetType() == "reflection" && win != nil {
-			resWin = map[string]string{"start": win.Start, "end": win.End}
-			winKey = WindowKey(*win)
-		}
-		if sourceSnapshotID != "" {
+		if sourceSnapshotID != "" && strat.TargetType() == "projection" {
 			if sourceSnap, err := tx.FindRecordById(strat.SnapshotCollectionName(), sourceSnapshotID); err == nil {
 				// Only a still-pending chain candidate carries its mark forward: the
 				// user is mid click-through and edited instead of approving as-is.
@@ -243,13 +234,6 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 				if sourceSnap.GetString("status") == StatusPending {
 					chainOrigin = sourceSnap.GetString("chain_origin")
 				}
-				if strat.TargetType() == "reflection" && resWin == nil {
-					var rw map[string]string
-					if err := sourceSnap.UnmarshalJSONField("resolved_window", &rw); err == nil && len(rw) > 0 {
-						resWin = rw
-						winKey = sourceSnap.GetString("window_key")
-					}
-				}
 			}
 		}
 
@@ -257,12 +241,6 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		parentRec, err := tx.FindRecordById(targetCol, parentID)
 		if err != nil {
 			return fmt.Errorf("parent %s %s: %w", targetCol, parentID, err)
-		}
-		if strat.TargetType() == "reflection" {
-			if version, ok := GoverningVersion(LoadWindowSpecVersions(parentRec), time.Now()); ok {
-				winSpec = version.Spec
-				specVersionNumber = version.VersionNumber
-			}
 		}
 
 		lensCol, err := tx.FindCollectionByNameOrId(strat.LensCollectionName())
@@ -285,35 +263,33 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 			return err
 		}
 
-		// Provenance is the model that actually produced the output — the
-		// per-turn apply resolves RoleSnapshot against the parent, exactly as a
-		// future regeneration will, so SnapshotIsCurrent's model check stays
-		// coherent.
-		model, _ := llm.ResolveRoleFor(llm.RoleSnapshot, parentRec.GetString("model"))
+		if strat.TargetType() == "projection" {
+			// Provenance is the model that actually produced the output — the
+			// per-turn apply resolves RoleSnapshot against the parent, exactly as a
+			// future regeneration will, so SnapshotIsCurrent's model check stays
+			// coherent.
+			model, _ := llm.ResolveRoleFor(llm.RoleSnapshot, parentRec.GetString("model"))
 
-		newSnapID, err = AppendSnapshot(ctx, tx, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
-			SourceID:        parentID,
-			LensID:          lensRec.Id,
-			Output:          output,
-			ContextSpec:     spec,
-			ResolvedContext: pinned,
-			WindowSpec:      winSpec,
-			ResolvedWindow:  resWin,
-			Status:          StatusApproved,
+			newSnapID, err = AppendSnapshot(ctx, tx, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
+				SourceID:        parentID,
+				LensID:          lensRec.Id,
+				Output:          output,
+				ContextSpec:     spec,
+				ResolvedContext: pinned,
+				Status:          StatusApproved,
 
-			Model:                   model,
-			ChainOrigin:             chainOrigin,
-			WindowKey:               winKey,
-			WindowSpecVersionNumber: specVersionNumber,
+				Model:       model,
+				ChainOrigin: chainOrigin,
 
-			CreatedFromRefinementID: refinementID,
-		})
-		if err != nil {
-			return err
-		}
+				CreatedFromRefinementID: refinementID,
+			})
+			if err != nil {
+				return err
+			}
 
-		if err := ApproveSnapshot(ctx, tx, strat, newSnapID); err != nil {
-			return err
+			if err := ApproveSnapshot(ctx, tx, strat, newSnapID); err != nil {
+				return err
+			}
 		}
 
 		parentRec.Set("current_lens_id", lensRec.Id)

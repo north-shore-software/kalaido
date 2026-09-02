@@ -255,9 +255,17 @@ function dataNoticesFor(msg: UIMessage): string[] {
   for (const part of msg.parts) {
     const p = part as {
       type?: string;
-      data?: { match?: string; message?: string };
+      data?: { match?: string; message?: string; start?: string; end?: string };
     };
-    if (p.type === "data-refine_lint" && p.data?.match) {
+    if (p.type === "data-lens_seed") {
+      notices.push("Starting from the current lens.");
+    } else if (p.type === "data-window_reapply") {
+      notices.push(
+        p.data?.start && p.data?.end
+          ? `Regenerated the preview for ${formatWindowRange(p.data.start, p.data.end)}.`
+          : "Regenerated the preview for the selected window.",
+      );
+    } else if (p.type === "data-refine_lint" && p.data?.match) {
       notices.push(
         `Heads up: the lens pins a fixed count (“${p.data.match}”), so it may drop content when the sources change.`,
       );
@@ -271,7 +279,19 @@ function dataNoticesFor(msg: UIMessage): string[] {
   return notices;
 }
 
+// Server-fabricated turns that carry a lens part without the model having
+// drafted anything: the seeded current lens, and a re-apply to another window.
+// Their own notice (dataNoticesFor) replaces the "Updated the lens." one.
+const FABRICATED_TURN_PARTS = ["data-lens_seed", "data-window_reapply"];
+
 function toolNoticeFor(msg: UIMessage): string | null {
+  if (
+    msg.parts.some((p) =>
+      FABRICATED_TURN_PARTS.includes((p as { type?: string }).type ?? ""),
+    )
+  ) {
+    return null;
+  }
   for (const part of msg.parts) {
     const p = part as { type?: string; toolName?: string };
     const name =

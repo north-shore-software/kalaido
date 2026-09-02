@@ -24,12 +24,15 @@ export function WindowSelect({
   onChange,
   refreshKey,
   className,
+  compact,
 }: {
   reflectionId: string;
   active: TimeWindow | undefined;
   onChange: (win: TimeWindow) => void;
   refreshKey?: unknown;
   className?: string;
+  /** No label, fits a pane header. */
+  compact?: boolean;
 }) {
   const [windows, setWindows] = useState<ReflectionWindow[]>([]);
 
@@ -52,10 +55,11 @@ export function WindowSelect({
 
   return (
     <div className={className}>
-      <Label>Window</Label>
+      {!compact && <Label>Window</Label>}
       <NativeSelect
         size="sm"
-        className="w-full"
+        className={compact ? "max-w-[200px]" : "w-full"}
+        aria-label="Preview window"
         value={activeKey}
         onChange={(e) => {
           const key = e.target.value;

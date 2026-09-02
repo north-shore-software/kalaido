@@ -9,8 +9,12 @@ export const reflectionsTransitions = defineTransitions({
     to: "reflections",
     trigger: "Click a reflection in the sidebar to open",
   },
-  viewSnapshot: {
+  viewWindow: {
     to: "reflections",
-    trigger: "Navigate to a historical reflection snapshot",
+    trigger: "Pick a window in the series to read its summary",
+  },
+  refine: {
+    to: "refine-reflection",
+    trigger: "Click ‘Refine’ to edit the reflection’s lens",
   },
 });

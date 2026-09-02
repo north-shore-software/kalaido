@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai";
 import type { Result } from "neverthrow";
 import { withActiveClient } from "./_active";
-import type { ContextSpec } from "./chat";
+import type { ContextSpec, TimeWindow } from "./chat";
 
 export interface CreateRefinementResult {
   refinementId: string;
@@ -28,14 +28,14 @@ export interface CommitRefinementResult {
  * server executes it, and the executed output streams back as a fabricated
  * `apply_result` tool part — that output is what the preview shows.
  *
- * `snapshotId` scopes the session to an existing snapshot: the backend seeds the
- * new conversation with that snapshot's `context_spec` (and, for reflections,
- * a `window` part naming that snapshot's window — or the reflection's current
- * window when there is no snapshot), so the refine model gets it automatically
- * — callers do not pass context here. Omit `snapshotId` when authoring a brand-new view: there is no
- * parent snapshot or lens yet; both are born when this refinement is committed.
- * Every session needs at least one chat turn before it can commit — the lens
- * only exists once the model drafts one.
+ * Projections: `snapshotId` scopes the session to an existing snapshot, whose
+ * `context_spec` seeds the conversation. Reflections ignore it — their lens is
+ * refined independently of any window's snapshot: the server seeds the
+ * reflection's own context, a `window` part (the current window, or `window`
+ * when given), and — for a reflection that already has a lens — that lens as
+ * an already-drafted turn with the window's approved output as its preview.
+ * A brand-new entity has no lens yet; it is born when the refinement is
+ * committed, so such a session needs at least one chat turn first.
  */
 export async function createRefinement(input: {
   target: "projection" | "reflection";
@@ -48,6 +48,11 @@ export async function createRefinement(input: {
    * context nothing has been generated against yet (a fork's new inputs).
    */
   contextSpec?: ContextSpec;
+  /**
+   * Reflections: the window the preview is generated against to begin with.
+   * Defaults server-side to the reflection's current window.
+   */
+  window?: TimeWindow;
 }): Promise<Result<CreateRefinementResult, Error>> {
   return withActiveClient((client) =>
     client.send<CreateRefinementResult>(
@@ -58,6 +63,9 @@ export async function createRefinement(input: {
           clientId: input.clientId,
           ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
           ...(input.contextSpec ? { contextSpec: input.contextSpec } : {}),
+          ...(input.window
+            ? { window: { start: input.window.start, end: input.window.end } }
+            : {}),
         },
       },
     ),

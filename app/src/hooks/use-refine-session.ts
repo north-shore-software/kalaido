@@ -1,7 +1,7 @@
 import { generateId, type UIMessage } from "ai";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import type { ContextSpec } from "@/api/kalaidoscope/chat";
+import type { ContextSpec, TimeWindow } from "@/api/kalaidoscope/chat";
 import {
   commitRefinement,
   createRefinement,
@@ -85,6 +85,8 @@ export interface RefineSession {
     prompt?: string;
     snapshotId?: string;
     contextSpec?: ContextSpec;
+    /** Reflections: the window the preview starts on (default: current). */
+    window?: TimeWindow;
   }) => Promise<boolean>;
   /** Adopt an already-persisted refinement, seeding the chat with its history. */
   resume: (args: {
@@ -128,11 +130,11 @@ export function useRefineSession({
   const started = refinementId != null;
 
   const start = useCallback<RefineSession["start"]>(
-    async ({ parentId, prompt, snapshotId, contextSpec }) => {
+    async ({ parentId, prompt, snapshotId, contextSpec, window }) => {
       if (creating) return false;
       setCreating(true);
-      // Mint a fresh chat id per session so re-opening (e.g. re-targeting a new
-      // live snapshot) never collides with the previous conversation.
+      // Mint a fresh chat id per session so re-opening never collides with
+      // the previous conversation.
       const newClientId = generateId();
       const res = await createRefinement({
         target,
@@ -140,6 +142,7 @@ export function useRefineSession({
         clientId: newClientId,
         snapshotId,
         contextSpec,
+        window,
       });
       setCreating(false);
       if (res.isErr()) {

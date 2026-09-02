@@ -33,6 +33,10 @@ type WindowState struct {
 	Generating bool
 	// Materialized by an explicit backfill rather than by the grid.
 	Backfilled bool
+	// The lens that produced the window's current approved snapshot.
+	LensID string
+
+	approvedSeq int
 }
 
 // SeriesWindows is a reflection's materialized windows, oldest first
@@ -81,6 +85,10 @@ func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState 
 		switch s.GetString("status") {
 		case StatusApproved:
 			st.HasApproved = true
+			if seq := s.GetInt("approval_sequence_number"); seq >= st.approvedSeq {
+				st.approvedSeq = seq
+				st.LensID = s.GetString("lens_id")
+			}
 		case StatusGenerating:
 			st.Generating = true
 		}
