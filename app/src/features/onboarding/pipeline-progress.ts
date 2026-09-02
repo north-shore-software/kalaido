@@ -34,8 +34,7 @@ export function pipelineProgress({
       );
     case "mapping":
       return (
-        MAPPING_START +
-        MAPPING_SPAN * fraction(map?.annotated, map?.fragments)
+        MAPPING_START + MAPPING_SPAN * fraction(map?.annotated, map?.fragments)
       );
     default:
       return IMPORTING;
