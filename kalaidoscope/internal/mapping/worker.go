@@ -3,43 +3,23 @@ package mapping
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"sort"
+	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 const (
-	threshold             = 10
-	estAnnotationBytes    = 1 << 10
-	maxExpansionsPerChunk = 8
-	maxToolRounds         = 4
-	markupConcurrency     = 100
-	maxThrottledAttempts  = 6
-
-	bytesPerToken = 4 // rough English-text estimate
+	annotateWorkers      = 100
+	maxThrottledAttempts = 6
 )
 
-// mapBudgets derives the map-body and chunk byte budgets from a provider's
-// context window: half the window is reserved for prompt scaffolding and the
-// reply (incorporate's reply is the full updated map body), split 1:3 between
-// the map body and the new-material chunk.
-func mapBudgets(ctxWindowTokens int) (mapBudgetBytes, chunkBudgetBytes int) {
-	usable := ctxWindowTokens * bytesPerToken / 2
-	mapBudgetBytes = usable / 4
-	chunkBudgetBytes = usable - mapBudgetBytes
-	return
-}
-
-// autoMapEnabled gates the automatic map triggers: ingest completion, the
-// fragment-create backlog check, and the boot-time backlog sweep. Temporarily
-// disabled; the manual kick (POST /api/map -> Signal) and the explicit
-// organize-after pipeline stay live.
 const autoMapEnabled = false
 
 var signal = make(chan struct{}, 1)
@@ -51,6 +31,7 @@ var workerApp core.App
 func Register(app core.App) {
 	workerApp = app
 	go loop()
+	go aggregateLoop()
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		if err := se.Next(); err != nil {
 			return err
@@ -69,8 +50,6 @@ func Signal() {
 	}
 }
 
-// SignalAuto is the entry point for automatic triggers; unlike Signal it
-// honours the autoMapEnabled gate.
 func SignalAuto() {
 	if !autoMapEnabled {
 		return
@@ -80,28 +59,6 @@ func SignalAuto() {
 
 func AfterDrain(fn func(err error)) {
 	followUps.Add(fn)
-}
-
-func SignalIfBacklog(app core.App) {
-	if !autoMapEnabled {
-		return
-	}
-	if batchIngestActive(app) {
-		return
-	}
-	n, err := pendingCount(app)
-	if err != nil {
-		log.Printf("mapping: pending count: %v", err)
-		return
-	}
-	if n >= threshold {
-		Signal()
-	}
-}
-
-func batchIngestActive(app core.App) bool {
-	recs, err := app.FindRecordsByFilter("ingest", "status = 'pending'", "", 1, 0, nil)
-	return err == nil && len(recs) > 0
 }
 
 func loop() {
@@ -143,6 +100,10 @@ func pendingFragments(app core.App) ([]*core.Record, error) {
 		}
 	}
 	sort.SliceStable(pending, func(i, j int) bool {
+		li, lj := pending[i].GetString("origin") == "import", pending[j].GetString("origin") == "import"
+		if li != lj {
+			return !li
+		}
 		return pending[i].GetDateTime("source_time").Compare(pending[j].GetDateTime("source_time")) < 0
 	})
 	return pending, nil
@@ -156,110 +117,67 @@ func pendingCount(app core.App) (int, error) {
 	return len(pending), nil
 }
 
-func buildChunks(frags []*core.Record, firstIsRaw bool, budget int) [][]*core.Record {
-	var chunks [][]*core.Record
-	var cur []*core.Record
-	size := 0
-	sizeOf := func(r *core.Record) int { return min(len(r.GetString("content")), estAnnotationBytes) }
-	if firstIsRaw {
-		sizeOf = func(r *core.Record) int { return len(r.GetString("content")) }
-	}
-	for _, f := range frags {
-		s := sizeOf(f)
-		if len(cur) > 0 && size+s > budget {
-			chunks = append(chunks, cur)
-			cur, size = nil, 0
-			if firstIsRaw {
-				firstIsRaw = false
-				sizeOf = func(r *core.Record) int { return min(len(r.GetString("content")), estAnnotationBytes) }
-				s = sizeOf(f)
-			}
-		}
-		cur = append(cur, f)
-		size += s
-	}
-	if len(cur) > 0 {
-		chunks = append(chunks, cur)
-	}
-	return chunks
-}
-
 func drain(app core.App) error {
-	frags, err := pendingFragments(app)
+	model, err := llm.ResolveRole(llm.RoleAnnotate)
 	if err != nil {
 		return err
 	}
-	if len(frags) == 0 {
-		return nil
-	}
-
-	m, err := loadMap(app)
-	if err != nil {
-		return err
-	}
-
-	mapModel, err := llm.ResolveRole(llm.RoleMap)
-	if err != nil {
-		return err
-	}
-	mapBudgetBytes, chunkBudgetBytes := mapBudgets(llm.SelectedProvider(mapModel).ContextWindow())
-	annotateModel, err := llm.ResolveRole(llm.RoleAnnotate)
-	if err != nil {
-		return err
-	}
-
-	runCol, err := app.FindCollectionByNameOrId("map_run")
-	if err != nil {
-		return err
-	}
-	run := core.NewRecord(runCol)
-	run.Set("status", "running")
-	run.Set("fragments_total", len(frags))
-	run.Set("map_version_start", m.version)
-	if err := app.Save(run); err != nil {
-		return err
-	}
-
 	ctx := context.Background()
-	chunks := buildChunks(frags, m.version == 0, chunkBudgetBytes)
-	processed, expansions := 0, 0
-
-	for i, chunk := range chunks {
-		var exp int
-		var err error
-		if m.version == 0 {
-			exp, err = incorporateRawThenAnnotate(ctx, app, m, run.Id, mapModel, annotateModel, chunk, mapBudgetBytes)
-		} else {
-			exp, err = markupAndIncorporate(ctx, app, m, run.Id, mapModel, annotateModel, chunk, mapBudgetBytes)
-		}
+	failed := map[string]bool{}
+	var firstErr error
+	var mu sync.Mutex
+	for {
+		frags, err := pendingFragments(app)
 		if err != nil {
-			run.Set("status", "error")
-			run.Set("error", fmt.Sprintf("chunk %d/%d: %v", i+1, len(chunks), err))
-			run.Set("fragments_processed", processed)
-			run.Set("chunks", i)
-			run.Set("expansions", expansions)
-			run.Set("map_version_end", m.version)
-			if serr := app.Save(run); serr != nil {
-				log.Printf("mapping: save run: %v", serr)
+			return err
+		}
+		var todo []*core.Record
+		for _, f := range frags {
+			if !failed[f.Id] {
+				todo = append(todo, f)
 			}
-			return fmt.Errorf("drain aborted at chunk %d/%d: %w", i+1, len(chunks), err)
 		}
-		processed += len(chunk)
-		expansions += exp
-		run.Set("fragments_processed", processed)
-		run.Set("chunks", i+1)
-		run.Set("expansions", expansions)
-		if err := app.Save(run); err != nil {
-			log.Printf("mapping: save run: %v", err)
+		if len(todo) == 0 {
+			break
+		}
+		exhausted := false
+		sem := make(chan struct{}, annotateWorkers)
+		var wg sync.WaitGroup
+		for _, f := range todo {
+			mu.Lock()
+			stop := exhausted
+			mu.Unlock()
+			if stop {
+				break
+			}
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(f *core.Record) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				err := annotateOne(ctx, app, model, f)
+				if err == nil {
+					return
+				}
+				log.Printf("mapping: annotate %s: %v", f.Id, err)
+				mu.Lock()
+				failed[f.Id] = true
+				if firstErr == nil {
+					firstErr = err
+				}
+				if errors.Is(err, usage.ErrExhausted) {
+					exhausted = true
+				}
+				mu.Unlock()
+			}(f)
+		}
+		wg.Wait()
+		if exhausted {
+			break
 		}
 	}
-
-	run.Set("status", "done")
-	run.Set("map_version_end", m.version)
-	if err := app.Save(run); err != nil {
-		log.Printf("mapping: save run: %v", err)
-	}
-	return nil
+	settle(app)
+	return firstErr
 }
 
 func retryPreempted(f func() error) error {

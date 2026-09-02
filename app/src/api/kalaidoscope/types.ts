@@ -188,14 +188,20 @@ export type FragmentRecord = {
 	type: FragmentTypeOptions
 }
 
-export type FragmentAnnotationRecord<Tannotation = unknown> = {
+export type FragmentAnnotationRecord<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown> = {
 	annotation?: null | Tannotation
+	conclusions?: null | Tconclusions
 	created: IsoAutoDateString
+	decisions?: null | Tdecisions
+	folded?: boolean
 	fragment_id: RecordIdString
+	grounded_count?: number
 	id: string
-	map_version?: number
 	model?: string
-	run_id?: RecordIdString
+	questions?: null | Tquestions
+	summary?: string
+	things?: null | Tthings
+	title?: string
 }
 
 export type IngestRecord = {
@@ -227,8 +233,11 @@ export type KalaidoscopeConfigRecord<Trole_models = unknown> = {
 }
 
 export type KalaidoscopeMapRecord<Tbody = unknown> = {
+	annotated?: number
 	body?: null | Tbody
+	consolidated_at?: IsoDateString
 	created: IsoAutoDateString
+	fragments?: number
 	id: string
 	updated: IsoAutoDateString
 	version?: number
@@ -260,17 +269,17 @@ export const MapRunStatusOptions = {
 } as const
 export type MapRunStatusOptions = typeof MapRunStatusOptions[keyof typeof MapRunStatusOptions]
 export type MapRunRecord = {
-	chunks?: number
+	admits?: number
 	created: IsoAutoDateString
 	error?: string
-	expansions?: number
-	fragments_processed?: number
-	fragments_total?: number
 	id: string
-	map_version_end?: number
-	map_version_start?: number
+	merges?: number
+	model?: string
+	pending_in?: number
 	status: MapRunStatusOptions
 	updated: IsoAutoDateString
+	version_after?: number
+	version_before?: number
 }
 
 export const OrganizeRunStatusOptions = {
@@ -427,7 +436,7 @@ export type ChatMessageResponse<Tcontent = unknown, Texpand = unknown> = Require
 export type ColourResponse<Texpand = unknown> = Required<ColourRecord> & BaseSystemFields<Texpand>
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>
-export type FragmentAnnotationResponse<Tannotation = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation>> & BaseSystemFields<Texpand>
+export type FragmentAnnotationResponse<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation, Tconclusions, Tdecisions, Tquestions, Tthings>> & BaseSystemFields<Texpand>
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>

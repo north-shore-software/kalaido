@@ -331,6 +331,10 @@ var schema = []tableDef{
 	},
 
 	{
+		// One row per consolidate model call (the aggregate loop's judgment
+		// step), not per mechanical fold: the record of what each call was
+		// asked to adjudicate and what it changed, so a bad or failed
+		// consolidation is inspectable after the fact.
 		Name:                   "map_run",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
@@ -341,12 +345,16 @@ var schema = []tableDef{
 				Values:    []string{"running", "done", "error"},
 			},
 			&core.TextField{Name: "error"},
-			&core.NumberField{Name: "fragments_total"},
-			&core.NumberField{Name: "fragments_processed"},
-			&core.NumberField{Name: "chunks"},
-			&core.NumberField{Name: "expansions"},
-			&core.NumberField{Name: "map_version_start"},
-			&core.NumberField{Name: "map_version_end"},
+			&core.TextField{Name: "model"},
+			// Pending things put in front of the model.
+			&core.NumberField{Name: "pending_in"},
+			// Deltas applied: pending merged into an existing thing (or two
+			// active things merged), and pending admitted as new.
+			&core.NumberField{Name: "merges"},
+			&core.NumberField{Name: "admits"},
+			// kalaidoscope_map.version before and after this call.
+			&core.NumberField{Name: "version_before"},
+			&core.NumberField{Name: "version_after"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -384,29 +392,58 @@ var schema = []tableDef{
 	},
 
 	{
+		// One row per annotated fragment, written once by an annotate worker
+		// and never rewritten except by a deliberate re-annotation. Its
+		// existence is the done-marker the dispatcher keys on. Client-readable
+		// (the UI shows title/summary); server-written only.
 		Name:                   "fragment_annotation",
 		DisableWriteOperations: true,
-		DisableReadOperations:  true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", Required: true, MaxSelect: 1, CascadeDelete: true},
+			// Legacy v3 markup (map-tree vocabulary). Kept so pre-v4 rows
+			// survive; nothing reads it.
 			&core.JSONField{Name: "annotation"},
-			&core.NumberField{Name: "map_version"},
+			// 2-6 word display label for the fragment.
+			&core.TextField{Name: "title"},
+			// 1-5 sentences; things already in the map are tagged inline as
+			// [Name](thing id).
+			&core.TextField{Name: "summary"},
+			// Exactly what the model emitted: [{ref} | {name, kind, note}].
+			// Provenance only.
+			&core.JSONField{Name: "things"},
+			// Each [{text, refs[]}]; always present, empty array is a valid
+			// answer.
+			&core.JSONField{Name: "decisions"},
+			&core.JSONField{Name: "questions"},
+			&core.JSONField{Name: "conclusions"},
+			// Active things the annotate call was shown — how well grounded the
+			// row is; the thin-tail re-annotate pass selects on it.
+			&core.NumberField{Name: "grounded_count"},
+			// Set once a consolidate pass has read this row into the map;
+			// rows with folded=false are what makes the next pass due.
+			&core.BoolField{Name: "folded"},
 			&core.TextField{Name: "model"},
-			&core.RelationField{Name: "run_id", CollectionId: "map_run", MaxSelect: 1},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_fragment_annotation_fragment", Unique: true, Columns: "fragment_id"},
-			{Name: "idx_fragment_annotation_run", Columns: "run_id"},
+			{Name: "idx_fragment_annotation_folded", Columns: "folded"},
 		},
 	},
 
 	{
+		// Singleton. body is one JSON document: {things[], relationships[],
+		// narrative} — the flat index every annotate call is grounded on.
+		// Written only by the aggregate loop.
 		Name:                   "kalaidoscope_map",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.JSONField{Name: "body"},
+			// Bumped per consolidate call, not per fold.
 			&core.NumberField{Name: "version"},
+			&core.DateField{Name: "consolidated_at"},
+			&core.NumberField{Name: "fragments"},
+			&core.NumberField{Name: "annotated"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

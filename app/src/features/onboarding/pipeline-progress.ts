@@ -10,7 +10,7 @@ const ORGANIZING_SPAN = 0.25;
 
 export interface PipelineProgressInput {
   stage: PipelineStage;
-  mapRun?: { fragments_processed?: number; fragments_total?: number };
+  map?: { annotated?: number; fragments?: number };
   organizeRun?: { explorations?: number };
 }
 
@@ -21,7 +21,7 @@ function fraction(done: number | undefined, total: number | undefined): number {
 
 export function pipelineProgress({
   stage,
-  mapRun,
+  map,
   organizeRun,
 }: PipelineProgressInput): number {
   switch (stage) {
@@ -34,9 +34,7 @@ export function pipelineProgress({
       );
     case "mapping":
       return (
-        MAPPING_START +
-        MAPPING_SPAN *
-          fraction(mapRun?.fragments_processed, mapRun?.fragments_total)
+        MAPPING_START + MAPPING_SPAN * fraction(map?.annotated, map?.fragments)
       );
     default:
       return IMPORTING;

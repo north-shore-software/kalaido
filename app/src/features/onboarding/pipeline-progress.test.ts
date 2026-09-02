@@ -5,15 +5,15 @@ describe("pipelineProgress", () => {
     expect(pipelineProgress({ stage: "" })).toBe(0.05);
   });
 
-  it("sits at the start of the mapping band before a run record exists", () => {
+  it("sits at the start of the mapping band before the map has counters", () => {
     expect(pipelineProgress({ stage: "mapping" })).toBeCloseTo(0.1);
   });
 
-  it("advances through the mapping band with processed fragments", () => {
+  it("advances through the mapping band with annotated fragments", () => {
     expect(
       pipelineProgress({
         stage: "mapping",
-        mapRun: { fragments_processed: 50, fragments_total: 100 },
+        map: { annotated: 50, fragments: 100 },
       }),
     ).toBeCloseTo(0.4);
   });
@@ -22,7 +22,7 @@ describe("pipelineProgress", () => {
     expect(
       pipelineProgress({
         stage: "mapping",
-        mapRun: { fragments_processed: 300, fragments_total: 100 },
+        map: { annotated: 300, fragments: 100 },
       }),
     ).toBeCloseTo(0.7);
   });
@@ -31,7 +31,7 @@ describe("pipelineProgress", () => {
     expect(
       pipelineProgress({
         stage: "mapping",
-        mapRun: { fragments_processed: 4, fragments_total: 0 },
+        map: { annotated: 4, fragments: 0 },
       }),
     ).toBeCloseTo(0.1);
   });

@@ -5,9 +5,7 @@ import { pipelineProgress } from "../pipeline-progress";
 
 export function usePipelineProgress(ingestId: string) {
   const { stage, error } = useIngestPipeline(ingestId);
-  const { records: mapRuns } = useLiveCollection("map_run", {
-    sort: "-created",
-  });
+  const { records: maps } = useLiveCollection("kalaidoscope_map");
   const { records: organizeRuns } = useLiveCollection("organize_run", {
     sort: "-created",
   });
@@ -15,7 +13,7 @@ export function usePipelineProgress(ingestId: string) {
   const highWater = useRef(0);
   const next = pipelineProgress({
     stage,
-    mapRun: mapRuns[0],
+    map: maps[0],
     organizeRun: organizeRuns[0],
   });
 
