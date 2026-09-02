@@ -19,7 +19,7 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 	}
 	block := prompts.FragmentBlock(frag.GetString("type"), frag.GetString("source"), frag.Id, frag.GetString("content"))
 	msgs := []llm.Message{{Role: "user", Content: prompts.AnnotatePrompt(d.doc, block)}}
-	reply, err := generate(ctx, app, model, msgs)
+	reply, err := generate(ctx, app, llm.RoleAnnotate, model, msgs)
 	if err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 		msgs = append(msgs,
 			llm.Message{Role: "assistant", Content: reply},
 			llm.Message{Role: "user", Content: prompts.MapJSONRetryNudge})
-		reply, err = generate(ctx, app, model, msgs)
+		reply, err = generate(ctx, app, llm.RoleAnnotate, model, msgs)
 		if err != nil {
 			return err
 		}
@@ -59,18 +59,14 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 	rec.Set("grounded_count", prompts.AnnotateShown(d.doc))
 	rec.Set("folded", false)
 	rec.Set("model", model)
-	if err := app.Save(rec); err != nil {
-		return err
-	}
-	signalAggregate()
-	return nil
+	return app.Save(rec)
 }
 
-func generate(ctx context.Context, app core.App, model string, msgs []llm.Message) (string, error) {
+func generate(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message) (string, error) {
 	var reply string
 	err := retryPreempted(func() error {
 		var err error
-		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, llm.RoleAnnotate, model, nil)
+		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, role, model, nil)
 		return err
 	})
 	return reply, err

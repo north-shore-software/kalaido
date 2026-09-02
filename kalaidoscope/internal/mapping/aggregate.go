@@ -32,8 +32,8 @@ func settle(app core.App) {
 func cycle(app core.App) {
 	aggregateMu.Lock()
 	defer aggregateMu.Unlock()
-	if _, err := foldPending(app); err != nil {
-		log.Printf("mapping: fold: %v", err)
+	if err := consolidate(app); err != nil {
+		log.Printf("mapping: consolidate: %v", err)
 	}
 	if err := refreshCounters(app); err != nil {
 		log.Printf("mapping: counters: %v", err)
