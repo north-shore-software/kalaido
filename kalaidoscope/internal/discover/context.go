@@ -3,19 +3,13 @@ package discover
 import (
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 )
 
 type Context struct {
-	App     core.App
-	Run     *core.Record
-	Doc     *mapdoc.Document
-	Version int
-	Rows    []mapping.Row
-	ByThing map[string][]int
+	*Reader
+	Run *core.Record
 
-	reads   int
 	rounds  int
 	outputs []Output
 	covered map[string]bool
@@ -38,23 +32,11 @@ type Output struct {
 }
 
 func newContext(app core.App, run *core.Record) (*Context, error) {
-	doc, version, err := mapping.LoadDocument(app)
+	r, err := NewReader(app, maxFragmentReads)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := mapping.LoadRows(app)
-	if err != nil {
-		return nil, err
-	}
-	return &Context{
-		App:     app,
-		Run:     run,
-		Doc:     doc,
-		Version: version,
-		Rows:    rows,
-		ByThing: mapping.IndexRows(doc, rows),
-		covered: map[string]bool{},
-	}, nil
+	return &Context{Reader: r, Run: run, covered: map[string]bool{}}, nil
 }
 
 func (c *Context) fragmentIDsForThings(ids []string) []string {

@@ -14,7 +14,7 @@ func rhythmContext(rows []mapping.Row, things ...string) *Context {
 	for _, id := range things {
 		doc.Things = append(doc.Things, mapdoc.Thing{ID: id, Name: "Thing " + id, Fragments: 99})
 	}
-	return &Context{Doc: doc, Rows: rows, ByThing: mapping.IndexRows(doc, rows), covered: map[string]bool{}}
+	return &Context{Reader: &Reader{Doc: doc, Rows: rows, ByThing: mapping.IndexRows(doc, rows)}, covered: map[string]bool{}}
 }
 
 func row(date string, things ...string) mapping.Row {

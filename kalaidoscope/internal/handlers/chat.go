@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -78,6 +80,25 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 			return e.InternalServerError("no model configured for chat", err)
 		}
 
+		summaries := chat.ConversationSummaries(allMsgs)
+
+		// Refuse before the call, with a message the user can act on, rather
+		// than let the provider reject an oversized prompt as a bare 400.
+		if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
+			log.Printf("chat %s: %v", req.ID, err)
+			text := err.Error()
+			if !summaries {
+				text += chatTooLargeHint
+			}
+			return e.Error(http.StatusUnprocessableEntity, text, err)
+		}
+
+		textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
+
+		if summaries {
+			return streamSummariesTurn(e, app, conv, hydratedMsgs, assistantModel, textID)
+		}
+
 		comp, err := usage.Stream(ctx, app, llm.RoleChat, assistantModel, hydratedMsgs, nil)
 		if errors.Is(err, usage.ErrExhausted) {
 			return usage.WriteExhausted(e, app)
@@ -88,8 +109,6 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		if err != nil {
 			return e.InternalServerError("llm stream failed", err)
 		}
-
-		textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
 
 		turn := chat.StreamAssistantResponse(e.Response, comp, textID, nil)
 

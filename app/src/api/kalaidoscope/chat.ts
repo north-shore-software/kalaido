@@ -4,7 +4,10 @@ import {
   type UIMessage,
 } from "ai";
 import { kalaidoscopeAuthHeaders } from "@/api/kalaidoscope/client.ts";
-import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
+import {
+  SUMMARIES_ITEM,
+  WHOLE_SCOPE_ITEM,
+} from "@/api/kalaidoscope/context-items";
 import type { TypedPocketBase } from "@/api/kalaidoscope/types.ts";
 import { stripMentions } from "@/lib/mentions";
 
@@ -25,10 +28,20 @@ export type ContextKind =
    * Carries the id `*`. Never persisted on its own: it round-trips through
    * `ContextSpec.wholeScope`.
    */
-  | "WholeScope";
+  | "WholeScope"
+  /**
+   * Not a source either — a marker meaning "present the context as summaries
+   * and let the model read full fragments on demand". Round-trips through
+   * `ContextSpec.summaries`; the bar offers it for whole scope only.
+   */
+  | "Summaries";
 
 export {
+  isSummariesSelection,
   isWholeScopeSelection,
+  SUMMARIES_ID,
+  SUMMARIES_ITEM,
+  toggleSummaries,
   WHOLE_SCOPE_ID,
   WHOLE_SCOPE_ITEM,
 } from "./context-items";
@@ -74,6 +87,12 @@ export interface ContextSpec {
   sourceProjectionIds?: string[];
   sourceReflectionIds?: string[];
   wholeScope?: boolean;
+  /**
+   * Render the resolved fragments as their annotation rows (title, summary,
+   * cited things) instead of full bodies, and give the model read tools. The
+   * way to chat over a scope too large for the context window.
+   */
+  summaries?: boolean;
 }
 
 /**
@@ -161,11 +180,15 @@ function criteriaToSpec(items: ContextItem[]): ContextSpec {
   const sourceReflectionIds: string[] = [];
 
   let wholeScope = false;
+  let summaries = false;
 
   for (const it of items) {
     switch (it.kind) {
       case "WholeScope":
         wholeScope = true;
+        break;
+      case "Summaries":
+        summaries = true;
         break;
       case "Type":
         fragmentTypes.push(it.id);
@@ -187,6 +210,7 @@ function criteriaToSpec(items: ContextItem[]): ContextSpec {
 
   const spec: ContextSpec = {};
   if (wholeScope) spec.wholeScope = true;
+  if (summaries) spec.summaries = true;
   if (fragmentIds.length) spec.fragmentIds = fragmentIds;
   if (fragmentTypes.length) spec.fragmentTypes = fragmentTypes;
   if (colourIds.length) spec.colourIds = colourIds;
@@ -258,6 +282,7 @@ export function specToItems(spec: ContextSpec): ContextItem[] {
 function criteriaToItems(spec: ContextSpec): ContextItem[] {
   const items: ContextItem[] = [];
   if (spec.wholeScope) items.push(WHOLE_SCOPE_ITEM);
+  if (spec.summaries) items.push(SUMMARIES_ITEM);
   for (const id of spec.colourIds ?? [])
     items.push({ kind: "Colour", id, label: id });
   for (const t of spec.fragmentTypes ?? [])
@@ -284,6 +309,7 @@ export function specKey(spec: ContextSpec): string {
     sourceProjectionIds: [...(spec.sourceProjectionIds ?? [])].sort(),
     sourceReflectionIds: [...(spec.sourceReflectionIds ?? [])].sort(),
     wholeScope: spec.wholeScope ?? false,
+    summaries: spec.summaries ?? false,
   });
 }
 

@@ -82,3 +82,43 @@ func TestFlattenIgnoresUnknownToolParts(t *testing.T) {
 		t.Fatalf("legacy draft part produced model-facing content: %+v", flat)
 	}
 }
+
+// A summaries-mode turn persists its reads with their output; Flatten replays
+// them as the exchange the model saw live — its text plus the echo of the
+// calls, a user turn carrying the results, then what it said next — so later
+// turns can build on what was read. A read without output (interrupted turn)
+// contributes nothing.
+func TestFlattenReplaysReadOutputs(t *testing.T) {
+	msg := api.UIMessage{
+		ID:   "turn-1",
+		Role: "assistant",
+		Parts: []api.UIMessagePart{
+			{Type: "text", Text: "Let me check."},
+			part(t, "tool-"+prompts.ReadFragmentToolName, map[string]any{
+				"toolCallId": "c1",
+				"toolName":   prompts.ReadFragmentToolName,
+				"input":      map[string]any{"ids": []string{"f1"}},
+				"output":     "--- note from x (ID: f1) ---\nTHE BODY\n\n",
+			}),
+			part(t, "tool-"+prompts.ReadThingToolName, map[string]any{
+				"toolCallId": "c2",
+				"toolName":   prompts.ReadThingToolName,
+				"input":      map[string]any{"ids": []string{"t1"}},
+			}),
+			{Type: "text", Text: "The answer."},
+		},
+	}
+	flat := Flatten([]api.UIMessage{msg})
+	if len(flat) != 3 {
+		t.Fatalf("flattened messages = %d, want 3: %+v", len(flat), flat)
+	}
+	if flat[0].Role != "assistant" || flat[0].Content != "Let me check."+prompts.DiscoverEchoToolCalls([]string{prompts.ReadFragmentToolName}) {
+		t.Errorf("first turn = %+v", flat[0])
+	}
+	if flat[1].Role != "user" || !strings.Contains(flat[1].Content, "THE BODY") {
+		t.Errorf("results turn = %+v", flat[1])
+	}
+	if flat[2].Role != "assistant" || flat[2].Content != "The answer." {
+		t.Errorf("closing turn = %+v", flat[2])
+	}
+}

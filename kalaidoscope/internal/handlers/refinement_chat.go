@@ -306,18 +306,19 @@ func streamWindowReapply(e *core.RequestEvent, app core.App, refRec *core.Record
 }
 
 // turnWriter persists one assistant turn, creating the row on first write and
-// rewriting it in place as parts accrue.
+// rewriting it in place as parts accrue. conv is any conversation record;
+// PersistMessage keys the row by the collection it belongs to.
 type turnWriter struct {
-	ctx    context.Context
-	app    core.App
-	refRec *core.Record
-	id     string
-	model  string
-	rec    *core.Record
+	ctx   context.Context
+	app   core.App
+	conv  *core.Record
+	id    string
+	model string
+	rec   *core.Record
 }
 
-func newTurnWriter(ctx context.Context, app core.App, refRec *core.Record, id, model string) *turnWriter {
-	return &turnWriter{ctx: ctx, app: app, refRec: refRec, id: id, model: model}
+func newTurnWriter(ctx context.Context, app core.App, conv *core.Record, id, model string) *turnWriter {
+	return &turnWriter{ctx: ctx, app: app, conv: conv, id: id, model: model}
 }
 
 func (w *turnWriter) write(parts []api.UIMessagePart) {
@@ -328,7 +329,7 @@ func (w *turnWriter) write(parts []api.UIMessagePart) {
 		}
 		return
 	}
-	rec, err := chat.PersistMessage(w.ctx, w.app, w.refRec, msg, w.model)
+	rec, err := chat.PersistMessage(w.ctx, w.app, w.conv, msg, w.model)
 	if err != nil {
 		log.Printf("refinement persist: assistant message: %v", err)
 		return

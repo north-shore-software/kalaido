@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem } from "@/api/kalaidoscope/chat";
-import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
+import {
+  SUMMARIES_ITEM,
+  WHOLE_SCOPE_ITEM,
+} from "@/api/kalaidoscope/context-items";
 import {
   type BarSources,
   deriveBarState,
@@ -185,5 +188,44 @@ describe("summarizeChecked", () => {
     const oneOff = deriveBarState(toggleType([], "email", sources));
     expect(summarizeChecked(oneOff, "Type", sources.types)).toBe("2/3");
     expect(summarizeChecked(oneOff, "Colour", sources.colours)).toBe("all");
+  });
+});
+
+describe("summaries marker", () => {
+  it("is neither a pin nor a check", () => {
+    const state = deriveBarState([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM, pin]);
+    expect(state.allScope).toBe(true);
+    expect(state.pins).toEqual([pin]);
+  });
+
+  it("is dropped on the first uncheck", () => {
+    const next = toggleType(
+      [WHOLE_SCOPE_ITEM, SUMMARIES_ITEM],
+      "email",
+      sources,
+    );
+    expect(next).toEqual(enumeratedWithout("email"));
+  });
+
+  it("survives a round trip back to whole scope", () => {
+    const enumerated = toggleType(
+      [WHOLE_SCOPE_ITEM, SUMMARIES_ITEM, pin],
+      "email",
+      sources,
+    );
+    expect(enumerated.some((it) => it.kind === "Summaries")).toBe(false);
+    // The marker only comes back through the toggle, not through re-checking:
+    // enumerating is where it is dropped for good.
+    expect(toggleType(enumerated, "email", sources)).toEqual([
+      WHOLE_SCOPE_ITEM,
+      pin,
+    ]);
+  });
+
+  it("keeps the marker pair when the last pin is removed", () => {
+    expect(removePin([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM, pin], pin)).toEqual([
+      WHOLE_SCOPE_ITEM,
+      SUMMARIES_ITEM,
+    ]);
   });
 });
