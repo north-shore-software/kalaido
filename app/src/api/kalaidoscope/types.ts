@@ -15,6 +15,7 @@ export const Collections = {
 	ChatMessage: "chat_message",
 	Colour: "colour",
 	ColourFragment: "colour_fragment",
+	DiscoverRun: "discover_run",
 	Fragment: "fragment",
 	FragmentAnnotation: "fragment_annotation",
 	Ingest: "ingest",
@@ -23,7 +24,6 @@ export const Collections = {
 	Lens: "lens",
 	LlmQueueStatus: "llm_queue_status",
 	MapRun: "map_run",
-	OrganizeRun: "organize_run",
 	Projection: "projection",
 	ProjectionSnapshot: "projection_snapshot",
 	RefineProjSnapshotConversation: "refine_proj_snapshot_conversation",
@@ -162,6 +162,34 @@ export type ColourFragmentRecord = {
 	model?: string
 }
 
+export const DiscoverRunKindOptions = {
+	"projections": "projections",
+	"reflections": "reflections",
+	"colours": "colours",
+} as const
+export type DiscoverRunKindOptions = typeof DiscoverRunKindOptions[keyof typeof DiscoverRunKindOptions]
+
+export const DiscoverRunStatusOptions = {
+	"running": "running",
+	"done": "done",
+	"error": "error",
+} as const
+export type DiscoverRunStatusOptions = typeof DiscoverRunStatusOptions[keyof typeof DiscoverRunStatusOptions]
+export type DiscoverRunRecord<Toutputs = unknown> = {
+	created: IsoAutoDateString
+	error?: string
+	fragment_reads?: number
+	id: string
+	kind: DiscoverRunKindOptions
+	map_version?: number
+	model?: string
+	outputs?: null | Toutputs
+	rounds?: number
+	status: DiscoverRunStatusOptions
+	summary?: string
+	updated: IsoAutoDateString
+}
+
 export const FragmentTypeOptions = {
 	"email": "email",
 	"note": "note",
@@ -282,25 +310,11 @@ export type MapRunRecord = {
 	version_before?: number
 }
 
-export const OrganizeRunStatusOptions = {
-	"running": "running",
-	"done": "done",
-	"error": "error",
+export const ProjectionStatusOptions = {
+	"proposed": "proposed",
+	"active": "active",
 } as const
-export type OrganizeRunStatusOptions = typeof OrganizeRunStatusOptions[keyof typeof OrganizeRunStatusOptions]
-export type OrganizeRunRecord<Tentities = unknown, Twarnings = unknown> = {
-	created: IsoAutoDateString
-	entities?: null | Tentities
-	error?: string
-	explorations?: number
-	id: string
-	map_version?: number
-	model?: string
-	status: OrganizeRunStatusOptions
-	updated: IsoAutoDateString
-	warnings?: null | Twarnings
-}
-
+export type ProjectionStatusOptions = typeof ProjectionStatusOptions[keyof typeof ProjectionStatusOptions]
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	brief?: string
 	created: IsoAutoDateString
@@ -311,6 +325,7 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	name?: string
 	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString
+	status: ProjectionStatusOptions
 	updated: IsoAutoDateString
 }
 
@@ -348,6 +363,11 @@ export type RefineReflSnapshotConversationRecord = {
 	reflection_snapshot_id?: RecordIdString
 }
 
+export const ReflectionStatusOptions = {
+	"proposed": "proposed",
+	"active": "active",
+} as const
+export type ReflectionStatusOptions = typeof ReflectionStatusOptions[keyof typeof ReflectionStatusOptions]
 export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown> = {
 	brief?: string
 	created: IsoAutoDateString
@@ -358,6 +378,7 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	name?: string
 	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString
+	status: ReflectionStatusOptions
 	updated: IsoAutoDateString
 	window_spec_versions?: null | Twindow_spec_versions
 }
@@ -435,6 +456,7 @@ export type ChatConversationResponse<Texpand = unknown> = Required<ChatConversat
 export type ChatMessageResponse<Tcontent = unknown, Texpand = unknown> = Required<ChatMessageRecord<Tcontent>> & BaseSystemFields<Texpand>
 export type ColourResponse<Texpand = unknown> = Required<ColourRecord> & BaseSystemFields<Texpand>
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
+export type DiscoverRunResponse<Toutputs = unknown, Texpand = unknown> = Required<DiscoverRunRecord<Toutputs>> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>
 export type FragmentAnnotationResponse<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation, Tconclusions, Tdecisions, Tquestions, Tthings>> & BaseSystemFields<Texpand>
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
@@ -443,7 +465,6 @@ export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Requir
 export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
 export type LlmQueueStatusResponse<Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
-export type OrganizeRunResponse<Tentities = unknown, Twarnings = unknown, Texpand = unknown> = Required<OrganizeRunRecord<Tentities, Twarnings>> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
 export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
@@ -466,6 +487,7 @@ export type CollectionRecords = {
 	chat_message: ChatMessageRecord
 	colour: ColourRecord
 	colour_fragment: ColourFragmentRecord
+	discover_run: DiscoverRunRecord
 	fragment: FragmentRecord
 	fragment_annotation: FragmentAnnotationRecord
 	ingest: IngestRecord
@@ -474,7 +496,6 @@ export type CollectionRecords = {
 	lens: LensRecord
 	llm_queue_status: LlmQueueStatusRecord
 	map_run: MapRunRecord
-	organize_run: OrganizeRunRecord
 	projection: ProjectionRecord
 	projection_snapshot: ProjectionSnapshotRecord
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationRecord
@@ -496,6 +517,7 @@ export type CollectionResponses = {
 	chat_message: ChatMessageResponse
 	colour: ColourResponse
 	colour_fragment: ColourFragmentResponse
+	discover_run: DiscoverRunResponse
 	fragment: FragmentResponse
 	fragment_annotation: FragmentAnnotationResponse
 	ingest: IngestResponse
@@ -504,7 +526,6 @@ export type CollectionResponses = {
 	lens: LensResponse
 	llm_queue_status: LlmQueueStatusResponse
 	map_run: MapRunResponse
-	organize_run: OrganizeRunResponse
 	projection: ProjectionResponse
 	projection_snapshot: ProjectionSnapshotResponse
 	refine_proj_snapshot_conversation: RefineProjSnapshotConversationResponse

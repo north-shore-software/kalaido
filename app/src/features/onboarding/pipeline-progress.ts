@@ -1,6 +1,6 @@
 import type { PipelineStage } from "@/hooks/use-ingest-pipeline";
 
-const MAX_EXPLORATIONS = 25;
+const MAX_ROUNDS = 30;
 
 const IMPORTING = 0.05;
 const MAPPING_START = 0.1;
@@ -11,7 +11,7 @@ const ORGANIZING_SPAN = 0.25;
 export interface PipelineProgressInput {
   stage: PipelineStage;
   map?: { annotated?: number; fragments?: number };
-  organizeRun?: { explorations?: number };
+  discoverRun?: { rounds?: number };
 }
 
 function fraction(done: number | undefined, total: number | undefined): number {
@@ -22,7 +22,7 @@ function fraction(done: number | undefined, total: number | undefined): number {
 export function pipelineProgress({
   stage,
   map,
-  organizeRun,
+  discoverRun,
 }: PipelineProgressInput): number {
   switch (stage) {
     case "done":
@@ -30,7 +30,7 @@ export function pipelineProgress({
     case "organizing":
       return (
         ORGANIZING_START +
-        ORGANIZING_SPAN * fraction(organizeRun?.explorations, MAX_EXPLORATIONS)
+        ORGANIZING_SPAN * fraction(discoverRun?.rounds, MAX_ROUNDS)
       );
     case "mapping":
       return (

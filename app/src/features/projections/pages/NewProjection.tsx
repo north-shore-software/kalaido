@@ -31,6 +31,12 @@ import { newProjectionTransitions } from "./NewProjection.transitions";
  * Passed as router state; see {@link ProjectionSeed} consumers for who sends it.
  */
 export interface ProjectionSeed {
+  /**
+   * An existing proposed projection to take up, instead of creating a new
+   * row. Set by the dashboard's Proposed group; committing the refinement
+   * makes it active.
+   */
+  id?: string;
   name: string;
   /**
    * The material this projection starts from. Sent as the session's first user
@@ -40,6 +46,11 @@ export interface ProjectionSeed {
    * their own first message.
    */
   draft: string;
+  /**
+   * A ready-made first user message, sent verbatim. A proposal's opening
+   * message is already the user's own instruction, so it takes no framing.
+   */
+  message?: string;
   /** Inputs the new projection reads. Seeds both the picker and the chat. */
   contextSpec?: ContextSpec;
 }
@@ -126,21 +137,27 @@ export default function NewProjection() {
   const startFromSeed = useCallback(
     async (seed: ProjectionSeed) => {
       setCreating(true);
-      const created = await createProjection(seed.name);
-      if (created.isErr()) {
-        setCreating(false);
-        toast.error("Failed to create projection", {
-          description: created.error.message,
-        });
-        go(newProjectionTransitions.cancel);
-        return;
+      let newProjectionId = seed.id;
+      if (!newProjectionId) {
+        const created = await createProjection(seed.name);
+        if (created.isErr()) {
+          setCreating(false);
+          toast.error("Failed to create projection", {
+            description: created.error.message,
+          });
+          go(newProjectionTransitions.cancel);
+          return;
+        }
+        newProjectionId = created.value.projectionId;
       }
-      const newProjectionId = created.value.projectionId;
 
+      const prompt =
+        seed.message?.trim() ||
+        (seed.draft.trim() ? seedPrompt(seed.draft.trim()) : undefined);
       const ok = await session.start({
         parentId: newProjectionId,
         contextSpec: seed.contextSpec,
-        prompt: seed.draft.trim() ? seedPrompt(seed.draft.trim()) : undefined,
+        prompt,
       });
       setCreating(false);
       if (ok) {

@@ -31,10 +31,12 @@ export function useContextSources(): ContextSources {
   // can pin, and a context_spec that already references one has to be able to
   // resolve it back to a label — otherwise the summary falls through to the id.
   const projections = useCollection("projection", {
+    filter: 'status = "active"',
     sort: "-updated",
     fields: "id,name",
   });
   const reflections = useCollection("reflection", {
+    filter: 'status = "active"',
     sort: "-updated",
     fields: "id,name",
   });

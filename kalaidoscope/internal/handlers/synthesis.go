@@ -206,6 +206,7 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			}
 			rec := core.NewRecord(col)
 			rec.Set("name", req.Name)
+			rec.Set("status", engine.EntityActive)
 			if strat.TargetType() == "reflection" {
 				versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{}, time.Now())
 				rec.Set("window_spec_versions", pbutil.JSONObject(versions))

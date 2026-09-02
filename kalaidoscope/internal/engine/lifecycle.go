@@ -19,6 +19,9 @@ import (
 const (
 	StatusPending  = "pending"
 	StatusApproved = "approved"
+
+	EntityProposed = "proposed"
+	EntityActive   = "active"
 )
 
 // RequestWave, when set, asks the reconcile worker for a speculative
@@ -298,6 +301,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 
 		parentRec.Set("current_lens_id", lensRec.Id)
 		parentRec.Set("current_context_spec", pbutil.JSONObject(spec))
+		parentRec.Set("status", EntityActive)
 		return tx.Save(parentRec)
 	})
 	if err != nil {

@@ -9,10 +9,15 @@ import {
   useLiveCollectionWatching,
 } from "@/hooks/use-live-collection";
 import {
+  deleteProjection,
   regenerateProjection,
   updateProjection,
 } from "@/api/kalaidoscope/projections";
-import { updateReflection } from "@/api/kalaidoscope/reflections";
+import {
+  deleteReflection,
+  updateReflection,
+} from "@/api/kalaidoscope/reflections";
+import { parseContextSpec } from "@/api/kalaidoscope/chat";
 import { startReconcile } from "@/api/kalaidoscope/reconcile";
 import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
 import { describeDelta } from "../describe-delta";
@@ -22,10 +27,17 @@ import type { FragmentTypeOptions } from "@/api/kalaidoscope/types";
 import { defineRoute } from "@/routes/route-kit";
 import { mainTransitions } from "./Main.transitions";
 
-import type { NeedAction, NeedItem, PinItem, RecentFragment } from "../types";
+import type {
+  NeedAction,
+  NeedItem,
+  PinItem,
+  ProposedItem,
+  RecentFragment,
+} from "../types";
 import { CaughtUpBanner } from "../components/caught-up-banner";
 import { NeedsActionSection } from "../components/needs-action-section";
 import { PinnedSection } from "../components/pinned-section";
+import { ProposedSection } from "../components/proposed-section";
 import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 
 type EntityKind = "projection" | "reflection";
@@ -131,17 +143,37 @@ export default function Main() {
     if (!firstSync) refetchRotation();
   }, [planInputsKey, refetchRotation]);
 
+  const proposed = useMemo<ProposedItem[]>(() => {
+    const items: ProposedItem[] = [];
+    const rows = [
+      ...projections.records.map((p) => ({ kind: "projection" as const, p })),
+      ...reflections.records.map((p) => ({ kind: "reflection" as const, p })),
+    ];
+    for (const { kind, p } of rows) {
+      if (p.status !== "proposed") continue;
+      const spec = parseContextSpec(p.current_context_spec);
+      items.push({
+        id: p.id,
+        kind,
+        name: p.name || "Untitled",
+        message: p.brief ?? "",
+        fragments: spec?.fragmentIds?.length ?? 0,
+      });
+    }
+    return items;
+  }, [projections.records, reflections.records]);
+
   const pinned = useMemo<PinItem[]>(() => {
     const items: PinItem[] = [];
     for (const p of projections.records)
-      if (isPinned(p.pinned_by))
+      if (p.status === "active" && isPinned(p.pinned_by))
         items.push({
           id: p.id,
           kind: "projection",
           name: p.name || "Untitled projection",
         });
     for (const r of reflections.records)
-      if (isPinned(r.pinned_by))
+      if (r.status === "active" && isPinned(r.pinned_by))
         items.push({
           id: r.id,
           kind: "reflection",
@@ -294,6 +326,31 @@ export default function Main() {
     }
   }
 
+  function openProposal(it: ProposedItem) {
+    const row = projections.records.find((p) => p.id === it.id);
+    if (!row) return;
+    go(mainTransitions.openProposal, {
+      state: {
+        seed: {
+          id: it.id,
+          name: it.name,
+          draft: "",
+          message: it.message,
+          contextSpec: parseContextSpec(row.current_context_spec) ?? undefined,
+        },
+      },
+    });
+  }
+
+  async function dismissProposal(it: ProposedItem) {
+    const res =
+      it.kind === "projection"
+        ? await deleteProjection(it.id)
+        : await deleteReflection(it.id);
+    if (res.isErr())
+      toast.error("Failed to dismiss", { description: res.error.message });
+  }
+
   async function unpin(it: PinItem) {
     const res =
       it.kind === "projection"
@@ -325,6 +382,12 @@ export default function Main() {
                   : undefined
               }
               generating={waveGenerating || waveKicked}
+            />
+
+            <ProposedSection
+              items={proposed}
+              onOpen={openProposal}
+              onDismiss={dismissProposal}
             />
 
             <PinnedSection items={pinned} onOpen={openEntity} onUnpin={unpin} />

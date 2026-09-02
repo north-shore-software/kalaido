@@ -5,14 +5,6 @@ import (
 	"strings"
 )
 
-const (
-	ExpandFragmentToolName         = "expand_fragment"
-	ExpandFragmentToolDescription  = "Fetch the full text of one fragment from the new material when its annotation is not enough to update the map confidently."
-	ExpandFragmentParamDescription = "The fragment ID to expand, exactly as it appears in the material."
-)
-
-const MapExpandNotFound = "(no such fragments)\n\n"
-
 const MapJSONRetryNudge = "Your last reply could not be read as a single JSON object with the required keys. Reply again with only the JSON object: no code fences, no commentary."
 
 func extractJSONObject(text, requiredKey string) (json.RawMessage, bool) {

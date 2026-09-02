@@ -181,11 +181,11 @@ export function ChatPanel({
   useEffect(() => {
     if (sentInitial.current) return;
     if (!initialPrompt?.trim()) return;
-    if (messages.length > 0) return;
+    if (messages.some((m) => m.role !== "system")) return;
     sentInitial.current = true;
     appendSpecChanges();
     sendMessage({ text: initialPrompt });
-  }, [initialPrompt, messages.length, sendMessage]);
+  }, [initialPrompt, messages, sendMessage]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Tigger when messages updates and scroll to the bottom of the relevant DOM element.
   useEffect(() => {

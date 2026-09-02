@@ -9,6 +9,10 @@ export const mainTransitions = defineTransitions({
     to: "projection-detail",
     trigger: "Click a projection card",
   },
+  openProposal: {
+    to: "new-projection",
+    trigger: "Open a proposed projection",
+  },
   reviewProjection: {
     to: "projection-review",
     trigger: "Click a projection snapshot to review",

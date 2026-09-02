@@ -32,7 +32,7 @@ export default function Reflections() {
   const { id, snapshotId } = useParams<{ id?: string; snapshotId?: string }>();
 
   const { records: reflections, isLoading } = useLiveCollection("reflection", {
-    filter: 'name != ""',
+    filter: 'name != "" && status = "active"',
     sort: "-updated",
   });
 

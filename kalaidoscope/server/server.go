@@ -11,12 +11,12 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/organize"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -54,7 +54,7 @@ func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
 	colour.SetWorkerApp(app)
 	reconcile.Register(app)
 	mapping.Register(app)
-	organize.Register(app)
+	discover.Register(app)
 	registerQueueStatus(app)
 
 	// After se.Next() so it runs once the rest of the boot chain — model set
@@ -144,7 +144,7 @@ func RegisterRoutes(app core.App) {
 
 		se.Router.POST("/api/map", handlers.HandleMapKick(app))
 
-		se.Router.POST("/api/organize", handlers.HandleOrganizeKick(app))
+		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(app))
 
 		return se.Next()
 	})
