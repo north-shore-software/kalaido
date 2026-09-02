@@ -258,3 +258,161 @@ func DiscoverCoverage(hit, total int, gaps []DiscoverGap) string {
 	}
 	return b.String()
 }
+
+// --- reflections flow ---
+
+const (
+	RhythmsToolName           = "rhythms"
+	ProposeReflectionToolName = "propose_reflection"
+)
+
+const (
+	RhythmsToolDescription                   = "Recompute the rhythm cards at a grain: for every heavy thing, and every pair of things cited together, how many week or month buckets are active over the span, the date the steady run began (the onset), and a sample of bucket counts with a title each. Pass thingIds to restrict to those things (and the pairs they take part in). Free."
+	RhythmsGrainParamDescription             = "\"week\" or \"month\": the bucket size to measure regularity at."
+	RhythmsThingIDsParamDescription          = "Thing ids (or exact names) to restrict the cards to; omit for everything above the floor."
+	ProposeReflectionToolDescription         = "Propose one reflection for the user to review. Nothing is generated: the proposal is a name, an opening message, a scope, a cadence and a start date. The user opens it, the message is sent as their first turn in a chat that drafts the reflection's lens, and on finishing the series is generated one window per period from the start date to now. Scope is built from thingIds (every fragment citing those things), fragmentIds (explicit fragments, to narrow) and colourIds; give at least one."
+	ProposeReflectionNameParamDescription    = "2-6 words, the reflection's title as the user will see it. Name the recurring activity, plainly: \"Weekly BC Tech newsletter\", \"Monthly Workspace invoice\"."
+	ProposeReflectionMessageParamDescription = "The opening message, 1-3 sentences, in the user's own voice as their standing instruction to the assistant that will write each period's summary: what to pull out of that period's material every time, what to emphasise, what to leave out. Say the cadence in it (\"Each week, ...\"). Never describe the proposal; write the instruction."
+	ProposeCadenceParamDescription           = "How often a summary is produced and how much material each one covers: daily, weekly, monthly or quarterly. Pick the grain at which the rhythm card's buckets are steadily non-empty."
+	ProposeStartTimeParamDescription         = "The date the rhythm began, YYYY-MM-DD: the onset on the rhythm card unless the sampled titles show the steady run started later. Every period from this date to now is summarised, so an earlier stray mention must not pull it back."
+)
+
+const DiscoverReflectionsSystem = `You are discovering reflections for a user who has just imported a body of material into their workspace. A reflection is a periodic summary: every week (or day, month, quarter) it summarises that period's material inside its scope, and the series of summaries is kept. It is worth having when something in the workspace recurs at a steady rhythm — a newsletter that arrives every week, invoices every month, a standing check-in with the same people, a report that lands on a schedule — and the user would want each period's account of it.
+
+A projection is about a thing; a reflection is about a rhythm. You are looking for rhythms.
+
+You do not create reflections. You propose them. A proposal is a name, an opening message, a scope, a cadence and a start date. The user sees the proposals, opens one, and the message is sent as their first turn in a chat that drafts the lens; on finishing, the series is generated from the start date to now. Nothing is generated until they open it, so a proposal costs nothing and a good set of proposals is the whole product of this run.
+
+What you can see: the workspace map — a narrative, a flat list of "things" with how many fragments cite each and over what span, and relationships — plus rhythm cards computed from the annotated fragments: for each heavy thing, and each pair of things cited together, how many buckets of a grain are active over the span, when the steady run began, and a sample of bucket counts with a title each. Things cited in a large share of the whole workspace are marked ubiquitous: they are the ever-present cast (the user, their own company), not a rhythm, and cannot be proposed on.
+
+Tools:
+- rhythms: the rhythm cards at a grain (week or month), optionally restricted to given things. Free. Use the week grain to check whether something monthly is really weekly, and to confirm an onset.
+- read_thing: a thing in depth — blurb, relationships, month-by-month counts, and sampled fragment titles and summaries with ids. Pass every thing you want in one call, up to ten.
+- read_fragment: one fragment's full text. Budgeted; use it when a title leaves a real doubt about what recurs.
+- list_existing: what exists already, with ids. Free. Always call it before proposing.
+- coverage: what share of the workspace sits inside an existing or proposed scope. Free.
+- propose_reflection: propose one reflection.
+- finish: end the run and say why.
+
+Work in few turns: read what you need in one call, and propose several reflections in one turn once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
+
+const discoverReflectionsGuidance = `How to work:
+1. Read the rhythm cards. A candidate is a scope whose buckets are steadily non-empty over a sustained span: active close to span, at least a handful of periods. One burst of activity is not a rhythm; that is a projection's material, and this run leaves it alone.
+2. For each candidate, name the activity that recurs. "The weekly BC Tech newsletter", "the monthly Google Workspace invoice", "the standing Legado check-in" are reflections. If all you can name is the cast — the same people keep appearing, but about different things each time — decide whether the user would want a periodic digest of that group; propose it only if so, and say so in the message. Use read_thing or the week-grain rhythms when the sampled titles do not settle it.
+3. Call list_existing. Drop candidates already covered by a reflection. A projection on the same thing does not cover it: a projection is the standing account, a reflection is the period-by-period one.
+4. Choose the cadence as the grain at which the buckets are steadily non-empty: a weekly newsletter is weekly even though the month grain is also full; monthly invoices are monthly. Choose the start date as the onset on the card unless the titles show the steady run began later.
+5. Scope every proposal to the things that carry the rhythm — usually one, sometimes a pair. Never propose on a ubiquitous thing, and never a scope that is most of the workspace.
+6. Call coverage when your candidates are done. Proposing nothing is a legitimate outcome: many workspaces have no rhythms worth a series.
+7. Call finish, and say what you proposed, what you judged a burst rather than a rhythm, and why.
+
+Writing the message: it is the user's first chat turn, in their voice, addressed to the assistant that will write each period's summary. Say the cadence and what to pull out every time: "Each week, summarise what the BC Tech newsletter covered: events, advocacy, and anything relevant to a small tech company in Vancouver." Not "This reflection tracks the newsletter."
+
+Example:
+{"name": "Weekly BC Tech newsletter", "message": "Each week, summarise what the BC Tech newsletter and event mailers covered: upcoming events with dates, advocacy positions, and anything a small Vancouver tech company should act on.", "thingIds": ["t_bctech"], "cadence": "weekly", "startTime": "2025-01-15"}`
+
+func DiscoverReflectionsInitial(d *mapdoc.Document, worklistFloor int, rhythms string) string {
+	var sb strings.Builder
+	sb.WriteString("What the workspace is about:\n")
+	if strings.TrimSpace(d.Narrative) == "" {
+		sb.WriteString("(no narrative yet)\n")
+	} else {
+		sb.WriteString(strings.TrimSpace(d.Narrative) + "\n")
+	}
+	sb.WriteString("\nThings, heaviest first (id · name · kind · fragments · span · what it is):\n")
+	sb.WriteString(discoverThingsBlock(d, worklistFloor))
+	sb.WriteString("\n" + rhythms)
+	sb.WriteString("\n" + discoverReflectionsGuidance)
+	return sb.String()
+}
+
+type DiscoverRhythmThing struct {
+	ID   string
+	Name string
+}
+
+type DiscoverBucket struct {
+	Start string
+	Count int
+	Title string
+}
+
+type DiscoverRhythm struct {
+	Things      []DiscoverRhythmThing
+	Grain       string
+	Total       int
+	Active      int
+	Span        int
+	First, Last string
+	Onset       string
+	Ubiquitous  bool
+	Buckets     []DiscoverBucket
+}
+
+func DiscoverRhythmsBlock(grain string, singles, pairs []DiscoverRhythm) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Rhythms at the %s grain (things, most regular first):\n", grain)
+	if len(singles) == 0 {
+		b.WriteString("(nothing on the map reaches the floor yet)\n")
+	}
+	for _, r := range singles {
+		b.WriteString(DiscoverRhythmCard(r))
+	}
+	fmt.Fprintf(&b, "\nRhythms at the %s grain (pairs of things cited together, most regular first):\n", grain)
+	if len(pairs) == 0 {
+		b.WriteString("(no pair is cited together in three or more buckets)\n")
+	}
+	for _, r := range pairs {
+		b.WriteString(DiscoverRhythmCard(r))
+	}
+	return b.String()
+}
+
+func DiscoverRhythmCard(r DiscoverRhythm) string {
+	var b strings.Builder
+	names := make([]string, 0, len(r.Things))
+	for _, t := range r.Things {
+		names = append(names, fmt.Sprintf("%s (%s)", t.Name, t.ID))
+	}
+	b.WriteString(strings.Join(names, " with "))
+	fmt.Fprintf(&b, " · %d fragments", r.Total)
+	if r.Active == 0 {
+		b.WriteString(" · undated\n")
+		return b.String()
+	}
+	unit := r.Grain + "s"
+	fmt.Fprintf(&b, " · %d of %d %s active, %s to %s · onset %s", r.Active, r.Span, unit, r.First, r.Last, r.Onset)
+	if r.Ubiquitous {
+		b.WriteString(" · ubiquitous: not a rhythm, do not propose on it")
+	}
+	b.WriteString("\n")
+	for _, bk := range r.Buckets {
+		fmt.Fprintf(&b, "  %s: %d · %s\n", bk.Start, bk.Count, bk.Title)
+	}
+	return b.String()
+}
+
+func DiscoverProposedReflection(name, id string, fragments int, cadence, start string) string {
+	return fmt.Sprintf("Proposed reflection %q (id: %s, %d fragments in scope, %s from %s).", name, id, fragments, cadence, start)
+}
+
+const DiscoverReflectionScopeRequired = "give at least one of thingIds, fragmentIds or colourIds"
+
+func DiscoverUnknownCadence(cadence string, allowed []string) string {
+	return fmt.Sprintf("cadence %q is not one of %s", cadence, strings.Join(allowed, ", "))
+}
+
+func DiscoverBadStartTime(s string) string {
+	return fmt.Sprintf("startTime %q is not a date; use YYYY-MM-DD", s)
+}
+
+func DiscoverStartInFuture(date string) string {
+	return fmt.Sprintf("startTime %s is in the future; the start is when the rhythm began", date)
+}
+
+func DiscoverTooManyWindows(windows, limit int) string {
+	return fmt.Sprintf("that start and cadence give %d periods, more than the %d a series can hold; choose a coarser cadence or a later start", windows, limit)
+}
+
+func DiscoverUbiquitousThing(name, id string) string {
+	return fmt.Sprintf("%s (%s) is cited across most of the workspace; it is the cast, not a rhythm, and cannot be a reflection's scope", name, id)
+}

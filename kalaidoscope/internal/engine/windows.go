@@ -11,10 +11,10 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 )
 
-// maxGridWindows bounds one enumeration of a grid. A misconfigured spec
+// MaxGridWindows bounds one enumeration of a grid. A misconfigured spec
 // (hourly since 2019) must not turn a status call into a fifty-thousand-row
 // walk; the newest windows are the ones kept.
-const maxGridWindows = 1000
+const MaxGridWindows = 1000
 
 // WindowKey is the identity a reflection snapshot is filed under: one approval
 // chain per key (see statusSnapshotFilter).
@@ -121,7 +121,7 @@ func GridWindows(reflectionID string, spec api.WindowSpec, lowerBound, now time.
 			start = origin
 		}
 		windows = append(windows, newWindow(reflectionID, start, end))
-		if len(windows) > maxGridWindows {
+		if len(windows) > MaxGridWindows {
 			windows = windows[1:]
 		}
 		k++

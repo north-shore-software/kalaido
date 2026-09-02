@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   parseActiveWindow,
@@ -51,6 +51,16 @@ import { useAppNavigate } from "@/routes/use-app-navigate";
 import { reflectionRefineTransitions } from "./ReflectionRefine.transitions";
 
 /**
+ * A proposed reflection being taken up from the dashboard. Passed as router
+ * state by the Proposed group: the row already exists with its scope and
+ * schedule, so all that is seeded is the opening message, sent verbatim as
+ * the first turn (it is already the user's own instruction).
+ */
+export interface ReflectionSeed {
+  message: string;
+}
+
+/**
  * The one screen where a reflection's lens is written: creating a reflection
  * (`/reflections/new`) and refining an existing one (`/reflections/:id/refine`)
  * are the same activity. Schedule on the left, the lens chat in the middle,
@@ -62,6 +72,11 @@ export default function ReflectionRefine() {
   const { go } = useAppNavigate();
   const { id } = useParams<{ id?: string }>();
   const isNew = !id;
+  const location = useLocation();
+  // Captured once: navigating away and back must not re-send the message.
+  const seedRef = useRef(
+    ((location.state ?? {}) as { seed?: ReflectionSeed }).seed,
+  );
 
   const existingQuery = useLiveCollection("reflection", {
     filter: id ? `id="${id}"` : undefined,
@@ -92,7 +107,9 @@ export default function ReflectionRefine() {
 
   // Existing reflection: seed chips and context from the record, and open the
   // session at once — the server seeds it with the current lens, so the chat
-  // and preview start from what exists.
+  // and preview start from what exists. A proposal has no lens yet: its
+  // opening message goes as the first turn instead, and the drafting turn
+  // writes the lens.
   const seededFor = useRef<string | null>(null);
   useEffect(() => {
     if (isNew || !existing || seededFor.current === existing.id) return;
@@ -105,7 +122,12 @@ export default function ReflectionRefine() {
     const spec = parseContextSpec(existing.current_context_spec);
     setContext(spec ? specToItems(spec) : []);
     setChipsSeeded(true);
-    void session.start({ parentId: existing.id });
+    const seedMessage =
+      existing.status === "proposed" ? seedRef.current?.message.trim() : "";
+    void session.start({
+      parentId: existing.id,
+      prompt: seedMessage || undefined,
+    });
   }, [isNew, existing, session.start]);
 
   const started = reflectionId != null && session.started;

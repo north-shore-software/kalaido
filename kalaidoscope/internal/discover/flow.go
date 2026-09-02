@@ -21,6 +21,7 @@ type Flow interface {
 
 var flows = map[string]Flow{
 	"projections": projectionsFlow{},
+	"reflections": reflectionsFlow{},
 }
 
 func Kinds() []string {

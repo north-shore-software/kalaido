@@ -25,6 +25,7 @@ func startPipeline(app core.App, recID string) {
 			setPipeline(app, recID, "done", nil)
 		})
 		discover.Signal("projections")
+		discover.Signal("reflections")
 	})
 	mapping.Signal()
 }

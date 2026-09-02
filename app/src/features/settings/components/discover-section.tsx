@@ -30,9 +30,9 @@ function DiscoverDebugContent() {
   const run = runs?.[0];
   const [kicking, setKicking] = useState(false);
 
-  async function kick() {
+  async function kick(kind: "projections" | "reflections") {
     setKicking(true);
-    await startDiscover("projections");
+    await startDiscover(kind);
     setKicking(false);
   }
 
@@ -40,13 +40,22 @@ function DiscoverDebugContent() {
 
   return (
     <div className="flex flex-col gap-2.5 border-t border-line pt-2.5">
-      <Button
-        size="sm"
-        onClick={kick}
-        disabled={kicking || run?.status === "running"}
-      >
-        Discover projections
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={() => kick("projections")}
+          disabled={kicking || run?.status === "running"}
+        >
+          Discover projections
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => kick("reflections")}
+          disabled={kicking || run?.status === "running"}
+        >
+          Discover reflections
+        </Button>
+      </div>
       {run && (
         <div className="flex flex-wrap items-center gap-2.5">
           <Pill tone="muted">{run.kind}</Pill>

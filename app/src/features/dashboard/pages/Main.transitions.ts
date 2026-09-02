@@ -13,6 +13,10 @@ export const mainTransitions = defineTransitions({
     to: "new-projection",
     trigger: "Open a proposed projection",
   },
+  openProposedReflection: {
+    to: "refine-reflection",
+    trigger: "Open a proposed reflection",
+  },
   reviewProjection: {
     to: "projection-review",
     trigger: "Click a projection snapshot to review",

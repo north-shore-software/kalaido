@@ -327,6 +327,15 @@ export default function Main() {
   }
 
   function openProposal(it: ProposedItem) {
+    if (it.kind === "reflection") {
+      // The proposed row already carries its scope and schedule; the refine
+      // screen only needs the opening message to send as the first turn.
+      go(mainTransitions.openProposedReflection, {
+        params: { id: it.id },
+        state: { seed: { message: it.message } },
+      });
+      return;
+    }
     const row = projections.records.find((p) => p.id === it.id);
     if (!row) return;
     go(mainTransitions.openProposal, {
