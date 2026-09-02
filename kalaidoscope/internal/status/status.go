@@ -22,11 +22,11 @@ func NewEvaluator(app core.App, now time.Time) *Evaluator {
 	return &Evaluator{app: app, now: now}
 }
 func (e *Evaluator) EvaluateAll(ctx stdctx.Context) ([]api.EntityStatus, error) {
-	projections, err := e.app.FindRecordsByFilter("projection", "1=1", "", 0, 0, nil)
+	projections, err := e.app.FindRecordsByFilter("projection", "status = 'active'", "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}
-	reflections, err := e.app.FindRecordsByFilter("reflection", "1=1", "", 0, 0, nil)
+	reflections, err := e.app.FindRecordsByFilter("reflection", "status = 'active'", "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

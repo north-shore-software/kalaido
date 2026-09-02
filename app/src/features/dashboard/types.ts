@@ -23,6 +23,18 @@ export interface NeedItem {
   candidateId?: string;
 }
 
+/**
+ * A projection or reflection a discover run proposed and nobody has opened
+ * yet: a name, an opening message and a scope, with no lens or snapshot.
+ */
+export interface ProposedItem {
+  id: string;
+  kind: EntityKind;
+  name: string;
+  message: string;
+  fragments: number;
+}
+
 export interface RecentFragment {
   id: string;
   type: string;

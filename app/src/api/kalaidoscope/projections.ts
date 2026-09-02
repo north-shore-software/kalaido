@@ -97,3 +97,12 @@ export async function approveProjectionCandidate(
     );
   });
 }
+
+/** Delete a projection outright. Mirrors `DELETE /api/projections/:id`. */
+export async function deleteProjection(
+  projectionId: string,
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/projections/${projectionId}`, { method: "DELETE" });
+  });
+}

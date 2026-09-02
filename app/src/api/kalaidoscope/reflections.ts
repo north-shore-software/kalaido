@@ -75,3 +75,12 @@ export async function regenerateReflection(
     ),
   );
 }
+
+/** Delete a reflection outright. Mirrors `DELETE /api/reflections/:id`. */
+export async function deleteReflection(
+  reflectionId: string,
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/reflections/${reflectionId}`, { method: "DELETE" });
+  });
+}

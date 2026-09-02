@@ -42,7 +42,7 @@ export default function Projections() {
   const { go } = useAppNavigate();
 
   const { records: projections, isLoading } = useLiveCollection("projection", {
-    filter: 'name != ""',
+    filter: 'name != "" && status = "active"',
     sort: "-updated",
   });
   const pending = useLiveCollection("projection_snapshot", {
