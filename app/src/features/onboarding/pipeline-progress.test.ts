@@ -36,20 +36,20 @@ describe("pipelineProgress", () => {
     ).toBeCloseTo(0.1);
   });
 
-  it("advances through the organizing band with explorations", () => {
+  it("advances through the organizing band with rounds", () => {
     expect(
       pipelineProgress({
         stage: "organizing",
-        organizeRun: { explorations: 5 },
+        discoverRun: { rounds: 6 },
       }),
-    ).toBeCloseTo(0.75);
+    ).toBeCloseTo(0.825);
   });
 
-  it("caps the organizing band at the exploration budget", () => {
+  it("caps the organizing band at the round budget", () => {
     expect(
       pipelineProgress({
         stage: "organizing",
-        organizeRun: { explorations: 40 },
+        discoverRun: { rounds: 40 },
       }),
     ).toBeCloseTo(0.95);
   });

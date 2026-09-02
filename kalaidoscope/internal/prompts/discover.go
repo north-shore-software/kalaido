@@ -18,11 +18,13 @@ const (
 )
 
 const (
-	ReadThingToolDescription    = "Read one thing from the map in depth: what it is, its relationships, how its fragments spread over time, and a sample of those fragments' titles and summaries with their ids. Call it before proposing anything built on a thing with many fragments or a vague blurb. Takes a thing id, or its exact name."
-	ReadFragmentToolDescription = "Read one fragment's full text, by id, when a summary is not enough to judge it. Budgeted per run."
-	ListExistingToolDescription = "List what already exists, with ids: everything a person has made and everything an earlier or current discover run produced. Free. Call it before proposing so you never propose what is already there."
-	CoverageToolDescription     = "How much of the workspace sits inside an existing or proposed scope, and which heavy things are least covered. Free. Use it to decide whether you are done."
-	FinishToolDescription       = "End the run. Say in your reply why: what you proposed, what you judged not worth surfacing, and what remains uncovered on purpose."
+	ReadThingToolDescription     = "Read one thing from the map in depth: what it is, its relationships, how its fragments spread over time, and a sample of those fragments' titles and summaries with their ids. Call it before proposing anything built on a thing with many fragments or a vague blurb. Takes a thing id, or its exact name."
+	ReadThingParamDescription    = "The thing's id from the map, or its exact name."
+	ReadFragmentToolDescription  = "Read one fragment's full text, by id, when a summary is not enough to judge it. Budgeted per run."
+	ReadFragmentParamDescription = "The fragment id, exactly as shown."
+	ListExistingToolDescription  = "List what already exists, with ids: everything a person has made and everything an earlier or current discover run produced. Free. Call it before proposing so you never propose what is already there."
+	CoverageToolDescription      = "How much of the workspace sits inside an existing or proposed scope, and which heavy things are least covered. Free. Use it to decide whether you are done."
+	FinishToolDescription        = "End the run. Say in your reply why: what you proposed, what you judged not worth surfacing, and what remains uncovered on purpose."
 
 	ProposeProjectionToolDescription           = "Propose one projection for the user to review. Nothing is generated: the proposal is a name, an opening message and a scope. The user opens it, the message is sent as their first turn in a chat that drafts the projection, and they keep or discard it from there. Scope is built from thingIds (every fragment citing those things), fragmentIds (explicit fragments, to narrow), colourIds (existing colours), and sourceProjectionIds (existing or proposed projections whose content this one builds on); give at least one."
 	ProposeNameParamDescription                = "2-6 words, the projection's title as the user will see it. Name the thing it is about, plainly."
@@ -66,7 +68,7 @@ Example of a narrow proposal:
 Example of a broader proposal built on it:
 {"name": "Building operations", "message": "Give me a standing overview of how the building is run: the managing agent, the recurring contracts and who holds them, and what is currently unresolved. Draw on the projection 'Lift maintenance contract' for the lifts rather than restating it.", "thingIds": ["t_agent", "t_building"], "sourceProjectionIds": ["<id returned for Lift maintenance contract>"]}`
 
-func DiscoverProjectionsInitial(d *mapdoc.Document, worklistFloor int, existing, coverage string) string {
+func DiscoverProjectionsInitial(d *mapdoc.Document, worklistFloor int) string {
 	var sb strings.Builder
 	sb.WriteString("What the workspace is about:\n")
 	if strings.TrimSpace(d.Narrative) == "" {
@@ -86,10 +88,31 @@ func DiscoverProjectionsInitial(d *mapdoc.Document, worklistFloor int, existing,
 			sb.WriteString(DiscoverRelationshipLine(from.Name, from.ID, r.Kind, to.Name, to.ID) + "\n")
 		}
 	}
-	sb.WriteString("\nWhat already exists:\n" + existing + "\n")
-	sb.WriteString("\nCoverage now:\n" + coverage + "\n\n")
-	sb.WriteString(discoverProjectionsGuidance)
+	sb.WriteString("\n" + discoverProjectionsGuidance)
 	return sb.String()
+}
+
+func DiscoverExistingBlock(existing string) string {
+	return "What already exists:\n" + existing
+}
+
+func DiscoverCoverageBlock(coverage string) string {
+	return "Coverage now:\n" + coverage
+}
+
+func DiscoverEchoToolCalls(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return "\n\n[You called: " + strings.Join(names, ", ") + "]"
+}
+
+func DiscoverUnknownTool(name string) string {
+	return fmt.Sprintf("no tool named %q", name)
+}
+
+func DiscoverNoRecord(kind, id string) string {
+	return fmt.Sprintf("no %s with id %q", kind, id)
 }
 
 func discoverThingsBlock(d *mapdoc.Document, floor int) string {
@@ -136,8 +159,13 @@ func DiscoverExistingLine(kind, id, name, description, note string, fragments in
 }
 
 const (
-	DiscoverExistingNone = "Nothing exists yet."
-	DiscoverUndated      = "undated"
+	DiscoverExistingNone           = "Nothing exists yet."
+	DiscoverUndated                = "undated"
+	DiscoverNoteProposedThisRun    = "proposed by this run"
+	DiscoverNoteProposedEarlier    = "proposed by an earlier run, not yet opened"
+	DiscoverBadArgs                = "the arguments could not be read"
+	DiscoverNameAndMessageRequired = "name and message are both required"
+	DiscoverScopeRequired          = "give at least one of thingIds, fragmentIds, colourIds or sourceProjectionIds"
 )
 
 type DiscoverRow struct {

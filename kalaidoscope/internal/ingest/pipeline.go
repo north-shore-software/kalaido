@@ -5,8 +5,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/organize"
 )
 
 func startPipeline(app core.App, recID string) {
@@ -17,14 +17,14 @@ func startPipeline(app core.App, recID string) {
 			return
 		}
 		setPipeline(app, recID, "organizing", nil)
-		organize.AfterDrain(func(err error) {
+		discover.AfterDrain(func(err error) {
 			if err != nil {
 				setPipeline(app, recID, "error", err)
 				return
 			}
 			setPipeline(app, recID, "done", nil)
 		})
-		organize.Signal()
+		discover.Signal("projections")
 	})
 	mapping.Signal()
 }

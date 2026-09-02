@@ -16,6 +16,8 @@ type Context struct {
 	ByThing map[string][]int
 
 	reads   int
+	rounds  int
+	outputs []Output
 	covered map[string]bool
 }
 
