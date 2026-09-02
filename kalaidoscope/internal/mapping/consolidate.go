@@ -26,32 +26,14 @@ func consolidate(app core.App) error {
 	if len(pending) == 0 {
 		return nil
 	}
-	rows, err := app.FindRecordsByFilter("fragment_annotation", "1=1", "created", 0, 0, nil)
+	input, err := LoadRows(app)
 	if err != nil {
 		return err
 	}
-	dates, err := fragmentDates(app)
-	if err != nil {
-		return err
+	cites := make(map[string][]prompts.ThingCitation, len(input))
+	for _, row := range input {
+		cites[row.FragmentID] = row.Things
 	}
-	input := make([]prompts.AnnotationRow, 0, len(rows))
-	cites := make(map[string][]prompts.ThingCitation, len(rows))
-	for _, r := range rows {
-		var things []prompts.ThingCitation
-		if err := r.UnmarshalJSONField("things", &things); err != nil {
-			things = nil
-		}
-		fragID := r.GetString("fragment_id")
-		cites[fragID] = things
-		input = append(input, prompts.AnnotationRow{
-			FragmentID: fragID,
-			Date:       dates[fragID],
-			Title:      r.GetString("title"),
-			Summary:    r.GetString("summary"),
-			Things:     things,
-		})
-	}
-	sortRowsByDate(input)
 
 	d, err := loadDocument(app)
 	if err != nil {
@@ -159,7 +141,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 	rels := next.Relationships[:0]
 	seen := map[string]bool{}
 	for _, r := range next.Relationships {
-		from, to := resolveRef(next, r.From), resolveRef(next, r.To)
+		from, to := ResolveRef(next, r.From), ResolveRef(next, r.To)
 		if from == nil || to == nil || from.ID == to.ID {
 			continue
 		}
@@ -178,7 +160,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 			if ref == "" {
 				ref = c.Name
 			}
-			t := resolveRef(next, ref)
+			t := ResolveRef(next, ref)
 			if t == nil || bumped[t.ID] {
 				continue
 			}
@@ -198,13 +180,6 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 		}
 	}
 	return admits, merges
-}
-
-func resolveRef(d *mapdoc.Document, ref string) *mapdoc.Thing {
-	if t := d.Find(ref); t != nil {
-		return t
-	}
-	return findByName(d, ref)
 }
 
 func fragmentDates(app core.App) (map[string]string, error) {
