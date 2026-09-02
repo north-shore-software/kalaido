@@ -63,6 +63,16 @@ func annotateMapBlock(d *mapdoc.Document) string {
 	return sb.String()
 }
 
+func AnnotateShown(d *mapdoc.Document) int {
+	n := 0
+	for _, t := range d.Things {
+		if t.Status == mapdoc.StatusActive && t.Fragments >= annotateInlineFloor {
+			n++
+		}
+	}
+	return n
+}
+
 func aliasList(aliases []string) string {
 	if len(aliases) == 0 {
 		return "-"

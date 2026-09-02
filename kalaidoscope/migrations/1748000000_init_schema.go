@@ -447,6 +447,8 @@ var schema = []tableDef{
 			// Bumped per consolidate call, not per fold.
 			&core.NumberField{Name: "version"},
 			&core.DateField{Name: "consolidated_at"},
+			&core.NumberField{Name: "fragments"},
+			&core.NumberField{Name: "annotated"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

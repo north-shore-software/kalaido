@@ -45,6 +45,14 @@ func loadDocument(app core.App) (*document, error) {
 	return &document{rec: rec, doc: doc, version: rec.GetInt("version")}, nil
 }
 
+func rawBody(rec *core.Record) string {
+	var raw json.RawMessage
+	if err := rec.UnmarshalJSONField("body", &raw); err != nil || len(raw) == 0 {
+		return ""
+	}
+	return string(raw)
+}
+
 func (d *document) save(tx core.App) error {
 	body, err := json.Marshal(d.doc)
 	if err != nil {

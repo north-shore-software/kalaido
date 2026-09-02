@@ -84,9 +84,7 @@ func RegisterTriggers(app core.App) {
 
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
 		colour.EnqueueNewFragmentEvaluation(app, e.Record.Id)
-		if e.Record.GetString("origin") != "import" {
-			mapping.SignalIfBacklog(app)
-		}
+		mapping.SignalAuto()
 		return e.Next()
 	})
 

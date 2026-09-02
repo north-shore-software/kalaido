@@ -2,8 +2,11 @@ package organize
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/pocketbase/pocketbase/core"
+
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 )
 
 // NodeRef addresses one map node the way markup already does: by dimension
@@ -141,5 +144,10 @@ func loadFinishedMap(app core.App) (body string, version int, err error) {
 	if err := rec.UnmarshalJSONField("body", &raw); err != nil || len(raw) == 0 {
 		return "", 0, nil
 	}
+	if _, v4 := mapdoc.Parse(string(raw)); v4 {
+		return "", 0, errMapV4
+	}
 	return string(raw), v, nil
 }
+
+var errMapV4 = errors.New("map is a v4 things document; organize has not been reworked for it")
