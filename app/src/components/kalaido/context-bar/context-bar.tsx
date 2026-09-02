@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ContextItem } from "@/api/kalaidoscope/chat";
+import {
+  isSummariesSelection,
+  toggleSummaries,
+} from "@/api/kalaidoscope/context-items";
 import { useContextSources } from "@/hooks/use-context-sources";
 import { useFragmentLabels } from "@/hooks/use-fragment-labels";
 import { cn } from "@/lib/css-utils";
@@ -231,6 +235,18 @@ export function ContextBar({
             <span className="shrink-0 text-fg-4">×</span>
           </button>
         ))}
+        {/* Whole scope only: summaries mode is how a scope too large for the
+            context window stays chattable. Bare checkbox for now; UI later. */}
+        {state.allScope && (
+          <label className="flex shrink-0 items-center gap-1 font-mono text-pill text-fg-4">
+            <input
+              type="checkbox"
+              checked={isSummariesSelection(items)}
+              onChange={() => onChange(toggleSummaries(items))}
+            />
+            Use summaries
+          </label>
+        )}
       </div>
     </div>
   );

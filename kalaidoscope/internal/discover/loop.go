@@ -105,9 +105,9 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 		for _, call := range calls {
 			switch call.Name {
 			case prompts.ReadThingToolName:
-				results = append(results, c.readThings(idsArg(call)))
+				results = append(results, c.ReadThings(idsArg(call)))
 			case prompts.ReadFragmentToolName:
-				results = append(results, c.readFragment(ctx, idArg(call)))
+				results = append(results, c.ReadFragment(ctx, idArg(call)))
 			case prompts.ListExistingToolName:
 				existing, err = flow.Existing(c)
 				if err != nil {

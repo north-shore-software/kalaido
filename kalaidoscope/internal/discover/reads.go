@@ -5,30 +5,104 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pocketbase/pocketbase/core"
+
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 const (
 	thingRowSample    = 30
 	maxFragmentReads  = 12
+	chatFragmentReads = 12
 	coverageThingList = 10
 )
 
-func (c *Context) readThings(refs []string) string {
+// Reader answers the map read tools — read_thing and read_fragment — over one
+// snapshot of the map and its annotation rows, with a fragment read budget.
+// Discover embeds it in its run Context; chat builds one per turn.
+type Reader struct {
+	App     core.App
+	Doc     *mapdoc.Document
+	Version int
+	Rows    []mapping.Row
+	ByThing map[string][]int
+
+	budget    int
+	reads     int
+	exhausted func(int) string
+}
+
+func NewReader(app core.App, budget int) (*Reader, error) {
+	doc, version, err := mapping.LoadDocument(app)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := mapping.LoadRows(app)
+	if err != nil {
+		return nil, err
+	}
+	return &Reader{
+		App:       app,
+		Doc:       doc,
+		Version:   version,
+		Rows:      rows,
+		ByThing:   mapping.IndexRows(doc, rows),
+		budget:    budget,
+		exhausted: prompts.DiscoverReadBudgetExhausted,
+	}, nil
+}
+
+// NewChatReader is the chat's per-turn reader: the same reads with a per-turn
+// budget and wording.
+func NewChatReader(app core.App) (*Reader, error) {
+	r, err := NewReader(app, chatFragmentReads)
+	if err != nil {
+		return nil, err
+	}
+	r.exhausted = prompts.ChatReadBudgetExhausted
+	return r, nil
+}
+
+// ChatReadTools are the read tools as the chat advertises them: both take an
+// ids array.
+func ChatReadTools() []llm.Tool {
+	return []llm.Tool{
+		idsTool(prompts.ReadThingToolName, prompts.ChatReadThingToolDescription, prompts.ReadThingParamDescription),
+		idsTool(prompts.ReadFragmentToolName, prompts.ChatReadFragmentToolDescription, prompts.ChatReadFragmentParamDescription),
+	}
+}
+
+// Reads is how many fragment reads the budget has spent.
+func (r *Reader) Reads() int { return r.reads }
+
+// Dispatch answers a read tool call; ok is false for any other tool.
+func (r *Reader) Dispatch(ctx context.Context, call llm.ToolCall) (result string, ok bool) {
+	switch call.Name {
+	case prompts.ReadThingToolName:
+		return r.ReadThings(idsArg(call)), true
+	case prompts.ReadFragmentToolName:
+		return r.ReadFragments(ctx, idsArg(call)), true
+	}
+	return "", false
+}
+
+func (c *Reader) ReadThings(refs []string) string {
 	var parts []string
 	if len(refs) > prompts.DiscoverReadThingLimit {
 		refs = refs[:prompts.DiscoverReadThingLimit]
 		parts = append(parts, prompts.DiscoverTooManyThings(prompts.DiscoverReadThingLimit))
 	}
 	for _, ref := range refs {
-		parts = append(parts, c.readThing(strings.TrimSpace(ref)))
+		parts = append(parts, c.ReadThing(strings.TrimSpace(ref)))
 	}
 	return strings.Join(parts, "\n")
 }
 
-func (c *Context) readThing(ref string) string {
+func (c *Reader) ReadThing(ref string) string {
 	t := mapping.ResolveRef(c.Doc, ref)
 	if t == nil {
 		return prompts.DiscoverNoThing(ref)
@@ -74,9 +148,9 @@ func sampleEvenly(idxs []int, n int) []int {
 	return out
 }
 
-func (c *Context) readFragment(ctx context.Context, id string) string {
-	if c.reads >= maxFragmentReads {
-		return prompts.DiscoverReadBudgetExhausted(maxFragmentReads)
+func (c *Reader) ReadFragment(ctx context.Context, id string) string {
+	if c.reads >= c.budget {
+		return c.exhausted(c.budget)
 	}
 	recs := llmcontext.LoadFragmentsByIDs(ctx, c.App, []string{id})
 	if len(recs) == 0 {
@@ -84,6 +158,29 @@ func (c *Context) readFragment(ctx context.Context, id string) string {
 	}
 	c.reads++
 	return llmcontext.RenderFragmentRecords(recs)
+}
+
+// ReadFragments reads each id in turn; the budget message ends the list once
+// it is spent.
+func (c *Reader) ReadFragments(ctx context.Context, ids []string) string {
+	if len(ids) == 0 {
+		return prompts.DiscoverNoFragment("")
+	}
+	var parts []string
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		parts = append(parts, c.ReadFragment(ctx, id))
+		if c.reads >= c.budget {
+			if len(parts) < len(ids) {
+				parts = append(parts, c.exhausted(c.budget))
+			}
+			break
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (c *Context) listExisting(existing []Existing) string {

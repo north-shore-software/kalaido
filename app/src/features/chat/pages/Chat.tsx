@@ -100,12 +100,15 @@ export default function Chat() {
    * should keep reading.
    */
   function graduate({ content }: { content: string }) {
+    // Summaries mode is a chat presentation choice, not part of the
+    // projection's scope.
+    const { summaries: _summaries, ...contextSpec } = itemsToSpec(context);
     go(chatTransitions.graduateToProjection, {
       state: {
         seed: {
           name: fragmentLabel(content),
           draft: content,
-          contextSpec: itemsToSpec(context),
+          contextSpec,
         },
       },
     });

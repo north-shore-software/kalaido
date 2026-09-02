@@ -33,7 +33,7 @@ func (c *Context) saveProgress() {
 		outputs = []Output{}
 	}
 	c.Run.Set("rounds", c.rounds)
-	c.Run.Set("fragment_reads", c.reads)
+	c.Run.Set("fragment_reads", c.Reads())
 	c.Run.Set("outputs", pbutil.JSONObject(outputs))
 	if err := c.App.Save(c.Run); err != nil {
 		log.Printf("discover: save run: %v", err)

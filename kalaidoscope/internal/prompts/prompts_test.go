@@ -83,3 +83,35 @@ func TestRefinementPromptEpistemics(t *testing.T) {
 		}
 	}
 }
+
+// Summaries mode composes the ordinary chat prompt with its legend and the
+// digest, and quotes the two read tools the handler advertises. The row and
+// stub lines must carry the "(ID: x)" join the legend tells the model to pass
+// to read_fragment.
+func TestChatSummariesPromptComposition(t *testing.T) {
+	p := ChatSummariesSystemPrompt("THE DIGEST")
+	for _, want := range []string{ChatSystemPrompt, MentionLegend, ChatSummariesLegend, "THE DIGEST", ReadFragmentToolName, ReadThingToolName} {
+		if !strings.Contains(p, want) {
+			t.Errorf("ChatSummariesSystemPrompt lacks %q", want)
+		}
+	}
+	row := SummaryRowLine(AnnotationRow{FragmentID: "f1", Date: "2026-01-02", Title: "Lift quote", Summary: "A quote arrived.", Things: []ThingCitation{{Ref: "t1"}, {Name: "Acme", Kind: "organisation"}}}, map[string]string{"t1": "Lifts"})
+	for _, want := range []string{"(ID: f1)", "Lifts (t1)", "Acme", "2026-01-02"} {
+		if !strings.Contains(row, want) {
+			t.Errorf("SummaryRowLine lacks %q: %q", want, row)
+		}
+	}
+	stub := SummaryStubLine("note", "inbox", "f2", "", "opening words")
+	for _, want := range []string{"(ID: f2;", "not yet annotated", DiscoverUndated, "opening words"} {
+		if !strings.Contains(stub, want) {
+			t.Errorf("SummaryStubLine lacks %q: %q", want, stub)
+		}
+	}
+	long := strings.Repeat("word ", 100)
+	if got := SummarySnippet(long); len([]rune(got)) != SummarySnippetChars+1 || !strings.HasSuffix(got, "…") {
+		t.Errorf("SummarySnippet did not cut to %d runes: %d %q", SummarySnippetChars, len([]rune(got)), got)
+	}
+	if got := SummarySnippet("a  b\n\nc"); got != "a b c" {
+		t.Errorf("SummarySnippet did not collapse whitespace: %q", got)
+	}
+}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -31,12 +32,28 @@ func ExtractNewMessages(dbMsgs []api.UIMessage, incoming []api.UIMessage) []api.
 	return newMsgs
 }
 
+// ConversationSummaries reports whether the transcript's current context spec
+// asks for summaries mode. It is the one source of truth for the handler, the
+// hydration and the prompt choice.
+func ConversationSummaries(allMsgs []api.UIMessage) bool {
+	_, spec, _ := llmcontext.LatestPinnedAndSpec(allMsgs)
+	return spec.Summaries
+}
+
 func PrepareLLMPrompt(ctx context.Context, app core.App, conv *core.Record, allMsgs []api.UIMessage) []llm.Message {
 	hydratedMsgs := HydrateDeltaHistory(ctx, app, allMsgs)
 	if len(hydratedMsgs) == 0 {
 		return nil
 	}
-	return append([]llm.Message{{Role: "system", Content: prompts.ChatSystemPrompt}}, hydratedMsgs...)
+	system := prompts.ChatSystemPrompt
+	if ConversationSummaries(allMsgs) {
+		digest := ""
+		if doc, _, err := mapping.LoadDocument(app); err == nil {
+			digest = prompts.SummariesMapDigest(doc, prompts.SummariesThingFloor)
+		}
+		system = prompts.ChatSummariesSystemPrompt(digest)
+	}
+	return append([]llm.Message{{Role: "system", Content: system}}, hydratedMsgs...)
 }
 
 type AssistantTurn struct {
@@ -125,6 +142,22 @@ func (s *SSE) ToolInputAvailable(toolCallID, toolName string, input any) {
 		"input":      input,
 		"dynamic":    true,
 	})
+}
+
+// ToolOutputAvailable delivers a tool call's result; the stock transport
+// stores it as the dynamic part's output.
+func (s *SSE) ToolOutputAvailable(toolCallID string, output any) {
+	s.Send(map[string]any{
+		"type":       "tool-output-available",
+		"toolCallId": toolCallID,
+		"output":     output,
+	})
+}
+
+// Error surfaces a failure after the headers are gone: the client's onError
+// fires with the text.
+func (s *SSE) Error(text string) {
+	s.Send(map[string]string{"type": "error", "errorText": text})
 }
 
 // StreamTurn drains one model completion into the stream and returns the
@@ -259,9 +292,14 @@ func messageWindow(m api.UIMessage) *api.Window {
 	return nil
 }
 
+// HydrateDeltaHistory renders the transcript for the model. The mode is the
+// conversation's current one, applied to every delta: a transcript that turned
+// summaries on after a failed full-mode turn re-renders its whole context as
+// rows, which is what lets that turn recover.
 func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMessage) []llm.Message {
 	var activeIDs llmcontext.PinnedIDs
 	var hydratedMsgs []llm.Message
+	summaries := ConversationSummaries(allMsgs)
 
 	for _, m := range allMsgs {
 		if m.Role == "system" {
@@ -280,7 +318,7 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 			}
 			if foundPinned {
 				added, removed := llmcontext.DiffPinnedIDs(activeIDs, pinned)
-				deltaText, _ := llmcontext.HydrateDeltaToText(ctx, app, added, removed)
+				deltaText, _ := llmcontext.HydrateDeltaToText(ctx, app, added, removed, summaries)
 				text += deltaText
 				activeIDs = pinned
 			}

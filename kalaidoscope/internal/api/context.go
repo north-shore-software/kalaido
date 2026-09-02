@@ -3,6 +3,12 @@ package api
 type ContextSpec struct {
 	WholeScope bool `json:"wholeScope,omitempty"`
 
+	// Summaries renders the resolved fragments as their annotation rows (title,
+	// summary, cited map things) instead of their full bodies, and gives the
+	// chat read tools to pull full text on demand. Server-side it applies to
+	// whatever the spec resolves; the UI only offers it for whole scope.
+	Summaries bool `json:"summaries,omitempty"`
+
 	// Ignored if WholeScope is true
 
 	// Explicit Fragments: individual fragments pinned by id, included whatever

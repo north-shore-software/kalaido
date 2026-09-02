@@ -4,6 +4,9 @@ import {
   itemsToSpec,
   specKey,
   specToItems,
+  SUMMARIES_ITEM,
+  toggleSummaries,
+  WHOLE_SCOPE_ITEM,
 } from "./chat";
 
 describe("itemsToSpec", () => {
@@ -139,5 +142,59 @@ describe("diffContextSpecs", () => {
     );
     expect(delta.added.map((it) => it.kind)).toEqual(["Type"]);
     expect(delta.removed.map((it) => it.kind)).toEqual(["WholeScope"]);
+  });
+});
+
+describe("summaries marker", () => {
+  test("maps the marker to spec.summaries alongside whole scope", () => {
+    expect(itemsToSpec([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM])).toEqual({
+      wholeScope: true,
+      summaries: true,
+    });
+  });
+
+  test("round-trips through specToItems", () => {
+    const spec = { wholeScope: true, summaries: true };
+    expect(itemsToSpec(specToItems(spec))).toEqual(spec);
+    expect(specToItems(spec)).toContainEqual(SUMMARIES_ITEM);
+  });
+
+  test("specKey changes on the flag alone", () => {
+    expect(specKey({ wholeScope: true })).not.toBe(
+      specKey({ wholeScope: true, summaries: true }),
+    );
+  });
+
+  test("diffContextSpecs reports the marker as added", () => {
+    const delta = diffContextSpecs(
+      { wholeScope: true },
+      { wholeScope: true, summaries: true },
+    );
+    expect(delta.added).toEqual([SUMMARIES_ITEM]);
+    expect(delta.removed).toEqual([]);
+  });
+});
+
+describe("toggleSummaries", () => {
+  test("materialises the whole-scope marker when turned on from empty", () => {
+    expect(toggleSummaries([])).toEqual([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM]);
+  });
+
+  test("turning off a bare marker pair collapses to empty", () => {
+    expect(toggleSummaries([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM])).toEqual([]);
+  });
+
+  test("keeps pins on both flips", () => {
+    const pin: ContextItem = { kind: "Fragment", id: "f1", label: "A draft" };
+    const on = toggleSummaries([WHOLE_SCOPE_ITEM, pin]);
+    expect(on).toEqual([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM, pin]);
+    expect(toggleSummaries(on)).toEqual([WHOLE_SCOPE_ITEM, pin]);
+  });
+
+  test("is a no-op on an enumerated selection", () => {
+    const enumerated: ContextItem[] = [
+      { kind: "Type", id: "note", label: "Note" },
+    ];
+    expect(toggleSummaries(enumerated)).toBe(enumerated);
   });
 });

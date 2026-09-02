@@ -4,8 +4,8 @@ import {
   WHOLE_SCOPE_ITEM,
 } from "@/api/kalaidoscope/context-items";
 
-/** The kinds a message can @-mention — every context kind except the whole-scope marker. */
-export type MentionKind = Exclude<ContextKind, "WholeScope">;
+/** The kinds a message can @-mention — every context kind except the two markers. */
+export type MentionKind = Exclude<ContextKind, "WholeScope" | "Summaries">;
 
 /**
  * The wire form of a named-source mention: `@[Kind:id|Label]`. The @-menu
@@ -156,7 +156,11 @@ export function withContextItem(
   if (item.kind === "Colour" || item.kind === "Type") {
     return isWholeScopeSelection(items) ? items : [...items, item];
   }
-  if (item.kind !== "WholeScope" && items.length === 0) {
+  if (
+    item.kind !== "WholeScope" &&
+    item.kind !== "Summaries" &&
+    items.length === 0
+  ) {
     return [WHOLE_SCOPE_ITEM, item];
   }
   return [...items, item];

@@ -1,6 +1,8 @@
 import type { ContextItem } from "@/api/kalaidoscope/chat";
 import {
+  isSummariesSelection,
   isWholeScopeSelection,
+  SUMMARIES_ITEM,
   WHOLE_SCOPE_ITEM,
 } from "@/api/kalaidoscope/context-items";
 
@@ -11,9 +13,10 @@ import {
  * literal union of everything checked/pinned, with two canonical forms:
  *
  * - Whole scope ("all checked"): an empty list, or the whole-scope marker
- *   (optionally followed by pins). This is the default and serialises to
- *   `wholeScope: true`, so newly created colours/types are included without
- *   re-emitting a spec.
+ *   (optionally followed by the summaries marker and pins). This is the
+ *   default and serialises to `wholeScope: true`, so newly created
+ *   colours/types are included without re-emitting a spec. The summaries
+ *   marker only exists in this form: enumerating drops it.
  * - Enumerated: explicit Type/Colour items for every checked box. Entered on
  *   the first uncheck (the full universe minus the unchecked entry is written
  *   out) and left again only when *both* lists are re-checked to full.
@@ -58,7 +61,7 @@ export function deriveBarState(items: ContextItem[]): BarState {
   for (const it of items) {
     if (it.kind === "Type") checkedTypes.add(it.id);
     else if (it.kind === "Colour") checkedColours.add(it.id);
-    else if (it.kind !== "WholeScope") pins.push(it);
+    else if (it.kind !== "WholeScope" && it.kind !== "Summaries") pins.push(it);
   }
   // The marker wins over any stray Colour/Type items a stored spec may carry
   // (the backend's wholeScope short-circuit does the same); they are dropped
@@ -167,7 +170,11 @@ function canonicalize(
   const fullTypes = sources.types.every((o) => types.has(o.id));
   const fullColours = sources.colours.every((o) => colours.has(o.id));
   if (fullTypes && fullColours) {
-    return pins.length > 0 ? [WHOLE_SCOPE_ITEM, ...pins] : [];
+    const summaries = isSummariesSelection(prev);
+    if (pins.length === 0 && !summaries) return [];
+    return summaries
+      ? [WHOLE_SCOPE_ITEM, SUMMARIES_ITEM, ...pins]
+      : [WHOLE_SCOPE_ITEM, ...pins];
   }
 
   const out: ContextItem[] = [];

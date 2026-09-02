@@ -32,7 +32,7 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		if spec.WholeScope {
-			tokens := countTokensForSpec(ctx, app, api.ContextSpec{WholeScope: true}, win)
+			tokens := countTokensForSpec(ctx, app, api.ContextSpec{WholeScope: true, Summaries: spec.Summaries}, win)
 			res.TotalTokens = tokens
 			res.Breakdown["WholeScope"] = tokens
 			return e.JSON(http.StatusOK, res)
@@ -81,6 +81,11 @@ func countTokensForSpec(ctx context.Context, app core.App, spec api.ContextSpec,
 	if err != nil {
 		return 0
 	}
-	text, _ := llmcontext.HydrateIDsToText(ctx, app, pinned)
+	var text string
+	if spec.Summaries {
+		text, _ = llmcontext.HydrateDeltaToText(ctx, app, pinned, llmcontext.PinnedIDs{}, true)
+	} else {
+		text, _ = llmcontext.HydrateIDsToText(ctx, app, pinned)
+	}
 	return len(text) / 4
 }

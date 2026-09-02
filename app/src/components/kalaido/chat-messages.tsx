@@ -153,6 +153,8 @@ function ContextSpecDivider({
     switch (it.kind) {
       case "WholeScope":
         return "whole scope";
+      case "Summaries":
+        return "summaries";
       case "Type":
         return sources.types.find((s) => s.value === it.id)?.label ?? it.label;
       case "Colour":
@@ -184,11 +186,13 @@ function ContextSpecDivider({
         )}
       >
         {sign && <span className="shrink-0">{sign}</span>}
-        {it.kind !== "WholeScope" && it.kind !== "Fragment" && (
-          <span className="shrink-0 text-[9px] font-bold uppercase text-fg-5">
-            {KIND_ABBREV[it.kind]}
-          </span>
-        )}
+        {it.kind !== "WholeScope" &&
+          it.kind !== "Summaries" &&
+          it.kind !== "Fragment" && (
+            <span className="shrink-0 text-[9px] font-bold uppercase text-fg-5">
+              {KIND_ABBREV[it.kind]}
+            </span>
+          )}
         {swatch != null && <ColourSwatch value={swatch} size={8} />}
         <span className="min-w-0 truncate">{display(it)}</span>
       </span>
@@ -242,7 +246,42 @@ const TOOL_MESSAGES: Record<string, string | null> = {
   update_lens: "Updated the lens.",
   apply_result: null,
   suggest_name: null,
+  // The chat's summaries-mode reads narrate themselves (readNoticesFor).
+  read_fragment: null,
+  read_thing: null,
 };
+
+/**
+ * One line per read the summaries-mode chat made during the turn. Handles both
+ * the live shape (`dynamic-tool` with `toolName`/`input`) and the persisted one
+ * (`tool-<name>` with `data.input`), like toolNoticeFor.
+ */
+function readNoticesFor(msg: UIMessage): string[] {
+  const notices: string[] = [];
+  for (const part of msg.parts) {
+    const p = part as {
+      type?: string;
+      toolName?: string;
+      input?: unknown;
+      data?: { input?: unknown };
+    };
+    const name =
+      p.type === "dynamic-tool"
+        ? p.toolName
+        : p.type?.startsWith("tool-")
+          ? p.type.slice("tool-".length)
+          : undefined;
+    if (name !== "read_fragment" && name !== "read_thing") continue;
+    const input = (p.input ?? p.data?.input) as { ids?: string[] } | undefined;
+    const n = input?.ids?.length ?? 0;
+    notices.push(
+      name === "read_fragment"
+        ? `Read ${n} fragment${n === 1 ? "" : "s"} in full.`
+        : `Read ${n} thing${n === 1 ? "" : "s"} from the map.`,
+    );
+  }
+  return notices;
+}
 
 /**
  * Notices the refinement server attaches to an assistant turn as `data-*`
@@ -365,7 +404,10 @@ export function ChatMessages({
         const hasText = msg.parts.some(
           (part) => part.type === "text" && part.text?.trim(),
         );
-        const dataNotices = msg.role === "assistant" ? dataNoticesFor(msg) : [];
+        const dataNotices =
+          msg.role === "assistant"
+            ? [...dataNoticesFor(msg), ...readNoticesFor(msg)]
+            : [];
         const noticeRows = dataNotices.map((notice, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: notices are a pure derivation of the message's parts
           <div key={`${msg.id}-notice-${i}`} className="flex justify-start">
@@ -392,9 +434,11 @@ export function ChatMessages({
           );
         }
 
+        // A summaries-mode turn can carry text on both sides of its reads.
         const content = msg.parts
+          .filter((part) => part.type === "text" && part.text?.trim())
           .map((part) => (part.type === "text" ? part.text : ""))
-          .join("");
+          .join("\n\n");
 
         return (
           <Fragment key={msg.id}>
