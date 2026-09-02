@@ -417,3 +417,84 @@ func DiscoverTooManyWindows(windows, limit int) string {
 func DiscoverUbiquitousThing(name, id string) string {
 	return fmt.Sprintf("%s (%s) is cited across most of the workspace; it is the cast, not a rhythm, and cannot be a reflection's scope", name, id)
 }
+
+// Colours flow.
+
+const CreateColourToolName = "create_colour"
+
+const (
+	CreateColourToolDescription          = "Create one colour: a named slice of the workspace built on one or more map things. Every fragment citing any of those things is a member, now and as new material arrives; no other matching runs. Colours are created for real, not proposed — the user renames, corrects or deletes them afterwards, so get the name and the things right."
+	CreateColourNameParamDescription     = "1-4 words, the colour's name as the user will see it on every fragment it tags. Usually the thing's own name; otherwise the plain name of the slice."
+	CreateColourThingIDsParamDescription = "Thing ids from the map. Usually one. Several only when they are the same slice under different names, or one slice the user would never split."
+)
+
+const DiscoverColoursSystem = `You are segmenting a workspace the user has just imported into colours. A colour is a named slice of the workspace: a tag that sits on every fragment about one thing the user would recognise at a glance — a client, a project, a property, a supplier, a recurring subject. Colours are how the user filters the workspace and how projections and reflections choose their context, so a good set is a handful of slices that between them cover most of the material without overlapping much.
+
+You create colours for real; nothing is proposed. Each colour is built on one or more map things, and its members are the fragments citing those things. The user sees the colours immediately, renames or deletes what is wrong, and adds or removes fragments by hand; you cannot see or use their prompt-based colours' rules.
+
+What you can see: the workspace map — a narrative saying what the workspace is about, a flat list of "things" (people, organisations, places, projects, topics) with how many fragments cite each and over what span, and relationships between them — and, through the tools, the annotated fragments behind any thing.
+
+Tools:
+- read_thing: things in depth — blurb, relationships, a month-by-month count of fragments, and a sample of fragment titles and summaries with ids. Pass every thing you want to see in one call, up to ten.
+- read_fragment: one fragment's full text. Budgeted; use it when a summary leaves a real doubt.
+- list_existing: what exists already, with ids, colours included. Free. Always call it before creating.
+- coverage: what share of the workspace sits inside an existing colour or scope, and which heavy things are least covered. Free.
+- create_colour: create one colour.
+- finish: end the run and say why.
+
+Work in few turns: read every thing you need to see in one read_thing call, and create several colours in one turn once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
+
+const discoverColoursGuidance = `How to work:
+1. Read the narrative and the things list. Sketch six to twelve colours. Each is a slice the user would name unprompted: the client, the building, the project, the supplier, the subject that keeps coming back. Prefer things with many fragments over a long span; a thing cited a handful of times is not a slice.
+2. Call list_existing. Never create a colour that duplicates one already there, whether a person made it or an earlier run did. Judge by what it is about, not by its name.
+3. Skip the user themselves and their own organisation: a thing cited by most of the workspace is the workspace, not a slice, and create_colour rejects it.
+4. Usually one thing per colour. Put several things in one colour only when they are the same slice under different names, or a slice the user would never split. Never make a colour that would hold most of the workspace.
+5. Name plainly: the thing's own name, as the user writes it. No adjectives, no "related", no "and".
+6. Call coverage when your set is done. Add a colour only if a heavy thing is uncovered and genuinely a slice. Leaving detritus uncoloured is correct: never colour what you would not be confident tagging.
+7. Call finish, and say what you created, what you left out, and why.`
+
+func DiscoverColoursInitial(d *mapdoc.Document, worklistFloor int) string {
+	var sb strings.Builder
+	sb.WriteString("What the workspace is about:\n")
+	if strings.TrimSpace(d.Narrative) == "" {
+		sb.WriteString("(no narrative yet)\n")
+	} else {
+		sb.WriteString(strings.TrimSpace(d.Narrative) + "\n")
+	}
+	sb.WriteString("\nThings, heaviest first (id · name · kind · fragments · span · what it is):\n")
+	sb.WriteString(discoverThingsBlock(d, worklistFloor))
+	if len(d.Relationships) > 0 {
+		sb.WriteString("\nRelationships:\n")
+		for _, r := range d.Relationships {
+			from, to := d.Find(r.From), d.Find(r.To)
+			if from == nil || to == nil {
+				continue
+			}
+			sb.WriteString(DiscoverRelationshipLine(from.Name, from.ID, r.Kind, to.Name, to.ID) + "\n")
+		}
+	}
+	sb.WriteString("\n" + discoverColoursGuidance)
+	return sb.String()
+}
+
+func DiscoverCreatedColour(name, id string, fragments int) string {
+	return fmt.Sprintf("Created colour %q (id: %s, %d members).", name, id, fragments)
+}
+
+// DiscoverColourDescription is how an existing colour reads in list_existing:
+// its prompt if it has one, and the things it is built on.
+func DiscoverColourDescription(prompt string, thingNames []string) string {
+	var parts []string
+	if strings.TrimSpace(prompt) != "" {
+		parts = append(parts, "prompt: "+strings.TrimSpace(prompt))
+	}
+	if len(thingNames) > 0 {
+		parts = append(parts, "built on "+strings.Join(thingNames, ", "))
+	}
+	return strings.Join(parts, "; ")
+}
+
+const (
+	DiscoverColourNameRequired   = "name is required"
+	DiscoverColourThingsRequired = "give at least one thing id"
+)

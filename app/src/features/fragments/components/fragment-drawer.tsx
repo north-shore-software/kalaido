@@ -1,4 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { PlusIcon, XIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   Sheet,
@@ -10,21 +12,17 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ColourSwatch, fragmentTypeIcon, Mono } from "@/components/kalaido";
+import { ItemPicker } from "@/components/kalaido/context-picker/item-picker";
+import { updateColour } from "@/api/kalaidoscope/colours";
+import { useCollection } from "@/hooks/use-collection";
 import { useLiveCollectionWatching } from "@/hooks/use-live-collection";
+import { swatchIndex } from "@/lib/colors";
 import { formatShortDateTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
-import type { FragmentTypeOptions } from "@/api/kalaidoscope/types.ts";
-
-function parseColours(raw: unknown): number[] {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return [];
-    }
-  }
-  return Array.isArray(raw) ? raw : [];
-}
+import type {
+  ColourFragmentMatchTypeOptions,
+  FragmentTypeOptions,
+} from "@/api/kalaidoscope/types.ts";
 
 /**
  * Right-side drawer showing a single fragment in full. Driven by `id`: open
@@ -46,11 +44,6 @@ export function FragmentDrawer({
   );
 
   const fragment = records[0];
-  const colours = useMemo(
-    () => (fragment ? parseColours(fragment.colours) : []),
-    [fragment],
-  );
-
   const Icon = fragment ? fragmentTypeIcon(fragment.type) : null;
   const occurredStr = fragment?.source_time || fragment?.created;
 
@@ -86,22 +79,10 @@ export function FragmentDrawer({
                   {fragmentTypeLabel(fragment.type as FragmentTypeOptions)}
                 </SheetTitle>
               </div>
-              <div className="flex items-center gap-3">
-                <SheetDescription className="font-mono text-meta text-fg-4">
-                  {occurredStr ? formatShortDateTime(occurredStr) : "Fragment"}
-                </SheetDescription>
-                {colours.length > 0 ? (
-                  <div className="flex items-center gap-1.5">
-                    {colours
-                      .map((c, i) => ({ c, key: `${i}-${c}` }))
-                      .map((s) => (
-                        <ColourSwatch key={s.key} c={s.c} size={10} />
-                      ))}
-                  </div>
-                ) : (
-                  <Mono className="text-meta text-fg-4">untagged</Mono>
-                )}
-              </div>
+              <SheetDescription className="font-mono text-meta text-fg-4">
+                {occurredStr ? formatShortDateTime(occurredStr) : "Fragment"}
+              </SheetDescription>
+              <FragmentColours fragmentId={fragment.id} />
             </SheetHeader>
             <ScrollArea className="min-h-0 flex-1">
               <Mono className="block px-6 py-5 text-mono-sm leading-relaxed whitespace-pre-wrap text-fg-2">
@@ -112,5 +93,134 @@ export function FragmentDrawer({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+type Link = { colour_id: string; match_type: ColourFragmentMatchTypeOptions };
+
+const MATCH_LABEL: Record<ColourFragmentMatchTypeOptions, string> = {
+  manual_positive: "pinned",
+  manual_negative: "excluded",
+  thing: "map",
+  prompt: "matched",
+};
+
+/**
+ * The fragment's colours, confirm-and-correct: every colour it belongs to is
+ * a chip, removing one excludes the fragment (or withdraws a pin), and the
+ * picker adds a pin over the existing colours only.
+ */
+function FragmentColours({ fragmentId }: { fragmentId: string }) {
+  const links = useLiveCollectionWatching(
+    "colour_fragment",
+    ["colour_fragment"],
+    {
+      filter: `fragment_id="${fragmentId}"`,
+      fields: "id,colour_id,match_type",
+    },
+  );
+  const colours = useCollection("colour", {
+    sort: "-created",
+    fields: "id,name,colour_value",
+  });
+  const [picking, setPicking] = useState(false);
+
+  const linkByColour = useMemo(() => {
+    const m = new Map<string, Link>();
+    for (const l of links.records as unknown as Link[]) m.set(l.colour_id, l);
+    return m;
+  }, [links.records]);
+  const memberIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const [cid, l] of linkByColour)
+      if (l.match_type !== "manual_negative") s.add(cid);
+    return s;
+  }, [linkByColour]);
+
+  async function change(colourId: string, remove: boolean) {
+    const link = linkByColour.get(colourId);
+    const input = remove
+      ? link?.match_type === "manual_positive"
+        ? { clearExamples: [fragmentId] }
+        : { negativeExamples: [fragmentId] }
+      : { positiveExamples: [fragmentId] };
+    const res = await updateColour(colourId, input);
+    if (res.isErr()) {
+      toast.error("Failed to update colour", {
+        description: res.error.message,
+      });
+      return;
+    }
+    await links.mutate();
+  }
+
+  const chips = colours.records.filter((c) => memberIds.has(c.id));
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {chips.map((c) => {
+          const link = linkByColour.get(c.id);
+          return (
+            <span
+              key={c.id}
+              className="group flex items-center gap-1.5 border border-line px-1.5 py-0.5 text-body-sm text-fg-2"
+            >
+              <ColourSwatch
+                c={swatchIndex(c.id)}
+                value={c.colour_value || undefined}
+                size={9}
+              />
+              {c.name || "Untitled colour"}
+              {link && (
+                <Mono className="text-meta text-fg-4">
+                  {MATCH_LABEL[link.match_type]}
+                </Mono>
+              )}
+              <button
+                type="button"
+                title={
+                  link?.match_type === "manual_positive"
+                    ? "Unpin"
+                    : "Exclude from this colour"
+                }
+                onClick={() => void change(c.id, true)}
+                className="text-fg-4 hover:text-critical-ink"
+              >
+                <XIcon className="size-3" />
+              </button>
+            </span>
+          );
+        })}
+        {chips.length === 0 && !picking && (
+          <Mono className="text-meta text-fg-4">untagged</Mono>
+        )}
+        <button
+          type="button"
+          aria-expanded={picking}
+          onClick={() => setPicking((v) => !v)}
+          className="flex items-center gap-1 border border-dashed border-line-strong px-1.5 py-0.5 text-body-sm text-fg-3 hover:text-fg-1"
+        >
+          <PlusIcon className="size-3" />
+          colour
+        </button>
+      </div>
+      {picking && (
+        <ItemPicker
+          kindLabel="Colour"
+          tint="section"
+          options={colours.records.map((c) => ({
+            id: c.id,
+            label: c.name || "Untitled colour",
+            value: c.colour_value || undefined,
+          }))}
+          selectedIds={memberIds}
+          loading={colours.isLoading}
+          onPick={(o) => void change(o.id, memberIds.has(o.id))}
+          onClose={() => setPicking(false)}
+          emptyCopy="No colours yet. Create one on the Colours page."
+        />
+      )}
+    </div>
   );
 }

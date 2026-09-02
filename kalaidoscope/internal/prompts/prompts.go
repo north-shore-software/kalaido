@@ -41,10 +41,21 @@ func SnapshotMergePrompt() string {
 		"Final document:"
 }
 
-func ColourEvalPrompt(criteria, positiveBlock, negativeBlock, targetDocument string) string {
+// ParseYesNo reads a YES/NO reply by its first word, so "NO, not a YES case"
+// is a no.
+func ParseYesNo(reply string) bool {
+	word := strings.TrimSpace(reply)
+	end := 0
+	for end < len(word) && (word[end]|0x20) >= 'a' && (word[end]|0x20) <= 'z' {
+		end++
+	}
+	return strings.EqualFold(word[:end], "yes")
+}
+
+func ColourEvalPrompt(prompt, positiveBlock, negativeBlock, targetDocument string) string {
 	var sb strings.Builder
 	sb.WriteString("Task: " + ColourEvalInstruction + "\n\n")
-	sb.WriteString("Criteria:\n" + criteria + "\n\n")
+	sb.WriteString("Criteria:\n" + prompt + "\n\n")
 
 	if strings.TrimSpace(positiveBlock) != "" {
 		sb.WriteString("Positive Examples (these MATCH the criteria):\n" + positiveBlock + "\n\n")

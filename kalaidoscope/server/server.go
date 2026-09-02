@@ -51,9 +51,10 @@ func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
 	RegisterTriggers(app)
 	RegisterRoutes(app)
 	usage.Setup(app)
-	colour.SetWorkerApp(app)
+	colour.Register(app)
 	reconcile.Register(app)
 	mapping.Register(app)
+	mapping.OnSettle(colour.OnMapSettled)
 	discover.Register(app)
 	registerQueueStatus(app)
 
@@ -83,7 +84,7 @@ func RegisterTriggers(app core.App) {
 	})
 
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
-		colour.EnqueueNewFragmentEvaluation(app, e.Record.Id)
+		colour.Signal()
 		mapping.SignalAuto()
 		return e.Next()
 	})
@@ -137,6 +138,8 @@ func RegisterRoutes(app core.App) {
 		se.Router.POST("/api/colours/preview", handlers.HandlePreviewColour(app))
 		se.Router.POST("/api/colours", handlers.HandleCreateColour(app))
 		se.Router.PATCH("/api/colours/{id}", handlers.HandleUpdateColour(app))
+		se.Router.DELETE("/api/colours/{id}", handlers.HandleDeleteColour(app))
+		se.Router.POST("/api/colours/{id}/rematch", handlers.HandleRematchColour(app))
 
 		// Rotation / Staleness endpoint
 		se.Router.GET("/api/rotation", handlers.HandleGetRotation(app))

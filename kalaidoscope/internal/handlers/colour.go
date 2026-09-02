@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -33,7 +34,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		positiveBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.PositiveExamples))
 		negativeBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.NegativeExamples))
 
-		recs, err := app.FindRecordsByFilter("fragment", "", "-created", 20, 0, dbx.Params{})
+		recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "-created", 20, 0, dbx.Params{})
 		if err != nil {
 			log.Printf("colour preview: find fragments failed: %v", err)
 			return e.InternalServerError("failed to fetch fragments", err)
@@ -71,11 +72,11 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 				defer wg.Done()
 
 				targetDoc := llmcontext.RenderFragmentRecords([]*core.Record{rec})
-				prompt := prompts.ColourEvalPrompt(req.Filter.Prompt, positiveBlock, negativeBlock, targetDoc)
+				prompt := prompts.ColourEvalPrompt(req.Prompt, positiveBlock, negativeBlock, targetDoc)
 
 				// Tie the evaluation to the request context so it aborts when the
 				// client disconnects — the live preview deliberately cancels the
-				// prior in-flight request whenever the criteria change, which
+				// prior in-flight request whenever the prompt changes, which
 				// would otherwise leave these LLM calls running for stale input.
 				out, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleColour, model, nil)
 				if err != nil {
@@ -87,7 +88,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 					return
 				}
 
-				if strings.Contains(strings.ToUpper(out), "YES") {
+				if prompts.ParseYesNo(out) {
 					results <- rec
 				}
 			}(r)
@@ -123,105 +124,179 @@ func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
+		if strings.TrimSpace(req.Name) == "" {
+			return e.BadRequestError("name is required", nil)
+		}
 
-		collection, _ := app.FindCollectionByNameOrId("colour")
+		collection, err := app.FindCollectionByNameOrId("colour")
+		if err != nil {
+			return e.InternalServerError("colour collection", err)
+		}
 		colourRec := core.NewRecord(collection)
-		colourRec.Set("name", req.Name)
-		colourRec.Set("criteria", req.Prompt)
+		colourRec.Set("name", strings.TrimSpace(req.Name))
+		colourRec.Set("prompt", strings.TrimSpace(req.Prompt))
 		if err := app.Save(colourRec); err != nil {
 			return e.InternalServerError("failed to save colour", err)
 		}
 
-		// Immediately record any already matched preview fragments
-		cfCollection, _ := app.FindCollectionByNameOrId("colour_fragment")
+		// The preview's matches were judged by this prompt already: record
+		// them so the colour has members the moment it appears. The worker
+		// skips pairs that hold a row, so they are not judged twice.
+		model, _ := llm.ResolveRole(llm.RoleColour)
 		for _, fragID := range req.FragmentIDs {
-			cf := core.NewRecord(cfCollection)
-			cf.Set("colour_id", colourRec.Id)
-			cf.Set("fragment_id", fragID)
-			cf.Set("match_type", "llm_matched_backfill")
-			_ = app.Save(cf)
+			if err := colour.SetPromptMatch(app, colourRec.Id, fragID, model); err != nil {
+				log.Printf("colour create: seed %s: %v", fragID, err)
+			}
+		}
+		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, nil); err != nil {
+			return e.InternalServerError("failed to save examples", err)
+		}
+		if colourRec.GetString("prompt") != "" {
+			colour.Signal()
 		}
 
-		if req.ApplyRetroactively {
-			colour.EnqueueRetroactiveEvaluation(app, colourRec.Id)
-		}
-
-		return e.JSON(http.StatusOK, api.CreateColourResponse{
-			ColourID: colourRec.Id,
-		})
+		return e.JSON(http.StatusOK, api.CreateColourResponse{ColourID: colourRec.Id})
 	}
 }
 
 func HandleUpdateColour(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		if id == "" {
-			return e.BadRequestError("missing id", nil)
-		}
-
-		colourRec, err := app.FindRecordById("colour", id)
+		colourRec, err := findColour(app, e)
 		if err != nil {
-			return e.NotFoundError("colour not found", err)
+			return err
 		}
-
 		var req api.UpdateColourRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		cfCollection, _ := app.FindCollectionByNameOrId("colour_fragment")
-
-		// Remove/Update negative examples
-		for _, fragID := range req.NegativeExamples {
-			links, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:col} && fragment_id = {:frag}", "", 1, 0, dbx.Params{
-				"col":  colourRec.Id,
-				"frag": fragID,
-			})
-			var cf *core.Record
-			if err == nil && len(links) > 0 {
-				cf = links[0]
-			} else {
-				cf = core.NewRecord(cfCollection)
-				cf.Set("colour_id", colourRec.Id)
-				cf.Set("fragment_id", fragID)
-			}
-			cf.Set("match_type", "manual_negative")
-			_ = app.Save(cf)
+		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, req.ClearExamples); err != nil {
+			return e.InternalServerError("failed to save examples", err)
 		}
 
-		// Add positive examples
-		for _, fragID := range req.PositiveExamples {
-			links, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:col} && fragment_id = {:frag}", "", 1, 0, dbx.Params{
-				"col":  colourRec.Id,
-				"frag": fragID,
-			})
-			var cf *core.Record
-			if err == nil && len(links) > 0 {
-				cf = links[0]
-			} else {
-				cf = core.NewRecord(cfCollection)
-				cf.Set("colour_id", colourRec.Id)
-				cf.Set("fragment_id", fragID)
-			}
-			cf.Set("match_type", "manual_positive")
-			_ = app.Save(cf)
+		if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+			colourRec.Set("name", strings.TrimSpace(*req.Name))
 		}
-
-		updatedPrompt := colourRec.GetString("criteria")
-
-		// Update prompt independently
+		promptChanged := false
 		if req.Prompt != nil {
-			colourRec.Set("criteria", *req.Prompt)
-			updatedPrompt = *req.Prompt
+			next := strings.TrimSpace(*req.Prompt)
+			promptChanged = next != colourRec.GetString("prompt")
+			colourRec.Set("prompt", next)
 		}
-
 		if err := app.Save(colourRec); err != nil {
 			return e.InternalServerError("failed to save colour", err)
+		}
+		if promptChanged {
+			if err := colour.Rematch(app, colourRec.Id); err != nil {
+				return e.InternalServerError("failed to restart matching", err)
+			}
 		}
 
 		return e.JSON(http.StatusOK, api.UpdateColourResponse{
 			ColourID: colourRec.Id,
-			Prompt:   updatedPrompt,
+			Name:     colourRec.GetString("name"),
+			Prompt:   colourRec.GetString("prompt"),
 		})
 	}
+}
+
+// HandleRematchColour starts the colour over: prompt rows and the watermark
+// go, thing rows are recomputed, and the worker re-judges everything.
+func HandleRematchColour(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		colourRec, err := findColour(app, e)
+		if err != nil {
+			return err
+		}
+		if err := colour.Rematch(app, colourRec.Id); err != nil {
+			return e.InternalServerError("failed to restart matching", err)
+		}
+		return e.NoContent(http.StatusAccepted)
+	}
+}
+
+// HandleDeleteColour removes the colour (links cascade) and drops its id from
+// every live context spec so no projection or reflection keeps a dangling
+// reference. Frozen snapshot specs are history and stay as they are.
+func HandleDeleteColour(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		colourRec, err := findColour(app, e)
+		if err != nil {
+			return err
+		}
+		err = app.RunInTransaction(func(tx core.App) error {
+			for _, collection := range []string{"projection", "reflection"} {
+				if err := scrubColourFromSpecs(tx, collection, colourRec.Id); err != nil {
+					return err
+				}
+			}
+			return tx.Delete(colourRec)
+		})
+		if err != nil {
+			return e.InternalServerError("failed to delete colour", err)
+		}
+		return e.NoContent(http.StatusNoContent)
+	}
+}
+
+func findColour(app core.App, e *core.RequestEvent) (*core.Record, error) {
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return nil, e.BadRequestError("missing id", nil)
+	}
+	rec, err := app.FindRecordById("colour", id)
+	if err != nil {
+		return nil, e.NotFoundError("colour not found", err)
+	}
+	return rec, nil
+}
+
+// applyExamples writes manual rows. Negatives first, then positives, so a
+// fragment named in both ends up pinned; clears run last and re-derive the
+// pair mechanically.
+func applyExamples(app core.App, colourID string, positive, negative, clear []string) error {
+	for _, fragID := range negative {
+		if err := colour.SetManual(app, colourID, fragID, colour.MatchManualNegative); err != nil {
+			return err
+		}
+	}
+	for _, fragID := range positive {
+		if err := colour.SetManual(app, colourID, fragID, colour.MatchManualPositive); err != nil {
+			return err
+		}
+	}
+	for _, fragID := range clear {
+		if err := colour.ClearManual(app, colourID, fragID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func scrubColourFromSpecs(app core.App, collection, colourID string) error {
+	recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": colourID})
+	if err != nil {
+		return err
+	}
+	for _, rec := range recs {
+		var spec api.ContextSpec
+		if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
+			continue
+		}
+		kept := spec.ColourIDs[:0]
+		for _, id := range spec.ColourIDs {
+			if id != colourID {
+				kept = append(kept, id)
+			}
+		}
+		if len(kept) == len(spec.ColourIDs) {
+			continue
+		}
+		spec.ColourIDs = kept
+		rec.Set("current_context_spec", pbutil.JSONObject(spec))
+		if err := app.Save(rec); err != nil {
+			return err
+		}
+	}
+	return nil
 }

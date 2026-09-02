@@ -16,7 +16,7 @@ import { ColourComposerPane } from "../components/colour-composer-pane";
 import { ColourDetailPane } from "../components/colour-detail-pane";
 import { ColourList } from "../components/colour-list";
 import { useColourPreview } from "../hooks/use-colour-preview";
-import type { MemberRow } from "../fragments";
+import { isMember, type MemberRow } from "../fragments";
 
 export default function Colours() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export default function Colours() {
 
   const colours = useCollection("colour", {
     sort: "-created",
-    fields: "id,name,criteria,colour_value",
+    fields: "id,name,prompt,colour_value",
   });
 
   const allLinks = useCollection("colour_fragment", {
@@ -33,7 +33,7 @@ export default function Colours() {
   const countByColour = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of allLinks.records as unknown as MemberRow[]) {
-      if (r.match_type === "manual_negative") continue;
+      if (!isMember(r.match_type)) continue;
       m.set(r.colour_id, (m.get(r.colour_id) ?? 0) + 1);
     }
     return m;
@@ -54,14 +54,14 @@ export default function Colours() {
   );
 
   const [draftName, setDraftName] = useState("");
-  const [draftCriteria, setDraftCriteria] = useState("");
+  const [draftPrompt, setDraftPrompt] = useState("");
   const [saving, setSaving] = useState(false);
-  const preview = useColourPreview(draftCriteria, composing);
+  const preview = useColourPreview(draftPrompt, composing);
 
   function openComposer() {
     setComposing(true);
     setDraftName("");
-    setDraftCriteria("");
+    setDraftPrompt("");
   }
 
   function selectColour(id: string) {
@@ -71,13 +71,12 @@ export default function Colours() {
 
   async function saveNew() {
     const name = draftName.trim();
-    const criteria = draftCriteria.trim();
-    if (!name || !criteria || saving) return;
+    const prompt = draftPrompt.trim();
+    if (!name || !prompt || saving) return;
     setSaving(true);
     const res = await createColour({
       name,
-      criteria,
-      applyRetroactively: true,
+      prompt,
       // Seed every match, not the type-filtered view — the colour matches on the
       // prompt regardless of type; the chip is only a preview convenience.
       fragmentIds: preview.matches.map((f) => f.id),
@@ -106,7 +105,7 @@ export default function Colours() {
               </Button>
               <Button
                 variant="commit"
-                disabled={!draftName.trim() || !draftCriteria.trim() || saving}
+                disabled={!draftName.trim() || !draftPrompt.trim() || saving}
                 onClick={() => void saveNew()}
               >
                 {saving ? "Creating…" : "Create colour"}
@@ -132,12 +131,12 @@ export default function Colours() {
           {composing ? (
             <ColourComposerPane
               name={draftName}
-              criteria={draftCriteria}
+              prompt={draftPrompt}
               typeFilter={preview.typeFilter}
               previewing={preview.previewing}
               previewFragments={preview.fragments}
               onName={setDraftName}
-              onCriteria={setDraftCriteria}
+              onPrompt={setDraftPrompt}
               onTypeFilter={preview.setTypeFilter}
             />
           ) : selected ? (
@@ -147,7 +146,11 @@ export default function Colours() {
               count={countByColour.get(selected.id) ?? 0}
               members={members}
               membersLoading={memberQuery.isLoading}
-              onCriteriaSaved={() => colours.mutate()}
+              onColourChanged={() => colours.mutate()}
+              onDeleted={async () => {
+                setSelectedId(null);
+                await Promise.all([colours.mutate(), allLinks.mutate()]);
+              }}
               onMembersChanged={() =>
                 Promise.all([memberQuery.mutate(), allLinks.mutate()])
               }

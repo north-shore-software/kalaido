@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
@@ -53,11 +54,34 @@ func (projectionsFlow) Existing(c *Context) ([]Existing, error) {
 	return existingEntities(c)
 }
 
-// existingEntities lists every projection and reflection, made by a person or
-// proposed by a run, with the fragments its scope resolves to. Both flows use
-// it: a reflection proposal must not restate a projection and vice versa.
+// existingEntities lists every colour, projection and reflection, made by a
+// person or by a run, with the fragments each holds. Every flow uses it: a
+// proposal must not restate what is there, and projections scope by colour id.
 func existingEntities(c *Context) ([]Existing, error) {
 	var out []Existing
+	colours, err := c.App.FindRecordsByFilter("colour", "1=1", "created", 0, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, rec := range colours {
+		members, err := colour.MemberIDs(c.App, rec.Id)
+		if err != nil {
+			return nil, err
+		}
+		var names []string
+		for _, id := range colour.ThingIDs(rec) {
+			if t := mapping.ResolveRef(c.Doc, id); t != nil {
+				names = append(names, t.Name)
+			}
+		}
+		out = append(out, Existing{
+			Kind:        "colour",
+			ID:          rec.Id,
+			Name:        rec.GetString("name"),
+			Description: prompts.DiscoverColourDescription(rec.GetString("prompt"), names),
+			FragmentIDs: members,
+		})
+	}
 	for _, col := range []string{"projection", "reflection"} {
 		recs, err := c.App.FindRecordsByFilter(col, "1=1", "created", 0, 0, nil)
 		if err != nil {

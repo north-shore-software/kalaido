@@ -133,25 +133,24 @@ export type ChatMessageRecord<Tcontent = unknown> = {
 	updated: IsoAutoDateString
 }
 
-export type ColourRecord = {
+export type ColourRecord<Tthing_ids = unknown> = {
 	colour_value?: string
 	created: IsoAutoDateString
-	criteria?: string
 	id: string
 	last_provider_error_kind?: string
 	name: string
-	origin_node_dimension?: string
-	origin_node_name?: string
 	origin_run_id?: RecordIdString
+	prompt?: string
+	prompt_matched_through?: string
+	thing_ids?: null | Tthing_ids
 	updated: IsoAutoDateString
 }
 
 export const ColourFragmentMatchTypeOptions = {
 	"manual_positive": "manual_positive",
 	"manual_negative": "manual_negative",
-	"llm_matched_backfill": "llm_matched_backfill",
-	"llm_matched_tag_on_input": "llm_matched_tag_on_input",
-	"map_derived": "map_derived",
+	"thing": "thing",
+	"prompt": "prompt",
 } as const
 export type ColourFragmentMatchTypeOptions = typeof ColourFragmentMatchTypeOptions[keyof typeof ColourFragmentMatchTypeOptions]
 export type ColourFragmentRecord = {
@@ -465,7 +464,7 @@ export type OtpsResponse<Texpand = unknown> = Required<OtpsRecord> & BaseSystemF
 export type SuperusersResponse<Texpand = unknown> = Required<SuperusersRecord> & AuthSystemFields<Texpand>
 export type ChatConversationResponse<Texpand = unknown> = Required<ChatConversationRecord> & BaseSystemFields<Texpand>
 export type ChatMessageResponse<Tcontent = unknown, Texpand = unknown> = Required<ChatMessageRecord<Tcontent>> & BaseSystemFields<Texpand>
-export type ColourResponse<Texpand = unknown> = Required<ColourRecord> & BaseSystemFields<Texpand>
+export type ColourResponse<Tthing_ids = unknown, Texpand = unknown> = Required<ColourRecord<Tthing_ids>> & BaseSystemFields<Texpand>
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
 export type DiscoverRunResponse<Toutputs = unknown, Texpand = unknown> = Required<DiscoverRunRecord<Toutputs>> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>

@@ -44,12 +44,18 @@ func AfterDrain(fn func(err error)) {
 	followUps.Add(fn)
 }
 
+// kindOrder is the pipeline order when several kinds are pending at once:
+// colours first, so projection and reflection scopes can name them.
+var kindOrder = []string{"colours", "projections", "reflections"}
+
 func takePending() []string {
 	pendingMu.Lock()
 	defer pendingMu.Unlock()
 	kinds := make([]string, 0, len(pending))
-	for k := range pending {
-		kinds = append(kinds, k)
+	for _, k := range kindOrder {
+		if pending[k] {
+			kinds = append(kinds, k)
+		}
 	}
 	pending = map[string]bool{}
 	return kinds

@@ -3,14 +3,12 @@ import { activeClient, toError, withActiveClient } from "./_active";
 import type { FragmentResponse } from "./types";
 
 // The colour collection is write-disabled (see migrations); all mutations go
-// through the dedicated /api/colours* endpoints. The API speaks `prompt`, but
-// the stored column — and the rest of the frontend — call it `criteria`, so we
-// map `criteria` → `prompt` only in the request bodies here.
+// through the dedicated /api/colours* endpoints. A colour is a prompt (judged
+// by the colour role), map things (set by discover, never edited here), and
+// manual positive/negative examples; membership is materialised server-side in
+// `colour_fragment`, which the app reads straight from the collection.
 
 export interface PreviewColourInput {
-  /** Optional fragment-type narrowing for the preview. */
-  type?: string;
-  /** The natural-language criteria (sent as `prompt`). */
   prompt: string;
   positiveExamples?: string[];
   negativeExamples?: string[];
@@ -18,19 +16,27 @@ export interface PreviewColourInput {
 
 export interface CreateColourInput {
   name: string;
-  criteria: string;
-  /** Tag existing fragments in the background (else only new fragments match). */
-  applyRetroactively?: boolean;
+  prompt: string;
+  /**
+   * The live preview's matches. They were judged by this prompt already, so
+   * the backend records them as prompt matches and the colour is not empty
+   * on arrival; the background pass then skips them.
+   */
   fragmentIds?: string[];
+  positiveExamples?: string[];
+  negativeExamples?: string[];
 }
 
 export interface UpdateColourInput {
-  /** New criteria text; omit to leave the definition untouched. */
-  criteria?: string;
-  /** Fragments to force-include as matches. */
+  name?: string;
+  /** New prompt; omit to leave it untouched. A change restarts matching. */
+  prompt?: string;
+  /** Fragments to pin as members (`manual_positive`). */
   positiveExamples?: string[];
-  /** Fragments to reject (their link becomes `manual_negative`). */
+  /** Fragments to exclude (`manual_negative`). */
   negativeExamples?: string[];
+  /** Fragments whose manual example is withdrawn; the pair is re-derived. */
+  clearExamples?: string[];
 }
 
 export interface CreateColourResult {
@@ -38,12 +44,13 @@ export interface CreateColourResult {
 }
 export interface UpdateColourResult {
   colourId: string;
+  name: string;
   prompt: string;
 }
 
 /**
- * Preview which fragments the given criteria currently matches, streaming
- * evaluations as they finish. Bypasses client.send to process NDJSON/SSE chunks.
+ * Preview which recent fragments the given prompt matches, streaming
+ * evaluations as they finish. Bypasses client.send to process SSE chunks.
  */
 export async function previewColourStream(
   input: PreviewColourInput,
@@ -65,7 +72,7 @@ export async function previewColourStream(
           : {}),
       },
       body: JSON.stringify({
-        filter: { type: input.type ?? "", prompt: input.prompt },
+        prompt: input.prompt,
         ...(input.positiveExamples?.length
           ? { positiveExamples: input.positiveExamples }
           : {}),
@@ -124,9 +131,8 @@ export async function previewColourStream(
 }
 
 /**
- * Create a colour. When `applyRetroactively` is set the backend enqueues a
- * background job to tag existing fragments, so membership populates
- * asynchronously after this resolves.
+ * Create a colour. Matching against every existing fragment runs in the
+ * background after this resolves; the seeded `fragmentIds` are members at once.
  */
 export async function createColour(
   input: CreateColourInput,
@@ -134,22 +140,12 @@ export async function createColour(
   return withActiveClient((client) =>
     client.send<CreateColourResult>("/api/colours", {
       method: "POST",
-      body: {
-        name: input.name,
-        prompt: input.criteria,
-        applyRetroactively: input.applyRetroactively ?? false,
-        fragmentIds: input.fragmentIds,
-      },
+      body: input,
     }),
   );
 }
 
-/**
- * Update a colour's definition and/or its manual example links. Omitting
- * `criteria` leaves the stored definition unchanged; positive/negative examples
- * are upserted as `manual_positive` / `manual_negative` links in
- * `colour_fragment`.
- */
+/** Update a colour's name, prompt and/or its manual examples. */
 export async function updateColour(
   id: string,
   input: UpdateColourInput,
@@ -157,15 +153,21 @@ export async function updateColour(
   return withActiveClient((client) =>
     client.send<UpdateColourResult>(`/api/colours/${id}`, {
       method: "PATCH",
-      body: {
-        ...(input.criteria !== undefined ? { prompt: input.criteria } : {}),
-        ...(input.positiveExamples?.length
-          ? { positiveExamples: input.positiveExamples }
-          : {}),
-        ...(input.negativeExamples?.length
-          ? { negativeExamples: input.negativeExamples }
-          : {}),
-      },
+      body: input,
     }),
   );
+}
+
+/** Delete a colour; its links go with it and live context specs drop its id. */
+export async function deleteColour(id: string): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/colours/${id}`, { method: "DELETE" });
+  });
+}
+
+/** Start matching over from scratch: prompt matches are re-judged. */
+export async function rematchColour(id: string): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/colours/${id}/rematch`, { method: "POST" });
+  });
 }

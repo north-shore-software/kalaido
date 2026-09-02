@@ -12,24 +12,24 @@ export const TYPE_FILTERS = [
 ] as const;
 export type TypeFilter = (typeof TYPE_FILTERS)[number];
 
-/** Debounced live preview of the fragments matching a draft colour's criteria.
+/** Debounced live preview of the fragments matching a draft colour's prompt.
  *
- *  `matches` holds every streamed match for the current criteria regardless of
+ *  `matches` holds every streamed match for the current prompt regardless of
  *  type; the type chip narrows them client-side (`fragments`) rather than
  *  re-running the LLM evaluation — the backend matches on the prompt only and
  *  ignores type. */
-export function useColourPreview(criteria: string, enabled: boolean) {
+export function useColourPreview(prompt: string, enabled: boolean) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [matches, setMatches] = useState<FragmentResponse[]>([]);
   const [previewing, setPreviewing] = useState(false);
 
-  // Debounced live preview while defining the criteria. Deliberately not keyed
+  // Debounced live preview while defining the prompt. Deliberately not keyed
   // on `typeFilter`: type narrowing is a client-side view of the same match
   // set, so changing the chip must not wipe results or trigger a fresh
   // evaluation.
   useEffect(() => {
     if (!enabled) return;
-    const text = criteria.trim();
+    const text = prompt.trim();
     if (!text) {
       setMatches([]);
       setPreviewing(false);
@@ -51,7 +51,7 @@ export function useColourPreview(criteria: string, enabled: boolean) {
           },
           controller.signal,
         );
-        // The effect cleanup aborts this request when the criteria change; that
+        // The effect cleanup aborts this request when the prompt changes; that
         // failure is expected, so ignore it rather than flashing it — and leave
         // `previewing` alone, since the next run owns it now.
         if (controller.signal.aborted) return;
@@ -65,7 +65,7 @@ export function useColourPreview(criteria: string, enabled: boolean) {
       clearTimeout(handle);
       controller.abort();
     };
-  }, [criteria, enabled]);
+  }, [prompt, enabled]);
 
   useEffect(() => {
     if (!enabled) setTypeFilter("all");

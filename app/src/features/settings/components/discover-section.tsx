@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { startDiscover } from "@/api/kalaidoscope/discover";
+import { type DiscoverKind, startDiscover } from "@/api/kalaidoscope/discover";
 import { Pill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client";
@@ -30,7 +30,7 @@ function DiscoverDebugContent() {
   const run = runs?.[0];
   const [kicking, setKicking] = useState(false);
 
-  async function kick(kind: "projections" | "reflections") {
+  async function kick(kind: DiscoverKind) {
     setKicking(true);
     await startDiscover(kind);
     setKicking(false);
@@ -41,6 +41,13 @@ function DiscoverDebugContent() {
   return (
     <div className="flex flex-col gap-2.5 border-t border-line pt-2.5">
       <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={() => kick("colours")}
+          disabled={kicking || run?.status === "running"}
+        >
+          Discover colours
+        </Button>
         <Button
           size="sm"
           onClick={() => kick("projections")}

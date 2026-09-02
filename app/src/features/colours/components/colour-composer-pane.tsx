@@ -14,21 +14,21 @@ import type { FragmentResponse } from "@/api/kalaidoscope/types";
 /** State owned by the page via `useColourPreview`. */
 export function ColourComposerPane({
   name,
-  criteria,
+  prompt,
   typeFilter,
   previewing,
   previewFragments,
   onName,
-  onCriteria,
+  onPrompt,
   onTypeFilter,
 }: {
   name: string;
-  criteria: string;
+  prompt: string;
   typeFilter: TypeFilter;
   previewing: boolean;
   previewFragments: FragmentResponse[];
   onName: (v: string) => void;
-  onCriteria: (v: string) => void;
+  onPrompt: (v: string) => void;
   onTypeFilter: (v: TypeFilter) => void;
 }) {
   return (
@@ -45,10 +45,10 @@ export function ColourComposerPane({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Filter prompt · what should this colour match?</Label>
+        <Label>Prompt · what should this colour match?</Label>
         <Textarea
-          value={criteria}
-          onChange={(e) => onCriteria(e.target.value)}
+          value={prompt}
+          onChange={(e) => onPrompt(e.target.value)}
           rows={3}
           placeholder="Incoming messages & emails about product pain points…"
         />
@@ -78,7 +78,7 @@ export function ColourComposerPane({
               : `${previewFragments.length} match${previewFragments.length === 1 ? "" : "es"}`}
           </Mono>
         </div>
-        {criteria.trim().length === 0 ? (
+        {prompt.trim().length === 0 ? (
           <EmptyState>Describe what to match to see a live preview.</EmptyState>
         ) : previewFragments.length === 0 && !previewing ? (
           <EmptyState>No matches yet — try broadening the prompt.</EmptyState>
