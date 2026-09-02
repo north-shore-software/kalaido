@@ -15,7 +15,6 @@ export const Default: Story = () => {
         reflectionId={FIXTURE_REFLECTION_ID}
         name="Team Performance Reflection"
         schedDisplay={FIXTURE_SCHED_DISPLAY_LIVE}
-        readOnly={false}
       />
     </div>
   );
@@ -28,7 +27,6 @@ export const ReadOnly: Story = () => {
         reflectionId={FIXTURE_REFLECTION_ID}
         name="Manual Sprint Reflection"
         schedDisplay={FIXTURE_SCHED_DISPLAY_MANUAL}
-        readOnly={true}
       />
     </div>
   );

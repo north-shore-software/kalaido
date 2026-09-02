@@ -4,10 +4,13 @@ import {
   type ContextSpec,
   diffContextSpecs,
   messageContextSpec,
+  messageWindow,
+  type TimeWindow,
 } from "@/api/kalaidoscope/chat";
 import { useContextSources } from "@/hooks/use-context-sources";
 import { useFragmentLabels } from "@/hooks/use-fragment-labels";
 import { cn } from "@/lib/css-utils";
+import { formatWindowRange } from "@/lib/datetime";
 import { mentionsToTags, splitMentions } from "@/lib/mentions";
 import { ColourSwatch } from "./colour";
 import { KIND_ABBREV } from "./context-bar/state";
@@ -205,6 +208,32 @@ function ContextSpecDivider({
   );
 }
 
+/**
+ * Marks where a reflection refinement's target window was set or moved. The
+ * first one states the window; later ones show it changing.
+ */
+function WindowDivider({
+  window: win,
+  isFirst,
+}: {
+  window: TimeWindow;
+  isFirst: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 py-0.5">
+      <div className="h-px flex-1 bg-line" />
+      <div className="flex max-w-[80%] flex-wrap items-center justify-center gap-x-2 gap-y-0.5 font-mono text-mono-sm text-fg-4">
+        <span className="font-bold uppercase text-fg-5">Window</span>
+        <span className="whitespace-nowrap">
+          {isFirst ? "" : "→ "}
+          {formatWindowRange(win.start, win.end)}
+        </span>
+      </div>
+      <div className="h-px flex-1 bg-line" />
+    </div>
+  );
+}
+
 // null = the tool is bookkeeping the user never needs narrated (its effect
 // shows up elsewhere in the UI), so a text-less turn stays silent.
 // apply_result is the server-fabricated part carrying the executed preview —
@@ -226,9 +255,17 @@ function dataNoticesFor(msg: UIMessage): string[] {
   for (const part of msg.parts) {
     const p = part as {
       type?: string;
-      data?: { match?: string; message?: string };
+      data?: { match?: string; message?: string; start?: string; end?: string };
     };
-    if (p.type === "data-refine_lint" && p.data?.match) {
+    if (p.type === "data-lens_seed") {
+      notices.push("Starting from the current lens.");
+    } else if (p.type === "data-window_reapply") {
+      notices.push(
+        p.data?.start && p.data?.end
+          ? `Regenerated the preview for ${formatWindowRange(p.data.start, p.data.end)}.`
+          : "Regenerated the preview for the selected window.",
+      );
+    } else if (p.type === "data-refine_lint" && p.data?.match) {
       notices.push(
         `Heads up: the lens pins a fixed count (“${p.data.match}”), so it may drop content when the sources change.`,
       );
@@ -242,7 +279,19 @@ function dataNoticesFor(msg: UIMessage): string[] {
   return notices;
 }
 
+// Server-fabricated turns that carry a lens part without the model having
+// drafted anything: the seeded current lens, and a re-apply to another window.
+// Their own notice (dataNoticesFor) replaces the "Updated the lens." one.
+const FABRICATED_TURN_PARTS = ["data-lens_seed", "data-window_reapply"];
+
 function toolNoticeFor(msg: UIMessage): string | null {
+  if (
+    msg.parts.some((p) =>
+      FABRICATED_TURN_PARTS.includes((p as { type?: string }).type ?? ""),
+    )
+  ) {
+    return null;
+  }
   for (const part of msg.parts) {
     const p = part as { type?: string; toolName?: string };
     const name =
@@ -278,11 +327,12 @@ export function ChatMessages({
   pending,
   assistantActions,
 }: ChatMessagesProps) {
-  // System messages carry no chat text. Those with a `context_spec` part mark
-  // where the context changed and render as dividers at that position; the
-  // rest (`window_spec`, legacy `pinned_ids`) stay in the stream unrendered.
+  // System messages carry no chat text. Those with a `context_spec` or
+  // `window` part mark where the context / target window changed and render
+  // as dividers at that position; the rest (`pinned_ids`) stay unrendered.
   const chatMessageCount = messages.filter((m) => m.role !== "system").length;
   let prevSpec: ContextSpec | null = null;
+  let prevWindow: TimeWindow | null = null;
 
   return (
     <>
@@ -296,11 +346,19 @@ export function ChatMessages({
       {messages.map((msg) => {
         if (msg.role === "system") {
           const spec = messageContextSpec(msg);
-          if (!spec) return null;
+          const win = messageWindow(msg);
+          if (!spec && !win) return null;
           const before = prevSpec;
-          prevSpec = spec;
+          if (spec) prevSpec = spec;
+          const windowBefore = prevWindow;
+          if (win) prevWindow = win;
           return (
-            <ContextSpecDivider key={msg.id} spec={spec} prevSpec={before} />
+            <Fragment key={msg.id}>
+              {win && (
+                <WindowDivider window={win} isFirst={windowBefore === null} />
+              )}
+              {spec && <ContextSpecDivider spec={spec} prevSpec={before} />}
+            </Fragment>
           );
         }
 

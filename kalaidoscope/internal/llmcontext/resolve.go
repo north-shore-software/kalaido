@@ -8,6 +8,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
@@ -15,11 +16,14 @@ import (
 )
 
 // ResolveSpecToIDs evaluates a spec into the concrete set of fragments and
-// upstream snapshots it names right now.
-func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec) (PinnedIDs, error) {
+// upstream snapshots it names right now. A non-nil window restricts the
+// fragments to those whose event date falls inside it (spec/model.md
+// §Boundary Semantics: half-open, [start, end)); upstream snapshots are not
+// windowed — a reflection cannot consume them anyway.
+func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, win *api.Window) (PinnedIDs, error) {
 	var pinned PinnedIDs
 
-	fragIDs, err := resolveFragments(ctx, app, spec)
+	fragIDs, err := resolveFragments(ctx, app, spec, win)
 	if err != nil {
 		return pinned, err
 	}
@@ -36,10 +40,28 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec) (P
 	return pinned, nil
 }
 
-func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec) ([]string, error) {
+// windowClause is the fragment-level time filter for a window. The event date
+// is source_time (when the email was sent, the note written); a fragment that
+// arrived without one falls back to its import time, so nothing silently drops
+// out of every window. Empty clause and no params for a nil window.
+func windowClause(win *api.Window) (string, dbx.Params) {
+	if win == nil || win.Start == "" || win.End == "" {
+		return "", dbx.Params{}
+	}
+	start, err1 := types.ParseDateTime(win.Start)
+	end, err2 := types.ParseDateTime(win.End)
+	if err1 != nil || err2 != nil || start.IsZero() || end.IsZero() {
+		return "", dbx.Params{}
+	}
+	return " && ((source_time != '' && source_time >= {:ws} && source_time < {:we}) || (source_time = '' && created >= {:ws} && created < {:we}))",
+		dbx.Params{"ws": start, "we": end}
+}
+
+func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec, win *api.Window) ([]string, error) {
 	var ids []string
+	winClause, winParams := windowClause(win)
 	if spec.WholeScope {
-		recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "", 0, 0, nil)
+		recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''"+winClause, "", 0, 0, winParams)
 		if err != nil {
 			return nil, fmt.Errorf("resolve WholeScope fragments: %w", err)
 		}
@@ -73,7 +95,10 @@ func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec) ([
 	}
 
 	if len(ors) > 0 {
-		recs, err := app.FindRecordsByFilter("fragment", "("+strings.Join(ors, " || ")+") && deleted_at = ''", "", 0, 0, params)
+		for k, v := range winParams {
+			params[k] = v
+		}
+		recs, err := app.FindRecordsByFilter("fragment", "("+strings.Join(ors, " || ")+") && deleted_at = ''"+winClause, "", 0, 0, params)
 		if err != nil {
 			return nil, fmt.Errorf("resolve specific fragments: %w", err)
 		}
@@ -223,10 +248,13 @@ func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 	}
 }
 
-func LatestPinnedAndSpec(msgs []api.UIMessage) (PinnedIDs, api.ContextSpec, api.WindowSpec) {
+// LatestPinnedAndSpec reads a transcript's current resolved context, context
+// spec and target window — each the newest system part of its type. The window
+// is nil for a windowless conversation (projections, unscheduled reflections).
+func LatestPinnedAndSpec(msgs []api.UIMessage) (PinnedIDs, api.ContextSpec, *api.Window) {
 	var pinned PinnedIDs
 	var spec api.ContextSpec
-	var winSpec api.WindowSpec
+	var win *api.Window
 	var gotPinned, gotSpec, gotWinSpec bool
 	for i := len(msgs) - 1; i >= 0 && !(gotPinned && gotSpec && gotWinSpec); i-- {
 		if msgs[i].Role != "system" {
@@ -243,14 +271,18 @@ func LatestPinnedAndSpec(msgs []api.UIMessage) (PinnedIDs, api.ContextSpec, api.
 					gotSpec = true
 				}
 			}
-			if !gotWinSpec && p.Type == "window_spec" && len(p.Data) > 0 {
-				if json.Unmarshal(p.Data, &winSpec) == nil {
+			if !gotWinSpec && p.Type == "window" && len(p.Data) > 0 {
+				var w api.Window
+				if json.Unmarshal(p.Data, &w) == nil {
 					gotWinSpec = true
+					if w.Start != "" && w.End != "" {
+						win = &w
+					}
 				}
 			}
 		}
 	}
-	return pinned, spec, winSpec
+	return pinned, spec, win
 }
 
 // DiffPinnedIDs reports what entered and left the context between two states.

@@ -12,9 +12,18 @@ import (
 
 func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		var spec api.ContextSpec
-		if err := e.BindBody(&spec); err != nil {
+		// The spec's own fields plus an optional window: a reflection's
+		// context bar counts only what falls inside its target window.
+		var body struct {
+			api.ContextSpec
+			Window *api.Window `json:"window,omitempty"`
+		}
+		if err := e.BindBody(&body); err != nil {
 			return e.BadRequestError("Invalid JSON body", err)
+		}
+		spec, win := body.ContextSpec, body.Window
+		if win != nil && (win.Start == "" || win.End == "") {
+			win = nil
 		}
 
 		ctx := e.Request.Context()
@@ -23,7 +32,7 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		if spec.WholeScope {
-			tokens := countTokensForSpec(ctx, app, api.ContextSpec{WholeScope: true})
+			tokens := countTokensForSpec(ctx, app, api.ContextSpec{WholeScope: true}, win)
 			res.TotalTokens = tokens
 			res.Breakdown["WholeScope"] = tokens
 			return e.JSON(http.StatusOK, res)
@@ -32,31 +41,31 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 		totalTokens := 0
 
 		for _, fid := range spec.FragmentIDs {
-			tokens := countTokensForSpec(ctx, app, api.ContextSpec{FragmentIDs: []string{fid}})
+			tokens := countTokensForSpec(ctx, app, api.ContextSpec{FragmentIDs: []string{fid}}, win)
 			totalTokens += tokens
 			res.Breakdown["Fragment:"+fid] = tokens
 		}
 
 		for _, ft := range spec.FragmentTypes {
-			tokens := countTokensForSpec(ctx, app, api.ContextSpec{FragmentTypes: []string{ft}})
+			tokens := countTokensForSpec(ctx, app, api.ContextSpec{FragmentTypes: []string{ft}}, win)
 			totalTokens += tokens
 			res.Breakdown["Type:"+ft] = tokens
 		}
 
 		for _, cid := range spec.ColourIDs {
-			tokens := countTokensForSpec(ctx, app, api.ContextSpec{ColourIDs: []string{cid}})
+			tokens := countTokensForSpec(ctx, app, api.ContextSpec{ColourIDs: []string{cid}}, win)
 			totalTokens += tokens
 			res.Breakdown["Colour:"+cid] = tokens
 		}
 
 		for _, pid := range spec.SourceProjectionIDs {
-			tokens := countTokensForSpec(ctx, app, api.ContextSpec{SourceProjectionIDs: []string{pid}})
+			tokens := countTokensForSpec(ctx, app, api.ContextSpec{SourceProjectionIDs: []string{pid}}, win)
 			totalTokens += tokens
 			res.Breakdown["Projection:"+pid] = tokens
 		}
 
 		for _, rid := range spec.SourceReflectionIDs {
-			tokens := countTokensForSpec(ctx, app, api.ContextSpec{SourceReflectionIDs: []string{rid}})
+			tokens := countTokensForSpec(ctx, app, api.ContextSpec{SourceReflectionIDs: []string{rid}}, win)
 			totalTokens += tokens
 			res.Breakdown["Reflection:"+rid] = tokens
 		}
@@ -67,8 +76,8 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func countTokensForSpec(ctx context.Context, app core.App, spec api.ContextSpec) int {
-	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, spec)
+func countTokensForSpec(ctx context.Context, app core.App, spec api.ContextSpec, win *api.Window) int {
+	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, spec, win)
 	if err != nil {
 		return 0
 	}

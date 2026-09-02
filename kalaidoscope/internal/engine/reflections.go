@@ -1,11 +1,11 @@
 package engine
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
+	"sort"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
@@ -21,85 +21,110 @@ func (s ReflectionStrategy) LensCollectionName() string     { return "lens" }
 func (s ReflectionStrategy) SnapshotCollectionName() string { return "reflection_snapshot" }
 func (s ReflectionStrategy) ForeignKeyCol() string          { return "reflection_id" }
 func (s ReflectionStrategy) EnsureFragmentsOnly() bool      { return true }
-func (s ReflectionStrategy) GetPendingWindows(app core.App, record *core.Record) ([]api.Window, error) {
-	return GetPendingWindows(app, record.Id)
+
+// WindowState is one window of a reflection's series with what the store
+// holds for it.
+type WindowState struct {
+	api.Window
+	Key string
+	// An approved snapshot exists for this window.
+	HasApproved bool
+	// A generation claim is currently open for it.
+	Generating bool
+	// Materialized by an explicit backfill rather than by the grid.
+	Backfilled bool
+	// The lens that produced the window's current approved snapshot.
+	LensID string
+
+	approvedSeq int
 }
 
-func CalculatePendingWindows(reflectionID string, spec api.WindowSpec, lastWindowEnd, created, now time.Time) []api.Window {
-	var pending []api.Window
-
-	period, err := time.ParseDuration(spec.Period)
-	if err != nil || period <= 0 {
-		return pending
-	}
-
-	if lastWindowEnd.IsZero() {
-		anchorStr := spec.StartTime
-		if anchorStr != "" {
-			if t, err := time.Parse(time.RFC3339, anchorStr); err == nil {
-				lastWindowEnd = t
-			}
+// SeriesWindows is a reflection's materialized windows, oldest first
+// (spec/model.md §Materialized Windows): the governing version's grid since
+// its lower bound, every explicitly backfilled window, and every window that
+// already has an approved snapshot — the last so that windows generated under
+// an earlier schedule version stay in the series after an edit.
+func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState {
+	byKey := make(map[string]*WindowState)
+	var order []string
+	add := func(w api.Window, backfilled bool) *WindowState {
+		key := WindowKey(w)
+		if st, ok := byKey[key]; ok {
+			st.Backfilled = st.Backfilled || backfilled
+			return st
 		}
-		if lastWindowEnd.IsZero() {
-			lastWindowEnd = created
+		if w.ID == "" {
+			w.ID = WindowID(rec.Id, w)
 		}
+		st := &WindowState{Window: w, Key: key, Backfilled: backfilled}
+		byKey[key] = st
+		order = append(order, key)
+		return st
 	}
 
-	elapsed := now.Sub(lastWindowEnd)
-	periods := int(elapsed.Nanoseconds() / period.Nanoseconds())
-	for i := 1; i <= periods; i++ {
-		start := lastWindowEnd.Add(time.Duration(i-1) * period)
-		end := lastWindowEnd.Add(time.Duration(i) * period)
-
-		hash := md5.Sum([]byte(reflectionID + start.Format(time.RFC3339) + end.Format(time.RFC3339)))
-		id := hex.EncodeToString(hash[:])
-
-		pending = append(pending, api.Window{
-			ID:    id,
-			Start: start.Format(time.RFC3339),
-			End:   end.Format(time.RFC3339),
-		})
-	}
-	return pending
-}
-
-func GetPendingWindows(app core.App, reflectionID string) ([]api.Window, error) {
-	rec, err := app.FindRecordById("reflection", reflectionID)
-	if err != nil {
-		return nil, err
+	for _, w := range CurrentGridWindows(rec, now) {
+		add(w, false)
 	}
 
-	version, ok := GoverningVersion(LoadWindowSpecVersions(rec), time.Now())
-	if !ok || version.Spec.Period == "" {
-		return nil, nil
+	backfills, _ := app.FindRecordsByFilter("reflection_window",
+		"reflection_id = {:id}", "start", 0, 0, dbx.Params{"id": rec.Id})
+	for _, b := range backfills {
+		add(api.Window{Start: b.GetString("start"), End: b.GetString("end")}, true)
 	}
-	currentSpec := version.Spec
 
-	created := rec.GetDateTime("created").Time()
-	return CalculatePendingWindows(reflectionID, currentSpec, LastApprovedWindowEnd(app, reflectionID), created, time.Now()), nil
-}
-
-// LastApprovedWindowEnd is the end of the latest schedule window this
-// reflection has an approved snapshot for — the point pending-window
-// calculation resumes from. It scans the approved windowed snapshots for the
-// max resolved_window end: approval sequences count per window, so "highest
-// sequence" says nothing about which window is newest, and window_spec holds
-// the schedule (period), not the window bounds. Zero when no window has ever
-// been generated.
-func LastApprovedWindowEnd(app core.App, reflectionID string) time.Time {
-	recs, _ := app.FindRecordsByFilter("reflection_snapshot",
-		"reflection_id = {:id} && status = 'approved' && window_key != ''", "", 0, 0,
-		map[string]any{"id": reflectionID})
-
-	var last time.Time
-	for _, r := range recs {
-		var win map[string]string
-		if err := r.UnmarshalJSONField("resolved_window", &win); err != nil {
+	snaps, _ := app.FindRecordsByFilter("reflection_snapshot",
+		"reflection_id = {:id} && window_key != '' && (status = 'approved' || status = 'generating')",
+		"", 0, 0, dbx.Params{"id": rec.Id})
+	for _, s := range snaps {
+		var rw map[string]string
+		if err := s.UnmarshalJSONField("resolved_window", &rw); err != nil || rw["start"] == "" || rw["end"] == "" {
+			// A claim row carries only the key until it completes.
 			continue
 		}
-		if t, err := time.Parse(time.RFC3339, win["end"]); err == nil && t.After(last) {
-			last = t
+		st := add(api.Window{Start: rw["start"], End: rw["end"]}, false)
+		switch s.GetString("status") {
+		case StatusApproved:
+			st.HasApproved = true
+			if seq := s.GetInt("approval_sequence_number"); seq >= st.approvedSeq {
+				st.approvedSeq = seq
+				st.LensID = s.GetString("lens_id")
+			}
+		case StatusGenerating:
+			st.Generating = true
 		}
 	}
-	return last
+	// Claim rows have a key but no resolved_window yet; mark them by key.
+	for _, s := range snaps {
+		if s.GetString("status") == StatusGenerating {
+			if st, ok := byKey[s.GetString("window_key")]; ok {
+				st.Generating = true
+			}
+		}
+	}
+
+	out := make([]WindowState, 0, len(order))
+	for _, key := range order {
+		out = append(out, *byKey[key])
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Start != out[j].Start {
+			return out[i].Start < out[j].Start
+		}
+		return out[i].End < out[j].End
+	})
+	return out
+}
+
+// PendingWindows are the materialized windows that still need a snapshot:
+// no approved output yet and no generation in flight. Oldest first, so a
+// catch-up (or a backfill) walks history forward.
+func PendingWindows(app core.App, rec *core.Record, now time.Time) []api.Window {
+	var pending []api.Window
+	for _, st := range SeriesWindows(app, rec, now) {
+		if st.HasApproved || st.Generating {
+			continue
+		}
+		pending = append(pending, st.Window)
+	}
+	return pending
 }

@@ -59,7 +59,7 @@ func (projectionsFlow) Existing(c *Context) ([]Existing, error) {
 		for _, rec := range recs {
 			var spec api.ContextSpec
 			_ = rec.UnmarshalJSONField("current_context_spec", &spec)
-			pinned, _ := llmcontext.ResolveSpecToIDs(context.Background(), c.App, spec)
+			pinned, _ := llmcontext.ResolveSpecToIDs(context.Background(), c.App, spec, nil)
 			note := ""
 			if rec.GetString("status") == engine.EntityProposed {
 				if c.Run != nil && rec.GetString("origin_run_id") == c.Run.Id {

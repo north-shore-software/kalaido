@@ -191,6 +191,14 @@ const (
 	RemovedNotice = "The following documents were REMOVED from the active context and should no longer be relied upon:\n"
 )
 
+// WindowNotice announces the time window a reflection refinement is bound to.
+// It rides the same system turn as the context delta, so the lens-writing
+// model knows which slice of time its lens is being previewed against and can
+// write lenses that read naturally per window ("this week", not "all time").
+func WindowNotice(start, end string) string {
+	return "The active time window is " + start + " to " + end + ". Only documents whose event date falls inside it are in the context; the lens will be re-applied to other windows of the same length.\n\n"
+}
+
 // RemovedIDLine lists one removed document under RemovedNotice; kind is the
 // label the model sees ("Fragment" or "Snapshot").
 func RemovedIDLine(kind, id string) string {

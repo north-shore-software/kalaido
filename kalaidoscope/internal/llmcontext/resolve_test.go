@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -30,7 +31,7 @@ func addFragment(t *testing.T, app core.App, fragType, content string) *core.Rec
 func resolveFragmentIDs(t *testing.T, app core.App, spec api.ContextSpec) []string {
 	t.Helper()
 
-	pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, spec)
+	pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, spec, nil)
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -122,4 +123,73 @@ func TestResolveExplicitFragmentsSkipsDeleted(t *testing.T) {
 		FragmentIDs: []string{kept.Id, gone.Id},
 	})
 	assertIDs(t, got, sorted(kept.Id))
+}
+
+// A window restricts resolution to fragments whose event date (source_time)
+// falls inside it, half-open. A fragment that arrived without a source_time is
+// placed by its import time instead, so it belongs to the window covering
+// "now" rather than to none.
+func TestResolveWindowFiltersByEventDate(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	at := func(s string) types.DateTime {
+		d, err := types.ParseDateTime(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	inside := testutil.NewRecord(t, app, "fragment", map[string]any{
+		"type": "note", "content": "inside", "source_time": at("2026-08-10T12:00:00Z"),
+	})
+	testutil.NewRecord(t, app, "fragment", map[string]any{
+		"type": "note", "content": "before", "source_time": at("2026-07-30T12:00:00Z"),
+	})
+	testutil.NewRecord(t, app, "fragment", map[string]any{
+		"type": "note", "content": "at the end (excluded)", "source_time": at("2026-08-15T00:00:00Z"),
+	})
+	atStart := testutil.NewRecord(t, app, "fragment", map[string]any{
+		"type": "note", "content": "at the start (included)", "source_time": at("2026-08-08T00:00:00Z"),
+	})
+	undated := addFragment(t, app, "note", "no source_time; created now")
+
+	win := &api.Window{Start: "2026-08-08T00:00:00Z", End: "2026-08-15T00:00:00Z"}
+
+	t.Run("whole scope", func(t *testing.T) {
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, win)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertIDs(t, sortedCopy(pinned.FragmentIDs), sorted(inside.Id, atStart.Id))
+	})
+
+	t.Run("criteria", func(t *testing.T) {
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{FragmentTypes: []string{"note"}}, win)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertIDs(t, sortedCopy(pinned.FragmentIDs), sorted(inside.Id, atStart.Id))
+	})
+
+	t.Run("undated fragments fall back to import time", func(t *testing.T) {
+		now := &api.Window{
+			Start: types.NowDateTime().Time().Add(-time.Hour).UTC().Format(time.RFC3339),
+			End:   types.NowDateTime().Time().Add(time.Hour).UTC().Format(time.RFC3339),
+		}
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertIDs(t, sortedCopy(pinned.FragmentIDs), sorted(undated.Id))
+	})
+
+	t.Run("nil window is unrestricted", func(t *testing.T) {
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(pinned.FragmentIDs) != 5 {
+			t.Fatalf("got %d fragments, want all 5", len(pinned.FragmentIDs))
+		}
+	})
 }

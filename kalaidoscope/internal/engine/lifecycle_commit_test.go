@@ -33,7 +33,7 @@ func TestCommitRefinementInstallsLens(t *testing.T) {
 	pinned := llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}
 
 	snapID, err := CommitRefinement(context.Background(), app, strat,
-		proj.Id, "", "NEW LENS", "APPROVED OUTPUT", pinned, spec, api.WindowSpec{}, ref.Id, "projection")
+		proj.Id, "", "NEW LENS", "APPROVED OUTPUT", pinned, spec, nil, ref.Id, "projection")
 	if err != nil {
 		t.Fatalf("commit: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestGenerateSucceedsImmediatelyAfterCommit(t *testing.T) {
 	pinned := llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}
 
 	if _, err := CommitRefinement(context.Background(), app, strat,
-		proj.Id, "", "NEW LENS", "APPROVED OUTPUT", pinned, spec, api.WindowSpec{}, ref.Id, "projection"); err != nil {
+		proj.Id, "", "NEW LENS", "APPROVED OUTPUT", pinned, spec, nil, ref.Id, "projection"); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
 

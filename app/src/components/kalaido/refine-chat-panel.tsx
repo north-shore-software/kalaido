@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { WindowSpec } from "@/api/kalaidoscope/chat";
+import type { TimeWindow } from "@/api/kalaidoscope/chat";
 import type { RefineSession } from "@/hooks/use-refine-session";
 import {
   ChatPanel,
@@ -29,7 +29,7 @@ export function RefineChatPanel({
   title,
   placeholder,
   flat = true,
-  windowSpec,
+  timeWindow,
 }: {
   session: RefineSession;
   /** Active context selection; omit to leave the conversation's pinned context untouched. */
@@ -40,7 +40,8 @@ export function RefineChatPanel({
   onContextChange?: (items: ContextItem[]) => void;
   /** See {@link ChatPanel}'s entity — restricts the bar's pin search. */
   entity?: EntityKind;
-  windowSpec?: WindowSpec;
+  /** See {@link ChatPanel}'s timeWindow — the window a reflection refinement targets. */
+  timeWindow?: TimeWindow;
   title?: ReactNode;
   placeholder?: string;
   flat?: boolean;
@@ -56,7 +57,7 @@ export function RefineChatPanel({
       onMention={onMention}
       onContextChange={onContextChange}
       entity={entity}
-      windowSpec={windowSpec}
+      timeWindow={timeWindow}
       onMessagesChange={session.onMessagesChange}
       title={title}
       placeholder={placeholder}

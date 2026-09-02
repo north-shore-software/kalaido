@@ -6,9 +6,10 @@ import {
   createKalaidoChatTransport,
   itemsToSpec,
   parseActiveContext,
+  parseActiveWindow,
   specKey,
-  type WindowSpec,
-  windowSpecKey,
+  type TimeWindow,
+  timeWindowKey,
 } from "@/api/kalaidoscope/chat.ts";
 import { isQuotaError, QUOTA_MESSAGE } from "@/api/kalaidoscope/cloud/quota";
 import { PaneHeader } from "@/components/layout/page-chrome";
@@ -46,12 +47,13 @@ interface ChatPanelProps {
   /** Restricts the bar's pin search (a reflection can only pin fragments). */
   entity?: EntityKind;
   /**
-   * The active reflection window selection. Like {@link context}, whenever it
-   * changes between turns the panel appends a `window_spec` system message to the
-   * outgoing stream so the backend can update the reflection's schedule mid-chat.
-   * Omit it entirely (projections, plain chat) to opt out.
+   * The window a reflection refinement targets. Like {@link context}, whenever
+   * it changes between turns the panel appends a `window` system message to
+   * the outgoing stream; the backend re-resolves the context inside it, the
+   * next preview is generated for it, and a commit files the snapshot under
+   * it. Omit it entirely (projections, plain chat) to opt out.
    */
-  windowSpec?: WindowSpec;
+  timeWindow?: TimeWindow;
   /** AI SDK chat id. Reuse a conversation's client id to resume it server-side. */
   chatId?: string;
   initialMessages?: UIMessage[];
@@ -93,7 +95,7 @@ export function ChatPanel({
   onMention,
   onContextChange,
   entity,
-  windowSpec,
+  timeWindow,
   chatId,
   initialMessages,
   initialPrompt,
@@ -131,14 +133,21 @@ export function ChatPanel({
     );
   }
 
-  // Same machinery for the optional reflection window spec. A caller that omits
-  // `windowSpec` opts out (e.g. projections / plain chat); otherwise we emit a
-  // `window_spec` part whenever it diverges from the last one sent.
-  const manageWindowRef = useRef(windowSpec !== undefined);
-  manageWindowRef.current = windowSpec !== undefined;
-  const windowSpecRef = useRef(windowSpec);
-  windowSpecRef.current = windowSpec;
-  const lastSentWindowRef = useRef(windowSpecKey(undefined));
+  // Same machinery for the optional target window. A caller that omits
+  // `timeWindow` opts out (e.g. projections / plain chat); otherwise we emit a
+  // `window` part whenever it diverges from the last one sent — the baseline
+  // being the window the conversation was seeded/resumed with, so re-opening
+  // a session never re-announces its own window.
+  const manageWindowRef = useRef(timeWindow !== undefined);
+  manageWindowRef.current = timeWindow !== undefined;
+  const timeWindowRef = useRef(timeWindow);
+  timeWindowRef.current = timeWindow;
+  const lastSentWindowRef = useRef<string | null>(null);
+  if (lastSentWindowRef.current === null) {
+    lastSentWindowRef.current = timeWindowKey(
+      parseActiveWindow(initialMessages ?? []),
+    );
+  }
 
   const [quotaHit, setQuotaHit] = useState(false);
 
@@ -196,6 +205,21 @@ export function ChatPanel({
     onMessagesChange?.(messages);
   }, [messages, onMessagesChange]);
 
+  // A target-window change is acted on at once, not on the next message: the
+  // window part goes onto the transcript and a message-less send asks the
+  // server to re-apply the standing lens to it (the preview moves, the lens
+  // does not). Before the first assistant turn there is no lens to re-apply,
+  // so the window simply rides the first send.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges reads refs; messages/isLoading are the gates
+  useEffect(() => {
+    if (!manageWindowRef.current || !timeWindow) return;
+    if (timeWindowKey(timeWindow) === lastSentWindowRef.current) return;
+    if (isLoading || quotaHit) return;
+    if (!messages.some((m) => m.role === "assistant")) return;
+    appendSpecChanges();
+    sendMessage();
+  }, [timeWindow, isLoading, quotaHit, messages, sendMessage]);
+
   /**
    * Append any spec change (context and/or window) to the live transcript as a
    * system message before a send, so the transcript the user sees — including
@@ -214,9 +238,14 @@ export function ChatPanel({
       lastSentSpecRef.current = ctxKey;
     }
 
-    const winKey = windowSpecKey(windowSpecRef.current);
-    if (manageWindowRef.current && winKey !== lastSentWindowRef.current) {
-      specParts.push({ type: "window_spec", data: windowSpecRef.current });
+    const winKey = timeWindowKey(timeWindowRef.current);
+    if (
+      manageWindowRef.current &&
+      timeWindowRef.current &&
+      winKey !== lastSentWindowRef.current
+    ) {
+      const { start, end, id } = timeWindowRef.current;
+      specParts.push({ type: "window", data: { start, end, id } });
       lastSentWindowRef.current = winKey;
     }
 

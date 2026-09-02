@@ -48,3 +48,32 @@ export const DAY = 86400;
 export function daysToSecs(days: number): number {
   return Math.max(1, Math.round(days)) * DAY;
 }
+
+/**
+ * A window's bounds as dates — "3 Aug – 10 Aug", with the year only when it
+ * isn't the current one. The end is exclusive on the server (half-open
+ * windows); a midnight-aligned end therefore names the first day *not*
+ * covered, so it is shown as the preceding day.
+ */
+export function formatWindowRange(
+  start: string | Date,
+  end: string | Date,
+): string {
+  const s = new Date(start);
+  let e = new Date(end);
+  if (
+    e.getUTCHours() === 0 &&
+    e.getUTCMinutes() === 0 &&
+    e.getTime() - s.getTime() > 24 * 60 * 60 * 1000
+  ) {
+    e = new Date(e.getTime() - 60 * 1000);
+  }
+  const thisYear = new Date().getFullYear();
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      ...(d.getFullYear() !== thisYear ? { year: "numeric" } : {}),
+    }).format(d);
+  return `${fmt(s)} – ${fmt(e)}`;
+}

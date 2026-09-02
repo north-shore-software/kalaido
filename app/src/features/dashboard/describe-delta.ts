@@ -24,10 +24,12 @@ export function describeDelta(
 
   const nf = s.newFragmentIds?.length ?? 0;
   const pw = s.pendingWindows?.length ?? 0;
+  const sw = s.staleWindows?.length ?? 0;
   const stale = s.staleDependencies ?? [];
   const parts: string[] = [];
   if (nf > 0) parts.push(`${nf} new fragment${nf > 1 ? "s" : ""}`);
   if (pw > 0) parts.push(`${pw} window${pw > 1 ? "s" : ""} due`);
+  if (sw > 0) parts.push(`${sw} window${sw > 1 ? "s" : ""} stale`);
   if (stale.length > 0) parts.push(`${joinNames(stale, nameFor)} updated`);
   return parts.join(" · ") || "needs refresh";
 }

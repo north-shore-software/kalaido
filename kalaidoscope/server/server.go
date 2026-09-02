@@ -128,6 +128,8 @@ func RegisterRoutes(app core.App) {
 		se.Router.PATCH("/api/reflections/{id}", handlers.HandleUpdateReflection(app))
 		se.Router.DELETE("/api/reflections/{id}", handlers.HandleDeleteReflection(app))
 		se.Router.POST("/api/reflections/{id}/generate-snapshot", handlers.HandleGenerateReflectionSnapshot(app))
+		se.Router.GET("/api/reflections/{id}/windows", handlers.HandleListReflectionWindows(app))
+		se.Router.POST("/api/reflections/{id}/backfill", handlers.HandleBackfillReflection(app))
 		se.Router.POST("/api/reflections/{id}/refinements", handlers.HandleCreateReflectionRefinement(app))
 		se.Router.POST("/api/reflections/{id}/refinements/{rid}/commit", handlers.HandleCommitReflectionRefinement(app))
 

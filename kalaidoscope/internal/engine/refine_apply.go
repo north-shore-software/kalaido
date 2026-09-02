@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/types"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -26,9 +26,14 @@ import (
 //
 // Raw candidate text streams through onDelta as it generates; the returned
 // string is the trimmed final output.
-func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, onDelta func(string)) (string, error) {
+func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window, onDelta func(string)) (string, error) {
+	start, end := WindowBounds(win)
+	prompt := prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)
+	if err := CheckPromptFits(model, len(prompt)); err != nil {
+		return "", fmt.Errorf("apply lens: %w", err)
+	}
 	candidate, err := usage.GenerateStreamMsgs(ctx, app,
-		[]llm.Message{{Role: "user", Content: prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{})}},
+		[]llm.Message{{Role: "user", Content: prompt}},
 		llm.RoleSnapshot, model, onDelta)
 	if err != nil {
 		return "", fmt.Errorf("apply lens: %w", err)

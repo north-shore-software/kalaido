@@ -100,7 +100,7 @@ func runWave(app core.App) {
 
 func needsWork(s api.EntityStatus) bool {
 	return len(s.NewFragmentIDs) > 0 || len(s.StaleDependencies) > 0 ||
-		len(s.BlockedBy) > 0 || len(s.PendingWindows) > 0
+		len(s.BlockedBy) > 0 || len(s.PendingWindows) > 0 || len(s.StaleWindows) > 0
 }
 
 func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error {
@@ -120,11 +120,19 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 	}
 
 	var windows []*api.Window
-	if len(s.PendingWindows) > 0 {
+	if len(s.PendingWindows)+len(s.StaleWindows) > 0 {
 		for i := range s.PendingWindows {
 			windows = append(windows, &s.PendingWindows[i])
 		}
+		for i := range s.StaleWindows {
+			windows = append(windows, &s.StaleWindows[i])
+		}
 	} else {
+		if s.Type == "reflection" && len(engine.CurrentGridWindows(rec, time.Now())) > 0 {
+			// A scheduled reflection owes nothing: its windows are all
+			// generated and fresh. A windowless snapshot is never the answer.
+			return nil
+		}
 		if engine.SnapshotIsCurrent(ctx, app, strat, rec) {
 			return nil
 		}

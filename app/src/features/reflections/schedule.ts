@@ -1,10 +1,10 @@
 import { parseWindowSpec, type WindowSpec } from "@/api/kalaidoscope/chat";
 
-// Reflection schedule UI options, shared by NewReflection (authoring) and the
-// reflection detail view (editing). Frequency = how often it regenerates;
+// Reflection schedule UI options for the refine screen (creating and the
+// existing case alike). Frequency = how often it regenerates;
 // lookback = the data window each run summarizes. A reflection's schedule lives
-// on `window_spec_versions`, an append-only list, and is updated by PATCHing the
-// reflection — committing a refinement no longer writes it.
+// on `window_spec_versions`, an append-only list: it is set at creation and
+// updated by PATCHing the reflection (see `usePersistSchedule`).
 export const FREQ = ["Hourly", "Daily", "Weekly", "Monthly"] as const;
 export const FREQ_DAYS = [1 / 24, 1, 7, 30];
 export const WIN = ["1h", "24h", "7 days", "30 days", "7 months"] as const;
@@ -20,11 +20,36 @@ const hoursStr = (days: number) => `${Math.round(days * 24)}h`;
 export function buildWindowSpec(input: {
   cadenceDays: number;
   lookbackDays: number;
+  /** Grid origin (RFC3339); in the past at creation = summarize from then. */
+  startTime?: string;
 }): WindowSpec {
   return {
+    ...(input.startTime ? { startTime: input.startTime } : {}),
     period: hoursStr(input.cadenceDays),
     duration: hoursStr(input.lookbackDays),
   };
+}
+
+/** A canonical key for a schedule, to notice when the chips actually changed. */
+export function scheduleKey(spec: WindowSpec): string {
+  return `${spec.startTime ?? ""}|${spec.period}|${spec.duration}`;
+}
+
+/**
+ * How many grid windows lie between `startTime` and now — the number of
+ * historical summaries "summarize from <date>" will generate. Same maths as
+ * the server's grid (grid point k at start + k·period, k ≥ 1, ≤ now).
+ */
+export function countGridWindows(
+  startTime: string | undefined,
+  cadenceDays: number,
+  now: Date = new Date(),
+): number {
+  if (!startTime) return 0;
+  const start = new Date(startTime).getTime();
+  const periodMs = Math.round(cadenceDays * 24) * 60 * 60 * 1000;
+  if (!Number.isFinite(start) || periodMs <= 0) return 0;
+  return Math.max(0, Math.floor((now.getTime() - start) / periodMs));
 }
 
 function durationHours(s: string | undefined): number {

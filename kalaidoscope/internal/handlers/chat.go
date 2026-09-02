@@ -48,7 +48,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		newMsgs := chat.ExtractNewMessages(dbMsgs, req.Messages)
 
 		// Phase 1: Resolve ContextSpec to PinnedIDs
-		chat.ResolveContextSpecs(ctx, app, newMsgs)
+		chat.ResolveContextSpecs(ctx, app, dbMsgs, newMsgs)
 
 		// Persist new messages
 		if conv != nil {

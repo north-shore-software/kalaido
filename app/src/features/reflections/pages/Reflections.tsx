@@ -11,7 +11,7 @@ import {
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ListRow, PinToggle } from "@/components/kalaido";
-import { ReflectionDetailPanel } from "../components/reflection-detail-panel";
+import { ReflectionSeriesPanel } from "../components/reflection-series-panel";
 import {
   currentWindowSpec,
   describeWindow,
@@ -29,7 +29,7 @@ async function togglePin(r: ReflectionResponse) {
 
 export default function Reflections() {
   const { go } = useAppNavigate();
-  const { id, snapshotId } = useParams<{ id?: string; snapshotId?: string }>();
+  const { id, windowId } = useParams<{ id?: string; windowId?: string }>();
 
   const { records: reflections, isLoading } = useLiveCollection("reflection", {
     filter: 'name != "" && status = "active"',
@@ -96,9 +96,9 @@ export default function Reflections() {
             )}
           </div>
           {activeId ? (
-            <ReflectionDetailPanel
+            <ReflectionSeriesPanel
               reflectionId={activeId}
-              snapshotId={snapshotId}
+              windowId={windowId}
             />
           ) : (
             <EmptyState centered>Select a reflection</EmptyState>
@@ -112,7 +112,7 @@ export default function Reflections() {
 export const reflectionsRoute = defineRoute({
   id: "reflections",
   path: "/reflections/:id?",
-  aliases: ["/reflections/:id/snapshot/:snapshotId"],
+  aliases: ["/reflections/:id/window/:windowId"],
   feature: "Reflections",
   requiredScope: ["kalaidoscope"],
   transitions: reflectionsTransitions,

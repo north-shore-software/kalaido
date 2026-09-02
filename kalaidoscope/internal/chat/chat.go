@@ -200,29 +200,63 @@ func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID
 	return turn
 }
 
-func ResolveContextSpecs(ctx context.Context, app core.App, newMsgs []api.UIMessage) {
+// ResolveContextSpecs stamps each incoming system message that changes the
+// context — a `context_spec` part, a `window` part, or both — with the
+// `pinned_ids` that (spec, window) pair resolves to right now. The pair is
+// cumulative across the transcript: a window change alone re-resolves the
+// spec already in effect (read from history), and vice versa, so pinned_ids
+// always reflect both.
+func ResolveContextSpecs(ctx context.Context, app core.App, history, newMsgs []api.UIMessage) {
+	_, spec, win := llmcontext.LatestPinnedAndSpec(history)
 	for i, m := range newMsgs {
-		if m.Role == "system" {
-			var resolvedParts []api.UIMessagePart
-			for _, p := range m.Parts {
-				if p.Type == "context_spec" {
-					var spec api.ContextSpec
-					if err := json.Unmarshal(p.Data, &spec); err == nil {
-						if pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, spec); err == nil {
-							b, _ := json.Marshal(pinned)
-							resolvedParts = append(resolvedParts, api.UIMessagePart{
-								Type: "pinned_ids",
-								Data: b,
-							})
-						}
+		if m.Role != "system" {
+			continue
+		}
+		changed := false
+		for _, p := range m.Parts {
+			switch p.Type {
+			case "context_spec":
+				var s api.ContextSpec
+				if err := json.Unmarshal(p.Data, &s); err == nil {
+					spec = s
+					changed = true
+				}
+			case "window":
+				var w api.Window
+				if err := json.Unmarshal(p.Data, &w); err == nil {
+					if w.Start != "" && w.End != "" {
+						win = &w
+					} else {
+						win = nil
 					}
+					changed = true
 				}
 			}
-			if len(resolvedParts) > 0 {
-				newMsgs[i].Parts = append(newMsgs[i].Parts, resolvedParts...)
+		}
+		if !changed {
+			continue
+		}
+		if pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, spec, win); err == nil {
+			b, _ := json.Marshal(pinned)
+			newMsgs[i].Parts = append(newMsgs[i].Parts, api.UIMessagePart{
+				Type: "pinned_ids",
+				Data: b,
+			})
+		}
+	}
+}
+
+// messageWindow is the `window` part a system message carries, if any.
+func messageWindow(m api.UIMessage) *api.Window {
+	for _, p := range m.Parts {
+		if p.Type == "window" && len(p.Data) > 0 {
+			var w api.Window
+			if json.Unmarshal(p.Data, &w) == nil && w.Start != "" && w.End != "" {
+				return &w
 			}
 		}
 	}
+	return nil
 }
 
 func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMessage) []llm.Message {
@@ -240,13 +274,18 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 					}
 				}
 			}
+			var text string
+			if w := messageWindow(m); w != nil {
+				text = prompts.WindowNotice(w.Start, w.End)
+			}
 			if foundPinned {
 				added, removed := llmcontext.DiffPinnedIDs(activeIDs, pinned)
 				deltaText, _ := llmcontext.HydrateDeltaToText(ctx, app, added, removed)
-				if deltaText != "" {
-					hydratedMsgs = append(hydratedMsgs, llm.Message{Role: "system", Content: deltaText})
-				}
+				text += deltaText
 				activeIDs = pinned
+			}
+			if text != "" {
+				hydratedMsgs = append(hydratedMsgs, llm.Message{Role: "system", Content: text})
 			}
 		} else {
 			if flat := llmcontext.Flatten([]api.UIMessage{m}); len(flat) > 0 {

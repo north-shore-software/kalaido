@@ -12,9 +12,27 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
+// WindowReapplyPartType marks an assistant turn the server fabricated to
+// re-apply the standing lens to a different preview window. It repeats the
+// lens part (so the commit-time pairing of lens and output holds) but says
+// nothing new to the lens-writer, so Flatten leaves it out.
+const WindowReapplyPartType = "data-window_reapply"
+
+func hasPart(m api.UIMessage, partType string) bool {
+	for _, p := range m.Parts {
+		if p.Type == partType {
+			return true
+		}
+	}
+	return false
+}
+
 func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 	msgs := make([]llm.Message, 0, len(uiMsgs))
 	for _, m := range uiMsgs {
+		if hasPart(m, WindowReapplyPartType) {
+			continue
+		}
 		var sb strings.Builder
 		for _, p := range m.Parts {
 			switch {

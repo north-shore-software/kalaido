@@ -251,6 +251,28 @@ var schema = []tableDef{
 	},
 
 	{
+		// Windows a user explicitly backfilled (spec/model.md §Window
+		// Backfill). Materialisation is permanent and independent of whether
+		// a snapshot was ever produced, so it is a row of its own rather than
+		// something derived from reflection_snapshot; the grid's own windows
+		// are derived from window_spec_versions and never stored here.
+		Name:                   "reflection_window",
+		DisableWriteOperations: true,
+		Fields: []core.Field{
+			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", Required: true, MaxSelect: 1, CascadeDelete: true},
+			&core.TextField{Name: "window_key", Required: true},
+			&core.TextField{Name: "start", Required: true},
+			&core.TextField{Name: "end", Required: true},
+			&core.NumberField{Name: "window_spec_version_number"},
+			&core.AutodateField{Name: "created", OnCreate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_reflection_window_reflection", Columns: "reflection_id"},
+			{Name: "idx_reflection_window_key", Unique: true, Columns: "reflection_id, window_key"},
+		},
+	},
+
+	{
 		Name:                   "refine_proj_snapshot_conversation",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
