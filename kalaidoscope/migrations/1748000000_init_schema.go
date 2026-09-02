@@ -137,6 +137,7 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.TextField{Name: "name"},
+			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"proposed", "active"}},
 			&core.JSONField{Name: "current_context_spec"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			// Optional per-entity model override; empty = workspace role default.
@@ -157,6 +158,7 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.TextField{Name: "name"},
+			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"proposed", "active"}},
 			&core.JSONField{Name: "current_context_spec"},
 			&core.JSONField{Name: "window_spec_versions"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},

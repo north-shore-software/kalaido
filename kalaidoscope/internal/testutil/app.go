@@ -44,6 +44,9 @@ func NewRecord(t *testing.T, app core.App, collection string, values map[string]
 	for k, v := range values {
 		rec.Set(k, v)
 	}
+	if (collection == "projection" || collection == "reflection") && rec.GetString("status") == "" {
+		rec.Set("status", "active")
+	}
 	if err := app.Save(rec); err != nil {
 		t.Fatalf("save %s: %v", collection, err)
 	}
