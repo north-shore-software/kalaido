@@ -154,9 +154,32 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 		// is never read.
 		genCtx := context.WithoutCancel(e.Request.Context())
 
+		// Several windows generate at once; llmq caps how many model calls
+		// are actually in flight. The first failure is what the response
+		// reports, after every window has had its turn.
 		var snapIDs []string
+		var firstErr error
+		if len(windowsToGenerate) > 1 {
+			plain := make([]api.Window, 0, len(windowsToGenerate))
+			for _, w := range windowsToGenerate {
+				plain = append(plain, *w)
+			}
+			for _, r := range engine.GenerateWindows(genCtx, app, id, status, strat, plain) {
+				if r.Err != nil {
+					if firstErr == nil {
+						firstErr = r.Err
+					}
+					continue
+				}
+				snapIDs = append(snapIDs, r.SnapshotID)
+			}
+			windowsToGenerate = nil
+		}
 		for _, w := range windowsToGenerate {
 			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, strat, w)
+			if err != nil {
+				firstErr = err
+			}
 			switch {
 			case errors.Is(err, usage.ErrExhausted):
 				return usage.WriteExhausted(e, app)
@@ -181,6 +204,31 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 			if snapID != "" {
 				snapIDs = append(snapIDs, snapID)
 			}
+		}
+		if firstErr != nil && len(snapIDs) == 0 {
+			// The fan-out path's failure, with the same mapping as above.
+			err := firstErr
+			switch {
+			case errors.Is(err, usage.ErrExhausted):
+				return usage.WriteExhausted(e, app)
+			case errors.Is(err, engine.ErrLensNotReady):
+				return e.Error(http.StatusConflict,
+					"This "+strat.TargetType()+"'s lens is still being prepared — try again in a moment.", err)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict,
+					"A generation for this "+strat.TargetType()+" is already running.", err)
+			case errors.Is(err, engine.ErrContextTooLarge):
+				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
+			default:
+				log.Printf("%s.generate: %v", strat.TargetType(), err)
+				if usage.WriteProviderError(e, err) {
+					return nil
+				}
+				return e.InternalServerError("generate "+strat.TargetType()+" failed", err)
+			}
+		} else if firstErr != nil {
+			log.Printf("%s.generate: some windows failed (%d succeeded); first error: %v",
+				strat.TargetType(), len(snapIDs), firstErr)
 		}
 
 		if strat.TargetType() == "projection" {

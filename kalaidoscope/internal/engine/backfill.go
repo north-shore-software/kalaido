@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -83,10 +84,10 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 var Background = func(f func()) { go f() }
 
 // RunPendingWindows generates, in the background and at background priority,
-// every window the reflection currently owes (PendingWindows), oldest first.
-// One pass: a window whose generation fails stays pending for the next run
-// rather than being retried in a loop. The DB is the state — a restart
-// mid-run loses nothing but the goroutine.
+// every window the reflection currently owes (PendingWindows). One pass: a
+// window whose generation fails stays pending for the next run rather than
+// being retried in a loop. The DB is the state — a restart mid-run loses
+// nothing but the goroutines.
 func RunPendingWindows(app core.App, reflectionID string) {
 	Background(func() { GeneratePendingWindows(app, reflectionID) })
 }
@@ -106,28 +107,53 @@ func GeneratePendingWindows(app core.App, reflectionID string) {
 	log.Printf("backfill %s (%q): %d pending windows", reflectionID, rec.GetString("name"), len(pending))
 
 	ctx := llmq.WithPriority(context.Background(), llmq.Background)
-	strat := ReflectionStrategy{}
+	results := GenerateWindows(ctx, app, reflectionID, StatusApproved, ReflectionStrategy{}, pending)
 	generated := 0
-	for i := range pending {
-		w := pending[i]
-		for {
-			_, err := GenerateSnapshot(ctx, app, reflectionID, StatusApproved, strat, &w)
-			if errors.Is(err, llmq.ErrPreempted) {
-				continue // interactive work took the slot; the retry waits for a free one
-			}
-			switch {
-			case err == nil:
-				generated++
-			case errors.Is(err, ErrLensNotReady):
-				log.Printf("backfill %s: no lens yet; stopping", reflectionID)
-				return
-			case errors.Is(err, ErrGenerationInFlight):
-				// Someone else is producing this window; leave it to them.
-			default:
-				log.Printf("backfill %s: window %s: %v", reflectionID, WindowKey(w), err)
-			}
-			break
+	for i, r := range results {
+		switch {
+		case r.Err == nil:
+			generated++
+		case errors.Is(r.Err, ErrLensNotReady):
+			log.Printf("backfill %s: no lens yet", reflectionID)
+		case errors.Is(r.Err, ErrGenerationInFlight):
+			// Someone else is producing this window; leave it to them.
+		default:
+			log.Printf("backfill %s: window %s: %v", reflectionID, WindowKey(pending[i]), r.Err)
 		}
 	}
 	log.Printf("backfill %s: generated %d of %d windows", reflectionID, generated, len(pending))
+}
+
+// WindowResult is one window's outcome from GenerateWindows.
+type WindowResult struct {
+	SnapshotID string
+	Err        error
+}
+
+// GenerateWindows generates every window at once, one goroutine each, and
+// returns their outcomes in the same order. Concurrency is not throttled
+// here: every model call passes through llmq, which caps in-flight calls per
+// provider (one on local Ollama, wide on hosted APIs), so windows run as
+// parallel as the provider allows and no more. A preempted call retries;
+// the retry blocks in the scheduler until a slot frees up.
+func GenerateWindows(ctx context.Context, app core.App, targetID, status string, strat Strategy, windows []api.Window) []WindowResult {
+	results := make([]WindowResult, len(windows))
+	var wg sync.WaitGroup
+	for i := range windows {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			w := windows[i]
+			for {
+				id, err := GenerateSnapshot(ctx, app, targetID, status, strat, &w)
+				if errors.Is(err, llmq.ErrPreempted) {
+					continue
+				}
+				results[i] = WindowResult{SnapshotID: id, Err: err}
+				return
+			}
+		}(i)
+	}
+	wg.Wait()
+	return results
 }
