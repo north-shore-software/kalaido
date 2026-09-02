@@ -1,261 +1,246 @@
-> **STALE** — code has changed since this document was generated.
-
 # Kalaidoscope Database Schema — Generated Audit Snapshot
 
-> **Generated:** 2026-08-18, from source at commit `f272f1c`.
+> **Generated:** 2026-09-02, from source at commit `3998ebd`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.
 
 **Scope.** Every collection, field, index, access rule, and stored-JSON shape of the kalaidoscope PocketBase database, plus the migration mechanics and boot-time schema interactions. PocketBase's own system collections (`users`, `_superusers`, …) are covered only where the code touches them.
 
-**Completeness anchor.** One migration file: `migrations/1748000000_init_schema.go`, defining 16 base collections and 1 SQL view. No other migration exists.
+**Completeness anchor.** One migration file: `migrations/1748000000_init_schema.go`, defining 21 base collections and 1 SQL view (22 `tableDef` entries). No other migration exists.
 
 ---
 
 ## 1. Migration mechanics
 
 - The single migration is **ensure-style and idempotent**: pass one creates any missing base collections empty (so relation fields can resolve targets), pass two sets fields, indexes, and rules on every collection.
-- `ensureField` only **adds** fields that are missing by name — it never alters an existing field's definition and never removes fields. A field rename or type change therefore does not propagate by re-running the migration.
+- `ensureField` only **adds** fields that are missing by name — it never alters an existing field's definition and never removes fields. A field rename, type change, or changed select values does not propagate by re-running the migration.
 - Indexes are (re-)added by name on every run. Rules are reassigned on every run.
 - The down migration deletes all collections in reverse definition order.
 - **Access rules** are generated: every enabled operation gets `@request.auth.id != ''`; a disabled operation gets a `nil` rule (superuser/server-only). Flags per collection: `DisableWriteOperations` (create+update+delete), `DisableReadOperations` (list+view), and per-op `DisableCreate`/`DisableUpdate`/`DisableDelete`.
+- Migrations run only via the `migrate` subcommand (`Automigrate: false`); a start with an out-of-date schema is not detected.
 
----
+Every base collection also has PocketBase's implicit `id`. `created`/`updated` are `AutodateField`s where listed. "Client" below means the authenticated `users` record.
 
 ## 2. Collections
 
-Field-type notation: `text`, `number`, `bool`, `date`, `json`, `select(...)`, `file`, `rel(target)` (single-select relation unless noted), `autodate` columns are listed once as *timestamps*. "Cascade" on a relation means deleting the target deletes this row.
+Rule summary (client access):
+
+| Collection | List/View | Create | Update | Delete |
+|---|---|---|---|---|
+| `fragment`, `ingest`, `chat_conversation`, `chat_message` | ✓ | ✓ | ✓ | ✓ |
+| `kalaidoscope_config` | ✓ | — | ✓ (hook-guarded) | — |
+| `lens` | — | — | — | — |
+| all others | ✓ | — | — | — |
 
 ### 2.1 `fragment` — ingested content units
 
-Authed API access: full CRUD (HTTP delete intercepted → soft delete; see `api.md` § 12).
-
 | Field | Type | Notes |
 |---|---|---|
-| `type` | select(`email`, `note`, `whatsapp`, `sms`, `chat`), required | `chat` marks output captured from a chat rather than ingested; otherwise ordinary. The select constrains **all** writes — any other value fails the record save. |
-| `source` | text | Source label. |
-| `content` | text, required | Max 100,000,000 characters. |
-| `source_time` | date | Event time; defaulted to now by hook when unset. |
-| `deleted_at` | date | Soft-delete tombstone; empty = live. All context resolution filters on it. |
+| `type` | select(1), required | `email`, `note`, `whatsapp`, `sms`, `chat` |
+| `origin` | select(1) | `import`, `app`, `sync`; defaulted to `app` by hook |
+| `source` | text | |
+| `content` | text, required | max 100,000,000 chars |
+| `source_time` | date | defaulted to now by hook when zero |
+| `deleted_at` | date | soft delete; set by the delete-request hook (`ingestion.md` § 7) |
 | `created` | autodate | |
 
-Indexes: `source_time`, `deleted_at` (both non-unique).
+Indexes: `idx_fragment_source_time (source_time)`, `idx_fragment_deleted_at (deleted_at)`.
 
 ### 2.2 `ingest` — async file-ingestion jobs
 
-Authed API access: full CRUD (creation triggers the batch pipeline, `api.md` § 2).
-
 | Field | Type | Notes |
 |---|---|---|
-| `file` | file | Up to 50 uploads, 200 MiB each. |
-| `format` | text | `zip` \| `mbox` \| `docx` \| `text`; empty = inferred per file. |
-| `limit` | number | Fragment budget across all files; 0 = unlimited. |
-| `extensions` | text | CSV zip-entry filter. |
-| `skip_duplicates` | bool | |
-| `status` | text | `pending` → `done` \| `error` (server-written). |
-| `ingested` | number | Total fragments written (server-written). |
-| `error` | text | First failing file's error (server-written). |
-| timestamps | autodate | `created`, `updated`. |
-
-No custom indexes.
+| `file` | file | up to 50 files, 200 MiB each |
+| `format`, `extensions` | text | |
+| `limit` | number | |
+| `skip_duplicates`, `organize_after` | bool | |
+| `status` | text | `pending`, `done`, `error` (server-written) |
+| `ingested` | number | |
+| `error`, `pipeline`, `pipeline_error` | text | `pipeline`: `mapping`, `organizing`, `done`, `error` |
+| `created`, `updated` | autodate | |
 
 ### 2.3 `colour` — tag definitions
-
-Authed API access: read-only.
 
 | Field | Type | Notes |
 |---|---|---|
 | `name` | text, required | |
-| `colour_value` | text | Display value; never written by any current server code path. |
-| `criteria` | text | The LLM matching prompt. |
-| `last_provider_error_kind` | text | `auth`/`quota` recorded by the background evaluation worker (which has no request to fail); cleared on next success. |
-| timestamps | autodate | `created`, `updated`. |
+| `colour_value` | text | never read by the server |
+| `prompt` | text | |
+| `thing_ids` | json | string array; written by discover only |
+| `prompt_matched_through` | text | fragment id watermark |
+| `last_provider_error_kind` | text | `auth` / `quota` / empty |
+| `origin_run_id` | relation(1) → `discover_run` | |
+| `created`, `updated` | autodate | |
 
 ### 2.4 `colour_fragment` — colour↔fragment links
 
-Authed API access: read-only.
-
 | Field | Type | Notes |
 |---|---|---|
-| `colour_id` | rel(colour), required, cascade | |
-| `fragment_id` | rel(fragment), required, cascade | |
-| `match_type` | select(`manual_positive`, `manual_negative`, `llm_matched_backfill`, `llm_matched_tag_on_input`), required | One link per pair holds the *current* classification; manual tagging overwrites whatever was there. |
-| `model` | text | Model that decided an `llm_matched_*` row; empty for manual or pre-provenance rows. |
+| `colour_id` | relation(1) → `colour`, required, cascade | |
+| `fragment_id` | relation(1) → `fragment`, required, cascade | |
+| `match_type` | select(1), required | `manual_positive`, `manual_negative`, `thing`, `prompt` |
+| `model` | text | model of a `prompt` row |
 | `created` | autodate | |
 
-Indexes: `colour_id`, `fragment_id`, and **unique** `(colour_id, fragment_id)`.
+Indexes: `idx_colour_fragment_colour (colour_id)`, `idx_colour_fragment_fragment (fragment_id)`, `idx_colour_fragment_pair (colour_id, fragment_id)` **unique**.
 
 ### 2.5 `projection` / 2.6 `reflection` — synthesis entities
-
-Authed API access: read-only (all writes go through the custom routes).
 
 | Field | Type | Notes |
 |---|---|---|
 | `name` | text | |
-| `current_context_spec` | json | `ContextSpec` (§ 3). Written only by refinement commits with `updateLensAndContext: true`. |
-| `window_spec_versions` | json | **Reflection only.** Append-only `WindowSpecVersion[]` (§ 3); seeded with an empty version 1 at create. |
-| `current_lens_id` | rel(lens) | The active lens; installed by lens distillation. |
-| `model` | text | Per-entity model override; empty = workspace role default. |
-| `pinned_by` | rel(users), multi | User ids that pinned this entity. |
-| `last_provider_error_kind` | text | As `colour`: durable marker from the background lens-distillation worker. |
-| timestamps | autodate | `created`, `updated`. |
+| `status` | select(1), required | `proposed`, `active` |
+| `current_context_spec` | json | § 3 |
+| `window_spec_versions` | json | **reflection only**; § 3 |
+| `current_lens_id` | relation(1) → `lens` | no cascade |
+| `model` | text | per-entity override |
+| `pinned_by` | relation(∞) → `users` | |
+| `origin_run_id` | relation(1) → `discover_run` | |
+| `brief` | text | discover's proposed opening message |
+| `created`, `updated` | autodate | |
 
-No custom indexes.
+No indexes.
 
-### 2.7 `lens` — distilled generation prompts
-
-API access: **fully hidden** — read and write both disabled for non-superusers.
+### 2.7 `lens` — generation prompts (lenses)
 
 | Field | Type | Notes |
 |---|---|---|
-| `context_spec` | json | The spec the lens was distilled against. |
-| `prompt` | json | JSON-encoded string: the lens prompt text. |
-| `created_from_proj_refinement_id` | rel(refine_proj_snapshot_conversation) | Provenance; at most one of the two is set. |
-| `created_from_refl_refinement_id` | rel(refine_refl_snapshot_conversation) | |
-| `parent_lens_id` | rel(lens) | Audit lineage only — distillation never reads the previous lens. |
-| `model` | text | Model that generated this lens; empty = pre-provenance. |
-| `iterations` | number | Distillation candidates executed before settling. |
-| `converged` | bool | True = loop reproduced the approved snapshot; false = budget ran out, best-scored candidate kept. |
+| `context_spec` | json | § 3 |
+| `prompt` | json | a JSON string |
+| `created_from_proj_refinement_id` | relation(1) → `refine_proj_snapshot_conversation` | no cascade |
+| `created_from_refl_refinement_id` | relation(1) → `refine_refl_snapshot_conversation` | no cascade |
+| `parent_lens_id` | relation(1) → `lens` | |
 | `created` | autodate | |
 
-No custom indexes. No cascade: lenses survive deletion of the entity and conversations that produced them (their relation fields then dangle).
+Read **and** write disabled for clients. No `model`, `iterations`, or `converged` fields exist.
 
 ### 2.8 `projection_snapshot` / 2.9 `reflection_snapshot` — generated outputs
 
-Authed API access: read-only.
-
 | Field | Type | Notes |
 |---|---|---|
-| `projection_id` / `reflection_id` | rel(parent), required, cascade | |
-| `status` | text | `pending` \| `approved` (written by the engine; no select constraint). |
-| `context_spec` | json | Spec used for this generation (`ContextSpec`, § 3). |
-| `resolved_context` | json | `PinnedIDs` receipt (§ 3): exactly which fragments/snapshots went in; what staleness diffs against. |
-| `lens_id` | rel(lens) | Empty on a commit that requested re-distillation, until the worker back-fills it. |
-| `output` | json | JSON-encoded string: the generated text. |
-| `created_from_refinement_id` | rel(refine conversation) | Set when committed from a refinement. |
-| `lens_distill_requested` | bool | Immutable fact about the commit; worker worklist = `requested && lens_id = ''`, so a crash loses nothing. |
-| `model` | text | Generating model; empty for empty-lens generations and pre-provenance rows. |
-| `chain_origin` | text | Non-empty when generated inside a speculative reconcile wave; propagates through refinement commits of still-pending chain candidates. |
-| `approval_sequence_number` | number | 0 = unapproved. |
+| `projection_id` / `reflection_id` | relation(1), required, cascade | |
+| `status` | text | `generating`, `pending`, `approved`, `discarded` (free text field) |
+| `context_spec` | json | the lens's spec at generation |
+| `resolved_context` | json | `{fragmentIds, snapshotIds}` receipt |
+| `lens_id` | relation(1) → `lens` | |
+| `output` | json | a JSON string |
+| `created_from_refinement_id` | relation(1) → the matching refinement collection | |
+| `model` | text | |
+| `chain_origin` | text | `generate_all` or empty |
+| `approval_sequence_number` | number | |
 | `approval_timestamp`, `generation_timestamp` | date | |
-| `window_spec`, `resolved_window` (`{start, end}`), `window_key`, `window_spec_version_number` | json / text / number | **Reflection snapshot only.** Set only for windowed generations; `window_key` = `"{start}_{end}"` RFC3339. |
-| timestamps | autodate | `created`, `updated`. |
+| `window_spec`, `resolved_window` | json | **reflection only** |
+| `window_key` | text | **reflection only** |
+| `window_spec_version_number` | number | **reflection only** |
+| `created`, `updated` | autodate | |
 
-Indexes: parent id (non-unique), plus partial **unique** approval index `WHERE status = 'approved'`: `(projection_id, approval_sequence_number)` / `(reflection_id, window_key, approval_sequence_number)` — sequences count per window for reflections.
+Indexes: `idx_projection_snapshot_projection (projection_id)`; `idx_projection_snapshot_approval_seq (projection_id, approval_sequence_number)` **unique where `status = 'approved'`**; `idx_reflection_snapshot_reflection (reflection_id)`; `idx_reflection_snapshot_approval_seq (reflection_id, window_key, approval_sequence_number)` **unique where `status = 'approved'`**.
 
 ### 2.10 `refine_proj_snapshot_conversation` / 2.11 `refine_refl_snapshot_conversation` — refinement sessions
 
-Authed API access: read-only (created via the custom routes).
-
 | Field | Type | Notes |
 |---|---|---|
-| `projection_id` / `reflection_id` | rel(parent), cascade | Optional (a session can be anchored via its snapshot instead). |
-| `projection_snapshot_id` / `reflection_snapshot_id` | rel(snapshot), cascade | Optional source snapshot. |
-| `external_conversation_id` | text | Client-minted id; how `POST /api/chat` dispatch recognizes the session. |
+| `projection_id` / `reflection_id` | relation(1), cascade | |
+| `projection_snapshot_id` / `reflection_snapshot_id` | relation(1), cascade | reflections: never written |
+| `external_conversation_id` | text | client id |
 | `created` | autodate | |
 
-Indexes: **unique** `external_conversation_id`; parent id; snapshot id.
+Indexes: `idx_refine_proj_external (external_conversation_id)` **unique**, `idx_refine_proj_projection`, `idx_refine_proj_snapshot`; and the `refl` equivalents.
 
 ### 2.12 `chat_conversation` — free-chat sessions
 
-Authed API access: full CRUD.
-
-| Field | Type | Notes |
-|---|---|---|
-| `external_conversation_id` | text | Client-minted; **unique** index. |
-| `model` | text | Per-conversation model override; re-read every turn. |
-| `created` | autodate | |
+`external_conversation_id` text (**unique** index `idx_chat_conversation_external`), `model` text (per-conversation override), `created`. Fully client-writable.
 
 ### 2.13 `chat_message` — messages for all three conversation kinds
 
-Authed API access: full CRUD.
-
 | Field | Type | Notes |
 |---|---|---|
-| `chat_conversation_id` | rel(chat_conversation), cascade | Exactly one of the three relation fields is set per row (by convention; not schema-enforced). |
-| `refine_proj_conversation_id` | rel(refine_proj_snapshot_conversation), cascade | |
-| `refine_refl_conversation_id` | rel(refine_refl_snapshot_conversation), cascade | |
-| `content` | json | The whole `UIMessage` (§ 3). |
-| `model` | text | Model that generated an assistant row; empty otherwise. |
-| timestamps | autodate | `created`, `updated`. |
+| `chat_conversation_id` | relation(1) → `chat_conversation`, cascade | exactly one of the three is set |
+| `refine_proj_conversation_id` | relation(1) → `refine_proj_snapshot_conversation`, cascade | |
+| `refine_refl_conversation_id` | relation(1) → `refine_refl_snapshot_conversation`, cascade | |
+| `content` | json | a full `UIMessage` (§ 3) |
+| `model` | text | assistant rows only |
+| `created`, `updated` | autodate | |
 
-Indexes: one per relation field (non-unique). Message ordering is by `created`.
+Indexes on each relation column. Fully client-writable.
 
 ### 2.14 `usage` — per-period token accounting
 
-Authed API access: read-only.
-
-| Field | Type | Notes |
-|---|---|---|
-| `period` | text, required | `YYYY-MM` key; **unique** index (boot-asserted, § 4). |
-| `prompt_tokens`, `completion_tokens`, `total_tokens` | number | Monotonic accumulators, updated transactionally with one retry. |
-| timestamps | autodate | `created`, `updated`. |
+`period` text required (**unique** `idx_usage_period`; `YYYY-MM` UTC), `prompt_tokens`, `completion_tokens`, `total_tokens`, `cached_tokens` numbers, `created`, `updated`. Server-written.
 
 ### 2.15 `llm_queue_status` — live scheduler mirror (singleton)
 
-Authed API access: read-only. Describes the running process, not workspace data: reset to empty at boot, updated by a debounced (300 ms) mirror of the scheduler so the UI can watch the queue over PocketBase realtime.
-
-| Field | Type | Notes |
-|---|---|---|
-| `state` | text | `idle` \| `active`. |
-| `running` | json | `TaskInfo[]` (§ 3). |
-| `waiting` | json | Map of priority name → queued count. |
-| timestamps | autodate | `created`, `updated`. |
+`state` text (`idle` / `active`), `running` json, `waiting` json, `created`, `updated`. Server-written; reset at boot; excluded from the SQL echo log.
 
 ### 2.16 `kalaidoscope_config` — workspace config (singleton)
 
-Authed API access: read + update only (no create/delete); `model_set` superuser-only and provider changes live-validated via hooks (`api.md` § 12).
-
-| Field | Type | Notes |
-|---|---|---|
-| `model_set` | text | Which artifact-stamping model set this scope was initialized as. Seeded once at first boot from `KALAIDO_MODEL_SET` (default `local`); thereafter the stored value wins and a disagreeing env var is warned about and ignored. |
-| `provider` | text | Empty = unconfigured → env-seeded model-set mode. One provider at a time; not namespaced. |
-| `api_key` | text | Stored as-is (plaintext) in the database. |
-| `default_model` | text | |
-| `role_models` | json | Map role → model; unreadable JSON is logged and ignored (fallback to `default_model`). |
-| timestamps | autodate | `created`, `updated`. |
+`model_set`, `provider`, `api_key`, `default_model` text; `role_models` json (role → model); `created`, `updated`. Create and delete disabled; update open to clients, with `model_set` superuser-only by hook (`models.md` § 3). The API key is stored in plain text and is client-readable.
 
 ### 2.17 `view_stream` — SQL view
 
-Authed API access: read-only (list/view). Query: all **non-deleted** fragments (`id`, `type`, `content`, `source_time`, `created`) joined with `colours` — a JSON array of palette indices, where each colour's index is its creation-order row number mod 8. A fragment's array lists the palette slots of every colour linked to it via `colour_fragment`, **regardless of `match_type`** (manual-negative links included).
+Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`, `source_time`, `created`, and `colours` = JSON array of the 0–7 index (`row_number() over (order by created) − 1) mod 8` of each colour the fragment is a member of (`match_type != 'manual_negative'`).
 
----
+### 2.18 `reflection_window` — explicitly backfilled windows
+
+`reflection_id` relation(1) required cascade; `window_key`, `start`, `end` text required; `window_spec_version_number` number; `created`. Indexes: `idx_reflection_window_reflection`, `idx_reflection_window_key (reflection_id, window_key)` **unique**. Grid windows are never stored here.
+
+### 2.19 `fragment_annotation` — per-fragment map markup
+
+| Field | Type | Notes |
+|---|---|---|
+| `fragment_id` | relation(1) → `fragment`, required, cascade | **unique** `idx_fragment_annotation_fragment` |
+| `annotation` | json | legacy; never read |
+| `title`, `summary` | text | |
+| `things`, `decisions`, `questions`, `conclusions` | json | § 3 |
+| `grounded_count` | number | things shown to the model |
+| `folded` | bool | consumed by a consolidation; indexed `idx_fragment_annotation_folded` |
+| `model` | text | |
+| `created` | autodate | |
+
+### 2.20 `kalaidoscope_map` — the things document (singleton)
+
+`body` json (§ 3), `version` number, `consolidated_at` date, `fragments`, `annotated` numbers, `created`, `updated`. Server-written.
+
+### 2.21 `map_run` — one row per consolidation call
+
+`status` select (`running`, `done`, `error`) required; `error`, `model` text; `pending_in`, `merges`, `admits`, `version_before`, `version_after` numbers; `created`, `updated`.
+
+### 2.22 `discover_run` — one row per discover run
+
+`kind` select (`projections`, `reflections`, `colours`) required; `status` select (`running`, `done`, `error`) required; `error`, `model`, `summary` text; `map_version`, `rounds`, `fragment_reads` numbers; `outputs` json (§ 3); `created`, `updated`.
 
 ## 3. Stored JSON shapes
 
-All camelCase except `TaskInfo`.
-
-| Shape | Stored in | Fields |
-|---|---|---|
-| `ContextSpec` | `*.current_context_spec`, `*_snapshot.context_spec`, `lens.context_spec` | `wholeScope` (bool), `fragmentIds`, `fragmentTypes`, `colourIds`, `sourceProjectionIds`, `sourceReflectionIds` (string arrays; all optional/omitted when empty) |
-| `WindowSpecVersion[]` | `reflection.window_spec_versions` | Each: `versionNumber` (int), `effectiveFrom` (RFC3339, UTC), `spec` = `WindowSpec` |
-| `WindowSpec` | inside versions; `reflection_snapshot.window_spec` | `mode`, `startTime`, `endTime`, `period`, `duration` (strings; the engine reads only `period` — a Go duration — and `startTime`) |
-| `PinnedIDs` | `*_snapshot.resolved_context` | `fragmentIds`, `snapshotIds` (string arrays) |
-| resolved window | `reflection_snapshot.resolved_window` | `{start, end}` (RFC3339 strings) |
-| JSON-encoded string | `lens.prompt`, `*_snapshot.output` | A bare JSON string value |
-| `UIMessage` | `chat_message.content` | `id`, `role`, `parts: [{type, text?, data?}]` — part types in use: `text`, `context_spec`, `pinned_ids`, `window_spec`, `tool-<toolName>` |
-| `TaskInfo[]` | `llm_queue_status.running` | Each (**snake_case where multi-word**): `role`, `priority`, `model`, `started`, `tokens?`, `tokens_per_second?` |
-| waiting map | `llm_queue_status.waiting` | `{<priority name>: <count>}` |
-| `role_models` | `kalaidoscope_config.role_models` | `{<role>: <model>}` |
-
----
+| Where | Shape |
+|---|---|
+| `*.current_context_spec`, `lens.context_spec`, `*_snapshot.context_spec` | `{wholeScope?, summaries?, fragmentIds?, fragmentTypes?, colourIds?, sourceProjectionIds?, sourceReflectionIds?}` (`context.md` § 1) |
+| `*_snapshot.resolved_context` | `{fragmentIds?, snapshotIds?}` |
+| `reflection.window_spec_versions` | `[{versionNumber, effectiveFrom, spec: {mode?, startTime, endTime?, period, duration}}]` |
+| `reflection_snapshot.window_spec` | one `spec` as above; `resolved_window` = `{start, end}` |
+| `lens.prompt`, `*_snapshot.output` | a JSON-encoded string |
+| `chat_message.content` | `{id, role, parts: [{type, text?, data?}]}`; part types in use: `text`, `context_spec`, `window`, `pinned_ids`, `tool-update_lens`, `tool-suggest_name`, `tool-apply_result`, `tool-read_fragment`, `tool-read_thing`, `data-refine_lint`, `data-refine_error`, `data-window_reapply`, `data-lens_seed` |
+| `colour.thing_ids` | `["t_…", …]` |
+| `kalaidoscope_map.body` | `{things: [{id, name, aliases[], kind, blurb, fragments, first_seen?, last_seen?, exemplar_ids[]}], relationships: [{from, to, kind}], narrative}` |
+| `fragment_annotation.things` | `[{ref} \| {name, kind, note}]`; `decisions`/`questions`/`conclusions`: `[{text, refs[]}]` |
+| `discover_run.outputs` | `[{kind, id, name, status?}]` |
+| `kalaidoscope_config.role_models` | `{"<role>": "<model>"}` |
+| `llm_queue_status.running` / `waiting` | `[{role, priority, model, started, tokens?, tokens_per_second?}]` / `{"<priority>": count}` |
 
 ## 4. Boot-time schema interactions
 
-- **`usage.period` unique-index assertion**: the server refuses to boot if the unique index is missing (guards the first-write-of-a-new-period race).
-- **`llm_queue_status`** is wiped to a single empty row at boot.
-- **`kalaidoscope_config`** singleton row is created at first boot when absent (seeding `model_set`); a corrupt stored `model_set` is a fatal boot error.
-- **`users`**: the built-in auth collection; a `user@kalaido.local` record is seeded at boot and its JWT printed to stdout (`api.md` § 13).
-
----
+- `usage.Setup` fails boot unless `usage` has a unique single-column index on `period`.
+- `resolveModelSet` creates the `kalaidoscope_config` singleton if absent and seeds `model_set`.
+- `registerQueueStatus` finds or creates the `llm_queue_status` singleton and resets it.
+- `mapping.loadDocument` creates the `kalaidoscope_map` singleton (`version 0`) on first use, not at boot.
+- `SweepGenerationClaims` deletes every `*_snapshot` row with `status = 'generating'`.
+- `seedSidecarUser` upserts the `users` record `user@kalaido.local`.
 
 ## 5. Cascade graph
 
-Deleting a record removes, transitively, everything below it:
+Deleting → also deletes:
 
-- `colour` → its `colour_fragment` links.
-- `fragment` → its `colour_fragment` links. (Fragment HTTP deletes are soft; a genuine hard delete happens only server-side or via superuser.)
-- `projection` → its `projection_snapshot`s and `refine_proj_snapshot_conversation`s → their `chat_message`s.
-- `reflection` → its `reflection_snapshot`s and `refine_refl_snapshot_conversation`s → their `chat_message`s.
-- `projection_snapshot` / `reflection_snapshot` → refinement conversations anchored to them → their `chat_message`s.
-- `chat_conversation` → its `chat_message`s.
-- `lens` rows are never cascaded and survive their creators; entity/snapshot `lens_id` references have **no** cascade in either direction.
+- `fragment` (hard delete only; the API soft-deletes) → `colour_fragment`, `fragment_annotation`.
+- `colour` → `colour_fragment`.
+- `projection` → `projection_snapshot` → `refine_proj_snapshot_conversation` (via `projection_snapshot_id`) → `chat_message`; also `refine_proj_snapshot_conversation` directly (via `projection_id`).
+- `reflection` → `reflection_snapshot`, `reflection_window`, `refine_refl_snapshot_conversation` → `chat_message`.
+- `chat_conversation` → `chat_message`.
+- Nothing cascades to or from `lens`, `discover_run`, `map_run`; deleting a `discover_run` leaves `origin_run_id` dangling on its entities (PocketBase clears the relation value).

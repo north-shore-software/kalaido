@@ -1,63 +1,57 @@
-# Ingestion & Colour Tagging — Generated Audit Snapshot
+# Ingestion — Generated Audit Snapshot
 
-> **Generated:** 2026-08-18, from source at commit `f272f1c`.
+> **Generated:** 2026-09-02, from source at commit `3998ebd`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.
 
-**Scope.** How content becomes fragments — every entry path, the parsers, the writer — and what happens to a fragment at birth, including asynchronous colour tagging. Endpoint detail in `api.md` § 2/§ 8; fields in `schema.md`.
+**Scope.** How content becomes fragments — every entry path, the parsers, the writer — what happens to a fragment at birth and on delete, and the post-import pipeline that hands off to the map and discover workers. Colour membership is in `colours.md`; the map is in `map.md`; endpoint detail in `api.md` § 2; fields in `schema.md` § 2.
+
+**Completeness anchor.** 3 entry paths converging on the `fragment` collection; 3 `fragment` hooks and 1 `ingest` hook (`server/server.go` `RegisterTriggers`, `internal/ingest/batch.go`); 4 parser formats (`zip`, `mbox`, `docx`, `text`).
 
 ---
 
 ## 1. Entry paths
 
-Three paths create fragments, all converging on the same collection and therefore the same birth hooks (§ 6):
-
-1. **Sync single entry** — `POST /api/ingest`: one fragment per call, written inline.
-2. **Async batch** — creating an `ingest` record (built-in collection endpoint) with file uploads: parsed in a background goroutine.
-3. **Direct record create** — the `fragment` collection's own create endpoint (used e.g. for `chat`-type fragments captured from conversations): no parsing or dedupe, straight to the hooks.
+1. **Sync single entry** — `POST /api/ingest`: one fragment per call, written inline, `origin = "sync"`.
+2. **Async batch** — creating an `ingest` record (the collection's built-in create endpoint) with file uploads: parsed in a background goroutine, `origin = "import"`.
+3. **Direct record create** — the `fragment` collection's own create endpoint (e.g. `chat`-type fragments captured from conversations): no parsing, no dedupe, `origin` defaults to `"app"` in the birth hook.
 
 ## 2. Sync path
 
-The message's `content` is required; `type` defaults to `"note"`; `source_time` is parsed as RFC3339 and **silently dropped** if unparseable. The writer (§ 5) is constructed per request with no budget and with dedupe only when `skip_duplicates` is set. `format`, `limit`, and `extensions` are accepted in the body but unused on this path.
+Body (`api.IngestMessage`, **snake_case** for multi-word fields): `content` required (400 `content required`); `type` trimmed, default `"note"`; `source`; `source_time` parsed as RFC3339 and **silently dropped** if unparseable; `skip_duplicates` enables dedupe. `format`, `limit`, `extensions` are accepted and unused on this path. Response `200 {fragmentId, ingested}`; a deduped entry returns `fragmentId: ""`, `ingested: 0` with 200.
 
 ## 3. Async batch path
 
-Creating an `ingest` record captures its uploads and options in the create hook, forces `status: "pending"`, and — after the record saves — processes the files in one background goroutine:
+`OnRecordCreate("ingest")` runs **before** the record is saved: it reads every unsaved upload from the `file` field into memory (a read failure is logged and the remaining files still processed), reads `format`, `limit`, `extensions` (comma-separated, lower-cased, `.`-prefixed), `skip_duplicates`, `organize_after`, sets `status = "pending"`, lets the save proceed, then starts `processIngestRecord` in a goroutine.
 
-- One writer serves the whole record: the `limit` budget and the dedupe set span **all** files in it.
-- Each file is routed by `format` (or per-file inference, § 4) and parsed into fragments fed through the writer.
-- Processing **stops at the first file that errors**; earlier files' fragments remain. Reaching the budget or context cancellation is normal completion.
-- The record is then updated: `ingested` = fragments written, `status` `"done"` — or `"error"` with the message. Nothing retries a failed record.
+The goroutine parses each file in order with one writer per file (so `limit` applies **per file** and dedupe state is rebuilt per file). The first file error stops processing of later files. It then reloads the `ingest` row and sets `ingested` (total fragments written), `status = "done"` or `"error"` + `error`. A reload failure leaves the row `pending` forever. Then:
 
-## 4. Parsers
+- `organize_after` and an error: `pipeline = "error"`, `pipeline_error`, and `mapping.SignalAuto()`.
+- `organize_after` and success: the pipeline (§ 4).
+- otherwise `mapping.SignalAuto()` — a no-op while auto-map is disabled (`boot-and-workers.md` § 2).
 
-Format inference from the file name: `.mbox`/`.eml` → mbox, `.zip` → zip, `.docx` → docx, anything else → text. An explicit `format` overrides inference for top-level files only.
+## 4. The post-import pipeline
 
-| Parser | Behaviour |
+`startPipeline` sets `pipeline = "mapping"`, registers a follow-up on the mapping worker, and signals it (`mapping.Signal()`, unconditional). When that drain ends: on error `pipeline = "error"` + `pipeline_error`; otherwise `pipeline = "organizing"`, a follow-up is registered on the discover worker, and the three discover kinds are signalled (`colours`, `projections`, `reflections`). When that drain ends: `pipeline = "done"` or `"error"`. Because follow-ups are taken at the *start* of a drain (`boot-and-workers.md` § 2), a pipeline registered while a drain is already running is reported by the drain after it. `pipeline_error` is never cleared on a later success.
+
+## 5. Parsers
+
+`parsers.Parse(src, exts, emit)` dispatches on `Format`, else infers from the file name's extension: `.mbox`, `.eml` → `mbox`; `.zip` → `zip`; `.docx` → `docx`; anything else → `text`.
+
+| Format | Behaviour |
 |---|---|
-| **text** | The whole payload becomes one `"note"` fragment; `source` = file name (or `"imported text"`). No `SourceTime`. |
-| **mbox** | Splits on `From `-prefixed envelope lines (also accepts a single `.eml`, which has none); `>From `-quoting is unescaped. Per message: RFC 2047 headers decoded; body extracted preferring the first `text/plain` part of a multipart (else the first non-empty part), with quoted-printable and base64 transfer encodings decoded; non-text single parts (attachments) are dropped. The fragment is `"email"`-typed with `From/To/Subject/Date` headers re-rendered above the body, `source` = `From · Subject` (fallback `"imported email"`), and `SourceTime` from the `Date` header. An unparseable message is kept as raw text rather than dropped. |
-| **zip** | Iterates entries (directories skipped), filtered by the extensions list (default `.txt`, `.md`, `.docx` — note this default excludes nested `.eml`/`.mbox`), and re-enters the parser per entry with per-entry format inference. Unreadable entries are logged and skipped; a parse failure inside an entry aborts the file. |
-| **docx** | Extracts `word/document.xml` text (tabs, breaks, and paragraph boundaries preserved as whitespace; everything else stripped) into one `"note"` fragment; a file without that entry is an error. |
+| `text` | One `note` fragment with the whole payload; source = file name or `imported text`. |
+| `docx` | Extracts `word/document.xml` text (`<t>` runs, tabs, breaks, paragraph newlines); one `note` fragment; source = file name or `imported document`. Invalid archive or missing part → error. |
+| `mbox` | Splits on `From ` envelope lines (`>From ` unquoted); each message is parsed with `net/mail`; unparseable messages become a fragment holding the raw text. Body: first `text/plain` part of a multipart, else the first non-empty part, else the single text part; quoted-printable and base64 decoded; non-text single parts skipped. Content = `From`/`To`/`Subject`/`Date` header lines + blank line + body. Source = `from · subject`, else `imported email`. `SourceTime` = the `Date` header. Type `email`. |
+| `zip` | Every non-directory entry whose lower-cased name ends with one of `exts` (default `.txt`, `.md`, `.docx` when none given) is recursively parsed with format inferred from the entry name. An entry that cannot be opened is logged and skipped. |
 
-Parsers emit only `"email"` and `"note"` types; the `fragment.type` select also allows `whatsapp`, `sms`, `chat`, which arrive only via the sync or direct paths.
+`limit` stops parsing through a sentinel error once the writer is full; that stop is not reported as an error.
 
-## 5. The writer
+## 6. The writer
 
-Shared by both parsing paths. Per fragment: content is trimmed; empty content is silently skipped. With dedupe on, the SHA-256 of the trimmed content is checked against a set preloaded from **all existing fragments — soft-deleted included** — plus everything written earlier by this writer; an exact match is silently skipped (re-ingesting a deleted fragment therefore does not resurrect it). A positive `limit` caps records written; the budget check happens before each write. `source_time` is set only when the parser supplied one — otherwise the birth hook stamps it. Each save is an ordinary record save and fires the hooks below.
+`newWriter(limit, skipDuplicates)`: with dedupe on, it preloads the SHA-256 of **every** existing fragment's content (deleted ones included) into memory; a preload failure is logged and dedupe proceeds with an empty set. `addAt`: trims content; empty → skipped silently; duplicate hash → skipped silently; otherwise a `fragment` is saved with `type`, `origin`, `source`, `content`, and `source_time` when non-zero. Fragments are saved one at a time, each firing the birth hooks.
 
-## 6. Birth hooks
+## 7. Birth and delete hooks
 
-Every fragment creation, from any path, passes through two hooks: `source_time` defaults to now when unset; and after the save commits, one colour-evaluation task per **existing colour** is enqueued for the new fragment.
-
-## 7. Colour tagging
-
-A single in-memory queue (capacity 1000, drained by one worker goroutine, not persisted across restarts) receives tasks from two producers: new fragments (one task per colour, § 6) and retroactive backfill on colour creation (one task per fragment, newest 10,000, soft-deleted included). Per task the worker:
-
-1. Skips if **any** `colour_fragment` link already exists for the pair — including a `manual_negative` one, which therefore permanently blocks LLM evaluation of that pair.
-2. Builds the evaluation prompt from the colour's `criteria` plus up to 20 `manual_positive` and 20 `manual_negative` example fragments.
-3. Calls the colour-role model (workspace-level; per-entity overrides never apply to colour work). Preempted calls retry in place at idle priority.
-4. On output containing `YES` (case-insensitive), writes the link with `match_type` `"llm_matched_tag_on_input"` (new-fragment task) or `"llm_matched_backfill"` (backfill task), recording the deciding model. Any other output writes nothing — a "no" leaves no record and the § 7.1 skip never sees it, so the pair is re-evaluated if it is ever enqueued again.
-
-Auth/quota provider failures are recorded durably on the colour (`last_provider_error_kind`, cleared on the next success); transient failures drop the task.
-
-Manual tagging (positive/negative examples via the colour update endpoint) upserts the pair's single link row, overwriting any prior classification; colour criteria edits never re-evaluate existing links.
+- `OnRecordCreate("fragment")` (before save): `source_time` defaults to now when zero; `origin` defaults to `"app"` when empty.
+- `OnRecordAfterCreateSuccess("fragment")`: `colour.Signal()` (the prompt worker will judge the new fragment against every prompt colour, `colours.md` § 4) and `mapping.SignalAuto()` (no-op under the flag). No annotation or thing matching happens at birth.
+- `OnRecordDeleteRequest("fragment")` — the collection's built-in delete endpoint: instead of deleting, sets `deleted_at = now` (if unset) and saves, then returns **204**. The row is never removed. Consequences: `colour_fragment` and `fragment_annotation` rows for it remain (no cascade fires); context resolution excludes it (`context.md` § 2); the map's pending set and counters exclude it, but its annotation row still participates in consolidation and summaries rows with an empty date (`map.md` § 4); the dedupe preload still sees its content. Programmatic `app.Delete` of a fragment (not used by any code path) would hard-delete and cascade.
