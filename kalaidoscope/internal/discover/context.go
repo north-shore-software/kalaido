@@ -20,6 +20,7 @@ type Context struct {
 }
 
 type Existing struct {
+	Kind        string
 	ID          string
 	Name        string
 	Description string

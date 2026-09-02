@@ -2,12 +2,12 @@ package discover
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
 const (
@@ -16,27 +16,12 @@ const (
 	coverageThingList = 10
 )
 
-func (c *Context) readThing(id string) string {
-	t := mapping.ResolveRef(c.Doc, id)
+func (c *Context) readThing(ref string) string {
+	t := mapping.ResolveRef(c.Doc, ref)
 	if t == nil {
-		return fmt.Sprintf("No thing matches %q.", id)
+		return prompts.DiscoverNoThing(ref)
 	}
 	idxs := c.ByThing[t.ID]
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s · %s · %s", t.ID, t.Name, t.Kind)
-	if len(t.Aliases) > 0 {
-		fmt.Fprintf(&b, " · aka %s", strings.Join(t.Aliases, ", "))
-	}
-	b.WriteString("\n")
-	if t.Blurb != "" {
-		b.WriteString(t.Blurb + "\n")
-	}
-	fmt.Fprintf(&b, "%d fragments", len(idxs))
-	if t.FirstSeen != "" {
-		fmt.Fprintf(&b, ", %s to %s", t.FirstSeen, t.LastSeen)
-	}
-	b.WriteString("\n")
-
 	var rels []string
 	for _, r := range c.Doc.Relationships {
 		if r.From != t.ID && r.To != t.ID {
@@ -46,47 +31,24 @@ func (c *Context) readThing(id string) string {
 		if from == nil || to == nil {
 			continue
 		}
-		rels = append(rels, fmt.Sprintf("  %s (%s) %s %s (%s)", from.Name, from.ID, r.Kind, to.Name, to.ID))
+		rels = append(rels, prompts.DiscoverRelationshipLine(from.Name, from.ID, r.Kind, to.Name, to.ID))
 	}
-	if len(rels) > 0 {
-		b.WriteString("Relationships:\n" + strings.Join(rels, "\n") + "\n")
-	}
-
-	if len(idxs) == 0 {
-		b.WriteString("No annotated fragments cite it.\n")
-		return b.String()
-	}
-	b.WriteString("Timeline:\n" + c.timeline(idxs))
-	sample := sampleEvenly(idxs, thingRowSample)
-	fmt.Fprintf(&b, "Fragments (%d of %d, spread over time):\n", len(sample), len(idxs))
-	for _, i := range sample {
-		row := c.Rows[i]
-		fmt.Fprintf(&b, "  %s · %s · %s (%s)\n", row.Date, row.Title, row.Summary, row.FragmentID)
-	}
-	return b.String()
-}
-
-func (c *Context) timeline(idxs []int) string {
-	counts := map[string]int{}
+	timeline := map[string]int{}
 	for _, i := range idxs {
 		d := c.Rows[i].Date
 		if len(d) < 7 {
-			d = "undated"
+			d = prompts.DiscoverUndated
 		} else {
 			d = d[:7]
 		}
-		counts[d]++
+		timeline[d]++
 	}
-	months := make([]string, 0, len(counts))
-	for m := range counts {
-		months = append(months, m)
+	var sample []prompts.DiscoverRow
+	for _, i := range sampleEvenly(idxs, thingRowSample) {
+		row := c.Rows[i]
+		sample = append(sample, prompts.DiscoverRow{FragmentID: row.FragmentID, Date: row.Date, Title: row.Title, Summary: row.Summary})
 	}
-	sort.Strings(months)
-	var b strings.Builder
-	for _, m := range months {
-		fmt.Fprintf(&b, "  %s: %d\n", m, counts[m])
-	}
-	return b.String()
+	return prompts.DiscoverThingCard(t, rels, len(idxs), timeline, sample)
 }
 
 func sampleEvenly(idxs []int, n int) []int {
@@ -102,11 +64,11 @@ func sampleEvenly(idxs []int, n int) []int {
 
 func (c *Context) readFragment(ctx context.Context, id string) string {
 	if c.reads >= maxFragmentReads {
-		return fmt.Sprintf("Fragment read budget exhausted (%d per run). Work from the summaries you already have.", maxFragmentReads)
+		return prompts.DiscoverReadBudgetExhausted(maxFragmentReads)
 	}
 	recs := llmcontext.LoadFragmentsByIDs(ctx, c.App, []string{id})
 	if len(recs) == 0 {
-		return fmt.Sprintf("No fragment with id %q.", id)
+		return prompts.DiscoverNoFragment(id)
 	}
 	c.reads++
 	return llmcontext.RenderFragmentRecords(recs)
@@ -114,20 +76,13 @@ func (c *Context) readFragment(ctx context.Context, id string) string {
 
 func (c *Context) listExisting(existing []Existing) string {
 	if len(existing) == 0 {
-		return "Nothing exists yet."
+		return prompts.DiscoverExistingNone
 	}
-	var b strings.Builder
+	lines := make([]string, 0, len(existing))
 	for _, e := range existing {
-		fmt.Fprintf(&b, "- %s (%s)", e.Name, e.ID)
-		if e.Note != "" {
-			fmt.Fprintf(&b, " [%s]", e.Note)
-		}
-		if e.Description != "" {
-			fmt.Fprintf(&b, ": %s", e.Description)
-		}
-		fmt.Fprintf(&b, " — %d fragments\n", len(e.FragmentIDs))
+		lines = append(lines, prompts.DiscoverExistingLine(e.Kind, e.ID, e.Name, e.Description, e.Note, len(e.FragmentIDs)))
 	}
-	return b.String()
+	return strings.Join(lines, "\n")
 }
 
 func (c *Context) coverage(existing []Existing) string {
@@ -140,26 +95,13 @@ func (c *Context) coverage(existing []Existing) string {
 			covered[id] = true
 		}
 	}
-	total, hit := 0, 0
+	hit := 0
 	for _, row := range c.Rows {
-		total++
 		if covered[row.FragmentID] {
 			hit++
 		}
 	}
-	var b strings.Builder
-	pct := 0
-	if total > 0 {
-		pct = hit * 100 / total
-	}
-	fmt.Fprintf(&b, "%d of %d annotated fragments (%d%%) sit inside an existing or proposed scope.\n", hit, total, pct)
-
-	type gap struct {
-		id, name  string
-		uncovered int
-		total     int
-	}
-	var gaps []gap
+	var gaps []prompts.DiscoverGap
 	for id, idxs := range c.ByThing {
 		u := 0
 		for _, i := range idxs {
@@ -167,25 +109,15 @@ func (c *Context) coverage(existing []Existing) string {
 				u++
 			}
 		}
-		if u == 0 {
-			continue
-		}
 		t := c.Doc.Find(id)
-		if t == nil {
+		if u == 0 || t == nil {
 			continue
 		}
-		gaps = append(gaps, gap{id: id, name: t.Name, uncovered: u, total: len(idxs)})
+		gaps = append(gaps, prompts.DiscoverGap{ID: id, Name: t.Name, Uncovered: u, Total: len(idxs)})
 	}
-	if len(gaps) == 0 {
-		return b.String()
-	}
-	sort.Slice(gaps, func(i, j int) bool { return gaps[i].uncovered > gaps[j].uncovered })
+	sort.Slice(gaps, func(i, j int) bool { return gaps[i].Uncovered > gaps[j].Uncovered })
 	if len(gaps) > coverageThingList {
 		gaps = gaps[:coverageThingList]
 	}
-	b.WriteString("Least covered things:\n")
-	for _, g := range gaps {
-		fmt.Fprintf(&b, "  %s · %s · %d of %d fragments uncovered\n", g.id, g.name, g.uncovered, g.total)
-	}
-	return b.String()
+	return prompts.DiscoverCoverage(hit, len(c.Rows), gaps)
 }
