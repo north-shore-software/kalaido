@@ -9,7 +9,7 @@ export default { title: "Colours / Colour Composer Pane" };
 
 export const Default: Story = () => {
   const [name, setName] = useState("Customer Feedback");
-  const [criteria, setCriteria] = useState(
+  const [prompt, setPrompt] = useState(
     "Looking for emails about product bugs or pricing issues.",
   );
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -18,12 +18,12 @@ export const Default: Story = () => {
     <div className="border border-line rounded-none overflow-hidden bg-background">
       <ColourComposerPane
         name={name}
-        criteria={criteria}
+        prompt={prompt}
         typeFilter={typeFilter}
         previewing={false}
         previewFragments={mockFragments}
         onName={setName}
-        onCriteria={setCriteria}
+        onPrompt={setPrompt}
         onTypeFilter={setTypeFilter}
       />
     </div>
@@ -32,19 +32,19 @@ export const Default: Story = () => {
 
 export const Blank: Story = () => {
   const [name, setName] = useState("");
-  const [criteria, setCriteria] = useState("");
+  const [prompt, setPrompt] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   return (
     <div className="border border-line rounded-none overflow-hidden bg-background">
       <ColourComposerPane
         name={name}
-        criteria={criteria}
+        prompt={prompt}
         typeFilter={typeFilter}
         previewing={false}
         previewFragments={[]}
         onName={setName}
-        onCriteria={setCriteria}
+        onPrompt={setPrompt}
         onTypeFilter={setTypeFilter}
       />
     </div>
@@ -56,12 +56,12 @@ export const Previewing: Story = () => {
     <div className="border border-line rounded-none overflow-hidden bg-background">
       <ColourComposerPane
         name="Urgent Bugs"
-        criteria="Service crashes or major failures"
+        prompt="Service crashes or major failures"
         typeFilter="all"
         previewing={true}
         previewFragments={[]}
         onName={action("onName")}
-        onCriteria={action("onCriteria")}
+        onPrompt={action("onPrompt")}
         onTypeFilter={action("onTypeFilter")}
       />
     </div>

@@ -10,6 +10,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+// FragmentIDsForColours returns the members of the given colours: every
+// colour_fragment row except manual_negative, which is an exclusion.
 func FragmentIDsForColours(ctx stdctx.Context, app core.App, colourIDs []string) []string {
 	if len(colourIDs) == 0 {
 		return nil
@@ -21,7 +23,8 @@ func FragmentIDsForColours(ctx stdctx.Context, app core.App, colourIDs []string)
 		ors = append(ors, "colour_id = {:"+key+"}")
 		params[key] = id
 	}
-	recs, err := app.FindRecordsByFilter("colour_fragment", strings.Join(ors, " || "), "", 0, 0, params)
+	params["neg"] = "manual_negative"
+	recs, err := app.FindRecordsByFilter("colour_fragment", "("+strings.Join(ors, " || ")+") && match_type != {:neg}", "", 0, 0, params)
 	if err != nil {
 		log.Printf("colour: FragmentIDsForColours: %v", err)
 		return nil

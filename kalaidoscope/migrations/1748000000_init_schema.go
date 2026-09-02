@@ -85,21 +85,25 @@ var schema = []tableDef{
 		Fields: []core.Field{
 			&core.TextField{Name: "name", Required: true},
 			&core.TextField{Name: "colour_value"},
-			&core.TextField{Name: "criteria"},
+			// A colour is defined by any of: a prompt (written by the user; every
+			// fragment is judged against it by the colour role), a set of map
+			// things (written by discover; every fragment citing one of them is a
+			// member, no LLM), and manual positive/negative examples in
+			// colour_fragment. Membership is materialised in colour_fragment.
+			&core.TextField{Name: "prompt"},
+			// Map thing ids (JSON array of strings). Backend-only: set by the
+			// discover colours flow, never edited from the app.
+			&core.JSONField{Name: "thing_ids"},
+			// Prompt-matching watermark: the id of the newest fragment (in
+			// created, id order) judged against the current prompt. Empty means
+			// nothing has been judged yet; a prompt edit resets it.
+			&core.TextField{Name: "prompt_matched_through"},
 			// Last durable provider failure seen by the background evaluation
 			// worker ("auth"/"quota"), cleared on the next success. The worker
 			// has no request to fail, so this is how it surfaces a stuck key.
 			&core.TextField{Name: "last_provider_error_kind"},
 			// Set by the discover worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
-			// The map node this colour was mechanically derived from, if any —
-			// lets a re-run recognize "this node already has a colour" instead
-			// of minting a duplicate (map nodes have no other stable identifier
-			// to key on). Two plain text columns, not one JSON field, so the
-			// lookup can filter by exact equality without relying on stable
-			// JSON serialization. Empty for human-created colours.
-			&core.TextField{Name: "origin_node_dimension"},
-			&core.TextField{Name: "origin_node_name"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -111,17 +115,19 @@ var schema = []tableDef{
 		Fields: []core.Field{
 			&core.RelationField{Name: "colour_id", CollectionId: "colour", Required: true, MaxSelect: 1, CascadeDelete: true},
 			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", Required: true, MaxSelect: 1, CascadeDelete: true},
+			// Why the fragment is linked. One row per pair; precedence when a
+			// pair could carry several reasons: manual_negative > manual_positive
+			// > thing > prompt. "thing": the fragment's annotation cites one of
+			// the colour's thing_ids (mechanical). "prompt": the colour role said
+			// yes to the colour's prompt. A manual_negative row is an exclusion,
+			// not a membership: every reader skips it.
 			&core.SelectField{
 				Name:      "match_type",
 				Required:  true,
 				MaxSelect: 1,
-				// "map_derived": mechanically linked by the v3 organize worker from
-				// fragment_annotation's map-vocabulary tagging — no LLM call at
-				// link time, decision was already made during map incorporation.
-				Values: []string{"manual_positive", "manual_negative", "llm_matched_backfill", "llm_matched_tag_on_input", "map_derived"},
+				Values:    []string{"manual_positive", "manual_negative", "thing", "prompt"},
 			},
-			// Model that decided an llm_matched_* row. Empty for manual matches
-			// and for rows written before provenance was tracked.
+			// Model that decided a "prompt" row. Empty otherwise.
 			&core.TextField{Name: "model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
@@ -518,7 +524,8 @@ var schema = []tableDef{
 					(SELECT json_group_array(ic.idx)
 					 FROM colour_fragment cf
 					 JOIN indexed_colours ic ON ic.id = cf.colour_id
-					 WHERE cf.fragment_id = f.id),
+					 WHERE cf.fragment_id = f.id
+					   AND cf.match_type != 'manual_negative'),
 					'[]'
 				) as colours
 			FROM fragment f

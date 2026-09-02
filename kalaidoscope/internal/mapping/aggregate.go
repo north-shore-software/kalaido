@@ -17,6 +17,16 @@ const (
 
 var aggregateMu sync.Mutex
 
+// settleHooks run after every cycle, outside the aggregate lock, so readers
+// that derive from the map (colour membership) follow it without the map
+// package knowing them.
+var settleHooks []func(core.App)
+
+// OnSettle registers a hook to run after each map cycle.
+func OnSettle(fn func(core.App)) {
+	settleHooks = append(settleHooks, fn)
+}
+
 func aggregateLoop() {
 	for range time.Tick(aggregateTick) {
 		due, err := consolidateDue(workerApp, time.Now())
@@ -51,6 +61,13 @@ func settle(app core.App) {
 }
 
 func cycle(app core.App) {
+	integrate(app)
+	for _, fn := range settleHooks {
+		fn(app)
+	}
+}
+
+func integrate(app core.App) {
 	aggregateMu.Lock()
 	defer aggregateMu.Unlock()
 	if err := consolidate(app); err != nil {

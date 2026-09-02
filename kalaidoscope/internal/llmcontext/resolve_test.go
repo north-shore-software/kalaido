@@ -193,3 +193,19 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 		}
 	})
 }
+
+// A colour in the spec contributes its members: every link except a
+// manual_negative, which is an exclusion rather than a membership.
+func TestResolveColourSkipsExclusions(t *testing.T) {
+	app := testutil.NewApp(t)
+	pinned := addFragment(t, app, "note", "pinned")
+	judged := addFragment(t, app, "note", "judged")
+	excluded := addFragment(t, app, "note", "excluded")
+	addFragment(t, app, "note", "unrelated")
+	colour := testutil.NewRecord(t, app, "colour", map[string]any{"name": "c"})
+	for fid, match := range map[string]string{pinned.Id: "manual_positive", judged.Id: "prompt", excluded.Id: "manual_negative"} {
+		testutil.NewRecord(t, app, "colour_fragment", map[string]any{"colour_id": colour.Id, "fragment_id": fid, "match_type": match})
+	}
+	got := resolveFragmentIDs(t, app, api.ContextSpec{ColourIDs: []string{colour.Id}})
+	assertIDs(t, got, sorted(pinned.Id, judged.Id))
+}

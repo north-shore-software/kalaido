@@ -21,6 +21,7 @@ type Flow interface {
 }
 
 var flows = map[string]Flow{
+	"colours":     coloursFlow{},
 	"projections": projectionsFlow{},
 	"reflections": reflectionsFlow{},
 }
