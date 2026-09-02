@@ -33,9 +33,9 @@ export interface ProjectionDraftEditorProps {
  * a refinement chat. Used both when authoring a brand-new projection
  * ({@link NewProjection}) and when resuming an uncommitted draft
  * ({@link ProjectionDetail}) — the only difference is how the {@link RefineSession}
- * was opened (fresh `start` vs `resume`). The draft lives in the chat (as an
- * `update_draft` tool call) until Approve commits it and routes to the
- * projection.
+ * was opened (fresh `start` vs `resume`). The chat drafts a lens; the preview
+ * shows that lens's executed output (the `apply_result` part), and Approve
+ * commits lens + output together and routes to the projection.
  */
 export function ProjectionDraftEditor({
   session,
@@ -49,7 +49,7 @@ export function ProjectionDraftEditor({
 }: ProjectionDraftEditorProps) {
   const [context, setContext] = useState<ContextItem[]>(initialContext ?? []);
 
-  const canApprove = session.preview.length > 0 && !session.committing;
+  const canApprove = session.previewReady && !session.committing;
 
   async function approve() {
     if (!canApprove) return;
@@ -100,7 +100,13 @@ export function ProjectionDraftEditor({
               label="Live draft preview"
               status={
                 <Pill tone="primary" dot>
-                  {session.preview.length > 0 ? "draft" : "pending"}
+                  {session.phase === "drafting"
+                    ? "drafting"
+                    : session.phase === "applying"
+                      ? "generating"
+                      : session.preview.length > 0
+                        ? "draft"
+                        : "pending"}
                 </Pill>
               }
             />
@@ -110,7 +116,13 @@ export function ProjectionDraftEditor({
                   <MarkdownContent streaming content={session.preview} />
                 </div>
               ) : (
-                <p className="text-body-sm text-fg-2">Nothing drafted yet.</p>
+                <p className="text-body-sm text-fg-2">
+                  {session.phase === "drafting"
+                    ? "Drafting the instruction…"
+                    : session.phase === "applying"
+                      ? "Generating the preview…"
+                      : "Nothing drafted yet."}
+                </p>
               )}
             </div>
           </div>

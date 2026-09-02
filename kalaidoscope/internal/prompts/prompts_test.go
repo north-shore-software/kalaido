@@ -49,16 +49,37 @@ func TestSnapshotDeltaPromptContract(t *testing.T) {
 	}
 }
 
-// The refinement prompt's naming instructions must quote the exact tool names
-// the handler advertises — the constants are wire identifiers, so a drifted
-// quote silently detaches the instruction from the tool it governs.
-func TestNameSuggestionInstructions(t *testing.T) {
-	for _, name := range []string{UpdateDraftToolName, SuggestNameToolName} {
+// The refinement prompt's instructions must quote the exact tool names the
+// handler advertises — the constants are wire identifiers, so a drifted quote
+// silently detaches the instruction from the tool it governs.
+func TestRefinementToolInstructions(t *testing.T) {
+	for _, name := range []string{UpdateLensToolName, SuggestNameToolName} {
 		if !strings.Contains(RefinementSystemPrompt, `"`+name+`"`) {
 			t.Errorf("RefinementSystemPrompt does not quote tool %q", name)
 		}
 	}
 	if !strings.Contains(RefinementSystemPrompt, `"suggested_name"`) {
-		t.Error("RefinementSystemPrompt does not mention update_draft's suggested_name argument")
+		t.Error("RefinementSystemPrompt does not mention update_lens's suggested_name argument")
+	}
+}
+
+// The blindness guard: apply_result is a wire identifier the chat model must
+// never learn about — its output must not be solicited, and the prompt must
+// state the model's epistemic position and the data-agnosticism hard rules
+// carried over from the distillation generator.
+func TestRefinementPromptEpistemics(t *testing.T) {
+	if strings.Contains(RefinementSystemPrompt, ApplyResultToolName) {
+		t.Errorf("RefinementSystemPrompt mentions %q — the model must not know the apply channel exists", ApplyResultToolName)
+	}
+	for _, marker := range []string{
+		"NEVER see the document",         // epistemic position
+		"data-agnostic",                  // hard rule 1
+		"8 in total",                     // the count-pin worked example
+		"The lens must stand alone",      // hard rule 3
+		"Never encode a guessed reading", // clarify-with-a-guess
+	} {
+		if !strings.Contains(RefinementSystemPrompt, marker) {
+			t.Errorf("RefinementSystemPrompt lost the %q contract", marker)
+		}
 	}
 }

@@ -261,11 +261,8 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			rec.Set("name", *req.Name)
 		}
 
-		modelChanged := false
 		if req.Model != nil {
-			m := strings.TrimSpace(*req.Model)
-			modelChanged = m != rec.GetString("model")
-			rec.Set("model", m)
+			rec.Set("model", strings.TrimSpace(*req.Model))
 		}
 
 		if req.WindowSpec != nil {
@@ -308,12 +305,6 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 		if err := app.Save(rec); err != nil {
 			log.Printf("%s.update: %v", strat.TargetType(), err)
 			return e.InternalServerError("update "+strat.TargetType()+" failed", err)
-		}
-
-		if modelChanged {
-			// The drift scan re-derives everything from DB state; this only
-			// needs to fire, not carry a payload.
-			engine.RequestLensDistill()
 		}
 
 		return e.JSON(http.StatusOK, map[string]string{"id": id})

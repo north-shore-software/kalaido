@@ -32,10 +32,29 @@ import { newProjectionTransitions } from "./NewProjection.transitions";
  */
 export interface ProjectionSeed {
   name: string;
-  /** Text to open the draft with. Committing distils it into the lens. */
+  /**
+   * The material this projection starts from. Sent as the session's first user
+   * message (framed by {@link seedPrompt}) so the model's first turn derives a
+   * lens from it — the document only exists once a lens produces it, so there
+   * is no zero-turn draft any more. Empty for flows that let the user type
+   * their own first message.
+   */
   draft: string;
   /** Inputs the new projection reads. Seeds both the picker and the chat. */
   contextSpec?: ContextSpec;
+}
+
+/**
+ * Frames seed material as the session's first user message. Written from the
+ * user's voice (it is their message, composed by the app on their behalf): it
+ * hands over the text they chose and asks for the standing format to keep
+ * producing it — which is exactly what the model's lens must capture.
+ */
+function seedPrompt(draft: string): string {
+  return (
+    "I'm creating this from an existing document. Derive the format, structure and emphasis it should keep producing:\n\n" +
+    draft
+  );
 }
 
 export default function NewProjection() {
@@ -98,10 +117,11 @@ export default function NewProjection() {
   }
 
   /**
-   * The same flow, minus the model call: the draft is text we already have, so
-   * the session opens with it in hand and the editor lands straight on a
-   * reviewable draft. Approving distils it into the lens exactly as if the chat
-   * had produced it.
+   * The same flow, with the seed material as the auto-sent first message: the
+   * model's first turn derives a lens from it and the server's apply renders
+   * the first preview. Approve stays disabled until that preview lands (the
+   * document only exists once a lens produces it). A seed without draft text
+   * opens the editor with the context pinned and lets the user type first.
    */
   const startFromSeed = useCallback(
     async (seed: ProjectionSeed) => {
@@ -120,7 +140,7 @@ export default function NewProjection() {
       const ok = await session.start({
         parentId: newProjectionId,
         contextSpec: seed.contextSpec,
-        seedDraft: seed.draft,
+        prompt: seed.draft.trim() ? seedPrompt(seed.draft.trim()) : undefined,
       });
       setCreating(false);
       if (ok) {
@@ -164,9 +184,9 @@ export default function NewProjection() {
     );
   }
 
-  // A seeded projection never shows the composer — there is no prompt to type,
-  // the draft already exists. Hold the frame while the container and session are
-  // created rather than flashing a form the user can't use.
+  // A seeded projection never shows the composer — its first message is the
+  // seed material, auto-sent by the editor. Hold the frame while the container
+  // and session are created rather than flashing a form the user can't use.
   if (seedRef.current) {
     return (
       <PageLayout>

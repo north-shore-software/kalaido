@@ -41,11 +41,18 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 
 	lensPrompt, lensSpec, _ := resolveActiveLens(app, strat, rec)
 	if strings.TrimSpace(lensPrompt) == "" {
-		// Normal right after a refinement commit: current_lens_id stays empty
-		// until the background distillation worker mints the lens. Refuse
-		// rather than persist an empty document as a reviewable candidate.
+		// The entity has never had a refinement committed — a commit installs
+		// the drafted lens in the same transaction as the approved snapshot,
+		// so this is unreachable for anything the user has ever approved.
+		// Refuse rather than persist an empty document as a candidate.
 		return "", fmt.Errorf("%s %s: %w", strat.TargetType(), rec.Id, ErrLensNotReady)
 	}
+
+	// Non-empty whenever lensPrompt is: resolveActiveLens loads the prompt
+	// from this very record, so the anchor lookup below never binds an empty
+	// lens id (which would hit the empty-param-vs-NULL quirk noted in
+	// statusSnapshotFilter).
+	lensID := rec.GetString("current_lens_id")
 
 	model, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model"))
 	if err != nil {
@@ -86,13 +93,24 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("prepare context: %w", err)
 	}
 
+	started := time.Now()
+	log.Printf("snapshot %s %s (%q): generating via %s — context: %d fragments, %d snapshots",
+		strat.TargetType(), rec.Id, rec.GetString("name"), model,
+		len(pinnedCtx.FragmentIDs), len(pinnedCtx.SnapshotIDs))
+
 	outputStr, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
 	if err != nil {
 		return "", fmt.Errorf("generate standard: %w", err)
 	}
 	outputModel := model
 
-	switch prev := latestApprovedOutput(app, strat, rec.Id, winKey); {
+	switch prev, otherLens := latestApprovedOutput(app, strat, rec.Id, winKey, lensID); {
+	case otherLens:
+		// The published output was produced by a different lens. Its wording
+		// and shape are not this lens's to preserve — the minimal-diff rewrite
+		// would erase exactly the changes the new lens exists to make — so the
+		// raw candidate is the snapshot, as for a first generation.
+		log.Printf("snapshot %s %s: lens changed since last approval; generating from scratch", strat.TargetType(), rec.Id)
 	case strings.TrimSpace(prev) == "":
 		// First generation for this target (and window): nothing to anchor to.
 	case outputStr == prev:
@@ -129,7 +147,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 
 	if err := completeClaimedSnapshot(ctx, app, strat, claimID, SnapshotSpec{
 		SourceID:                rec.Id,
-		LensID:                  rec.GetString("current_lens_id"),
+		LensID:                  lensID,
 		Output:                  outputStr,
 		ContextSpec:             lensSpec,
 		ResolvedContext:         pinnedCtx,
@@ -143,6 +161,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
 	completed = true
+	log.Printf("snapshot %s %s (%q): stored %s snapshot %s (%d chars, %s)",
+		strat.TargetType(), rec.Id, rec.GetString("name"), status, claimID,
+		len(outputStr), time.Since(started).Round(time.Millisecond))
 
 	if status == StatusApproved {
 
@@ -154,22 +175,32 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 }
 
 // latestApprovedOutput returns the output of the entity's newest approved
-// snapshot (per window for reflections) — the text the review pane diffs
-// candidates against — or "" when none exists yet.
-func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey string) string {
+// snapshot (per window for reflections) — the anchor a regeneration minimizes
+// against — or "" when none exists yet. Only an approved snapshot produced by
+// lensID qualifies: the minimal-diff rewrite preserves the anchor's wording
+// and shape, which is right when the same lens is re-run over new sources and
+// wrong when the lens itself changed. otherLens reports the latter — the
+// newest approved snapshot exists but belongs to another lens — so the caller
+// can say why it is generating from scratch.
+func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey, lensID string) (output string, otherLens bool) {
 	filter, params := approvedSnapshotFilter(strat, parentID, windowKey)
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
 	if err != nil || len(recs) == 0 {
-		return ""
+		return "", false
 	}
-	return pbutil.DecodeJSONString(recs[0].GetString("output"))
+	if recs[0].GetString("lens_id") != lensID {
+		return "", true
+	}
+	return pbutil.DecodeJSONString(recs[0].GetString("output")), false
 }
 
 // minimizeAgainstPrevious rewrites a freshly generated candidate as a minimal
-// edit of the previously approved output. Even at temperature 0 a regeneration
-// rewords lines whose information did not change, so a raw candidate diffs
-// noisily against its predecessor. The generation conversation continues with
+// edit of the previously approved output of the same lens. Even at temperature
+// 0 a regeneration rewords lines whose information did not change, so a raw
+// candidate diffs noisily against its predecessor. Callers must not pass an
+// output produced by a different lens: the delta turn ignores wording, ordering
+// and formatting differences by design, and would hand back the old document. The generation conversation continues with
 // two turns — name the semantic delta from the previous output as bullets,
 // then integrate just those bullets into the previous text — so wording only
 // moves where meaning did. A delta of prompts.SnapshotNoChanges short-circuits

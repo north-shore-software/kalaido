@@ -1,3 +1,4 @@
+import type { RefinePhase } from "@/api/kalaidoscope/refinements";
 import { MarkdownContent, Pill } from "@/components/kalaido";
 import { PaneHeader } from "@/components/layout/page-layout";
 import { cn } from "@/lib/css-utils";
@@ -5,12 +6,19 @@ import { cn } from "@/lib/css-utils";
 export interface LivePreviewPaneProps {
   started: boolean;
   preview?: string;
+  /**
+   * Where the current turn stands (see `RefineSession.phase`). Each drafting
+   * turn is two model calls — the lens is written, then executed — and the
+   * pane names the stage so the pre-preview delay reads as progress.
+   */
+  phase?: RefinePhase;
   className?: string;
 }
 
 export function LivePreviewPane({
   started,
   preview = "",
+  phase = "idle",
   className,
 }: LivePreviewPaneProps) {
   return (
@@ -19,7 +27,13 @@ export function LivePreviewPane({
         label="Live preview"
         status={
           <Pill tone="primary" dot>
-            {preview.length > 0 ? "draft" : "pending"}
+            {phase === "drafting"
+              ? "drafting"
+              : phase === "applying"
+                ? "generating"
+                : preview.length > 0
+                  ? "draft"
+                  : "pending"}
           </Pill>
         }
       />
@@ -33,7 +47,13 @@ export function LivePreviewPane({
             <MarkdownContent streaming content={preview} />
           </div>
         ) : (
-          <p className="text-body-sm text-fg-2">Generating…</p>
+          <p className="text-body-sm text-fg-2">
+            {phase === "drafting"
+              ? "Drafting the instruction…"
+              : phase === "applying"
+                ? "Generating the preview…"
+                : "Generating…"}
+          </p>
         )}
       </div>
     </div>

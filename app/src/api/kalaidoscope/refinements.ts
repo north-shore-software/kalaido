@@ -23,14 +23,18 @@ export interface CommitRefinementResult {
  * (`/api/projections/{id}/refinements` or `/api/reflections/{id}/refinements`).
  * The returned chat is driven through `/api/chat` using `clientId` as the chat
  * id — the backend auto-routes that conversation to the refinement handler (it
- * matches `refine_*_conversation.external_conversation_id`), so the assistant
- * replies by emitting a full revised draft through the `update_draft` tool call.
+ * matches `refine_*_conversation.external_conversation_id`). Each drafting turn
+ * the assistant emits a revised lens through the `update_lens` tool call, the
+ * server executes it, and the executed output streams back as a fabricated
+ * `apply_result` tool part — that output is what the preview shows.
  *
  * `snapshotId` scopes the session to an existing snapshot: the backend seeds the
  * new conversation with that snapshot's `context_spec` (and `window_spec` for
  * reflections), so the refine model gets it automatically — callers do not pass
  * context here. Omit `snapshotId` when authoring a brand-new view: there is no
  * parent snapshot or lens yet; both are born when this refinement is committed.
+ * Every session needs at least one chat turn before it can commit — the lens
+ * only exists once the model drafts one.
  */
 export async function createRefinement(input: {
   target: "projection" | "reflection";
@@ -43,12 +47,6 @@ export async function createRefinement(input: {
    * context nothing has been generated against yet (a fork's new inputs).
    */
   contextSpec?: ContextSpec;
-  /**
-   * Open the session with this text already drafted, recorded as though the
-   * assistant had produced it. Committing distills it into a lens like any other
-   * draft, so existing text can become a projection with no model call.
-   */
-  seedDraft?: string;
 }): Promise<Result<CreateRefinementResult, Error>> {
   return withActiveClient((client) =>
     client.send<CreateRefinementResult>(
@@ -59,7 +57,6 @@ export async function createRefinement(input: {
           clientId: input.clientId,
           ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
           ...(input.contextSpec ? { contextSpec: input.contextSpec } : {}),
-          ...(input.seedDraft ? { seedDraft: input.seedDraft } : {}),
         },
       },
     ),
@@ -67,11 +64,12 @@ export async function createRefinement(input: {
 }
 
 /**
- * Commit a refinement session: the server extracts the latest drafted snapshot
- * block from the chat and materializes it as a new approved snapshot, promoted
- * to live (the superseded pending candidate is discarded server-side). The lens
- * is always re-distilled from the refined output, and the parent's
- * context/window spec re-saved (`updateLensAndContext: true`).
+ * Commit a refinement session: the server extracts the latest drafted lens and
+ * the output that lens produced, installs the lens as the parent's current one,
+ * and materializes the output as a new approved snapshot (superseded pending
+ * candidates are discarded server-side). Fails with 400 when no lens was ever
+ * drafted (a seeded session with zero turns) and 409 when the latest lens has
+ * no generated preview (its apply failed).
  */
 export async function commitRefinement(input: {
   target: "projection" | "reflection";
@@ -81,61 +79,37 @@ export async function commitRefinement(input: {
   return withActiveClient((client) =>
     client.send<CommitRefinementResult>(
       `/api/${input.target}s/${input.parentId}/refinements/${input.refinementId}/commit`,
-      { method: "POST", body: { updateLensAndContext: true } },
+      { method: "POST", body: {} },
     ),
   );
 }
 
-const UPDATE_DRAFT_TOOL = "update_draft";
+export const UPDATE_LENS_TOOL = "update_lens";
+export const APPLY_RESULT_TOOL = "apply_result";
 const SUGGEST_NAME_TOOL = "suggest_name";
 
 /**
- * Read the draft string out of a single message part, tolerating both shapes a
- * refinement turn can take:
+ * Read a named tool call's input out of a single message part, tolerating both
+ * shapes a refinement turn can take:
  *
- * - Live stream: the AI SDK materializes the `update_draft` tool call as a
- *   `dynamic-tool` part (`{ type: "dynamic-tool", toolName, state, input }`).
- *   See https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling#dynamic-tools
- *   and https://ai-sdk.dev/docs/reference/ai-sdk-core/dynamic-tool.
- * - Persisted: the backend stores it as `{ type: "tool-update_draft",
+ * - Live stream: the AI SDK materializes tool calls (real ones, and the
+ *   server-fabricated `apply_result`) as `dynamic-tool` parts
+ *   (`{ type: "dynamic-tool", toolName, state, input }`).
+ *   See https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling#dynamic-tools.
+ * - Persisted: the backend stores them as `{ type: "tool-<name>",
  *   data: { toolCallId, toolName, input } }` (see
  *   internal/handlers/refinement_chat.go). Resumed sessions are normalized to
  *   the live shape by {@link normalizeRefinementMessages}, but we accept the
- *   persisted shape here too so the preview is robust even if some seed path
+ *   persisted shape here too so the extractors are robust even if some path
  *   forgets to normalize.
  *
- * Returns the draft string, or null if this part isn't an update_draft call.
- */
-function draftFromPart(part: unknown): string | null {
-  const p = part as {
-    type?: string;
-    toolName?: string;
-    state?: string;
-    input?: unknown;
-    data?: { toolName?: string; input?: unknown };
-  };
-  if (p.type === "dynamic-tool" && p.toolName === UPDATE_DRAFT_TOOL) {
-    if (p.state !== "input-streaming" && p.state !== "input-available") {
-      return null;
-    }
-    const draft = (p.input as Record<string, unknown> | undefined)?.draft;
-    return typeof draft === "string" ? draft : null;
-  }
-  if (p.type === `tool-${UPDATE_DRAFT_TOOL}` && p.data) {
-    const draft = (p.data.input as Record<string, unknown> | undefined)?.draft;
-    return typeof draft === "string" ? draft : null;
-  }
-  return null;
-}
-
-/**
- * Read a named tool call's input out of a single message part, tolerating the
- * same two shapes as {@link draftFromPart} (live `dynamic-tool` and persisted
- * `tool-<name>`). Returns null if the part is a different tool or malformed.
+ * `terminalOnly` skips parts still streaming (`input-streaming`) — the shape
+ * the readiness gate wants, where only a completed input counts.
  */
 function toolInputFromPart(
   part: unknown,
   toolName: string,
+  terminalOnly = false,
 ): Record<string, unknown> | null {
   const p = part as {
     type?: string;
@@ -145,7 +119,10 @@ function toolInputFromPart(
     data?: { toolName?: string; input?: unknown };
   };
   if (p.type === "dynamic-tool" && p.toolName === toolName) {
-    if (p.state !== "input-streaming" && p.state !== "input-available") {
+    const okStates = terminalOnly
+      ? ["input-available"]
+      : ["input-streaming", "input-available"];
+    if (!okStates.includes(p.state ?? "")) {
       return null;
     }
     return (p.input as Record<string, unknown> | undefined) ?? null;
@@ -158,14 +135,14 @@ function toolInputFromPart(
 
 /**
  * The model's name suggestion carried by one part, or null. Two carriers, per
- * the refinement prompt's naming protocol: before the first draft the model
- * calls `suggest_name` (`input.name`); with every draft the name rides
- * `update_draft`'s optional `suggested_name` argument.
+ * the refinement prompt's naming protocol: before the first lens the model
+ * calls `suggest_name` (`input.name`); with every lens the name rides
+ * `update_lens`'s optional `suggested_name` argument.
  */
 function suggestedNameFromPart(part: unknown): string | null {
-  const draftInput = toolInputFromPart(part, UPDATE_DRAFT_TOOL);
-  if (draftInput) {
-    const name = draftInput.suggested_name;
+  const lensInput = toolInputFromPart(part, UPDATE_LENS_TOOL);
+  if (lensInput) {
+    const name = lensInput.suggested_name;
     return typeof name === "string" ? name : null;
   }
   const suggestInput = toolInputFromPart(part, SUGGEST_NAME_TOOL);
@@ -196,33 +173,111 @@ export function extractSuggestedNameFromMessages(
   return "";
 }
 
+/** One apply_result part's output, or null. Streaming partials included unless `terminalOnly`. */
+function applyOutputFromPart(
+  part: unknown,
+  terminalOnly = false,
+): string | null {
+  const input = toolInputFromPart(part, APPLY_RESULT_TOOL, terminalOnly);
+  if (!input) return null;
+  const output = input.output;
+  return typeof output === "string" ? output : null;
+}
+
 /**
- * Pull the most recent drafted snapshot text out of a refinement chat: scan
- * assistant messages newest-first and return the latest `update_draft` call's
- * draft input (empty string until one lands). Trimmed to match the backend's
- * commit-time extraction (`strings.TrimSpace`).
+ * The preview text: scan assistant messages newest-first and return the latest
+ * `apply_result` output — the drafted lens executed against the sources —
+ * including a mid-stream partial, so the preview renders while the apply is
+ * still generating. Empty string until any apply lands. Trimmed to match the
+ * backend's commit-time extraction (`strings.TrimSpace`).
  */
-export function extractDraftFromMessages(messages: UIMessage[]): string {
+export function extractPreviewFromMessages(messages: UIMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.role !== "assistant" || !m.parts) continue;
     for (let j = m.parts.length - 1; j >= 0; j--) {
-      const draft = draftFromPart(m.parts[j]);
-      if (draft !== null) return draft.trim();
+      const output = applyOutputFromPart(m.parts[j]);
+      if (output !== null) return output.trim();
     }
   }
   return "";
 }
 
 /**
+ * Whether the session is committable: a *terminal* apply output exists. An
+ * apply part is only ever written beside the lens that produced it, so this
+ * implies a lens exists too — it is the approve/commit gate, matching the
+ * server's own commit checks (400 with no lens, 409 with no preview).
+ */
+export function extractPreviewReady(messages: UIMessage[]): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "assistant" || !m.parts) continue;
+    for (let j = m.parts.length - 1; j >= 0; j--) {
+      const output = applyOutputFromPart(m.parts[j], true);
+      if (output !== null && output.trim() !== "") return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Where the current turn stands, derived purely from the newest assistant
+ * message's parts — no extra stream-status plumbing:
+ *
+ * - "drafting": the lens tool call exists (streaming or done) with no apply
+ *   output yet — the model is writing the instruction, or the server is about
+ *   to execute it.
+ * - "applying": the fabricated `apply_result` part is streaming — the executed
+ *   preview is being generated.
+ * - "ready": that turn's apply output is terminal.
+ * - "idle": no drafting activity on the newest assistant turn (a clarify
+ *   question, a failed apply's aftermath, or no assistant turn at all).
+ *
+ * Only the newest assistant message counts: the phase describes the turn in
+ * flight, while {@link extractPreviewFromMessages} / {@link extractPreviewReady}
+ * scan the whole transcript for the standing preview.
+ */
+export type RefinePhase = "idle" | "drafting" | "applying" | "ready";
+
+export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "assistant" || !m.parts) continue;
+    let sawLens = false;
+    let sawError = false;
+    let applyStreaming = false;
+    let applyReady = false;
+    for (const part of m.parts) {
+      if (toolInputFromPart(part, UPDATE_LENS_TOOL)) sawLens = true;
+      const output = applyOutputFromPart(part);
+      if (output !== null) {
+        if (applyOutputFromPart(part, true) !== null) applyReady = true;
+        else applyStreaming = true;
+      }
+      if ((part as { type?: string }).type === "data-refine_error") {
+        sawError = true;
+      }
+    }
+    if (applyReady) return "ready";
+    if (applyStreaming) return "applying";
+    if (sawError) return "idle";
+    if (sawLens) return "drafting";
+    return "idle";
+  }
+  return "idle";
+}
+
+/**
  * Normalize persisted refinement history into the shape the live AI SDK stream
  * produces. The backend persists an assistant tool turn as
  * `{ type: "tool-<name>", data: { toolCallId, toolName, input } }`, but when a
- * draft is resumed those parts must look like the AI SDK's `dynamic-tool` parts
- * — otherwise `useChat` mis-reads them (the `tool-<name>` type collides with the
- * SDK's static-tool naming) and {@link extractDraftFromMessages} / the live
- * preview never see the draft. Map each persisted `tool-*` part to a terminal
- * `dynamic-tool` part; leave every other part untouched.
+ * session is resumed those parts must look like the AI SDK's `dynamic-tool`
+ * parts — otherwise `useChat` mis-reads them (the `tool-<name>` type collides
+ * with the SDK's static-tool naming) and {@link extractPreviewFromMessages} /
+ * the live preview never see the lens or its output. Map each persisted
+ * `tool-*` part to a terminal `dynamic-tool` part; `data-*` notice parts pass
+ * through untouched (their persisted and live shapes already match).
  */
 export function normalizeRefinementMessages(
   messages: UIMessage[],

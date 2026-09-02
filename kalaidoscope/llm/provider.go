@@ -45,7 +45,6 @@ const (
 	RoleChat       Role = "chat"
 	RoleRefinement Role = "refinement"
 	RoleColour     Role = "colour"
-	RoleDistill    Role = "distill"  // lens distillation
 	RoleSnapshot   Role = "snapshot" // projection/reflection output
 	RoleMap        Role = "map"      // workspace map incorporation + structure
 	RoleAnnotate   Role = "annotate" // per-fragment markup for the map

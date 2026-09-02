@@ -44,37 +44,94 @@ type AssistantTurn struct {
 	ToolCalls []llm.ToolCall `json:"toolCalls"`
 }
 
-func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID string, onToolCall func(llm.ToolCall)) AssistantTurn {
+// SSE is an open AI-SDK v1 UI-message stream. It exists so a handler can keep
+// the response open past the model turn — streaming further server-driven
+// units (fabricated tool calls, data parts) before Finish closes the protocol.
+type SSE struct {
+	w       http.ResponseWriter
+	flusher http.Flusher // nil when the writer can't flush
+}
+
+// BeginSSE writes the stream headers and the mandatory "start" event.
+//
+// The message id has to travel to the client, or the AI SDK mints its own for
+// the assistant message, posts that back on the next turn, and
+// ExtractNewMessages — which dedupes on id alone — persists the turn a second
+// time.
+func BeginSSE(w http.ResponseWriter, messageID string) *SSE {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("x-vercel-ai-ui-message-stream", "v1")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	flusher, canFlush := w.(http.Flusher)
-	send := func(event any) {
-		data, _ := json.Marshal(event)
-		fmt.Fprintf(w, "data: %s\n\n", data)
-		if canFlush {
-			flusher.Flush()
-		}
-	}
+	s := &SSE{w: w}
+	s.flusher, _ = w.(http.Flusher)
+	s.Send(map[string]string{"type": "start", "messageId": messageID})
+	return s
+}
 
-	sendRate := func(tps float64) {
-		send(map[string]any{
-			"type":      "data-inference_rate",
-			"data":      map[string]any{"tokensPerSecond": tps},
-			"transient": true,
-		})
+func (s *SSE) Send(event any) {
+	data, _ := json.Marshal(event)
+	fmt.Fprintf(s.w, "data: %s\n\n", data)
+	if s.flusher != nil {
+		s.flusher.Flush()
 	}
+}
 
+func (s *SSE) sendRate(tps float64) {
+	s.DataPart("inference_rate", map[string]any{"tokensPerSecond": tps}, true)
+}
+
+// DataPart emits a "data-<name>" part. Transient parts are delivered to the
+// client's onData handler only; non-transient ones become message parts.
+func (s *SSE) DataPart(name string, data any, transient bool) {
+	ev := map[string]any{
+		"type": "data-" + name,
+		"data": data,
+	}
+	if transient {
+		ev["transient"] = true
+	}
+	s.Send(ev)
+}
+
+// ToolInputStart/ToolInputDelta/ToolInputAvailable emit the same events a real
+// model tool call produces, letting the server fabricate a streamed tool part
+// the stock AI SDK transport accumulates like any other. "dynamic" makes the
+// SDK materialize it as a dynamic-tool part rather than requiring a typed tool.
+func (s *SSE) ToolInputStart(toolCallID, toolName string) {
+	s.Send(map[string]any{
+		"type":       "tool-input-start",
+		"toolCallId": toolCallID,
+		"toolName":   toolName,
+		"dynamic":    true,
+	})
+}
+
+func (s *SSE) ToolInputDelta(toolCallID, chunk string) {
+	s.Send(map[string]any{
+		"type":           "tool-input-delta",
+		"toolCallId":     toolCallID,
+		"inputTextDelta": chunk,
+	})
+}
+
+func (s *SSE) ToolInputAvailable(toolCallID, toolName string, input any) {
+	s.Send(map[string]any{
+		"type":       "tool-input-available",
+		"toolCallId": toolCallID,
+		"toolName":   toolName,
+		"input":      input,
+		"dynamic":    true,
+	})
+}
+
+// StreamTurn drains one model completion into the stream and returns the
+// assembled turn. It does not close the stream; call Finish for that.
+func (s *SSE) StreamTurn(comp *llm.Completion, textID string, onToolCall func(llm.ToolCall)) AssistantTurn {
 	var assistant strings.Builder
 	var toolCalls []llm.ToolCall
-
-	// The id has to travel to the client, or the AI SDK mints its own for the
-	// assistant message, posts that back on the next turn, and ExtractNewMessages
-	// — which dedupes on id alone — persists the turn a second time.
-	send(map[string]string{"type": "start", "messageId": textID})
 
 	var textStarted bool
 	var genStart, lastEmit time.Time
@@ -88,30 +145,20 @@ func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID
 		switch ev.Kind {
 		case llm.EventText:
 			if !textStarted {
-				send(map[string]string{"type": "text-start", "id": textID})
+				s.Send(map[string]string{"type": "text-start", "id": textID})
 				textStarted = true
 			}
 			assistant.WriteString(ev.Text)
 			tokenCount++
-			send(map[string]string{"type": "text-delta", "id": textID, "delta": ev.Text})
+			s.Send(map[string]string{"type": "text-delta", "id": textID, "delta": ev.Text})
 			if elapsed := now.Sub(genStart).Seconds(); elapsed > 0 && now.Sub(lastEmit) >= 250*time.Millisecond {
-				sendRate(float64(tokenCount) / elapsed)
+				s.sendRate(float64(tokenCount) / elapsed)
 				lastEmit = now
 			}
 		case llm.EventToolStart:
-
-			send(map[string]any{
-				"type":       "tool-input-start",
-				"toolCallId": ev.ToolCallID,
-				"toolName":   ev.ToolName,
-				"dynamic":    true,
-			})
+			s.ToolInputStart(ev.ToolCallID, ev.ToolName)
 		case llm.EventToolArgDelta:
-			send(map[string]any{
-				"type":           "tool-input-delta",
-				"toolCallId":     ev.ToolCallID,
-				"inputTextDelta": ev.Text,
-			})
+			s.ToolInputDelta(ev.ToolCallID, ev.Text)
 		case llm.EventToolEnd:
 			tc := llm.ToolCall{
 				ID:   ev.ToolCallID,
@@ -119,34 +166,38 @@ func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID
 				Args: ev.Args,
 			}
 			toolCalls = append(toolCalls, tc)
-			send(map[string]any{
-				"type":       "tool-input-available",
-				"toolCallId": ev.ToolCallID,
-				"toolName":   ev.ToolName,
-				"input":      ev.Args,
-				"dynamic":    true,
-			})
+			s.ToolInputAvailable(ev.ToolCallID, ev.ToolName, ev.Args)
 			if onToolCall != nil {
 				onToolCall(tc)
 			}
 		}
 	}
 	if textStarted {
-		send(map[string]string{"type": "text-end", "id": textID})
+		s.Send(map[string]string{"type": "text-end", "id": textID})
 	}
 	if usage := comp.Wait(); usage != nil && usage.TokensPerSecond > 0 {
-		sendRate(usage.TokensPerSecond)
-	}
-	send(map[string]string{"type": "finish"})
-	fmt.Fprintf(w, "data: [DONE]\n\n")
-	if canFlush {
-		flusher.Flush()
+		s.sendRate(usage.TokensPerSecond)
 	}
 
 	return AssistantTurn{
 		Text:      assistant.String(),
 		ToolCalls: toolCalls,
 	}
+}
+
+func (s *SSE) Finish() {
+	s.Send(map[string]string{"type": "finish"})
+	fmt.Fprintf(s.w, "data: [DONE]\n\n")
+	if s.flusher != nil {
+		s.flusher.Flush()
+	}
+}
+
+func StreamAssistantResponse(w http.ResponseWriter, comp *llm.Completion, textID string, onToolCall func(llm.ToolCall)) AssistantTurn {
+	sse := BeginSSE(w, textID)
+	turn := sse.StreamTurn(comp, textID, onToolCall)
+	sse.Finish()
+	return turn
 }
 
 func ResolveContextSpecs(ctx context.Context, app core.App, newMsgs []api.UIMessage) {

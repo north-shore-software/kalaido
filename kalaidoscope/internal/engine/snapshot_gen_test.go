@@ -26,8 +26,8 @@ type snapshotScript struct {
 }
 
 // install points the provider factory at this script for one test, then hands
-// it back to the distillation scriptedProvider the package init registered, so
-// the lensworker tests keep their script regardless of execution order.
+// it back to the package-default scriptedProvider the init registered, so
+// other tests keep a working provider regardless of execution order.
 func (s *snapshotScript) install(t *testing.T) {
 	t.Helper()
 	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
@@ -120,6 +120,35 @@ func TestGenerateSnapshotFirstGenerationStoresRawCandidate(t *testing.T) {
 	}
 	if got := storedOutput(t, app, strat, snapID); got != "RAW OUT" {
 		t.Errorf("output = %q, want the raw candidate", got)
+	}
+	if n := len(script.transcripts()); n != 1 {
+		t.Errorf("model calls = %d, want 1", n)
+	}
+}
+
+// An approved predecessor produced by a different lens is not an anchor: the
+// minimal-diff rewrite would preserve the old lens's wording and shape, so the
+// raw candidate is stored as for a first generation — one model call.
+func TestGenerateSnapshotLensChangeSkipsMinimize(t *testing.T) {
+	app := testutil.NewApp(t)
+	strat := ProjectionStrategy{}
+	proj := genFixture(t, app, "projection")
+	oldLens := testutil.NewRecord(t, app, "lens", map[string]any{
+		"prompt":       pbutil.JSONString("OLD LENS"),
+		"context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
+	})
+	priorApproved(t, app, strat, proj, "OLD V1", map[string]any{"lens_id": oldLens.Id})
+	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
+		return "RAW V2", nil
+	}}
+	script.install(t)
+
+	snapID, err := GenerateSnapshot(context.Background(), app, proj.Id, StatusApproved, strat, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := storedOutput(t, app, strat, snapID); got != "RAW V2" {
+		t.Errorf("output = %q, want the raw candidate (no rewrite against another lens's output)", got)
 	}
 	if n := len(script.transcripts()); n != 1 {
 		t.Errorf("model calls = %d, want 1", n)

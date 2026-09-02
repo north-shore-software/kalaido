@@ -235,13 +235,21 @@ async fn spawn_and_register(
         "sidecar:pocketbase:status",
         SidecarSpec {
             sidecar_name: "pocketbase",
-            args: vec![
-                "serve".to_string(),
-                "--http=127.0.0.1:0".to_string(),
-                "--dir".to_string(),
-                dir_str,
-                "--dev".to_string(),
-            ],
+            args: {
+                let mut args = vec![
+                    "serve".to_string(),
+                    "--http=127.0.0.1:0".to_string(),
+                    "--dir".to_string(),
+                    dir_str,
+                ];
+                // PocketBase's full console firehose (every read echoed, all
+                // request/realtime logs). Off by default: the sidecar echoes
+                // state-changing writes and explicit operation lines instead.
+                if std::env::var_os("KALAIDO_PB_DEV").is_some() {
+                    args.push("--dev".to_string());
+                }
+                args
+            },
             envs: vec![],
             capture_filter: Some("KALAIDO_"),
         },

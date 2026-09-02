@@ -25,14 +25,14 @@ func snapshotRows(t *testing.T, app core.App, strat Strategy, parentID string) [
 	return recs
 }
 
-// A target whose lens has not been distilled yet must refuse to generate — not
-// persist an empty document as a reviewable candidate.
+// A target with no lens — no refinement was ever committed for it — must
+// refuse to generate, not persist an empty document as a reviewable candidate.
 func TestGenerateSnapshotLensNotReadyRefuses(t *testing.T) {
 	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":            "T",
-		"current_lens_id": "", // distillation still pending
+		"current_lens_id": "", // never refined
 	})
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
 		t.Error("no model call expected while the lens is not ready")

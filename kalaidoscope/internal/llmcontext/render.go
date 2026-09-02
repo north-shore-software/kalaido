@@ -17,21 +17,29 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 	for _, m := range uiMsgs {
 		var sb strings.Builder
 		for _, p := range m.Parts {
-			if p.Type == "text" {
+			switch {
+			case p.Type == "text":
 				sb.WriteString(ExpandMentions(p.Text))
-			} else if strings.HasPrefix(p.Type, "tool-") {
+			case p.Type == "tool-"+prompts.UpdateLensToolName:
+				// The lens is the only tool part echoed back into the
+				// transcript. Everything else on an assistant message —
+				// tool-apply_result (the lens's executed output),
+				// tool-suggest_name, data-* notices — must stay invisible to
+				// the model: a lens-writer that sees its own output starts
+				// encoding output back into the lens, which is the overfitting
+				// this design removes.
 				var data struct {
 					ToolName string `json:"toolName"`
 					Input    struct {
-						Draft string `json:"draft"`
+						Lens string `json:"lens"`
 					} `json:"input"`
 				}
 				if err := json.Unmarshal(p.Data, &data); err == nil {
-					if data.Input.Draft != "" {
+					if data.Input.Lens != "" {
 						if sb.Len() > 0 {
 							sb.WriteString("\n\n")
 						}
-						sb.WriteString(prompts.DraftEcho(data.ToolName, data.Input.Draft))
+						sb.WriteString(prompts.LensEcho(data.ToolName, data.Input.Lens))
 					}
 				}
 			}

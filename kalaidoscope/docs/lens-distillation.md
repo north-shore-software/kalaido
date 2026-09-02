@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Lens Distillation — Generated Audit Snapshot
 
 > **Generated:** 2026-08-18, from source at commit `f272f1c`.

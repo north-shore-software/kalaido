@@ -66,14 +66,6 @@ func TestResolveRoleForOverrideWins(t *testing.T) {
 	if got, err := ResolveRoleFor(RoleChat, "   "); err != nil || got != "workspace-default" {
 		t.Errorf("whitespace override = (%q, %v), want (\"workspace-default\", nil)", got, err)
 	}
-	// The distill→snapshot alias survives the fallback path.
-	if got, err := ResolveRoleFor(RoleDistill, ""); err != nil || got != "role-model" {
-		t.Errorf("distill fallback = (%q, %v), want the snapshot role's model", got, err)
-	}
-	// And an override applies to distill identically.
-	if got, err := ResolveRoleFor(RoleDistill, "entity-override"); err != nil || got != "entity-override" {
-		t.Errorf("distill override = (%q, %v), want (\"entity-override\", nil)", got, err)
-	}
 }
 
 func TestResolveRoleErrorsWhenConfiguredWithNoModel(t *testing.T) {
@@ -100,9 +92,9 @@ func TestModelsDedupesAndOrdersDefaultFirst(t *testing.T) {
 	cfg := WorkspaceConfig{
 		DefaultModel: "default",
 		RoleModels: map[Role]string{
-			RoleChat:    "default", // duplicate of the default
-			RoleColour:  "colour",
-			RoleDistill: "", // empty overrides are ignored
+			RoleChat:   "default", // duplicate of the default
+			RoleColour: "colour",
+			RoleMap:    "", // empty overrides are ignored
 		},
 	}
 

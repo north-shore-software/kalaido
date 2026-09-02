@@ -255,7 +255,7 @@ func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
 	_ = g.p1.UnmarshalJSONField("current_context_spec", &spec)
 
 	newSnapID, err := engine.CommitRefinement(ctx, app, engine.ProjectionStrategy{},
-		g.p1.Id, p1Cand.Id, "EDITED OUTPUT", false, pinned, spec, api.WindowSpec{}, "", "projection")
+		g.p1.Id, p1Cand.Id, "EDITED LENS", "EDITED OUTPUT", pinned, spec, api.WindowSpec{}, "", "projection")
 	if err != nil {
 		t.Fatalf("commit refinement: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
 	// ordinary edit and must not start background work.
 	waves = 0
 	if _, err := engine.CommitRefinement(ctx, app, engine.ProjectionStrategy{},
-		g.p1.Id, newSnapID, "EDITED AGAIN", false, pinned, spec, api.WindowSpec{}, "", "projection"); err != nil {
+		g.p1.Id, newSnapID, "EDITED LENS AGAIN", "EDITED AGAIN", pinned, spec, api.WindowSpec{}, "", "projection"); err != nil {
 		t.Fatalf("commit second refinement: %v", err)
 	}
 	if waves != 0 {
