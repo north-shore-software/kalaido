@@ -83,11 +83,12 @@ func ConfigForProvider(p llm.ProviderID) Config {
 			PreemptAtOrBelow: Background,
 		}
 	default:
-		// Hosted APIs: modest parallelism with spaced-out starts. Preemption
-		// buys little when slots are plural and calls are fast.
+		// Hosted APIs: wide parallelism, no start spacing — provider rate
+		// limits surface as quota/transient errors that callers retry.
+		// Preemption buys little when slots are plural and calls are fast.
 		return Config{
 			MaxConcurrent:    100,
-			MinStartInterval: time.Second,
+			MinStartInterval: 0,
 			IdleAfter:        time.Minute,
 			PreemptAtOrBelow: PreemptNone,
 		}

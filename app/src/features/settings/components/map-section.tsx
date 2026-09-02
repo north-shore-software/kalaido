@@ -1,4 +1,7 @@
+import { useState } from "react";
+import { startMap } from "@/api/kalaidoscope/map";
 import { Pill } from "@/components/kalaido";
+import { Button } from "@/components/ui/button";
 import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { getActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client";
@@ -42,6 +45,14 @@ function MapDebugContent() {
 
   const map = maps?.[0];
   const run = runs?.[0];
+  const [kicking, setKicking] = useState(false);
+
+  async function kick() {
+    setKicking(true);
+    await startMap();
+    setKicking(false);
+  }
+
   const body = asMapBody(map?.body);
   const things = [...(body?.things ?? [])].sort(
     (a, b) => (b.fragments ?? 0) - (a.fragments ?? 0),
@@ -49,6 +60,9 @@ function MapDebugContent() {
 
   return (
     <div className="flex flex-col gap-2.5 border-t border-line pt-2.5">
+      <Button size="sm" onClick={kick} disabled={kicking}>
+        Run map
+      </Button>
       {map && (
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-row font-semibold">Map</span>

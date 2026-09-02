@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	annotateWorkers      = 4
+	annotateWorkers      = 100
 	maxThrottledAttempts = 6
 )
 
