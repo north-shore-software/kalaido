@@ -1,6 +1,6 @@
 import type { PipelineStage } from "@/hooks/use-ingest-pipeline";
 
-const MAX_ROUNDS = 12;
+const MAX_ROUNDS = 30;
 
 const IMPORTING = 0.05;
 const MAPPING_START = 0.1;

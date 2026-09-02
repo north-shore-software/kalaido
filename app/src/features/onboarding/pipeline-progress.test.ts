@@ -40,7 +40,7 @@ describe("pipelineProgress", () => {
     expect(
       pipelineProgress({
         stage: "organizing",
-        discoverRun: { rounds: 6 },
+        discoverRun: { rounds: 15 },
       }),
     ).toBeCloseTo(0.825);
   });

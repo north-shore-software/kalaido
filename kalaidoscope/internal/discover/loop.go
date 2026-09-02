@@ -11,7 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-const maxRounds = 12
+const maxRounds = 30
 
 func idTool(name, description, param, paramDescription string) llm.Tool {
 	return llm.Tool{

@@ -49,7 +49,7 @@ Tools:
 - propose_projection: propose one projection.
 - finish: end the run and say why.
 
-Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
+You may call several tools in one turn, and you should: read every thing you need to see in a single turn rather than one per turn, and propose several projections together once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
 
 const discoverProjectionsGuidance = `How to work:
 1. Read the narrative and the things list. Sketch three to eight candidate projections. Each is about a thing, not about a timeline: an ongoing relationship with a supplier, a dispute and where it stands, a project and its decisions, the standing arrangements around a place. Time is context, not the spine.
