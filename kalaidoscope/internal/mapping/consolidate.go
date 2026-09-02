@@ -144,9 +144,6 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 		}
 		kept[t.ID] = true
 		t.Kind = mapdoc.NormalizeKind(t.Kind)
-		t.Status = mapdoc.StatusActive
-		t.Note = ""
-		t.MergedInto = ""
 		if t.Aliases == nil {
 			t.Aliases = []string{}
 		}

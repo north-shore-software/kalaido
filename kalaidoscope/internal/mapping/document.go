@@ -83,9 +83,6 @@ func findByName(d *mapdoc.Document, name string) *mapdoc.Thing {
 	}
 	for i := range d.Things {
 		t := &d.Things[i]
-		if t.Status == mapdoc.StatusMerged {
-			continue
-		}
 		if normalizeName(t.Name) == want {
 			return t
 		}

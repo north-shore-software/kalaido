@@ -5,12 +5,6 @@ import (
 	"strings"
 )
 
-const (
-	StatusPending = "pending"
-	StatusActive  = "active"
-	StatusMerged  = "merged"
-)
-
 var Kinds = []string{"person", "organisation", "place", "project", "topic", "other"}
 
 type Thing struct {
@@ -19,9 +13,6 @@ type Thing struct {
 	Aliases     []string `json:"aliases"`
 	Kind        string   `json:"kind"`
 	Blurb       string   `json:"blurb"`
-	Note        string   `json:"note,omitempty"`
-	Status      string   `json:"status"`
-	MergedInto  string   `json:"merged_into,omitempty"`
 	Fragments   int      `json:"fragments"`
 	FirstSeen   string   `json:"first_seen,omitempty"`
 	LastSeen    string   `json:"last_seen,omitempty"`
@@ -72,19 +63,6 @@ func (d *Document) Find(id string) *Thing {
 		}
 	}
 	return nil
-}
-
-func (d *Document) Resolve(id string) *Thing {
-	t := d.Find(id)
-	if t == nil {
-		return nil
-	}
-	if t.Status == StatusMerged && t.MergedInto != "" {
-		if target := d.Find(t.MergedInto); target != nil {
-			return target
-		}
-	}
-	return t
 }
 
 func NormalizeKind(kind string) string {

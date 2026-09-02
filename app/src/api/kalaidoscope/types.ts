@@ -188,7 +188,7 @@ export type FragmentRecord = {
 	type: FragmentTypeOptions
 }
 
-export type FragmentAnnotationRecord<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthing_ids = unknown, Tthings = unknown> = {
+export type FragmentAnnotationRecord<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown> = {
 	annotation?: null | Tannotation
 	conclusions?: null | Tconclusions
 	created: IsoAutoDateString
@@ -200,7 +200,6 @@ export type FragmentAnnotationRecord<Tannotation = unknown, Tconclusions = unkno
 	model?: string
 	questions?: null | Tquestions
 	summary?: string
-	thing_ids?: null | Tthing_ids
 	things?: null | Tthings
 	title?: string
 }
@@ -437,7 +436,7 @@ export type ChatMessageResponse<Tcontent = unknown, Texpand = unknown> = Require
 export type ColourResponse<Texpand = unknown> = Required<ColourRecord> & BaseSystemFields<Texpand>
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>
-export type FragmentAnnotationResponse<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthing_ids = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation, Tconclusions, Tdecisions, Tquestions, Tthing_ids, Tthings>> & BaseSystemFields<Texpand>
+export type FragmentAnnotationResponse<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation, Tconclusions, Tdecisions, Tquestions, Tthings>> & BaseSystemFields<Texpand>
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>

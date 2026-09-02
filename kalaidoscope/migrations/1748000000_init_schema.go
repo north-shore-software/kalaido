@@ -411,11 +411,6 @@ var schema = []tableDef{
 			// Exactly what the model emitted: [{ref} | {name, kind, note}].
 			// Provenance only.
 			&core.JSONField{Name: "things"},
-			// The citations as thing ids: refs as emitted, proposals filled in
-			// with the id the fold minted. Written once by the fold; a later
-			// merge retires an id rather than rewriting rows — readers resolve
-			// one hop through the map's merged_into.
-			&core.JSONField{Name: "thing_ids"},
 			// Each [{text, refs[]}]; always present, empty array is a valid
 			// answer.
 			&core.JSONField{Name: "decisions"},
@@ -424,8 +419,8 @@ var schema = []tableDef{
 			// Active things the annotate call was shown — how well grounded the
 			// row is; the thin-tail re-annotate pass selects on it.
 			&core.NumberField{Name: "grounded_count"},
-			// Set by the aggregate loop in the same transaction as its map
-			// write; rows with folded=false are the loop's work queue.
+			// Set once a consolidate pass has read this row into the map;
+			// rows with folded=false are what makes the next pass due.
 			&core.BoolField{Name: "folded"},
 			&core.TextField{Name: "model"},
 			&core.AutodateField{Name: "created", OnCreate: true},

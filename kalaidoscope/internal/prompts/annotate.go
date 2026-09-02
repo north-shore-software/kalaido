@@ -13,39 +13,29 @@ const annotateInlineFloor = 2
 const annotateEmptyMap = "The workspace map is empty so far: nothing has been annotated yet, so every thing this fragment mentions is new."
 
 func annotateMapBlock(d *mapdoc.Document) string {
-	var active, pending []mapdoc.Thing
+	var shown []mapdoc.Thing
 	for _, t := range d.Things {
-		switch {
-		case t.Status == mapdoc.StatusPending:
-			pending = append(pending, t)
-		case t.Status == mapdoc.StatusActive && t.Fragments >= annotateInlineFloor:
-			active = append(active, t)
+		if t.Fragments >= annotateInlineFloor {
+			shown = append(shown, t)
 		}
 	}
-	if len(active)+len(pending) == 0 && strings.TrimSpace(d.Narrative) == "" {
+	if len(shown) == 0 && strings.TrimSpace(d.Narrative) == "" {
 		return annotateEmptyMap
 	}
-	shown := make(map[string]string, len(active)+len(pending))
+	names := make(map[string]string, len(shown))
 	var sb strings.Builder
 	sb.WriteString("Workspace map — known things (id · name · kind · aliases · what it is):\n")
-	if len(active) == 0 {
-		sb.WriteString("(none confirmed yet)\n")
+	if len(shown) == 0 {
+		sb.WriteString("(none yet)\n")
 	}
-	for _, t := range active {
-		shown[t.ID] = t.Name
+	for _, t := range shown {
+		names[t.ID] = t.Name
 		fmt.Fprintf(&sb, "%s · %s · %s · %s · %s\n", t.ID, t.Name, t.Kind, aliasList(t.Aliases), t.Blurb)
-	}
-	if len(pending) > 0 {
-		sb.WriteString("\nProposed recently, not yet confirmed (cite by id if the same thing):\n")
-		for _, t := range pending {
-			shown[t.ID] = t.Name
-			fmt.Fprintf(&sb, "%s · %s · %s · note: %s\n", t.ID, t.Name, t.Kind, t.Note)
-		}
 	}
 	var rels []string
 	for _, r := range d.Relationships {
-		from, okFrom := shown[r.From]
-		to, okTo := shown[r.To]
+		from, okFrom := names[r.From]
+		to, okTo := names[r.To]
 		if okFrom && okTo {
 			rels = append(rels, fmt.Sprintf("%s (%s) %s %s (%s)", from, r.From, r.Kind, to, r.To))
 		}
@@ -66,7 +56,7 @@ func annotateMapBlock(d *mapdoc.Document) string {
 func AnnotateShown(d *mapdoc.Document) int {
 	n := 0
 	for _, t := range d.Things {
-		if t.Status == mapdoc.StatusActive && t.Fragments >= annotateInlineFloor {
+		if t.Fragments >= annotateInlineFloor {
 			n++
 		}
 	}
