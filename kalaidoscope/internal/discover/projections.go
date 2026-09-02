@@ -50,6 +50,13 @@ func (projectionsFlow) Tools(c *Context) []llm.Tool {
 }
 
 func (projectionsFlow) Existing(c *Context) ([]Existing, error) {
+	return existingEntities(c)
+}
+
+// existingEntities lists every projection and reflection, made by a person or
+// proposed by a run, with the fragments its scope resolves to. Both flows use
+// it: a reflection proposal must not restate a projection and vice versa.
+func existingEntities(c *Context) ([]Existing, error) {
 	var out []Existing
 	for _, col := range []string{"projection", "reflection"} {
 		recs, err := c.App.FindRecordsByFilter(col, "1=1", "created", 0, 0, nil)
@@ -132,7 +139,7 @@ func (f projectionsFlow) Dispatch(ctx context.Context, c *Context, call llm.Tool
 		ColourIDs:           args.ColourIDs,
 		SourceProjectionIDs: args.SourceProjectionIDs,
 	}
-	rec, err := insertProposed(c, "projection", args.Name, args.Message, spec)
+	rec, err := insertProposed(c, "projection", args.Name, args.Message, spec, nil)
 	if err != nil {
 		return "", nil, err
 	}
@@ -141,7 +148,9 @@ func (f projectionsFlow) Dispatch(ctx context.Context, c *Context, call llm.Tool
 	return prompts.DiscoverProposed("projection", args.Name, rec.Id, len(fragmentIDs)), out, nil
 }
 
-func insertProposed(c *Context, col, name, message string, spec api.ContextSpec) (*core.Record, error) {
+// insertProposed writes a proposed row; `extra` carries any collection-specific
+// fields (a reflection's schedule).
+func insertProposed(c *Context, col, name, message string, spec api.ContextSpec, extra map[string]any) (*core.Record, error) {
 	collection, err := c.App.FindCollectionByNameOrId(col)
 	if err != nil {
 		return nil, err
@@ -152,6 +161,9 @@ func insertProposed(c *Context, col, name, message string, spec api.ContextSpec)
 	rec.Set("brief", message)
 	rec.Set("current_context_spec", pbutil.JSONObject(spec))
 	rec.Set("origin_run_id", c.Run.Id)
+	for k, v := range extra {
+		rec.Set(k, v)
+	}
 	if err := c.App.Save(rec); err != nil {
 		return nil, err
 	}

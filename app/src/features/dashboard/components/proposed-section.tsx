@@ -21,11 +21,12 @@ function KindIcon({ kind }: { kind: EntityKind }) {
 }
 
 /**
- * What a discover run proposed and nobody has taken up yet. Opening a
- * projection starts the ordinary authoring chat over the proposed row, with
- * its scope pinned and its opening message sent as the first turn; the row
- * becomes active when that refinement is committed. Reflections wait for
- * their own discover flow, so they list but do not open.
+ * What a discover run proposed and nobody has taken up yet. Opening a card
+ * starts the ordinary authoring chat over the proposed row, with its scope
+ * pinned and its opening message sent as the first turn; the row becomes
+ * active when that refinement is committed. A reflection proposal also
+ * carries its schedule, so committing it backfills the series from the date
+ * the rhythm began.
  */
 export function ProposedSection({
   items,
@@ -46,7 +47,7 @@ export function ProposedSection({
             <DocumentCard
               key={`${it.kind}:${it.id}`}
               className="w-[calc(50%-7px)]"
-              onClick={isProj ? () => onOpen(it) : undefined}
+              onClick={() => onOpen(it)}
               leading={<KindIcon kind={it.kind} />}
               title={it.name}
               trailing={

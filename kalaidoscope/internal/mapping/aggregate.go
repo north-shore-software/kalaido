@@ -81,3 +81,13 @@ func refreshCounters(app core.App) error {
 	d.rec.Set("annotated", annotated)
 	return app.Save(d.rec)
 }
+
+// WaitSettled blocks while a consolidation is in progress and returns once the
+// map is quiescent. Readers that reason over the whole map (discover) call it
+// first, so a run kicked mid-consolidation reads the version about to land
+// rather than the one about to be superseded.
+func WaitSettled() {
+	aggregateMu.Lock()
+	//nolint:staticcheck // the lock is the wait; nothing to protect
+	aggregateMu.Unlock()
+}
