@@ -22,18 +22,40 @@ func idTool(name, description, param, paramDescription string) llm.Tool {
 	}
 }
 
+func idsTool(name, description, paramDescription string) llm.Tool {
+	return llm.Tool{
+		Name:        name,
+		Description: description,
+		Parameters: json.RawMessage(`{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"},"description":` +
+			strconv.Quote(paramDescription) + `}},"required":["ids"]}`),
+	}
+}
+
 func emptyTool(name, description string) llm.Tool {
 	return llm.Tool{Name: name, Description: description, Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}
 }
 
 func sharedTools() []llm.Tool {
 	return []llm.Tool{
-		idTool(prompts.ReadThingToolName, prompts.ReadThingToolDescription, "id", prompts.ReadThingParamDescription),
+		idsTool(prompts.ReadThingToolName, prompts.ReadThingToolDescription, prompts.ReadThingParamDescription),
 		idTool(prompts.ReadFragmentToolName, prompts.ReadFragmentToolDescription, "id", prompts.ReadFragmentParamDescription),
 		emptyTool(prompts.ListExistingToolName, prompts.ListExistingToolDescription),
 		emptyTool(prompts.CoverageToolName, prompts.CoverageToolDescription),
 		emptyTool(prompts.FinishToolName, prompts.FinishToolDescription),
 	}
+}
+
+func idsArg(call llm.ToolCall) []string {
+	var args struct {
+		IDs []string `json:"ids"`
+		ID  string   `json:"id"`
+	}
+	_ = json.Unmarshal(call.Args, &args)
+	ids := args.IDs
+	if len(ids) == 0 && strings.TrimSpace(args.ID) != "" {
+		ids = []string{args.ID}
+	}
+	return ids
 }
 
 func idArg(call llm.ToolCall) string {
@@ -76,7 +98,7 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 		for _, call := range calls {
 			switch call.Name {
 			case prompts.ReadThingToolName:
-				results = append(results, c.readThing(idArg(call)))
+				results = append(results, c.readThings(idsArg(call)))
 			case prompts.ReadFragmentToolName:
 				results = append(results, c.readFragment(ctx, idArg(call)))
 			case prompts.ListExistingToolName:

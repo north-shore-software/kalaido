@@ -16,6 +16,18 @@ const (
 	coverageThingList = 10
 )
 
+func (c *Context) readThings(refs []string) string {
+	var parts []string
+	if len(refs) > prompts.DiscoverReadThingLimit {
+		refs = refs[:prompts.DiscoverReadThingLimit]
+		parts = append(parts, prompts.DiscoverTooManyThings(prompts.DiscoverReadThingLimit))
+	}
+	for _, ref := range refs {
+		parts = append(parts, c.readThing(strings.TrimSpace(ref)))
+	}
+	return strings.Join(parts, "\n")
+}
+
 func (c *Context) readThing(ref string) string {
 	t := mapping.ResolveRef(c.Doc, ref)
 	if t == nil {

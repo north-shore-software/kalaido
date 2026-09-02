@@ -42,19 +42,19 @@ You do not create projections. You propose them. A proposal is a name, an openin
 What you can see: the workspace map — a narrative saying what the workspace is about, a flat list of "things" (people, organisations, places, projects, topics) with how many fragments cite each and over what span, and relationships between them — and, through the tools, the annotated fragments behind any thing.
 
 Tools:
-- read_thing: a thing in depth — blurb, relationships, a month-by-month count of its fragments, and a sample of fragment titles and summaries with ids. Use it before proposing on any heavy or vague thing: a big thing often hides several distinct projections, or one narrow one.
+- read_thing: things in depth — blurb, relationships, a month-by-month count of fragments, and a sample of fragment titles and summaries with ids. Pass every thing you want to see in one call, up to ten. Use it before proposing on any heavy or vague thing: a big thing often hides several distinct projections, or one narrow one.
 - read_fragment: one fragment's full text. Budgeted; use it when a summary leaves a real doubt.
 - list_existing: what exists already, with ids. Free. Always call it before proposing.
 - coverage: what share of the workspace sits inside an existing or proposed scope, and which heavy things are least covered. Free.
 - propose_projection: propose one projection.
 - finish: end the run and say why.
 
-You may call several tools in one turn, and you should: read every thing you need to see in a single turn rather than one per turn, and propose several projections together once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
+Work in few turns: read every thing you need to see in one read_thing call, and propose several projections in one turn once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
 
 const discoverProjectionsGuidance = `How to work:
 1. Read the narrative and the things list. Sketch three to eight candidate projections. Each is about a thing, not about a timeline: an ongoing relationship with a supplier, a dispute and where it stands, a project and its decisions, the standing arrangements around a place. Time is context, not the spine.
 2. Call list_existing. Drop candidates that are already covered. Judge by what the projection is about, not by which things it touches; two projections may legitimately share most of their scope.
-3. Before proposing on a heavy or vague thing, call read_thing. Decide whether it is one projection or several, and whether the scope should be the whole thing or a narrower set of fragments. Use read_fragment only when a summary leaves a doubt that matters.
+3. Before proposing on a heavy or vague thing, call read_thing with every such thing at once. Decide whether it is one projection or several, and whether the scope should be the whole thing or a narrower set of fragments. Use read_fragment only when a summary leaves a doubt that matters.
 4. Narrow first. A single decision, one dispute, one supplier relationship is a projection on its own. When one candidate would contain another, propose the narrower first, then propose the broader one with the narrower as a source projection, and name it in the message. A broader projection builds on its sources; it does not restate them.
 5. Give every proposal the minimum scope its message needs. Prefer a few things to many; prefer explicit fragments to a whole thing when only part of it matters. Never propose a scope that is most of the workspace: that is not a projection, it is the workspace.
 6. Call coverage when your candidates are done. Propose more only if a heavy thing is uncovered and genuinely worth a projection. Proposing nothing for a thing is a legitimate outcome: not every recurring name is something the user wants a document about.
@@ -188,6 +188,12 @@ func DiscoverNoThing(ref string) string {
 
 func DiscoverNoFragment(id string) string {
 	return fmt.Sprintf("No fragment with id %q.", id)
+}
+
+const DiscoverReadThingLimit = 10
+
+func DiscoverTooManyThings(limit int) string {
+	return fmt.Sprintf("read_thing takes at most %d ids per call; the first %d were read.", limit, limit)
 }
 
 func DiscoverReadBudgetExhausted(limit int) string {
