@@ -30,6 +30,7 @@ export const Collections = {
 	RefineReflSnapshotConversation: "refine_refl_snapshot_conversation",
 	Reflection: "reflection",
 	ReflectionSnapshot: "reflection_snapshot",
+	ReflectionWindow: "reflection_window",
 	Usage: "usage",
 	Users: "users",
 	ViewStream: "view_stream",
@@ -405,6 +406,16 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	window_spec_version_number?: number
 }
 
+export type ReflectionWindowRecord = {
+	created: IsoAutoDateString
+	end: string
+	id: string
+	reflection_id: RecordIdString
+	start: string
+	window_key: string
+	window_spec_version_number?: number
+}
+
 export type UsageRecord = {
 	cached_tokens?: number
 	completion_tokens?: number
@@ -471,6 +482,7 @@ export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required
 export type RefineReflSnapshotConversationResponse<Texpand = unknown> = Required<RefineReflSnapshotConversationRecord> & BaseSystemFields<Texpand>
 export type ReflectionResponse<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Twindow_spec_versions>> & BaseSystemFields<Texpand>
 export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context, Tresolved_window, Twindow_spec>> & BaseSystemFields<Texpand>
+export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>
 export type ViewStreamResponse<Tcolours = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolours>> & BaseSystemFields<Texpand>
@@ -502,6 +514,7 @@ export type CollectionRecords = {
 	refine_refl_snapshot_conversation: RefineReflSnapshotConversationRecord
 	reflection: ReflectionRecord
 	reflection_snapshot: ReflectionSnapshotRecord
+	reflection_window: ReflectionWindowRecord
 	usage: UsageRecord
 	users: UsersRecord
 	view_stream: ViewStreamRecord
@@ -532,6 +545,7 @@ export type CollectionResponses = {
 	refine_refl_snapshot_conversation: RefineReflSnapshotConversationResponse
 	reflection: ReflectionResponse
 	reflection_snapshot: ReflectionSnapshotResponse
+	reflection_window: ReflectionWindowResponse
 	usage: UsageResponse
 	users: UsersResponse
 	view_stream: ViewStreamResponse

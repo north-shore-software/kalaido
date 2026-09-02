@@ -121,7 +121,11 @@ export function messageWindow(m: UIMessage): TimeWindow | null {
   const p = parts.find((p) => p.type === "window");
   const d = p?.data as Partial<TimeWindow> | undefined;
   return d && typeof d.start === "string" && typeof d.end === "string"
-    ? { id: typeof d.id === "string" ? d.id : undefined, start: d.start, end: d.end }
+    ? {
+        id: typeof d.id === "string" ? d.id : undefined,
+        start: d.start,
+        end: d.end,
+      }
     : null;
 }
 

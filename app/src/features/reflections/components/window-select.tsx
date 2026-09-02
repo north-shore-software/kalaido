@@ -64,7 +64,8 @@ export function WindowSelect({
         onChange={(e) => {
           const key = e.target.value;
           const picked = windows.find((w) => w.key === key);
-          if (picked) onChange({ id: picked.id, start: picked.start, end: picked.end });
+          if (picked)
+            onChange({ id: picked.id, start: picked.start, end: picked.end });
         }}
       >
         {active && !onGrid && (
