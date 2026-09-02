@@ -7,6 +7,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -39,6 +40,10 @@ func Run(app core.App, flow Flow) error {
 	if err != nil {
 		return err
 	}
+	// A kick that lands while the map is still consolidating must not read the
+	// half-integrated version: the things the last batch introduced would be
+	// missing and every row citing them would resolve to nothing.
+	mapping.WaitSettled()
 	c, err := newContext(app, nil)
 	if err != nil {
 		return err

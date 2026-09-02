@@ -41,7 +41,7 @@ func sharedTools() []llm.Tool {
 		idTool(prompts.ReadFragmentToolName, prompts.ReadFragmentToolDescription, "id", prompts.ReadFragmentParamDescription),
 		emptyTool(prompts.ListExistingToolName, prompts.ListExistingToolDescription),
 		emptyTool(prompts.CoverageToolName, prompts.CoverageToolDescription),
-		emptyTool(prompts.FinishToolName, prompts.FinishToolDescription),
+		idTool(prompts.FinishToolName, prompts.FinishToolDescription, "summary", prompts.FinishSummaryParamDescription),
 	}
 }
 
@@ -56,6 +56,13 @@ func idsArg(call llm.ToolCall) []string {
 		ids = []string{args.ID}
 	}
 	return ids
+}
+
+func strArg(call llm.ToolCall, key string) string {
+	var args map[string]any
+	_ = json.Unmarshal(call.Args, &args)
+	v, _ := args[key].(string)
+	return strings.TrimSpace(v)
 }
 
 func idArg(call llm.ToolCall) string {
@@ -111,6 +118,11 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 				results = append(results, c.coverage(existing))
 			case prompts.FinishToolName:
 				finished = true
+				// Some models put the closing note in the tool call rather than
+				// alongside it; either way it is the run's summary.
+				if strings.TrimSpace(reply) == "" {
+					reply = strArg(call, "summary")
+				}
 			default:
 				text, out, err := flow.Dispatch(ctx, c, call)
 				if err != nil {

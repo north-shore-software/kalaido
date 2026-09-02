@@ -18,13 +18,14 @@ const (
 )
 
 const (
-	ReadThingToolDescription     = "Read one thing from the map in depth: what it is, its relationships, how its fragments spread over time, and a sample of those fragments' titles and summaries with their ids. Call it before proposing anything built on a thing with many fragments or a vague blurb. Takes a thing id, or its exact name."
-	ReadThingParamDescription    = "The thing's id from the map, or its exact name."
-	ReadFragmentToolDescription  = "Read one fragment's full text, by id, when a summary is not enough to judge it. Budgeted per run."
-	ReadFragmentParamDescription = "The fragment id, exactly as shown."
-	ListExistingToolDescription  = "List what already exists, with ids: everything a person has made and everything an earlier or current discover run produced. Free. Call it before proposing so you never propose what is already there."
-	CoverageToolDescription      = "How much of the workspace sits inside an existing or proposed scope, and which heavy things are least covered. Free. Use it to decide whether you are done."
-	FinishToolDescription        = "End the run. Say in your reply why: what you proposed, what you judged not worth surfacing, and what remains uncovered on purpose."
+	ReadThingToolDescription      = "Read one thing from the map in depth: what it is, its relationships, how its fragments spread over time, and a sample of those fragments' titles and summaries with their ids. Call it before proposing anything built on a thing with many fragments or a vague blurb. Takes a thing id, or its exact name."
+	ReadThingParamDescription     = "The thing's id from the map, or its exact name."
+	ReadFragmentToolDescription   = "Read one fragment's full text, by id, when a summary is not enough to judge it. Budgeted per run."
+	ReadFragmentParamDescription  = "The fragment id, exactly as shown."
+	ListExistingToolDescription   = "List what already exists, with ids: everything a person has made and everything an earlier or current discover run produced. Free. Call it before proposing so you never propose what is already there."
+	CoverageToolDescription       = "How much of the workspace sits inside an existing or proposed scope, and which heavy things are least covered. Free. Use it to decide whether you are done."
+	FinishToolDescription         = "End the run. Give the summary: what you proposed, what you judged not worth surfacing, and what remains uncovered on purpose."
+	FinishSummaryParamDescription = "The run's closing note, for the person reviewing the proposals: what you proposed, what you judged not worth surfacing, and what remains uncovered on purpose."
 
 	ProposeProjectionToolDescription           = "Propose one projection for the user to review. Nothing is generated: the proposal is a name, an opening message and a scope. The user opens it, the message is sent as their first turn in a chat that drafts the projection, and they keep or discard it from there. Scope is built from thingIds (every fragment citing those things), fragmentIds (explicit fragments, to narrow), colourIds (existing colours), and sourceProjectionIds (existing or proposed projections whose content this one builds on); give at least one."
 	ProposeNameParamDescription                = "2-6 words, the projection's title as the user will see it. Name the thing it is about, plainly."
