@@ -10,7 +10,6 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
@@ -21,8 +20,13 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-func GenerateOutput(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string) (string, error) {
-	output, err := usage.GenerateOnce(ctx, app, prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{}), llm.RoleSnapshot, model, nil)
+func GenerateOutput(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window) (string, error) {
+	start, end := WindowBounds(win)
+	prompt := prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)
+	if err := CheckPromptFits(model, len(prompt)); err != nil {
+		return "", err
+	}
+	output, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleSnapshot, model, nil)
 	if err != nil {
 		return "", err
 	}
@@ -88,7 +92,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		}
 	}()
 
-	sourceBlock, pinnedCtx, err := prepareGenerationContext(ctx, app, strat, rec, lensSpec)
+	sourceBlock, pinnedCtx, err := prepareGenerationContext(ctx, app, strat, rec, lensSpec, window)
 	if err != nil {
 		return "", fmt.Errorf("prepare context: %w", err)
 	}
@@ -98,7 +102,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		strat.TargetType(), rec.Id, rec.GetString("name"), model,
 		len(pinnedCtx.FragmentIDs), len(pinnedCtx.SnapshotIDs))
 
-	outputStr, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock)
+	outputStr, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock, window)
 	if err != nil {
 		return "", fmt.Errorf("generate standard: %w", err)
 	}
@@ -116,7 +120,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	case outputStr == prev:
 		log.Printf("snapshot %s %s: candidate matches the approved output byte-for-byte; nothing to rewrite", strat.TargetType(), rec.Id)
 	default:
-		merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, prev, outputStr)
+		merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, window, prev, outputStr)
 		switch {
 		case err == nil:
 			if merged == prev {
@@ -205,9 +209,10 @@ func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey, len
 // then integrate just those bullets into the previous text — so wording only
 // moves where meaning did. A delta of prompts.SnapshotNoChanges short-circuits
 // to the previous output verbatim.
-func minimizeAgainstPrevious(ctx context.Context, app core.App, model, lensPrompt, sourceBlock, previous, candidate string) (string, error) {
+func minimizeAgainstPrevious(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window, previous, candidate string) (string, error) {
+	start, end := WindowBounds(win)
 	msgs := []llm.Message{
-		{Role: "user", Content: prompts.ApplyPrompt(lensPrompt, sourceBlock, types.DateTime{}, types.DateTime{})},
+		{Role: "user", Content: prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)},
 		{Role: "assistant", Content: candidate},
 		{Role: "user", Content: prompts.SnapshotDeltaPrompt(previous)},
 	}
@@ -261,7 +266,7 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 		}
 	}
 	_, lensSpec, _ := resolveActiveLens(app, strat, rec)
-	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec)
+	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec, nil)
 	if err != nil {
 		return false
 	}
@@ -271,10 +276,12 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 	return added.IsEmpty() && removed.IsEmpty()
 }
 
-func prepareGenerationContext(ctx context.Context, app core.App, strat Strategy, rec *core.Record, lensSpec api.ContextSpec) (string, llmcontext.PinnedIDs, error) {
+// prepareGenerationContext resolves the lens's spec — inside the window for a
+// windowed reflection generation — and renders it as the prompt's source block.
+func prepareGenerationContext(ctx context.Context, app core.App, strat Strategy, rec *core.Record, lensSpec api.ContextSpec, window *api.Window) (string, llmcontext.PinnedIDs, error) {
 	var sourceBlock string
 	var pinnedCtx llmcontext.PinnedIDs
-	if pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec); err == nil {
+	if pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec, window); err == nil {
 		if strat.EnsureFragmentsOnly() && len(pinned.SnapshotIDs) > 0 {
 			return "", pinnedCtx, fmt.Errorf("this context must contain fragments only, but snapshots were provided")
 		}

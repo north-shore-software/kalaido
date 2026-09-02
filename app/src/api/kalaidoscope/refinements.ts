@@ -29,9 +29,10 @@ export interface CommitRefinementResult {
  * `apply_result` tool part — that output is what the preview shows.
  *
  * `snapshotId` scopes the session to an existing snapshot: the backend seeds the
- * new conversation with that snapshot's `context_spec` (and `window_spec` for
- * reflections), so the refine model gets it automatically — callers do not pass
- * context here. Omit `snapshotId` when authoring a brand-new view: there is no
+ * new conversation with that snapshot's `context_spec` (and, for reflections,
+ * a `window` part naming that snapshot's window — or the reflection's current
+ * window when there is no snapshot), so the refine model gets it automatically
+ * — callers do not pass context here. Omit `snapshotId` when authoring a brand-new view: there is no
  * parent snapshot or lens yet; both are born when this refinement is committed.
  * Every session needs at least one chat turn before it can commit — the lens
  * only exists once the model drafts one.

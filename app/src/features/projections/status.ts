@@ -41,7 +41,9 @@ export function getProjectionStatus(
   const entropy = status?.newFragmentIds?.length ?? 0;
   const blockedBy = status?.blockedBy ?? [];
   const staleDeps = status?.staleDependencies?.length ?? 0;
-  const dueWindows = status?.pendingWindows?.length ?? 0;
+  const dueWindows =
+    (status?.pendingWindows?.length ?? 0) +
+    (status?.staleWindows?.length ?? 0);
 
   let kind: ProjectionStatus = "stable";
   if (opts?.generating) kind = "generating";

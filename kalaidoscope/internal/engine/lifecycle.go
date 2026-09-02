@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -213,7 +214,13 @@ func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int,
 // current_lens_id and current_context_spec. Because the lens exists the moment
 // the commit lands, there is no window in which the entity is approved but
 // lensless — a follow-up generation can never hit ErrLensNotReady from here.
-func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, winSpec api.WindowSpec, refinementID, targetCol string) (string, error) {
+//
+// For a reflection the snapshot is filed under the refinement's target window
+// (win, read off the transcript): resolved_window and window_key come from it,
+// and window_spec records the schedule version governing at commit time. A
+// nil window falls back to the source snapshot's, and failing that the
+// snapshot is windowless — the unscheduled-reflection case.
+func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, win *api.Window, refinementID, targetCol string) (string, error) {
 	var newSnapID string
 	var chainOrigin string
 
@@ -221,6 +228,11 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		var resWin any
 		var winKey string
 		var specVersionNumber int
+		var winSpec any
+		if strat.TargetType() == "reflection" && win != nil {
+			resWin = map[string]string{"start": win.Start, "end": win.End}
+			winKey = WindowKey(*win)
+		}
 		if sourceSnapshotID != "" {
 			if sourceSnap, err := tx.FindRecordById(strat.SnapshotCollectionName(), sourceSnapshotID); err == nil {
 				// Only a still-pending chain candidate carries its mark forward: the
@@ -231,12 +243,11 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 				if sourceSnap.GetString("status") == StatusPending {
 					chainOrigin = sourceSnap.GetString("chain_origin")
 				}
-				if strat.TargetType() == "reflection" {
+				if strat.TargetType() == "reflection" && resWin == nil {
 					var rw map[string]string
 					if err := sourceSnap.UnmarshalJSONField("resolved_window", &rw); err == nil && len(rw) > 0 {
 						resWin = rw
 						winKey = sourceSnap.GetString("window_key")
-						specVersionNumber = sourceSnap.GetInt("window_spec_version_number")
 					}
 				}
 			}
@@ -246,6 +257,12 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		parentRec, err := tx.FindRecordById(targetCol, parentID)
 		if err != nil {
 			return fmt.Errorf("parent %s %s: %w", targetCol, parentID, err)
+		}
+		if strat.TargetType() == "reflection" {
+			if version, ok := GoverningVersion(LoadWindowSpecVersions(parentRec), time.Now()); ok {
+				winSpec = version.Spec
+				specVersionNumber = version.VersionNumber
+			}
 		}
 
 		lensCol, err := tx.FindCollectionByNameOrId(strat.LensCollectionName())

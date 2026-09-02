@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -96,7 +97,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		dbMsgs, _ := chat.LoadMessages(ctx, app, refRec)
 		newMsgs := chat.ExtractNewMessages(dbMsgs, req.Messages)
 
-		chat.ResolveContextSpecs(ctx, app, newMsgs)
+		chat.ResolveContextSpecs(ctx, app, dbMsgs, newMsgs)
 
 		for _, m := range newMsgs {
 			if _, err := chat.PersistMessage(ctx, app, refRec, m, ""); err != nil {
@@ -124,6 +125,13 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		assistantModel, err := llm.ResolveRoleFor(llm.RoleRefinement, parentModel)
 		if err != nil {
 			return e.InternalServerError("no model configured for refinement", err)
+		}
+
+		// Refuse before the call, with a message the user can act on, rather
+		// than let the provider reject an oversized prompt as a bare 400.
+		if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
+			log.Printf("refinement chat %s: %v", refRec.Id, err)
+			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 		}
 
 		comp, err := usage.Stream(ctx, app, llm.RoleRefinement, assistantModel, hydratedMsgs, []llm.Tool{updateLensTool, suggestNameTool})
@@ -221,7 +229,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			}
 		}
 
-		pinned, _, _ := llmcontext.LatestPinnedAndSpec(allMsgs)
+		pinned, _, win := llmcontext.LatestPinnedAndSpec(allMsgs)
 		sourceBlock := ""
 		if len(pinned.FragmentIDs)+len(pinned.SnapshotIDs) > 0 {
 			sourceBlock, _ = llmcontext.HydrateIDsToText(ctx, app, pinned)
@@ -241,19 +249,25 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		sse.ToolInputStart(applyID, prompts.ApplyResultToolName)
 		sse.ToolInputDelta(applyID, `{"output":"`)
 
-		final, err := engine.ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, func(chunk string) {
+		final, err := engine.ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, win, func(chunk string) {
 			sse.ToolInputDelta(applyID, jsonStringChunk(chunk))
 		})
 		if err != nil {
 			log.Printf("refinement chat %s: apply failed: %v", refRec.Id, err)
 			kind := "apply_failed"
-			if errors.Is(err, usage.ErrExhausted) {
+			message := "generating the preview failed — send another message to retry"
+			var tooLarge *engine.ContextTooLargeError
+			switch {
+			case errors.Is(err, usage.ErrExhausted):
 				kind = "quota_exhausted"
+			case errors.As(err, &tooLarge):
+				kind = "context_too_large"
+				message = tooLarge.Error()
 			}
 			// No tool-input-available and no persisted apply part: the turn
 			// keeps its lens, the preview keeps the last successful output,
 			// and a commit of this lens is refused until a later apply lands.
-			emitTurnError(kind, "generating the preview failed — send another message to retry")
+			emitTurnError(kind, message)
 			sse.Finish()
 			return nil
 		}

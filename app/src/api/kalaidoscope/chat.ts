@@ -77,20 +77,61 @@ export interface ContextSpec {
 }
 
 /**
- * Mirrors the backend's `api.WindowSpec`. For a scheduled reflection: `period`
+ * Mirrors the backend's `api.WindowSpec` — a reflection's schedule. `period`
  * is the regeneration cadence and `duration` the lookback length, both as Go
- * duration strings in hours (e.g. "168h"); `startTime` is an optional RFC3339
- * anchor (defaults server-side to the reflection's creation). A reflection is
- * "scheduled" iff `period` is non-empty.
+ * duration strings in hours (e.g. "168h"); `startTime` is the grid origin
+ * (RFC3339) and, when it lies in the past at creation, the point history is
+ * summarized from. A reflection is "scheduled" iff `period` is non-empty.
  *
- * Carried to the backend the same way as a {@link ContextSpec}: appended to the
- * chat as a `system` message with a `window_spec` part (see ChatPanel), and
- * persisted onto the reflection when a refinement is committed.
+ * Persisted on the reflection itself (`POST /api/reflections` at creation,
+ * `PATCH /api/reflections/:id` to append a new version). It does not travel
+ * through the chat; the chat carries the {@link TimeWindow} a refinement
+ * targets instead.
  */
 export interface WindowSpec {
   startTime?: string;
   period: string;
   duration: string;
+}
+
+/**
+ * One window on a reflection's grid, mirroring the backend's `api.Window`:
+ * half-open `[start, end)` RFC3339 bounds and the server's stable id. A
+ * reflection refinement is bound to one — the server seeds the conversation
+ * with the current window, and the client re-targets by appending a `system`
+ * message with a `window` part (see ChatPanel), exactly as it does for a
+ * {@link ContextSpec}. The preview, the pinned context and the committed
+ * snapshot all follow it.
+ */
+export interface TimeWindow {
+  id?: string;
+  start: string;
+  end: string;
+}
+
+/** Identity of a window for change detection — the same `start_end` key the backend files snapshots under. */
+export function timeWindowKey(win: TimeWindow | undefined | null): string {
+  return win ? `${win.start}_${win.end}` : "";
+}
+
+/** The `window` part a system message carries, if it is one of those. */
+export function messageWindow(m: UIMessage): TimeWindow | null {
+  if (m.role !== "system" || !m.parts) return null;
+  const parts = m.parts as { type: string; data?: unknown }[];
+  const p = parts.find((p) => p.type === "window");
+  const d = p?.data as Partial<TimeWindow> | undefined;
+  return d && typeof d.start === "string" && typeof d.end === "string"
+    ? { id: typeof d.id === "string" ? d.id : undefined, start: d.start, end: d.end }
+    : null;
+}
+
+/** The window a refinement conversation is currently bound to: its newest `window` part. */
+export function parseActiveWindow(messages: UIMessage[]): TimeWindow | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const win = messageWindow(messages[i]);
+    if (win) return win;
+  }
+  return null;
 }
 
 /**
@@ -196,19 +237,6 @@ export function parseWindowSpec(raw: unknown): WindowSpec | null {
     }
   }
   return null;
-}
-
-/**
- * A canonical key for a WindowSpec, used (like {@link specKey}) to tell whether
- * the active window has changed since the last one we sent.
- */
-export function windowSpecKey(spec: WindowSpec | undefined): string {
-  if (!spec) return "";
-  return JSON.stringify({
-    startTime: spec.startTime ?? "",
-    period: spec.period ?? "",
-    duration: spec.duration ?? "",
-  });
 }
 
 /**

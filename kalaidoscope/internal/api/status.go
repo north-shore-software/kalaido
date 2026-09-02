@@ -13,8 +13,12 @@ type EntityStatus struct {
 	StaleDependencies []string `json:"staleDependencies,omitempty"`
 	// Upstreams that are not themselves up to date. Regenerating now would
 	// consume output that is about to be superseded, so this entity should wait.
-	BlockedBy      []string `json:"blockedBy,omitempty"`
+	BlockedBy []string `json:"blockedBy,omitempty"`
+	// Reflections: materialized windows with no approved snapshot yet.
 	PendingWindows []Window `json:"pendingWindows,omitempty"`
+	// Reflections: windows whose approved snapshot predates fragments that
+	// now fall inside them (a backdated import, a late-arriving email).
+	StaleWindows []Window `json:"staleWindows,omitempty"`
 }
 
 type Window struct {

@@ -147,7 +147,10 @@ export default function Rotation() {
 
                 if (s.id === currentId) {
                   const entropy = s.newFragmentIds?.length ?? 0;
-                  const windows = s.pendingWindows ?? [];
+                  const windows = [
+                    ...(s.pendingWindows ?? []),
+                    ...(s.staleWindows ?? []),
+                  ];
                   const candidate = isReflection
                     ? undefined
                     : candidateByProjection.get(s.id);

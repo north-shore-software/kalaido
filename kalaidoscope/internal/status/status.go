@@ -94,6 +94,76 @@ func (e *Evaluator) buildNode(rec *core.Record, entityType string) *node {
 	}
 }
 
+// evaluateReflectionWindows is the windowed reflection's evaluation: each
+// window with an approved snapshot is diffed on its own — the spec resolved
+// inside that window against what that window's snapshot consumed — so a
+// backdated fragment flags exactly the windows it falls in
+// (spec/model.md §Handling Backdated Fragments), and fragments outside every
+// window flag nothing. Windows the series owes but has never generated are
+// pending. Returns done=false for a reflection with no windowed snapshot, which
+// the caller evaluates the windowless way.
+func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, status api.EntityStatus) (bool, api.EntityStatus) {
+	series := engine.SeriesWindows(e.app, n.record, e.now)
+	windowed := false
+	for _, st := range series {
+		if st.HasApproved {
+			windowed = true
+			break
+		}
+	}
+	if !windowed {
+		return false, status
+	}
+
+	seen := make(map[string]bool)
+	var newestEnd string
+	var newestSnapID string
+	for _, st := range series {
+		if !st.HasApproved {
+			if !st.Generating {
+				status.PendingWindows = append(status.PendingWindows, st.Window)
+			}
+			continue
+		}
+		snaps, err := e.app.FindRecordsByFilter("reflection_snapshot",
+			"reflection_id = {:id} && status = 'approved' && window_key = {:k}",
+			"-approval_sequence_number", 1, 0,
+			dbx.Params{"id": n.record.Id, "k": st.Key})
+		if err != nil || len(snaps) == 0 {
+			continue
+		}
+		snap := snaps[0]
+		if st.End > newestEnd {
+			newestEnd, newestSnapID = st.End, snap.Id
+		}
+
+		var recorded llmcontext.PinnedIDs
+		_ = snap.UnmarshalJSONField("resolved_context", &recorded)
+		w := st.Window
+		current, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, &w)
+		if err != nil {
+			continue
+		}
+		diff := current.Diff(recorded)
+		if len(diff.FragmentIDs) == 0 {
+			continue
+		}
+		status.StaleWindows = append(status.StaleWindows, st.Window)
+		for _, id := range diff.FragmentIDs {
+			if !seen[id] {
+				seen[id] = true
+				status.NewFragmentIDs = append(status.NewFragmentIDs, id)
+			}
+		}
+	}
+	sort.Strings(status.NewFragmentIDs)
+
+	if len(status.NewFragmentIDs) == 0 && len(status.StaleWindows) == 0 && len(status.PendingWindows) == 0 {
+		status.UpToDateSnapshotID = newestSnapID
+	}
+	return true, status
+}
+
 func topoSort(nodes map[string]*node) ([]*node, error) {
 	var sorted []*node
 	visited := make(map[string]bool)
@@ -157,11 +227,17 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 		return status, nil
 	}
 
+	if n.entityType == "reflection" {
+		if done, windowed := e.evaluateReflectionWindows(ctx, n, status); done {
+			return windowed, nil
+		}
+	}
+
 	var recordedPinned llmcontext.PinnedIDs
 	_ = snapRec.UnmarshalJSONField("resolved_context", &recordedPinned)
 
 	// Resolve the spec to see what it *should* include right now
-	currentPinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec)
+	currentPinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, nil)
 	if err != nil {
 		return status, err
 	}
@@ -220,15 +296,11 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	sort.Strings(status.StaleDependencies)
 	sort.Strings(status.BlockedBy)
 
-	// Window evaluation for scheduled entities. The resume point is the max
-	// approved window end (engine.LastApprovedWindowEnd) — the live snapshot
-	// found above is picked by approval sequence, which counts per window and
-	// says nothing about which window was generated last.
-	version, ok := engine.GoverningVersion(engine.LoadWindowSpecVersions(n.record), e.now)
-	if ok && version.Spec.Period != "" {
-		created := n.record.GetDateTime("created").Time()
-		status.PendingWindows = engine.CalculatePendingWindows(
-			n.record.Id, version.Spec, engine.LastApprovedWindowEnd(e.app, n.record.Id), created, e.now)
+	// A reflection that reaches here has only windowless snapshots (an
+	// unscheduled one, or one scheduled after the fact): it may still owe
+	// grid windows.
+	if n.entityType == "reflection" {
+		status.PendingWindows = engine.PendingWindows(e.app, n.record, e.now)
 	}
 
 	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 &&

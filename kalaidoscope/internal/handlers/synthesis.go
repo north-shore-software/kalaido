@@ -36,19 +36,55 @@ func resolveCandidate(e *core.RequestEvent, app core.App, strat engine.Strategy)
 	return snapID, nil
 }
 
-// blockedUpstream reports whether `id` is waiting on a dependency that is not
-// itself up to date, per the same evaluation `GET /api/rotation` serves.
-func blockedUpstream(e *core.RequestEvent, app core.App, id string) (bool, error) {
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(e.Request.Context())
+// entityStatus is `id`'s row of the same evaluation `GET /api/rotation`
+// serves; a zero status when the entity is not evaluated (a draft).
+func entityStatus(ctx context.Context, app core.App, id string) (api.EntityStatus, error) {
+	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
-		return false, err
+		return api.EntityStatus{}, err
 	}
 	for _, s := range statuses {
 		if s.ID == id {
-			return len(s.BlockedBy) > 0, nil
+			return s, nil
 		}
 	}
-	return false, nil
+	return api.EntityStatus{}, nil
+}
+
+// reflectionWindowsToGenerate picks the windows one generate call covers. An
+// explicit windowId may name any materialized window (a re-run of history);
+// otherwise the candidates are the windows owed (pending) plus those gone
+// stale, all of them with all=true; and when nothing is owed, the current
+// window — never a windowless snapshot for a scheduled reflection.
+func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
+	now := time.Now()
+	if req.WindowID != "" {
+		for _, s := range engine.SeriesWindows(app, rec, now) {
+			if s.ID == req.WindowID {
+				w := s.Window
+				return []*api.Window{&w}, nil
+			}
+		}
+		return nil, e.BadRequestError("window ID not found in this reflection's windows", nil)
+	}
+	candidates := append(append([]api.Window(nil), st.PendingWindows...), st.StaleWindows...)
+	if len(candidates) == 0 {
+		// A draft (no approved snapshot) is not evaluated; ask the engine
+		// directly so a first Refresh still catches up.
+		candidates = engine.PendingWindows(app, rec, now)
+	}
+	switch {
+	case len(candidates) == 0:
+		return []*api.Window{engine.DefaultRefinementWindow(rec, now)}, nil
+	case len(candidates) == 1 || req.All:
+		out := make([]*api.Window, 0, len(candidates))
+		for i := range candidates {
+			out = append(out, &candidates[i])
+		}
+		return out, nil
+	default:
+		return nil, e.BadRequestError("multiple pending windows; specify windowId or all=true", nil)
+	}
 }
 
 func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
@@ -77,50 +113,21 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 		// stale the moment that upstream lands: its resolved context is frozen
 		// at generation time, so approving it would not settle anything. Refuse
 		// rather than burn a model call on output that cannot clear the entity.
-		if blocked, err := blockedUpstream(e, app, id); err != nil {
+		st, err := entityStatus(e.Request.Context(), app, id)
+		if err != nil {
 			// Never let the freshness check itself stop a requested generation.
 			log.Printf("%s.generate: staleness check: %v", strat.TargetType(), err)
-		} else if blocked {
+		} else if len(st.BlockedBy) > 0 {
 			return e.Error(http.StatusConflict,
 				"upstream dependencies are not up to date; approve them first", nil)
 		}
 
-		var windowsToGenerate []*api.Window
-		pending, err := strat.GetPendingWindows(app, rec)
-		if err != nil {
-			return e.InternalServerError("failed to get pending windows", err)
-		}
-
-		if len(pending) > 0 {
-			if req.WindowID != "" {
-				var found bool
-				for _, w := range pending {
-					if w.ID == req.WindowID {
-						winCopy := w
-						windowsToGenerate = append(windowsToGenerate, &winCopy)
-						found = true
-						break
-					}
-				}
-				if !found {
-					return e.BadRequestError("window ID not found in pending windows", nil)
-				}
-			} else if req.All {
-				for _, w := range pending {
-					winCopy := w
-					windowsToGenerate = append(windowsToGenerate, &winCopy)
-				}
-			} else {
-				if len(pending) == 1 {
-					winCopy := pending[0]
-					windowsToGenerate = append(windowsToGenerate, &winCopy)
-				} else {
-					return e.BadRequestError("multiple pending windows; specify windowId or all=true", nil)
-				}
+		windowsToGenerate := []*api.Window{nil}
+		if strat.TargetType() == "reflection" {
+			windowsToGenerate, err = reflectionWindowsToGenerate(e, app, rec, req, st)
+			if err != nil {
+				return err
 			}
-		} else {
-
-			windowsToGenerate = append(windowsToGenerate, nil)
 		}
 
 		// Detached from the request context: once a generation starts it runs
@@ -142,6 +149,8 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 			case errors.Is(err, engine.ErrGenerationInFlight):
 				return e.Error(http.StatusConflict,
 					"A generation for this "+strat.TargetType()+" is already running.", err)
+			case errors.Is(err, engine.ErrContextTooLarge):
+				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			case err != nil:
 				log.Printf("%s.generate: %v", strat.TargetType(), err)
 				if usage.WriteProviderError(e, err) {
@@ -192,10 +201,22 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 	return func(e *core.RequestEvent) error {
 		type reqBody struct {
 			Name string `json:"name"`
+			// Reflections only: the schedule. A Start Time in the past is
+			// "summarize from then": the first version is effective from it,
+			// so every grid window since is pending (the backfill).
+			WindowSpec *api.WindowSpec `json:"windowSpec,omitempty"`
 		}
 		var req reqBody
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
+		}
+		if req.WindowSpec != nil {
+			if strat.TargetType() != "reflection" {
+				return e.BadRequestError("windowSpec is only valid for reflections", nil)
+			}
+			if err := validateWindowSpec(*req.WindowSpec); err != nil {
+				return e.BadRequestError(err.Error(), err)
+			}
 		}
 
 		var targetID string
@@ -208,7 +229,15 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			rec.Set("name", req.Name)
 			rec.Set("status", engine.EntityActive)
 			if strat.TargetType() == "reflection" {
-				versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{}, time.Now())
+				spec := api.WindowSpec{}
+				if req.WindowSpec != nil {
+					spec = *req.WindowSpec
+				}
+				effective := time.Now()
+				if st, err := time.Parse(time.RFC3339, spec.StartTime); err == nil && st.Before(effective) {
+					effective = st
+				}
+				versions := engine.AppendWindowSpecVersion(nil, spec, effective)
 				rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 			}
 			if err := txApp.Save(rec); err != nil {
@@ -270,8 +299,20 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			if strat.TargetType() != "reflection" {
 				return e.BadRequestError("windowSpec is only valid for reflections", nil)
 			}
-			versions := engine.AppendWindowSpecVersion(
-				engine.LoadWindowSpecVersions(rec), *req.WindowSpec, time.Now())
+			if err := validateWindowSpec(*req.WindowSpec); err != nil {
+				return e.BadRequestError(err.Error(), err)
+			}
+			spec := *req.WindowSpec
+			versions := engine.LoadWindowSpecVersions(rec)
+			// The grid origin is part of the reflection's identity: an edit
+			// that only changes cadence or lookback keeps it, so windows stay
+			// phase-aligned with the ones already generated.
+			if spec.StartTime == "" {
+				if cur, ok := engine.GoverningVersion(versions, time.Now()); ok {
+					spec.StartTime = cur.Spec.StartTime
+				}
+			}
+			versions = engine.AppendWindowSpecVersion(versions, spec, time.Now())
 			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 		}
 
@@ -310,6 +351,28 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 
 		return e.JSON(http.StatusOK, map[string]string{"id": id})
 	}
+}
+
+// validateWindowSpec rejects a schedule the grid could not evaluate. An empty
+// spec (unscheduled) is valid.
+func validateWindowSpec(spec api.WindowSpec) error {
+	if spec.Period == "" && spec.Duration == "" && spec.StartTime == "" {
+		return nil
+	}
+	if p, err := time.ParseDuration(spec.Period); err != nil || p <= 0 {
+		return errors.New("windowSpec.period must be a positive duration such as \"168h\"")
+	}
+	if spec.Duration != "" {
+		if d, err := time.ParseDuration(spec.Duration); err != nil || d <= 0 {
+			return errors.New("windowSpec.duration must be a positive duration such as \"168h\"")
+		}
+	}
+	if spec.StartTime != "" {
+		if _, err := time.Parse(time.RFC3339, spec.StartTime); err != nil {
+			return errors.New("windowSpec.startTime must be RFC3339")
+		}
+	}
+	return nil
 }
 
 func handleDelete(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {

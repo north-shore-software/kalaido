@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { regenerateReflection } from "@/api/kalaidoscope/reflections";
-import { parseContextSpec, specToItems } from "@/api/kalaidoscope/chat";
+import {
+  parseActiveWindow,
+  parseContextSpec,
+  specToItems,
+  type TimeWindow,
+} from "@/api/kalaidoscope/chat";
 import { useRefineSession } from "@/hooks/use-refine-session";
 import {
   buildWindowSpec,
@@ -14,6 +19,8 @@ import {
   windowSpecToChips,
 } from "@/features/reflections/schedule";
 import { SchedulePill } from "@/features/reflections/components/schedule-controls";
+import { WindowSelect } from "@/features/reflections/components/window-select";
+import { usePersistSchedule } from "@/features/reflections/use-persist-schedule";
 import {
   type ContextItem,
   Label,
@@ -27,8 +34,9 @@ import {
   parseReflectionOutput,
   useReflectionSnapshot,
 } from "@/hooks/use-reflection-snapshot";
-import { formatShortDateTime } from "@/lib/datetime";
+import { formatWindowRange } from "@/lib/datetime";
 
+import { BackfillCard } from "./backfill-card";
 import { ReflectionHeader } from "./reflection-header";
 import { ReflectionBody } from "./reflection-body";
 import { RefineConfigPanel } from "./refine-config-panel";
@@ -37,6 +45,16 @@ import { SummaryLog } from "./summary-log";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { reflectionsTransitions } from "@/features/reflections/pages/Reflections.transitions";
 import { withContextItem } from "@/lib/mentions";
+
+// The window a claim row is for, from its `start_end` key.
+function windowFromKey(
+  key: string | undefined,
+): { start: string; end: string } | null {
+  if (!key) return null;
+  const i = key.indexOf("_");
+  if (i <= 0) return null;
+  return { start: key.slice(0, i), end: key.slice(i + 1) };
+}
 
 // A snapshot's actual resolved window ({start,end} JSON), if any.
 function parseResolvedWindow(
@@ -82,12 +100,13 @@ export function ReflectionDetailPanel({
     ? parseReflectionOutput(historical.output).content
     : undefined;
 
-  // Editable context + schedule for the refine chat, seeded from the
-  // reflection's current specs. Editing them re-emits a context_spec /
-  // window_spec through the chat (ChatPanel), and commit persists them.
+  // Editable context + schedule, seeded from the reflection's current specs.
+  // Context edits re-emit a context_spec through the chat (ChatPanel) and
+  // commit persists them; schedule edits PATCH the reflection directly.
   const [context, setContext] = useState<ContextItem[]>([]);
   const [freq, setFreq] = useState(DEFAULT_FREQ);
   const [win, setWin] = useState(DEFAULT_WIN);
+  const [chipsSeeded, setChipsSeeded] = useState(false);
   const initedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!reflection || initedFor.current === reflection.id) return;
@@ -99,11 +118,22 @@ export function ReflectionDetailPanel({
     );
     setFreq(chips.freq);
     setWin(chips.win);
+    setChipsSeeded(true);
   }, [reflection]);
   const windowSpec = buildWindowSpec({
     cadenceDays: FREQ_DAYS[freq],
     lookbackDays: WIN_DAYS[win],
   });
+  const [windowsVersion, setWindowsVersion] = useState(0);
+  usePersistSchedule({
+    reflectionId,
+    spec: windowSpec,
+    ready: chipsSeeded,
+    onPersisted: () => setWindowsVersion((v) => v + 1),
+  });
+  // The window the refine chat targets: the live snapshot's own by default
+  // (seeded server-side), or whichever the selector picks.
+  const [windowOverride, setWindowOverride] = useState<TimeWindow>();
 
   // A refinement session over the current live snapshot. Recreated whenever the
   // live snapshot changes (e.g. after a commit promotes a new one), so the next
@@ -158,11 +188,16 @@ export function ReflectionDetailPanel({
     if (!session.started || !session.previewReady || session.committing) return;
     if (await session.commit(reflectionId)) {
       // Drop the session; the live snapshot id will change via realtime and the
-      // effect spins up a fresh session over the new live snapshot.
+      // effect spins up a fresh session over the new live snapshot, seeded with
+      // that snapshot's own window — so the override must not outlive it.
       session.reset();
       setSessionSnapId(null);
+      setWindowOverride(undefined);
     }
   }
+
+  const activeWindow =
+    windowOverride ?? parseActiveWindow(session.messages) ?? undefined;
 
   const liveId = liveSnapshot?.id;
   const history = snapshots.filter((s) => s.status !== "discarded");
@@ -170,17 +205,25 @@ export function ReflectionDetailPanel({
   const timeline: TimelineItem[] = history.map((snap, i) => {
     const version = history.length - i;
     const pending = snap.status === "pending";
+    const generating = snap.status === "generating";
     const isLive = snap.id === liveId;
 
     let windowLabel = "All time";
-    const rw = parseResolvedWindow(snap.resolved_window);
+    const rw =
+      parseResolvedWindow(snap.resolved_window) ??
+      // A generation claim carries only its key (start_end) until it lands.
+      windowFromKey(snap.window_key);
     if (rw) {
-      windowLabel = `${formatShortDateTime(rw.start)} - ${formatShortDateTime(rw.end)}`;
+      windowLabel = formatWindowRange(rw.start, rw.end);
     }
 
     return {
       id: snap.id,
-      label: pending ? `Pending candidate` : `Snapshot ${version}`,
+      label: generating
+        ? "Generating…"
+        : pending
+          ? "Pending candidate"
+          : `Snapshot ${version}`,
       note: windowLabel,
       current: isLive,
       pending,
@@ -246,6 +289,13 @@ export function ReflectionDetailPanel({
               onWinChange={setWin}
               className="max-h-[40%] shrink-0 overflow-y-auto border-b border-line p-3"
             />
+            <WindowSelect
+              reflectionId={reflectionId}
+              active={activeWindow}
+              onChange={setWindowOverride}
+              refreshKey={`${windowsVersion}|${snapshots.length}`}
+              className="flex shrink-0 flex-col gap-1.5 border-b border-line p-3"
+            />
             {session.started ? (
               <RefineChatPanel
                 session={session}
@@ -255,7 +305,7 @@ export function ReflectionDetailPanel({
                 }
                 onContextChange={setContext}
                 entity="reflection"
-                windowSpec={windowSpec}
+                timeWindow={activeWindow}
                 placeholder="‘group by project and lead with blockers’…"
               />
             ) : (
@@ -283,10 +333,18 @@ export function ReflectionDetailPanel({
               </Button>
             </div>
           ) : (
-            <RefreshCard
-              regenerating={regenerating}
-              onRefresh={handleRefresh}
-            />
+            <>
+              <RefreshCard
+                regenerating={regenerating}
+                onRefresh={handleRefresh}
+              />
+              {schedDisplay.scheduled && (
+                <BackfillCard
+                  reflectionId={reflectionId}
+                  onStarted={() => setWindowsVersion((v) => v + 1)}
+                />
+              )}
+            </>
           )}
           <SchedulePill
             freq={schedDisplay.freq}

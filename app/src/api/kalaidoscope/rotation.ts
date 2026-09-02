@@ -30,8 +30,13 @@ export interface EntityStatus {
    * regenerating would consume output that is about to be superseded.
    */
   blockedBy?: string[];
-  /** Elapsed schedule windows awaiting generation (scheduled entities). */
+  /** Reflections: materialized windows with no approved snapshot yet. */
   pendingWindows?: Window[];
+  /**
+   * Reflections: windows whose approved snapshot predates fragments that now
+   * fall inside them (a backdated import). Regenerating them picks those up.
+   */
+  staleWindows?: Window[];
 }
 
 export interface StatusResponse {
@@ -44,7 +49,8 @@ export function hasDelta(s: EntityStatus): boolean {
     (s.newFragmentIds?.length ?? 0) > 0 ||
     (s.staleDependencies?.length ?? 0) > 0 ||
     (s.blockedBy?.length ?? 0) > 0 ||
-    (s.pendingWindows?.length ?? 0) > 0
+    (s.pendingWindows?.length ?? 0) > 0 ||
+    (s.staleWindows?.length ?? 0) > 0
   );
 }
 

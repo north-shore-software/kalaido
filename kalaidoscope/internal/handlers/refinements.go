@@ -88,30 +88,47 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				}
 			}
 
+			// A reflection refinement always names a target window
+			// (spec/model.md §Refinement Approval, "Target Window"): the source
+			// snapshot's own window when refining one, else the reflection's
+			// current window. The client can move it later by sending a new
+			// `window` part; this is only the starting point.
+			var win *api.Window
+			if targetCol == "reflection" {
+				if snap != nil {
+					var rw map[string]string
+					if err := snap.UnmarshalJSONField("resolved_window", &rw); err == nil && rw["start"] != "" && rw["end"] != "" {
+						win = &api.Window{Start: rw["start"], End: rw["end"]}
+					}
+				}
+				if win == nil {
+					if parent, err := txApp.FindRecordById(targetCol, targetID); err == nil {
+						win = engine.DefaultRefinementWindow(parent, time.Now())
+					}
+				}
+				if win != nil {
+					win.ID = engine.WindowID(targetID, *win)
+				}
+			}
+
 			var parts []api.UIMessagePart
 			if ctxSpec != nil {
 				data, _ := json.Marshal(*ctxSpec)
 				parts = append(parts, api.UIMessagePart{Type: "context_spec", Data: data})
-
+			}
+			if win != nil {
+				data, _ := json.Marshal(win)
+				parts = append(parts, api.UIMessagePart{Type: "window", Data: data})
+			}
+			if ctxSpec != nil {
 				// Resolve it now, as a chat turn would (chat.ResolveContextSpecs).
 				// The first turn's apply step and the commit both read the
 				// session's resolved context straight off the transcript
 				// (LatestPinnedAndSpec); without pinned_ids here the seeded
 				// context would be invisible to both.
-				if pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), txApp, *ctxSpec); err == nil {
+				if pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), txApp, *ctxSpec, win); err == nil {
 					data, _ := json.Marshal(pinned)
 					parts = append(parts, api.UIMessagePart{Type: "pinned_ids", Data: data})
-				}
-			}
-
-			if targetCol == "reflection" && snap != nil {
-				var winSpec api.WindowSpec
-				if err := snap.UnmarshalJSONField("window_spec", &winSpec); err == nil && winSpec.Period != "" {
-					data, _ := json.Marshal(winSpec)
-					parts = append(parts, api.UIMessagePart{
-						Type: "window_spec",
-						Data: data,
-					})
 				}
 			}
 
@@ -150,13 +167,13 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 // would break "what the user approved is what the lens reproduces". An empty
 // output with a non-empty lens means that turn's apply failed (or is still
 // running); the commit handler refuses it.
-func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, winSpec api.WindowSpec, err error) {
+func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, win *api.Window, err error) {
 	msgs, err := chat.LoadMessages(nil, app, refRec)
 	if err != nil {
-		return "", "", llmcontext.PinnedIDs{}, api.ContextSpec{}, api.WindowSpec{}, err
+		return "", "", llmcontext.PinnedIDs{}, api.ContextSpec{}, nil, err
 	}
 
-	pinned, spec, winSpec = llmcontext.LatestPinnedAndSpec(msgs)
+	pinned, spec, win = llmcontext.LatestPinnedAndSpec(msgs)
 
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
@@ -186,7 +203,7 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 			}
 		}
 		if lens != "" {
-			return lens, output, pinned, spec, winSpec, nil
+			return lens, output, pinned, spec, win, nil
 		}
 		// A clarify-only turn has neither part; keep scanning. An apply part
 		// never exists without its lens on the same message.
@@ -202,7 +219,7 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 	log.Printf("refinement.extract: no drafted lens in %s (%d messages: %s)",
 		refRec.Id, len(msgs), strings.Join(scanned, ", "))
 
-	return "", "", pinned, spec, winSpec, nil
+	return "", "", pinned, spec, win, nil
 }
 
 func HandleCommitProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
@@ -251,7 +268,7 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 			return e.NotFoundError("refinement not found", err)
 		}
 
-		lens, output, pinned, spec, winSpec, err := ExtractDraftedLensAndSpec(app, refRec)
+		lens, output, pinned, spec, win, err := ExtractDraftedLensAndSpec(app, refRec)
 		if err != nil {
 			return e.InternalServerError("failed to extract drafted lens", err)
 		}
@@ -300,12 +317,20 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 		// Detached: a commit must run to completion once started — the client
 		// giving up mid-request must not leave a half-committed refinement.
 		ctx := context.WithoutCancel(e.Request.Context())
-		newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, lens, output, pinned, spec, winSpec, refRec.Id, targetCol)
+		newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, lens, output, pinned, spec, win, refRec.Id, targetCol)
 		if err != nil {
 			log.Printf("refinement.commit: %v", err)
 			return e.InternalServerError("failed to commit refinement", err)
 		}
 		log.Printf("refinement.commit: %s %s: refinement %s committed as snapshot %s", targetCol, parentID, refRec.Id, newSnapID)
+
+		// The lens now exists, so the windows the schedule already owes (a
+		// "summarize from" start in the past, a backfill requested before the
+		// first commit) can be generated. The committed window itself is
+		// approved and not among them.
+		if targetCol == "reflection" {
+			engine.RunPendingWindows(app, parentID)
+		}
 
 		return e.JSON(http.StatusOK, map[string]string{"snapshotId": newSnapID})
 	}
