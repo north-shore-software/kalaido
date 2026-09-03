@@ -38,8 +38,7 @@ type ProposalCounts struct {
 }
 
 type OrganizePolicy struct {
-	AutoMap bool `json:"autoMap"`
-	Wave    bool `json:"wave"`
+	Wave bool `json:"wave"`
 }
 
 type RunInfo struct {

@@ -43,8 +43,7 @@ func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeSta
 	}
 
 	st.Policy = api.OrganizePolicy{
-		AutoMap: mapping.AutoMapEnabled(),
-		Wave:    reconcile.WaveEnabled(),
+		Wave: reconcile.WaveEnabled(),
 	}
 	return st, nil
 }

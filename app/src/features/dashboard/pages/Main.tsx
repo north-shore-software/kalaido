@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { isPinned } from "@/lib/pins";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
+import { useOrganizeStatus } from "@/hooks/use-organize-status";
 import {
   useLiveCollection,
   useLiveCollectionWatching,
@@ -94,6 +95,20 @@ export default function Main() {
   // The reconcile wave keeps no run state of its own; whether it is working
   // shows in the scheduler mirror as background snapshot generation.
   const queue = useLiveCollection("llm_queue_status");
+  // Projections and reflections discovery keep running after onboarding lets
+  // the user in; the Proposed section says so until they finish.
+  const { status: organize } = useOrganizeStatus();
+  const laterKinds = ["projections", "reflections"] as const;
+  const discovering = laterKinds.some(
+    (k) =>
+      organize?.discover.running === k ||
+      organize?.discover.pending.includes(k),
+  );
+  const discoverError = discovering
+    ? undefined
+    : laterKinds
+        .map((k) => organize?.discover.runs[k])
+        .find((r) => r?.status === "error" && r.error)?.error;
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -395,6 +410,8 @@ export default function Main() {
 
             <ProposedSection
               items={proposed}
+              discovering={discovering}
+              error={discoverError}
               onOpen={openProposal}
               onDismiss={dismissProposal}
             />

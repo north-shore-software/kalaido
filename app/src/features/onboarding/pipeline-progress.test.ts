@@ -26,7 +26,7 @@ function status(over: {
       proposals: { projections: 0, reflections: 0 },
       ...over.discover,
     },
-    policy: { autoMap: false, wave: false },
+    policy: { wave: false },
   };
 }
 
@@ -52,7 +52,7 @@ describe("organizeStage", () => {
     );
   });
 
-  it("is organizing while a discover kind runs or waits", () => {
+  it("is organizing while colours discovery runs or waits", () => {
     expect(
       organizeStage(
         status({ discover: { state: "running", running: "colours" } }),
@@ -60,9 +60,30 @@ describe("organizeStage", () => {
     ).toBe("organizing");
     expect(
       organizeStage(
-        status({ discover: { state: "pending", pending: ["projections"] } }),
+        status({
+          discover: { state: "pending", pending: ["colours", "projections"] },
+        }),
       ),
     ).toBe("organizing");
+  });
+
+  it("is idle once colours is done, while later kinds still run or wait", () => {
+    expect(
+      organizeStage(
+        status({
+          discover: {
+            state: "running",
+            running: "projections",
+            pending: ["reflections"],
+          },
+        }),
+      ),
+    ).toBe("idle");
+    expect(
+      organizeStage(
+        status({ discover: { state: "pending", pending: ["reflections"] } }),
+      ),
+    ).toBe("idle");
   });
 
   it("is idle when nothing moves, even with work left over", () => {
@@ -125,7 +146,7 @@ describe("pipelineProgress", () => {
     ).toBeCloseTo(0.1);
   });
 
-  it("advances through the organizing band with the running run's rounds", () => {
+  it("advances through the organizing band with the colours run's rounds", () => {
     expect(
       pipelineProgress(
         status({

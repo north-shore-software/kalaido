@@ -4,6 +4,8 @@ import type { EntityKind, ProposedItem } from "../types";
 
 export interface ProposedSectionProps {
   items: ProposedItem[];
+  discovering?: boolean;
+  error?: string;
   onOpen: (item: ProposedItem) => void;
   onDismiss: (item: ProposedItem) => void;
 }
@@ -30,16 +32,27 @@ function KindIcon({ kind }: { kind: EntityKind }) {
  */
 export function ProposedSection({
   items,
+  discovering,
+  error,
   onOpen,
   onDismiss,
 }: ProposedSectionProps) {
-  if (items.length === 0) return null;
+  if (items.length === 0 && !discovering && !error) return null;
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2.5">
         <Label>Proposed</Label>
         <div className="flex-1" />
       </div>
+      {discovering ? (
+        <p className="text-meta text-fg-4">
+          Looking for patterns in your notes…
+        </p>
+      ) : error ? (
+        <p className="text-meta text-fg-4">
+          Couldn't finish looking for patterns: {error}
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-3.5">
         {items.map((it) => {
           const isProj = it.kind === "projection";

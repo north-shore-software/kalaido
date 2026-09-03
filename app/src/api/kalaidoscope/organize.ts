@@ -56,7 +56,7 @@ export interface OrganizeStatus {
     runs: Partial<Record<DiscoverKind, RunInfo>>;
     proposals: { projections: number; reflections: number };
   };
-  policy: { autoMap: boolean; wave: boolean };
+  policy: { wave: boolean };
 }
 
 export async function getOrganizeStatus(): Promise<
