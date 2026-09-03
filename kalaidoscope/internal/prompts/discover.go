@@ -386,7 +386,7 @@ Tools:
 Work in few turns: read what you need in one call, and propose several reflections in one turn once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
 
 const discoverReflectionsGuidance = `How to work:
-1. Read the rhythm cards. A candidate is a thing (or pair) whose buckets are steadily non-empty over a sustained span: active close to span, at least a handful of periods. One burst of activity is not a rhythm; that is a projection's material, and this run leaves it alone.
+1. Read the rhythm cards, most sustained first. A candidate is a thing (or pair) whose buckets are steadily non-empty over a sustained span: at least a handful of periods, active close to span. A gap in an otherwise steady run does not disqualify it. One burst of activity is not a rhythm; that is a projection's material, and this run leaves it alone.
 2. For each candidate, name the activity that recurs. "The weekly BC Tech newsletter", "the monthly Google Workspace invoice", "the standing Legado check-in" are reflections. If all you can name is the cast — the same people keep appearing, but about different things each time — decide whether the user would want a periodic digest of that group; propose it only if so, and say so in the message. Use read_thing or the week-grain rhythms when the sampled titles do not settle it.
 3. Call list_existing. Drop candidates already covered by a reflection. A projection on the same colour does not cover it: a projection is the standing account, a reflection is the period-by-period one.
 4. Choose the cadence as the grain at which the buckets are steadily non-empty: a weekly newsletter is weekly even though the month grain is also full; monthly invoices are monthly. Choose the start date as the onset on the card unless the titles show the steady run began later.
@@ -449,14 +449,14 @@ type DiscoverRhythm struct {
 
 func DiscoverRhythmsBlock(grain string, singles, pairs []DiscoverRhythm) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Rhythms at the %s grain (things, most regular first):\n", grain)
+	fmt.Fprintf(&b, "Rhythms at the %s grain (things, most sustained first):\n", grain)
 	if len(singles) == 0 {
 		b.WriteString("(no thing reaches the floor yet)\n")
 	}
 	for _, r := range singles {
 		b.WriteString(DiscoverRhythmCard(r))
 	}
-	fmt.Fprintf(&b, "\nRhythms at the %s grain (pairs of things cited together, most regular first):\n", grain)
+	fmt.Fprintf(&b, "\nRhythms at the %s grain (pairs of things cited together, most sustained first):\n", grain)
 	if len(pairs) == 0 {
 		b.WriteString("(no pair is cited together in three or more buckets)\n")
 	}

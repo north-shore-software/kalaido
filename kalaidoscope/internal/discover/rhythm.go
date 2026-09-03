@@ -248,9 +248,15 @@ func (c *Context) pairRhythms(grain string, floor int, only map[string]bool) []R
 	return out
 }
 
+// sortRhythms puts the most sustained rhythm first: active buckets, then
+// regularity, then volume. Regularity alone would rank a four-month client
+// arc (four of four) above a newsletter that ran for seven months with a gap,
+// and with the singles list capped the long rhythms would be the ones cut;
+// the arcs are projection material, the long rhythms are what this flow is
+// for.
 func sortRhythms(rs []Rhythm) {
 	sort.SliceStable(rs, func(i, j int) bool {
-		if rs[i].ActiveBuckets != rs[j].ActiveBuckets && (rs[i].ActiveBuckets < rhythmActiveFloor || rs[j].ActiveBuckets < rhythmActiveFloor) {
+		if rs[i].ActiveBuckets != rs[j].ActiveBuckets {
 			return rs[i].ActiveBuckets > rs[j].ActiveBuckets
 		}
 		if ri, rj := rs[i].regularity(), rs[j].regularity(); ri != rj {

@@ -222,3 +222,23 @@ func TestRhythmCoverLine(t *testing.T) {
 		t.Fatalf("card = %+v", cards)
 	}
 }
+
+// A long rhythm with a gap outranks a short dense arc: the singles list is
+// capped, and the arcs are what a projection is for.
+func TestSustainedRhythmOutranksDenseArc(t *testing.T) {
+	// t_news: seven weekly issues, a four-week gap, then seven more (14 of 18).
+	rows := weeklyRows("2025-01-06", 7, "t_news")
+	rows = append(rows, weeklyRows("2025-03-24", 7, "t_news")...)
+	// t_arc: four consecutive weeks, then nothing (4 of 4).
+	rows = append(rows, weeklyRows("2025-02-03", 4, "t_arc")...)
+	// Padding so neither is ubiquitous.
+	rows = append(rows, weeklyRows("2024-01-01", 60, "t_pad")...)
+	c := rhythmContext(rows, "t_news", "t_arc", "t_pad")
+	singles := c.thingRhythms(rhythmGrainWeek, 1, map[string]bool{"t_news": true, "t_arc": true})
+	if len(singles) != 2 || singles[0].IDs[0] != "t_news" {
+		t.Fatalf("order = %v, want the sustained newsletter first", singles)
+	}
+	if singles[0].regularity() >= singles[1].regularity() {
+		t.Fatalf("the test needs the arc to be the more regular one: %v vs %v", singles[0].regularity(), singles[1].regularity())
+	}
+}
