@@ -349,14 +349,16 @@ const (
 )
 
 const (
-	RhythmsToolDescription                   = "Recompute the rhythm cards at a grain: for every colour, and every pair of colours sharing fragments, how many week or month buckets are active over the span, the date the steady run began (the onset), and a sample of bucket counts with a title each. Pass colourIds to restrict to those colours (and the pairs they take part in). Free."
-	RhythmsGrainParamDescription             = "\"week\" or \"month\": the bucket size to measure regularity at."
-	RhythmsColourIDsParamDescription         = "Colour ids (or exact names) to restrict the cards to; omit for every colour above the floor."
-	ProposeReflectionToolDescription         = "Propose one reflection for the user to review. Nothing is generated: the proposal is a name, an opening message, a scope, a cadence and a start date. The user opens it, the message is sent as their first turn in a chat that drafts the reflection's lens, and on finishing the series is generated one window per period from the start date to now. Scope is colourIds: existing colours whose fragments carry the rhythm, growing as new material arrives; give at least one."
-	ProposeReflectionNameParamDescription    = "2-6 words, the reflection's title as the user will see it. Name the recurring activity, plainly: \"Weekly BC Tech newsletter\", \"Monthly Workspace invoice\"."
-	ProposeReflectionMessageParamDescription = "The opening message, 1-3 sentences, in the user's own voice as their standing instruction to the assistant that will write each period's summary: what to pull out of that period's material every time, what to emphasise, what to leave out. Say the cadence in it (\"Each week, ...\"). Never describe the proposal; write the instruction."
-	ProposeCadenceParamDescription           = "How often a summary is produced and how much material each one covers: daily, weekly, monthly or quarterly. Pick the grain at which the rhythm card's buckets are steadily non-empty."
-	ProposeStartTimeParamDescription         = "The date the rhythm began, YYYY-MM-DD: the onset on the rhythm card unless the sampled titles show the steady run started later. Every period from this date to now is summarised, so an earlier stray mention must not pull it back."
+	RhythmsToolDescription                     = "Recompute the rhythm cards at a grain: for every map thing, and every pair of things cited together, how many week or month buckets are active over the span, the date the steady run began (the onset), which existing colours cover its fragments, and a sample of bucket counts with a title each. Pass thingIds to restrict to those things (and the pairs they take part in). Free."
+	RhythmsGrainParamDescription               = "\"week\" or \"month\": the bucket size to measure regularity at."
+	RhythmsThingIDsParamDescription            = "Thing ids (or exact names) to restrict the cards to; omit for every thing above the floor."
+	ProposeReflectionToolDescription           = "Propose one reflection for the user to review. Nothing is generated: the proposal is a name, an opening message, a scope, a cadence and a start date. The user opens it, the message is sent as their first turn in a chat that drafts the reflection's lens, and on finishing the series is generated one window per period from the start date to now. thingIds are the rhythm: the things on the card you are proposing from. colourIds are the scope: existing colours that cover that rhythm's fragments, growing as new material arrives. The colours must hold most of the rhythm's fragments, or the proposal is refused with the colours that would."
+	ProposeReflectionThingIDsParamDescription  = "Thing ids (or exact names) the rhythm card is about: one thing, or the pair. Evidence only; the stored scope is the colours."
+	ProposeReflectionColourIDsParamDescription = "Colour ids (or exact names) that scope the series: the colours on the card's cover line, usually the one built on the thing. Broader than the rhythm is fine; the cadence and your message narrow each period to the recurring activity. Give at least one."
+	ProposeReflectionNameParamDescription      = "2-6 words, the reflection's title as the user will see it. Name the recurring activity, plainly: \"Weekly BC Tech newsletter\", \"Monthly Workspace invoice\"."
+	ProposeReflectionMessageParamDescription   = "The opening message, 1-3 sentences, in the user's own voice as their standing instruction to the assistant that will write each period's summary: what to pull out of that period's material every time, what to emphasise, what to leave out. Say the cadence in it (\"Each week, ...\"). Never describe the proposal; write the instruction."
+	ProposeCadenceParamDescription             = "How often a summary is produced and how much material each one covers: daily, weekly, monthly or quarterly. Pick the grain at which the rhythm card's buckets are steadily non-empty."
+	ProposeStartTimeParamDescription           = "The date the rhythm began, YYYY-MM-DD: the onset on the rhythm card unless the sampled titles show the steady run started later. Every period from this date to now is summarised, so an earlier stray mention must not pull it back."
 )
 
 const DiscoverReflectionsSystem = `You are discovering reflections for a user who has just imported a body of material into their workspace. A reflection is a periodic summary: every week (or day, month, quarter) it summarises that period's material inside its scope, and the series of summaries is kept. It is worth having when something in the workspace recurs at a steady rhythm — a newsletter that arrives every week, invoices every month, a standing check-in with the same people, a report that lands on a schedule — and the user would want each period's account of it.
@@ -365,14 +367,16 @@ A projection is about a thing; a reflection is about a rhythm. You are looking f
 
 You do not create reflections. You propose them. A proposal is a name, an opening message, a scope, a cadence and a start date. The user sees the proposals, opens one, and the message is sent as their first turn in a chat that drafts the lens; on finishing, the series is generated from the start date to now. Nothing is generated until they open it, so a proposal costs nothing and a good set of proposals is the whole product of this run.
 
-A scope is made of colours. A colour is a named slice of the workspace, built on one or more map things; it holds every fragment about that slice and keeps growing as new material arrives, so a reflection scoped by colours keeps summarising each new period. You can only scope by colours that exist: they were made before this run, by the user or by the colours run, and this run makes no more. If no colour carries a rhythm, propose nothing for it.
+Rhythms are measured over map things, because that is where periodicity shows: for each thing, and each pair of things cited together, how many buckets of a grain are active over the span, when the steady run began, and a sample of bucket counts with a title each. A thing cited across most of the workspace is marked ubiquitous: it is the ever-present cast (the user, their own company), not a rhythm, and cannot be proposed on.
 
-What you can see: the workspace map's narrative; the workspace as colours — each colour's id, name, the things it is built on, how many fragments it holds and over what span; and rhythm cards computed from the colours' fragments: for each colour, and each pair of colours sharing fragments, how many buckets of a grain are active over the span, when the steady run began, and a sample of bucket counts with a title each. A colour holding a large share of the whole workspace is marked ubiquitous: it is the ever-present cast (the user, their own company), not a rhythm, and cannot be proposed on.
+A scope is made of colours. A colour is a named slice of the workspace about a topic — a person, a company, a project — built on one or more map things; it holds every fragment about that topic and keeps growing as new material arrives, so a reflection scoped by colours keeps summarising each new period. Colours are topics, never rhythms: none stands for "the newsletter" or "the weekly sync", and this run makes no colours. Each rhythm card says which existing colours cover its fragments. You scope a proposal to those colours; the colour is broader than the rhythm on purpose, and the cadence and your message are what narrow each period's summary to the recurring activity. A rhythm no colour covers cannot be proposed in this run: say so at the end, so the user can make the colour and run again.
+
+What you can see: the workspace map's narrative; the workspace as colours — each colour's id, name, the things it is built on, how many fragments it holds and over what span; and the rhythm cards.
 
 Tools:
-- rhythms: the rhythm cards at a grain (week or month), optionally restricted to given colours. Free. Use the week grain to check whether something monthly is really weekly, and to confirm an onset.
-- read_colour: colours in depth — the things each is built on, month-by-month counts, and sampled fragment titles and summaries with ids. Pass every colour you want in one call, up to ten.
-- read_thing: a map thing in depth, by id or exact name, for the things a colour is built on.
+- rhythms: the rhythm cards at a grain (week or month), optionally restricted to given things. Free. Use the week grain to check whether something monthly is really weekly, and to confirm an onset.
+- read_thing: a map thing in depth, by id or exact name — month-by-month counts, relationships, and sampled fragment titles and summaries with ids. Pass every thing you want in one call, up to ten.
+- read_colour: a colour in depth — the things it is built on, month-by-month counts, and sampled fragment titles and summaries with ids.
 - read_fragment: one fragment's full text. Budgeted; use it when a title leaves a real doubt about what recurs.
 - list_existing: what exists already, with ids: colours, projections and reflections. Free. Always call it before proposing.
 - coverage: what share of the workspace sits inside an existing or proposed projection or reflection, and which colours are least covered. Free.
@@ -382,18 +386,18 @@ Tools:
 Work in few turns: read what you need in one call, and propose several reflections in one turn once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
 
 const discoverReflectionsGuidance = `How to work:
-1. Read the rhythm cards. A candidate is a scope whose buckets are steadily non-empty over a sustained span: active close to span, at least a handful of periods. One burst of activity is not a rhythm; that is a projection's material, and this run leaves it alone.
-2. For each candidate, name the activity that recurs. "The weekly BC Tech newsletter", "the monthly Google Workspace invoice", "the standing Legado check-in" are reflections. If all you can name is the cast — the same people keep appearing, but about different things each time — decide whether the user would want a periodic digest of that group; propose it only if so, and say so in the message. Use read_colour or the week-grain rhythms when the sampled titles do not settle it.
+1. Read the rhythm cards, most sustained first. A candidate is a thing (or pair) whose buckets are steadily non-empty over a sustained span: at least a handful of periods, active close to span. A gap in an otherwise steady run does not disqualify it. One burst of activity is not a rhythm; that is a projection's material, and this run leaves it alone.
+2. For each candidate, name the activity that recurs. "The weekly BC Tech newsletter", "the monthly Google Workspace invoice", "the standing Legado check-in" are reflections. If all you can name is the cast — the same people keep appearing, but about different things each time — decide whether the user would want a periodic digest of that group; propose it only if so, and say so in the message. Use read_thing or the week-grain rhythms when the sampled titles do not settle it.
 3. Call list_existing. Drop candidates already covered by a reflection. A projection on the same colour does not cover it: a projection is the standing account, a reflection is the period-by-period one.
 4. Choose the cadence as the grain at which the buckets are steadily non-empty: a weekly newsletter is weekly even though the month grain is also full; monthly invoices are monthly. Choose the start date as the onset on the card unless the titles show the steady run began later.
-5. Scope every proposal to the colours that carry the rhythm — usually one, sometimes a pair. Never propose on a ubiquitous colour, and never a scope that is most of the workspace.
+5. Scope every proposal to the colours on the card's cover line — usually the one built on the thing, sometimes two together. Pass the card's things as thingIds. If the cover line says no colour covers it, do not propose it; name it at finish instead. Never propose on a ubiquitous thing or colour, and never a scope that is most of the workspace.
 6. Call coverage when your candidates are done. Proposing nothing is a legitimate outcome: many workspaces have no rhythms worth a series.
-7. Call finish, and say what you proposed, what you judged a burst rather than a rhythm, and why.
+7. Call finish, and say what you proposed, what you judged a burst rather than a rhythm, and which rhythms you left unproposed because no colour covers them.
 
-Writing the message: it is the user's first chat turn, in their voice, addressed to the assistant that will write each period's summary. Say the cadence and what to pull out every time: "Each week, summarise what the BC Tech newsletter covered: events, advocacy, and anything relevant to a small tech company in Vancouver." Not "This reflection tracks the newsletter."
+Writing the message: it is the user's first chat turn, in their voice, addressed to the assistant that will write each period's summary. Say the cadence and what to pull out every time, and name the recurring activity so the summary stays on it even though the colour holds more: "Each week, summarise what the BC Tech newsletter covered: events, advocacy, and anything relevant to a small tech company in Vancouver." Not "This reflection tracks the newsletter."
 
 Example:
-{"name": "Weekly BC Tech newsletter", "message": "Each week, summarise what the BC Tech newsletter and event mailers covered: upcoming events with dates, advocacy positions, and anything a small Vancouver tech company should act on.", "colourIds": ["<id of the BC Tech colour>"], "cadence": "weekly", "startTime": "2025-01-15"}`
+{"name": "Weekly BC Tech newsletter", "message": "Each week, summarise what the BC Tech newsletter and event mailers covered: upcoming events with dates, advocacy positions, and anything a small Vancouver tech company should act on.", "thingIds": ["<id of the BC Tech thing>"], "colourIds": ["<id of the BC Tech colour>"], "cadence": "weekly", "startTime": "2025-01-15"}`
 
 func DiscoverReflectionsInitial(d *mapdoc.Document, colours, rhythms string) string {
 	var sb strings.Builder
@@ -409,7 +413,7 @@ func DiscoverReflectionsInitial(d *mapdoc.Document, colours, rhythms string) str
 	return sb.String()
 }
 
-// DiscoverRhythmScope is one colour a rhythm card is about.
+// DiscoverRhythmScope is one thing a rhythm card is about.
 type DiscoverRhythmScope struct {
 	ID   string
 	Name string
@@ -421,6 +425,15 @@ type DiscoverBucket struct {
 	Title string
 }
 
+// DiscoverCover is one colour's hold on a rhythm's fragments; Exact when the
+// colour is built on the rhythm's things.
+type DiscoverCover struct {
+	ID      string
+	Name    string
+	Covered int
+	Exact   bool
+}
+
 type DiscoverRhythm struct {
 	Scopes      []DiscoverRhythmScope
 	Grain       string
@@ -430,19 +443,20 @@ type DiscoverRhythm struct {
 	First, Last string
 	Onset       string
 	Ubiquitous  bool
+	Cover       string
 	Buckets     []DiscoverBucket
 }
 
 func DiscoverRhythmsBlock(grain string, singles, pairs []DiscoverRhythm) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Rhythms at the %s grain (colours, most regular first):\n", grain)
+	fmt.Fprintf(&b, "Rhythms at the %s grain (things, most sustained first):\n", grain)
 	if len(singles) == 0 {
-		b.WriteString("(no colour reaches the floor yet)\n")
+		b.WriteString("(no thing reaches the floor yet)\n")
 	}
 	for _, r := range singles {
 		b.WriteString(DiscoverRhythmCard(r))
 	}
-	fmt.Fprintf(&b, "\nRhythms at the %s grain (pairs of colours sharing fragments, most regular first):\n", grain)
+	fmt.Fprintf(&b, "\nRhythms at the %s grain (pairs of things cited together, most sustained first):\n", grain)
 	if len(pairs) == 0 {
 		b.WriteString("(no pair is cited together in three or more buckets)\n")
 	}
@@ -470,17 +484,64 @@ func DiscoverRhythmCard(r DiscoverRhythm) string {
 		b.WriteString(" · ubiquitous: not a rhythm, do not propose on it")
 	}
 	b.WriteString("\n")
+	if r.Cover != "" {
+		b.WriteString("  " + r.Cover + "\n")
+	}
 	for _, bk := range r.Buckets {
 		fmt.Fprintf(&b, "  %s: %d · %s\n", bk.Start, bk.Count, bk.Title)
 	}
 	return b.String()
 }
 
-func DiscoverProposedReflection(name, id string, fragments int, cadence, start string) string {
-	return fmt.Sprintf("Proposed reflection %q (id: %s, %d fragments in scope, %s from %s).", name, id, fragments, cadence, start)
+// DiscoverRhythmCover is a card's cover line: the colours holding the
+// rhythm's fragments, or the fact that none does.
+func DiscoverRhythmCover(covers []DiscoverCover, total, uncovered int) string {
+	if len(covers) == 0 {
+		return "no colour covers it: not proposable in this run"
+	}
+	parts := make([]string, 0, len(covers)+1)
+	for _, cv := range covers {
+		parts = append(parts, discoverCoverPart(cv, total))
+	}
+	if uncovered > 0 {
+		parts = append(parts, fmt.Sprintf("%d in no colour", uncovered))
+	}
+	return "covered by: " + strings.Join(parts, " · ")
 }
 
-const DiscoverReflectionScopeRequired = "give at least one colourId"
+func discoverCoverPart(cv DiscoverCover, total int) string {
+	if cv.Exact {
+		return fmt.Sprintf("%s (%s, built on it) %d of %d", cv.Name, cv.ID, cv.Covered, total)
+	}
+	return fmt.Sprintf("%s (%s) %d of %d", cv.Name, cv.ID, cv.Covered, total)
+}
+
+func DiscoverProposedReflection(name, id string, fragments, held, total int, things []string, cadence, start string) string {
+	return fmt.Sprintf("Proposed reflection %q (id: %s, %d fragments in scope, holding %d of %d about %s, %s from %s).",
+		name, id, fragments, held, total, strings.Join(things, " with "), cadence, start)
+}
+
+// DiscoverScopeMissesRhythm refuses a scope that does not hold the rhythm it
+// claims to be about, naming the colours that would.
+func DiscoverScopeMissesRhythm(held, total int, things []string, covers []DiscoverCover) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "those colours hold %d of the %d fragments about %s; a scope must hold most of the rhythm", held, total, strings.Join(things, " with "))
+	if len(covers) == 0 {
+		b.WriteString(". No colour covers it, so it cannot be proposed in this run; name it at finish")
+		return b.String()
+	}
+	parts := make([]string, 0, len(covers))
+	for _, cv := range covers {
+		parts = append(parts, discoverCoverPart(cv, total))
+	}
+	b.WriteString(". Colours that do: " + strings.Join(parts, " · "))
+	return b.String()
+}
+
+const (
+	DiscoverReflectionScopeRequired  = "give at least one colourId"
+	DiscoverReflectionThingsRequired = "give the rhythm's things as thingIds"
+)
 
 func DiscoverUnknownCadence(cadence string, allowed []string) string {
 	return fmt.Sprintf("cadence %q is not one of %s", cadence, strings.Join(allowed, ", "))
