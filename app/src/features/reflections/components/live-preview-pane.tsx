@@ -26,7 +26,7 @@ export function LivePreviewPane({
   className,
 }: LivePreviewPaneProps) {
   return (
-    <div className={cn("flex w-[322px] shrink-0 flex-col", className)}>
+    <div className={cn("flex min-w-0 flex-[1.1] flex-col", className)}>
       <PaneHeader
         label="Live preview"
         status={

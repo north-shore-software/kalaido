@@ -12,6 +12,7 @@ import {
 } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { SchedulePill } from "@/features/reflections/components/schedule-controls";
+import { reflectionsTransitions } from "@/features/reflections/pages/Reflections.transitions";
 import {
   currentWindowSpec,
   describeWindow,
@@ -23,7 +24,6 @@ import {
 } from "@/hooks/use-reflection-series";
 import { formatWindowRange } from "@/lib/datetime";
 import { useAppNavigate } from "@/routes/use-app-navigate";
-import { reflectionsTransitions } from "@/features/reflections/pages/Reflections.transitions";
 
 import { BackfillCard } from "./backfill-card";
 import { ReflectionHeader } from "./reflection-header";

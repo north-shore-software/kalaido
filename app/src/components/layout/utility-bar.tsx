@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
-import type { UnlistenFn } from "@/api/app/os-integrations.ts";
-import { appState } from "@/hooks/use-app-state.ts";
-import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
 import {
   getLocalKalaidoscopeStatus,
   registerSidecarStatusChangeListener,
   type SidecarStatus,
 } from "@/api/app/local-scopes";
+import type { UnlistenFn } from "@/api/app/os-integrations.ts";
+import { Pill } from "@/components/kalaido";
+import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
+import { appState } from "@/hooks/use-app-state.ts";
 import { useLiveCollection } from "@/hooks/use-live-collection";
+import { cn } from "@/lib/css-utils";
 import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
 
 /**
@@ -53,22 +55,12 @@ export function UtilityBar() {
   }, [currentKalaidoscopeId, isLocal]);
 
   return (
-    <div className="flex h-8 shrink-0 items-center justify-end overflow-hidden border-t border-sidebar-border bg-sidebar px-3 gap-4">
-      <div className="flex items-center gap-3 shrink-0">
-        {/* Needs the workspace's PocketBase client, which only exists once a
-            kalaidoscope is open — hence the mount gate rather than `enabled`. */}
-        {currentKalaidoscope && <QueueStatusLine />}
-
-        {isLocal && (
-          <span
-            className="flex items-center gap-1.5 font-mono text-mono-sm text-fg-4"
-            title={`Database: ${sidecarStatus.message ?? phaseLabel(sidecarStatus.phase)}`}
-          >
-            <SidecarStatusDot phase={sidecarStatus.phase} />
-            DB
-          </span>
-        )}
-      </div>
+    <div className="relative flex h-8 shrink-0 items-center justify-between overflow-hidden border-t border-sidebar-border bg-sidebar px-3">
+      {currentKalaidoscope ? (
+        <QueueStatusLine isLocal={isLocal} sidecarStatus={sidecarStatus} />
+      ) : (
+        <div />
+      )}
     </div>
   );
 }
@@ -95,22 +87,100 @@ const queueRoleLabels: Record<string, string> = {
   snapshot: "generating",
   distill: "distilling lens",
   colour: "colour matching",
+  map: "mapping",
+  annotate: "annotating",
 };
 
-/**
- * Permanent one-line summary of the LLM scheduler, from the server-maintained
- * `llm_queue_status` singleton (see kalaidoscope server/queue_status.go):
- * what's running, how much is queued, and live throughput. The in-flight
- * tok/s is a server-side estimate (~4 chars/token); the exact figure the
- * provider reports at completion shows against `idle` for a few seconds
- * afterwards.
- */
-function QueueStatusLine() {
+function QueueIndicator({
+  badge,
+  running,
+  waitingCount,
+  heldReason,
+}: {
+  badge: "FG" | "BG";
+  running: QueueTask[];
+  waitingCount: number;
+  heldReason?: string;
+}) {
+  const active = running.length > 0;
+  const roles = running
+    .map((t) => queueRoleLabels[t.role] ?? t.role)
+    .join(" + ");
+
+  let statusText = "idle";
+  if (active) {
+    statusText = `${roles}${waitingCount > 0 ? ` · ${waitingCount} queued` : ""}`;
+  } else if (waitingCount > 0) {
+    statusText = `${waitingCount} queued${heldReason ? ` (${heldReason})` : ""}`;
+  }
+
+  return (
+    <div
+      className="flex items-center gap-1.5 font-mono text-mono-sm"
+      title={
+        active
+          ? running
+              .map((t) => `${t.role} (${t.priority}): ${t.model}`)
+              .join("\n")
+          : undefined
+      }
+    >
+      <Pill tone={active ? "primary" : "muted"} dot={active}>
+        {badge}
+      </Pill>
+      <span className={active ? "text-fg-2" : "text-fg-4"}>{statusText}</span>
+    </div>
+  );
+}
+
+function RateMeter({
+  liveRate,
+  finishedRate,
+}: {
+  liveRate: number;
+  finishedRate?: number;
+}) {
+  const active = liveRate > 0;
+  let text = "idle";
+  if (active) {
+    text = `~${liveRate.toFixed(0)} tok/s`;
+  } else if (finishedRate !== undefined) {
+    text = `${finishedRate.toFixed(1)} tok/s`;
+  }
+
+  return (
+    <div
+      className="flex items-center gap-1.5 font-mono text-mono-sm"
+      title="LLM generation throughput"
+    >
+      <span className="text-fg-4">RATE</span>
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          active
+            ? "bg-stable animate-pulse"
+            : finishedRate !== undefined
+              ? "bg-stable/60"
+              : "bg-muted-foreground/30",
+        )}
+      />
+      <span className={active ? "font-medium text-fg-2" : "text-fg-4"}>
+        {text}
+      </span>
+    </div>
+  );
+}
+
+function QueueStatusLine({
+  isLocal,
+  sidecarStatus,
+}: {
+  isLocal: boolean;
+  sidecarStatus: SidecarStatus;
+}) {
   const { records } = useLiveCollection("llm_queue_status");
   const { latestInferenceRate } = useSnapshot(appState);
 
-  // Hide the post-run exact rate 5s after measurement. Valtio won't re-render
-  // on elapsed time alone, so schedule a tick to force the hide.
   const [, forceTick] = useState(0);
   const rateAt = latestInferenceRate?.at;
   useEffect(() => {
@@ -125,53 +195,59 @@ function QueueStatusLine() {
       : undefined;
 
   const status = records[0];
-  // No status record reachable (e.g. a workspace created before the collection
-  // existed) — say nothing rather than claim "idle" without knowing.
-  if (!status) return null;
+  const running = ((status?.state === "active" ? status?.running : []) ??
+    []) as QueueTask[];
+  const waiting = ((status?.state === "active" ? status?.waiting : {}) ??
+    {}) as Record<string, number>;
+  const held = (status as { held?: { reason?: string } | null } | undefined)
+    ?.held;
 
-  if (status.state !== "active") {
-    return (
-      <span className="font-mono text-mono-sm text-fg-4">
-        {finishedRate !== undefined
-          ? `idle · ${finishedRate.toFixed(1)} tok/s`
-          : "idle"}
-      </span>
-    );
-  }
+  const fgRunning = running.filter((t) => t.priority === "interactive");
+  const fgWaiting = waiting.interactive ?? 0;
 
-  const running = (status.running ?? []) as QueueTask[];
-  const waiting = (status.waiting ?? {}) as Record<string, number>;
-  const held = (status as { held?: { reason?: string } | null }).held;
-  const queued = Object.values(waiting).reduce((a, b) => a + b, 0);
+  const bgRunning = running.filter(
+    (t) => t.priority === "background" || t.priority === "idle",
+  );
+  const bgWaiting = (waiting.background ?? 0) + (waiting.idle ?? 0);
+  const bgHeld =
+    bgWaiting > 0 && held?.reason ? queueHeldLabels[held.reason] : undefined;
+
   const liveRate = running.reduce(
     (sum, t) => sum + (t.tokens_per_second ?? 0),
     0,
   );
 
-  const parts: string[] = [];
-  if (running.length > 0) {
-    parts.push(
-      running.map((t) => queueRoleLabels[t.role] ?? t.role).join(" + "),
-    );
-  }
-  if (queued > 0) {
-    parts.push(`${queued} queued`);
-  }
-  if (queued > 0 && held?.reason && queueHeldLabels[held.reason]) {
-    parts.push(queueHeldLabels[held.reason]);
-  }
-  if (liveRate > 0) {
-    parts.push(`~${liveRate.toFixed(0)} tok/s`);
-  }
-
   return (
-    <span
-      className="font-mono text-mono-sm text-fg-4"
-      title={running
-        .map((t) => `${t.role} (${t.priority}): ${t.model}`)
-        .join("\n")}
-    >
-      {parts.join(" · ")}
-    </span>
+    <>
+      <div className="flex items-center gap-3 shrink-0">
+        <QueueIndicator
+          badge="FG"
+          running={fgRunning}
+          waitingCount={fgWaiting}
+        />
+      </div>
+
+      <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3 font-mono text-mono-sm">
+        <RateMeter liveRate={liveRate} finishedRate={finishedRate} />
+        {isLocal && (
+          <span
+            className="flex items-center gap-1.5 text-fg-4"
+            title={`Database: ${sidecarStatus.message ?? phaseLabel(sidecarStatus.phase)}`}
+          >
+            <SidecarStatusDot phase={sidecarStatus.phase} />
+            DB
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <QueueIndicator
+          badge="BG"
+          running={bgRunning}
+          waitingCount={bgWaiting}
+          heldReason={bgHeld}
+        />
+      </div>
+    </>
   );
 }

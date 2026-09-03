@@ -1,18 +1,13 @@
 import type { ContextSpec } from "@/api/kalaidoscope/chat";
+import type { SourceItem, SourceKind } from "@/components/kalaido";
 import type { ContextSources } from "@/hooks/use-context-sources";
 
-export type SourceKind = "Colour" | "Projection" | "Reflection";
-
-export interface SourceItem {
-  kind: SourceKind;
-  id: string;
-  label: string;
-  value?: string;
-}
+export type { SourceItem, SourceKind };
 
 export function resolveSources(
   spec: ContextSpec | null,
   sources: ContextSources,
+  extraNames?: Map<string, string>,
 ): SourceItem[] {
   if (!spec || spec.wholeScope) return [];
   const items: SourceItem[] = [];
@@ -22,11 +17,19 @@ export function resolveSources(
   }
   for (const id of spec.sourceProjectionIds ?? []) {
     const p = sources.projections.find((o) => o.id === id);
-    items.push({ kind: "Projection", id, label: p?.name ?? id });
+    items.push({
+      kind: "Projection",
+      id,
+      label: p?.name ?? extraNames?.get(id) ?? id,
+    });
   }
   for (const id of spec.sourceReflectionIds ?? []) {
     const r = sources.reflections.find((o) => o.id === id);
-    items.push({ kind: "Reflection", id, label: r?.name ?? id });
+    items.push({
+      kind: "Reflection",
+      id,
+      label: r?.name ?? extraNames?.get(id) ?? id,
+    });
   }
   return items;
 }

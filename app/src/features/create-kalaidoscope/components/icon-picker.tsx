@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideProps } from "lucide-react";
 import * as Icons from "lucide-react";
 import { SmileIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/css-utils";
 
 type IconComponent = React.ComponentType<LucideProps>;

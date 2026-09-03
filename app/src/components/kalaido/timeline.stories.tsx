@@ -1,9 +1,9 @@
 import type { Story } from "@ladle/react";
-import { Timeline } from "./timeline.tsx";
 import {
   TIMELINE_STABLE_FIXTURES,
   TIMELINE_TRUTH_FIXTURES,
 } from "./fixtures.ts";
+import { Timeline } from "./timeline.tsx";
 
 export default { title: "Kalaido / Timeline" };
 

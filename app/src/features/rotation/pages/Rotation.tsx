@@ -1,25 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAppNavigate } from "@/routes/use-app-navigate";
 import { toast } from "sonner";
-import { PageHeader, PageLayout } from "@/components/layout/page-layout";
-import { Mono } from "@/components/kalaido";
-import { useLiveCollection } from "@/hooks/use-live-collection";
-import { useRotationStatus } from "@/hooks/use-rotation-status";
 import {
   approveProjectionCandidate,
   regenerateProjection,
 } from "@/api/kalaidoscope/projections";
 import { regenerateReflection } from "@/api/kalaidoscope/reflections";
-import { parseProjectionOutput } from "@/hooks/use-projection-snapshot";
 import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
-
+import { Mono } from "@/components/kalaido";
+import { PageHeader, PageLayout } from "@/components/layout/page-layout";
+import { ActiveRotationCard } from "@/features/rotation/components/active-rotation-card";
 import {
   QNode,
   QueuedRotationRow,
 } from "@/features/rotation/components/queued-rotation-row";
-import { ActiveRotationCard } from "@/features/rotation/components/active-rotation-card";
 import { RotationEmptyState } from "@/features/rotation/components/rotation-empty-state";
+import { useLiveCollection } from "@/hooks/use-live-collection";
+import { parseProjectionOutput } from "@/hooks/use-projection-snapshot";
+import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
 import { rotationTransitions } from "./Rotation.transitions";
 
 export default function Rotation() {

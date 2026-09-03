@@ -1,7 +1,7 @@
 import type { Story } from "@ladle/react";
-import { PinnedSection } from "./pinned-section";
-import { mockPinItems } from "../fixtures";
 import { action } from "@/lib/story-utils.ts";
+import { mockPinItems } from "../fixtures";
+import { PinnedSection } from "./pinned-section";
 
 export default { title: "Dashboard / PinnedSection" };
 

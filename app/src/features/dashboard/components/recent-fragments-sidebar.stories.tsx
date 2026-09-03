@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { RecentFragmentsSidebar } from "./recent-fragments-sidebar";
 import { mockRecentFragments } from "../fixtures";
+import { RecentFragmentsSidebar } from "./recent-fragments-sidebar";
 
 export default { title: "Dashboard / RecentFragmentsSidebar" };
 

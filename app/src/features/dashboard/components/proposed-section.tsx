@@ -1,5 +1,12 @@
 import { ClockIcon, FileTextIcon, XIcon } from "lucide-react";
-import { DocumentCard, Label, StatusPill } from "@/components/kalaido";
+import {
+  DocumentCard,
+  Label,
+  SourceList,
+  StatusPill,
+} from "@/components/kalaido";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import type { EntityKind, ProposedItem } from "../types";
 
 export interface ProposedSectionProps {
@@ -19,6 +26,38 @@ function KindIcon({ kind }: { kind: EntityKind }) {
         <ClockIcon className="size-3.5 text-violet" />
       )}
     </span>
+  );
+}
+
+function ProposedLoadingCard() {
+  return (
+    <DocumentCard
+      className="w-[calc(50%-7px)]"
+      leading={
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-none bg-surface-2">
+          <Spinner className="size-3.5 text-fg-3" />
+        </span>
+      }
+      title="Looking for patterns in your notes…"
+      trailing={
+        <StatusPill className="border-line bg-surface-2 text-fg-3">
+          DISCOVERING
+        </StatusPill>
+      }
+      contentClassName="flex h-[74px] flex-col justify-center gap-2"
+      footer={
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-4 w-16 rounded-none" />
+          <Skeleton className="h-4 w-20 rounded-none" />
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-2 w-full rounded-none" />
+        <Skeleton className="h-2 w-[85%] rounded-none" />
+        <Skeleton className="h-2 w-[60%] rounded-none" />
+      </div>
+    </DocumentCard>
   );
 }
 
@@ -44,15 +83,11 @@ export function ProposedSection({
         <Label>Proposed</Label>
         <div className="flex-1" />
       </div>
-      {discovering ? (
-        <p className="text-meta text-fg-4">
-          Looking for patterns in your notes…
-        </p>
-      ) : error ? (
+      {error && (
         <p className="text-meta text-fg-4">
           Couldn't finish looking for patterns: {error}
         </p>
-      ) : null}
+      )}
       <div className="flex flex-wrap gap-3.5">
         {items.map((it) => {
           const isProj = it.kind === "projection";
@@ -88,16 +123,13 @@ export function ProposedSection({
                 </>
               }
               contentClassName="h-[74px]"
-              footer={
-                <span className="text-meta text-fg-4">
-                  {it.fragments} fragments
-                </span>
-              }
+              footer={<SourceList sources={it.sources} />}
             >
               <p className="line-clamp-3 text-meta text-fg-3">{it.message}</p>
             </DocumentCard>
           );
         })}
+        {discovering && <ProposedLoadingCard />}
       </div>
     </section>
   );

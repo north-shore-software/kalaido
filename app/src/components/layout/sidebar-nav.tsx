@@ -6,8 +6,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import type { TransitionDef } from "@/routes/route-kit";
 import { pathFor, type SectionId, sectionForRoute } from "@/routes/registry";
+import type { TransitionDef } from "@/routes/route-kit";
 import { RouteLink } from "@/routes/route-link";
 
 export interface SidebarNavItem {

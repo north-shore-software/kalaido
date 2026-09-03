@@ -1,8 +1,8 @@
-import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { proxy } from "valtio";
-import type { RouteId } from "@/routes/route-ids";
 import { getAllSettings } from "@/api/app/settings.ts";
+import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { toError } from "@/lib/errors.ts";
+import type { RouteId } from "@/routes/route-ids";
 
 export type StageError = {
   message: string;

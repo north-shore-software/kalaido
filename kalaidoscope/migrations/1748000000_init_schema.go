@@ -519,6 +519,7 @@ var schema = []tableDef{
 				f.content as content,
 				f.source_time as source_time,
 				f.created as created,
+				fa.title as title,
 				COALESCE(
 					(SELECT json_group_array(ic.idx)
 					 FROM colour_fragment cf
@@ -528,6 +529,7 @@ var schema = []tableDef{
 					'[]'
 				) as colours
 			FROM fragment f
+			LEFT JOIN fragment_annotation fa ON fa.fragment_id = f.id
 			WHERE f.deleted_at = ''
 		`,
 	},

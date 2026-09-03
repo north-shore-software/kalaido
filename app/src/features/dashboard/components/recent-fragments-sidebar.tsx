@@ -5,11 +5,13 @@ import type { RecentFragment } from "../types";
 export interface RecentFragmentsSidebarProps {
   fragments: RecentFragment[];
   loading?: boolean;
+  onSelectFragment?: (id: string) => void;
 }
 
 export function RecentFragmentsSidebar({
   fragments,
   loading,
+  onSelectFragment,
 }: RecentFragmentsSidebarProps) {
   let lastDay: string | null = null;
 
@@ -31,9 +33,13 @@ export function RecentFragmentsSidebar({
               )}
               <FragmentCard
                 type={f.type}
+                title={f.title}
                 time={f.time}
                 colours={f.colours}
                 compact
+                onClick={
+                  onSelectFragment ? () => onSelectFragment(f.id) : undefined
+                }
               />
             </F>
           );

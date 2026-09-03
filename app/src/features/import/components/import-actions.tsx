@@ -1,6 +1,6 @@
+import { FileIcon, UploadIcon } from "lucide-react";
 import type { IngestPhase } from "@/api/kalaidoscope/ingest";
 import { Button } from "@/components/ui/button";
-import { FileIcon, UploadIcon } from "lucide-react";
 
 export interface ImportActionsProps {
   phase: IngestPhase;

@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { SnapshotPreview } from "./snapshot-preview";
 import { mockMarkdownContent1, mockSnapshots } from "../fixtures";
+import { SnapshotPreview } from "./snapshot-preview";
 
 export default { title: "Projections / SnapshotPreview" };
 

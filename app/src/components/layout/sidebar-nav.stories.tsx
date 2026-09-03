@@ -1,6 +1,4 @@
 import type { Story } from "@ladle/react";
-import { SidebarProvider } from "@/components/ui/sidebar.tsx";
-import { SidebarNav, type SidebarNavItem } from "./sidebar-nav.tsx";
 import {
   FileTextIcon,
   HistoryIcon,
@@ -8,7 +6,9 @@ import {
   PaletteIcon,
   WavesIcon,
 } from "lucide-react";
+import { SidebarProvider } from "@/components/ui/sidebar.tsx";
 import { navSidebarTransitions } from "./nav-sidebar.transitions.ts";
+import { SidebarNav, type SidebarNavItem } from "./sidebar-nav.tsx";
 
 export default { title: "Layout / Sidebar Nav" };
 

@@ -1,4 +1,4 @@
-import { Textarea } from "@/components/ui/textarea";
+import type { FragmentResponse } from "@/api/kalaidoscope/types";
 import {
   Chip,
   EmptyState,
@@ -6,10 +6,10 @@ import {
   Label,
   Mono,
 } from "@/components/kalaido";
+import { Textarea } from "@/components/ui/textarea";
 import { fragmentTypeLabel } from "@/lib/labels";
 import { preview, shortTime } from "../fragments";
 import { TYPE_FILTERS, type TypeFilter } from "../hooks/use-colour-preview";
-import type { FragmentResponse } from "@/api/kalaidoscope/types";
 
 /** State owned by the page via `useColourPreview`. */
 export function ColourComposerPane({

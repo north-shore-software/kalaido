@@ -1,8 +1,8 @@
 import { useId } from "react";
-import { cn } from "@/lib/css-utils";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Pill, surfaceCardClass } from "@/components/kalaido";
 import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/llm-config";
+import { Pill, surfaceCardClass } from "@/components/kalaido";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/css-utils";
 
 function formatModelSize(bytes: number): string {
   if (!bytes) return "";

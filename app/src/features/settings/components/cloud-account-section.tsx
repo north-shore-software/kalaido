@@ -1,5 +1,5 @@
-import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/layout/section";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CloudAuthPanel } from "@/features/onboarding/components/cloud-auth-panel";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";

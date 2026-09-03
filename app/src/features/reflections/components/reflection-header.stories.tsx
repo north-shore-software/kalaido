@@ -1,10 +1,10 @@
 import type { Story } from "@ladle/react";
-import { ReflectionHeader } from "./reflection-header";
 import {
   FIXTURE_REFLECTION_ID,
   FIXTURE_SCHED_DISPLAY_LIVE,
   FIXTURE_SCHED_DISPLAY_MANUAL,
 } from "../fixtures";
+import { ReflectionHeader } from "./reflection-header";
 
 export default { title: "Reflections / ReflectionHeader" };
 

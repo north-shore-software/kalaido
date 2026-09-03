@@ -1,7 +1,7 @@
 import { Label, StatusPill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
-import { NeedsRow } from "./needs-row";
 import type { NeedItem } from "../types";
+import { NeedsRow } from "./needs-row";
 
 export interface NeedsActionSectionProps {
   items: NeedItem[];

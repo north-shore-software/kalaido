@@ -1,5 +1,5 @@
-import type { Result } from "neverthrow";
 import { invoke } from "@tauri-apps/api/core";
+import type { Result } from "neverthrow";
 import { tauriResult } from "@/api/app/_invoke.ts";
 
 export type FileKind = "text" | "docx" | "other";

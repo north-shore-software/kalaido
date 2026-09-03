@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageBackButton } from "@/components/layout/page-back-button";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";

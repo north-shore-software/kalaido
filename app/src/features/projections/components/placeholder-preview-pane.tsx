@@ -1,5 +1,5 @@
-import { PaneHeader } from "@/components/layout/page-layout";
 import { Pill } from "@/components/kalaido";
+import { PaneHeader } from "@/components/layout/page-layout";
 
 export function PlaceholderPreviewPane() {
   return (

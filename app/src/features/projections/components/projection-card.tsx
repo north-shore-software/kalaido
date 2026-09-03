@@ -1,16 +1,15 @@
 import { RefreshCwIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import type { ProjectionResponse } from "@/api/kalaidoscope/types";
 import {
-  ColourSwatch,
   DocumentCard,
-  KindPill,
   Mono,
   PinToggle,
+  SourceList,
 } from "@/components/kalaido";
-import { isPinned } from "@/lib/pins";
-import type { ProjectionStatusInfo } from "@/features/projections/status";
+import { Button } from "@/components/ui/button";
 import type { SourceItem } from "@/features/projections/sources";
-import type { ProjectionResponse } from "@/api/kalaidoscope/types";
+import type { ProjectionStatusInfo } from "@/features/projections/status";
+import { isPinned } from "@/lib/pins";
 
 export interface StatusBadgeProps {
   info: ProjectionStatusInfo;
@@ -110,30 +109,5 @@ export function ProjCard({
         <span className="text-meta text-fg-4 italic">No brief</span>
       )}
     </DocumentCard>
-  );
-}
-
-function SourceList({ sources }: { sources: SourceItem[] }) {
-  if (sources.length === 0) {
-    return <Mono className="text-mono-sm text-fg-4">whole scope</Mono>;
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      {sources.map((s) => (
-        <span
-          key={`${s.kind}:${s.id}`}
-          className="inline-flex max-w-full items-center gap-1"
-        >
-          {s.kind === "Colour" ? (
-            <ColourSwatch value={s.value} size={8} />
-          ) : (
-            <KindPill
-              kind={s.kind === "Projection" ? "projection" : "reflection"}
-            />
-          )}
-          <Mono className="truncate text-mono-sm text-fg-2">{s.label}</Mono>
-        </span>
-      ))}
-    </div>
   );
 }

@@ -1,10 +1,10 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
-import { SidecarStatusDot } from "./sidecar-status-dot";
-import { ThemeToggle } from "./theme-toggle";
-import { LocationLabel } from "./location-label";
 import type { SidecarPhase } from "@/api/app/local-scopes";
 import type { Theme } from "@/lib/theme";
+import { LocationLabel } from "./location-label";
+import { SidecarStatusDot } from "./sidecar-status-dot";
+import { ThemeToggle } from "./theme-toggle";
 
 export default { title: "Layout / Utility Bar Components" };
 

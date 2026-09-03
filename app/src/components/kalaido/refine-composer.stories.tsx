@@ -1,7 +1,7 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
-import { RefineComposer } from "./refine-composer.tsx";
 import { action } from "@/lib/story-utils.ts";
+import { RefineComposer } from "./refine-composer.tsx";
 
 export default { title: "Kalaido / RefineComposer" };
 

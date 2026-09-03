@@ -1,9 +1,9 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
-import { ColourComposerPane } from "./colour-composer-pane";
+import { action } from "@/lib/story-utils.ts";
 import { mockFragments } from "../fixtures";
 import type { TypeFilter } from "../hooks/use-colour-preview";
-import { action } from "@/lib/story-utils.ts";
+import { ColourComposerPane } from "./colour-composer-pane";
 
 export default { title: "Colours / Colour Composer Pane" };
 

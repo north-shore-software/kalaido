@@ -281,7 +281,7 @@ export default function ReflectionRefine() {
             />
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col border-r border-line">
+          <div className="flex min-w-0 flex-[1.05] flex-col border-r border-line">
             {started ? (
               <RefineChatPanel
                 session={session}

@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { AuthForm } from "./auth-form";
 import { action } from "@/lib/story-utils.ts";
+import { AuthForm } from "./auth-form";
 
 export default { title: "Settings / AuthForm" };
 

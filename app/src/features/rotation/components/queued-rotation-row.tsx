@@ -1,6 +1,6 @@
 import { CheckIcon, ClockIcon } from "lucide-react";
-import { cn } from "@/lib/css-utils";
 import { Mono } from "@/components/kalaido";
+import { cn } from "@/lib/css-utils";
 
 export type QState = "done" | "current" | "todo";
 

@@ -1,7 +1,7 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
-import { ScheduleChips, SchedulePill } from "./schedule-controls.tsx";
 import { SCHEDULE_FIXTURE_1, SCHEDULE_FIXTURE_2 } from "../fixtures.ts";
+import { ScheduleChips, SchedulePill } from "./schedule-controls.tsx";
 
 export default { title: "Reflections / ScheduleControls" };
 

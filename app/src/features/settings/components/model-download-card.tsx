@@ -1,7 +1,7 @@
 import { DownloadIcon } from "lucide-react";
+import { SurfaceCard } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { SurfaceCard } from "@/components/kalaido";
 
 export interface ModelDownloadCardProps {
   modelName: string;

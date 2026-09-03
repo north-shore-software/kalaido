@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { IconPicker } from "./icon-picker";
 import { action } from "@/lib/story-utils.ts";
+import { IconPicker } from "./icon-picker";
 
 export default { title: "Setup / IconPicker" };
 

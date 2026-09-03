@@ -1,33 +1,39 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAppNavigate } from "@/routes/use-app-navigate";
 import { toast } from "sonner";
-import { PageHeader, PageLayout } from "@/components/layout/page-layout";
-import { isPinned } from "@/lib/pins";
-import { useRotationStatus } from "@/hooks/use-rotation-status";
-import { useOrganizeStatus } from "@/hooks/use-organize-status";
-import {
-  useLiveCollection,
-  useLiveCollectionWatching,
-} from "@/hooks/use-live-collection";
+import { parseContextSpec } from "@/api/kalaidoscope/chat";
 import {
   deleteProjection,
   regenerateProjection,
   updateProjection,
 } from "@/api/kalaidoscope/projections";
+import { startReconcile } from "@/api/kalaidoscope/reconcile";
 import {
   deleteReflection,
   updateReflection,
 } from "@/api/kalaidoscope/reflections";
-import { parseContextSpec } from "@/api/kalaidoscope/chat";
-import { startReconcile } from "@/api/kalaidoscope/reconcile";
 import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
-import { describeDelta } from "../describe-delta";
+import type { FragmentTypeOptions } from "@/api/kalaidoscope/types";
+import { FragmentDrawer } from "@/components/kalaido";
+import { PageHeader, PageLayout } from "@/components/layout/page-layout";
+import { resolveSources } from "@/features/projections/sources";
+import { useContextSources } from "@/hooks/use-context-sources";
+import {
+  useLiveCollection,
+  useLiveCollectionWatching,
+} from "@/hooks/use-live-collection";
+import { useOrganizeStatus } from "@/hooks/use-organize-status";
+import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels";
-import type { FragmentTypeOptions } from "@/api/kalaidoscope/types";
+import { isPinned } from "@/lib/pins";
 import { defineRoute } from "@/routes/route-kit";
-import { mainTransitions } from "./Main.transitions";
-
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { CaughtUpBanner } from "../components/caught-up-banner";
+import { NeedsActionSection } from "../components/needs-action-section";
+import { PinnedSection } from "../components/pinned-section";
+import { ProposedSection } from "../components/proposed-section";
+import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
+import { describeDelta } from "../describe-delta";
 import type {
   NeedAction,
   NeedItem,
@@ -35,11 +41,7 @@ import type {
   ProposedItem,
   RecentFragment,
 } from "../types";
-import { CaughtUpBanner } from "../components/caught-up-banner";
-import { NeedsActionSection } from "../components/needs-action-section";
-import { PinnedSection } from "../components/pinned-section";
-import { ProposedSection } from "../components/proposed-section";
-import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
+import { mainTransitions } from "./Main.transitions";
 
 type EntityKind = "projection" | "reflection";
 
@@ -64,9 +66,13 @@ function parseColours(raw: unknown): number[] {
 
 export default function Main() {
   const { go } = useAppNavigate();
+  const contextSources = useContextSources();
   // Id of the row whose candidate is being generated, so the row can say so —
   // generation is a model call, not an instant hop.
   const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [selectedFragmentId, setSelectedFragmentId] = useState<string | null>(
+    null,
+  );
 
   const {
     statuses,
@@ -89,7 +95,7 @@ export default function Main() {
   });
   const fragments = useLiveCollectionWatching(
     "view_stream",
-    ["fragment", "colour_fragment"],
+    ["fragment", "colour_fragment", "fragment_annotation"],
     { sort: "-source_time,-created" },
   );
   // The reconcile wave keeps no run state of its own; whether it is working
@@ -172,11 +178,11 @@ export default function Main() {
         kind,
         name: p.name || "Untitled",
         message: p.brief ?? "",
-        fragments: spec?.fragmentIds?.length ?? 0,
+        sources: resolveSources(spec, contextSources, nameById),
       });
     }
     return items;
-  }, [projections.records, reflections.records]);
+  }, [projections.records, reflections.records, contextSources, nameById]);
 
   const pinned = useMemo<PinItem[]>(() => {
     const items: PinItem[] = [];
@@ -250,6 +256,7 @@ export default function Main() {
         return {
           id: f.id,
           type: fragmentTypeLabel(f.type as FragmentTypeOptions),
+          title: f.title,
           time: formatTime(occurred),
           day: formatDayGroup(occurred),
           colours: parseColours(f.colours),
@@ -422,9 +429,14 @@ export default function Main() {
           <RecentFragmentsSidebar
             fragments={recent}
             loading={fragments.isLoading}
+            onSelectFragment={setSelectedFragmentId}
           />
         </div>
       </div>
+      <FragmentDrawer
+        id={selectedFragmentId ?? undefined}
+        onClose={() => setSelectedFragmentId(null)}
+      />
     </PageLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { mockRecentFragments } from "../fixtures";
-import { Default, Loading, Empty } from "./recent-fragments-sidebar.stories";
+import { Default, Empty, Loading } from "./recent-fragments-sidebar.stories";
 
 describe("RecentFragmentsSidebar", () => {
   describe("Default", () => {

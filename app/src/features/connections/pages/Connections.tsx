@@ -1,20 +1,19 @@
-import type { ComponentType } from "react";
-import { RouteLink } from "@/routes/route-link";
-import type { TransitionDef } from "@/routes/route-kit";
-import { defineRoute } from "@/routes/route-kit";
 import {
   ArrowRightIcon,
   DownloadIcon,
   RefreshCwIcon,
   UploadIcon,
 } from "lucide-react";
-
+import type { ComponentType } from "react";
+import { Pill } from "@/components/kalaido";
 import {
   PageBody,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { Pill } from "@/components/kalaido";
+import type { TransitionDef } from "@/routes/route-kit";
+import { defineRoute } from "@/routes/route-kit";
+import { RouteLink } from "@/routes/route-link";
 import { connectionsTransitions } from "./Connections.transitions";
 
 interface Connection {

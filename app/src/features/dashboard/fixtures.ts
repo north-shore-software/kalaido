@@ -54,6 +54,7 @@ export const mockRecentFragments: RecentFragment[] = [
   {
     id: "f1",
     type: "Web Webhook",
+    title: "Stripe webhook payment received",
     time: "10:15 AM",
     day: "Today",
     colours: [1, 2],
@@ -61,6 +62,7 @@ export const mockRecentFragments: RecentFragment[] = [
   {
     id: "f2",
     type: "Database Query",
+    title: "Quarterly revenue rollup query",
     time: "09:30 AM",
     day: "Today",
     colours: [3],
@@ -68,6 +70,7 @@ export const mockRecentFragments: RecentFragment[] = [
   {
     id: "f3",
     type: "API Call",
+    title: "Customer sync endpoint response",
     time: "05:14 PM",
     day: "Yesterday",
     colours: [4, 5, 6],
@@ -82,6 +85,7 @@ export const mockRecentFragments: RecentFragment[] = [
   {
     id: "f5",
     type: "Cron Job",
+    title: "Nightly backup verification job",
     time: "11:30 PM",
     day: "Last Week",
     colours: [2, 4],

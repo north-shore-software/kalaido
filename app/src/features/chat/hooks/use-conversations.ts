@@ -1,6 +1,6 @@
 import useSWR from "swr";
-import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client.ts";
 import { listConversations } from "@/api/kalaidoscope/chat.ts";
+import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client.ts";
 
 export function useConversations() {
   const client = useKalaidoscopeClient();

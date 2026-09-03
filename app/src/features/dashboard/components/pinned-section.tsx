@@ -1,6 +1,6 @@
 import { EmptyState, Label } from "@/components/kalaido";
-import { PinCard } from "./pin-card";
 import type { PinItem } from "../types";
+import { PinCard } from "./pin-card";
 
 export interface PinnedSectionProps {
   items: PinItem[];

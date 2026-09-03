@@ -1,8 +1,8 @@
 import type { Story } from "@ladle/react";
-import { DocumentCard } from "./document-card.tsx";
 import { ColourSwatch } from "./colour.tsx";
-import { StatusPill } from "./status-pill.tsx";
+import { DocumentCard } from "./document-card.tsx";
 import { DOCUMENT_FIXTURES } from "./fixtures.ts";
+import { StatusPill } from "./status-pill.tsx";
 
 export default { title: "Kalaido / DocumentCard" };
 

@@ -1,6 +1,25 @@
-import { useState } from "react";
 import { PinIcon, PlusIcon, Undo2Icon, XIcon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
+import {
+  deleteColour,
+  rematchColour,
+  type UpdateColourInput,
+  updateColour,
+} from "@/api/kalaidoscope/colours";
+import type { ColourResponse } from "@/api/kalaidoscope/types";
+import {
+  ColourSwatch,
+  EditableText,
+  EmptyState,
+  FragmentCard,
+  Label,
+  Mono,
+  type StatusKind,
+  StatusPill,
+} from "@/components/kalaido";
+import { useFragmentSearch } from "@/components/kalaido/context-picker/data";
+import { ItemPicker } from "@/components/kalaido/context-picker/item-picker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,24 +33,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  ColourSwatch,
-  EditableText,
-  EmptyState,
-  FragmentCard,
-  Label,
-  Mono,
-  StatusPill,
-  type StatusKind,
-} from "@/components/kalaido";
-import { useFragmentSearch } from "@/components/kalaido/context-picker/data";
-import { ItemPicker } from "@/components/kalaido/context-picker/item-picker";
-import {
-  deleteColour,
-  rematchColour,
-  updateColour,
-  type UpdateColourInput,
-} from "@/api/kalaidoscope/colours";
 import { swatchIndex } from "@/lib/colors";
 import { fragmentTypeLabel } from "@/lib/labels";
 import {
@@ -40,7 +41,6 @@ import {
   preview,
   shortTime,
 } from "../fragments";
-import type { ColourResponse } from "@/api/kalaidoscope/types";
 
 /** How a membership row reads on its card. Exclusions render via `rejected`. */
 const MATCH_BADGE: Record<

@@ -1,6 +1,6 @@
+import type { ColourResponse } from "@/api/kalaidoscope/types";
 import { ColourSwatch, EmptyState, ListRow } from "@/components/kalaido";
 import { swatchIndex } from "@/lib/colors";
-import type { ColourResponse } from "@/api/kalaidoscope/types";
 
 export function ColourList({
   colours,

@@ -1,30 +1,30 @@
-import { useEffect, useMemo } from "react";
 import { PlusIcon } from "lucide-react";
-import { useAppNavigate } from "@/routes/use-app-navigate";
-import { defineRoute } from "@/routes/route-kit";
-import { projectionsTransitions } from "./Projections.transitions";
+import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { parseContextSpec } from "@/api/kalaidoscope/chat";
+import { updateProjection } from "@/api/kalaidoscope/projections";
+import type { ProjectionResponse } from "@/api/kalaidoscope/types";
+import { EmptyState, Mono } from "@/components/kalaido";
 import {
   PageBody,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { EmptyState, Mono } from "@/components/kalaido";
-import { isPinned } from "@/lib/pins";
-import { useContextSources } from "@/hooks/use-context-sources";
-import { useLiveCollection } from "@/hooks/use-live-collection";
-import { useRotationStatus } from "@/hooks/use-rotation-status";
-import { parseContextSpec } from "@/api/kalaidoscope/chat";
+import { ProjCard } from "@/features/projections/components/projection-card";
 import { resolveSources } from "@/features/projections/sources";
 import { getProjectionStatus } from "@/features/projections/status";
 import {
   type ProjectionTier,
   tierProjections,
 } from "@/features/projections/tiers";
-import { updateProjection } from "@/api/kalaidoscope/projections";
-import type { ProjectionResponse } from "@/api/kalaidoscope/types";
-import { ProjCard } from "@/features/projections/components/projection-card";
+import { useContextSources } from "@/hooks/use-context-sources";
+import { useLiveCollection } from "@/hooks/use-live-collection";
+import { useRotationStatus } from "@/hooks/use-rotation-status";
+import { isPinned } from "@/lib/pins";
+import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { projectionsTransitions } from "./Projections.transitions";
 
 const TIER_ORDER: { tier: ProjectionTier; label: string }[] = [
   { tier: "direct", label: "Direct" },

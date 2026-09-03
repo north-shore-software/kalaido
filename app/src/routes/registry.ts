@@ -1,31 +1,30 @@
-import { ROUTE_IDS, type RouteId } from "./route-ids";
-import { buildRoutePath, type RouteDef } from "./route-kit";
-
-import { splashRoute } from "@/features/boot/pages/Splash";
 import { bootErrorRoute } from "@/features/boot/pages/BootError";
-import { onboardingLandingRoute } from "@/features/onboarding/pages/OnboardingLanding";
-import { onboardingLoginRoute } from "@/features/onboarding/pages/OnboardingLogin";
-import { cloudWorkspacesRoute } from "@/features/onboarding/pages/CloudWorkspaces";
+import { splashRoute } from "@/features/boot/pages/Splash";
+import { chatRoute } from "@/features/chat/pages/Chat";
+import { coloursRoute } from "@/features/colours/pages/Colours";
+import { connectionsRoute } from "@/features/connections/pages/Connections";
 import { kalaidoscopeSetupRoute } from "@/features/create-kalaidoscope/pages/KalaidoscopeSetup";
-import { onboardingImportRoute } from "@/features/onboarding/pages/OnboardingImport";
-import { onboardingOrganizingRoute } from "@/features/onboarding/pages/OnboardingOrganizing";
-import { settingsRoute } from "@/features/settings/pages/Settings";
 import { mainRoute } from "@/features/dashboard/pages/Main";
 import { streamRoute } from "@/features/fragments/pages/Stream";
 import { importRoute } from "@/features/import/pages/Import";
-import { projectionsRoute } from "@/features/projections/pages/Projections";
+import { cloudWorkspacesRoute } from "@/features/onboarding/pages/CloudWorkspaces";
+import { onboardingImportRoute } from "@/features/onboarding/pages/OnboardingImport";
+import { onboardingLandingRoute } from "@/features/onboarding/pages/OnboardingLanding";
+import { onboardingLoginRoute } from "@/features/onboarding/pages/OnboardingLogin";
+import { onboardingOrganizingRoute } from "@/features/onboarding/pages/OnboardingOrganizing";
+import { newProjectionRoute } from "@/features/projections/pages/NewProjection";
 import { projectionDetailRoute } from "@/features/projections/pages/ProjectionDetail";
 import { projectionReviewRoute } from "@/features/projections/pages/ProjectionReview";
-import { newProjectionRoute } from "@/features/projections/pages/NewProjection";
-import { reflectionsRoute } from "@/features/reflections/pages/Reflections";
+import { projectionsRoute } from "@/features/projections/pages/Projections";
 import {
   newReflectionRoute,
   refineReflectionRoute,
 } from "@/features/reflections/pages/ReflectionRefine";
-import { coloursRoute } from "@/features/colours/pages/Colours";
-import { connectionsRoute } from "@/features/connections/pages/Connections";
+import { reflectionsRoute } from "@/features/reflections/pages/Reflections";
 import { rotationRoute } from "@/features/rotation/pages/Rotation";
-import { chatRoute } from "@/features/chat/pages/Chat";
+import { settingsRoute } from "@/features/settings/pages/Settings";
+import { ROUTE_IDS, type RouteId } from "./route-ids";
+import { buildRoutePath, type RouteDef } from "./route-kit";
 
 export const appRoutes: RouteDef[] = [
   splashRoute,

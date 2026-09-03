@@ -1,9 +1,9 @@
 import { useState } from "react";
+import { reloadAppWindow } from "@/api/app/os-integrations.ts";
+import { resetAppSettings } from "@/api/app/settings.ts";
+import { SectionHeader } from "@/components/layout/section";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { SectionHeader } from "@/components/layout/section";
-import { resetAppSettings } from "@/api/app/settings.ts";
-import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 
 export function DangerZoneSection() {
   const [confirming, setConfirming] = useState(false);

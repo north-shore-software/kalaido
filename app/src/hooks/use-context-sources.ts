@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { FRAGMENT_TYPE_OPTIONS, type FragmentTypeOption } from "@/lib/labels";
 import { useCollection } from "@/hooks/use-collection";
+import { FRAGMENT_TYPE_OPTIONS, type FragmentTypeOption } from "@/lib/labels";
 
 /** A pickable item identified by record id (projections, colours). */
 export interface ContextOption {

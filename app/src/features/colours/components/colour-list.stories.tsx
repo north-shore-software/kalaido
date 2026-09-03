@@ -1,8 +1,8 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
-import { ColourList } from "./colour-list";
-import { mockColours } from "../fixtures";
 import { action } from "@/lib/story-utils.ts";
+import { mockColours } from "../fixtures";
+import { ColourList } from "./colour-list";
 
 export default { title: "Colours / Colour List" };
 

@@ -1,6 +1,6 @@
 import { ArrowRightIcon, InboxIcon } from "lucide-react";
+import { FragmentCard } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Empty,
   EmptyContent,
@@ -9,7 +9,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { fragmentTypeIcon } from "@/components/kalaido";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/css-utils";
 import type { LoadedFragment } from "../types";
 
@@ -38,25 +38,14 @@ export interface StreamCardProps {
   f: LoadedFragment;
 }
 
-/** Stream card — the timeline variant (colours in the header, no timestamp). */
 export function StreamCard({ f }: StreamCardProps) {
-  const Icon = fragmentTypeIcon(f.type);
   return (
-    <div className="mb-3.5 flex-1 rounded-none border border-line border-l-2 border-l-section-edge bg-card p-3.5 transition-colors hover:border-line-strong hover:border-l-2 hover:border-l-section hover:bg-section-wash">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-6 items-center justify-center rounded-none bg-surface-2">
-            <Icon className="size-3.5 text-section-ink" />
-          </span>
-          <span className="text-body-sm font-semibold text-section-ink">
-            {f.type}
-          </span>
-        </div>
-      </div>
-      <p className="line-clamp-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg-1">
-        {f.preview}
-      </p>
-    </div>
+    <FragmentCard
+      type={f.type}
+      title={f.title}
+      preview={f.preview}
+      className="mb-3.5 flex-1 transition-colors group-hover:border-line-strong group-hover:bg-surface-2"
+    />
   );
 }
 
