@@ -19,18 +19,48 @@ Use this skill when asked to generate or regenerate any audit snapshot in `kalai
 
 ## The doc series
 
+The series describes the Go backend binary (`kalaidoscope/`) only: the sidecar's HTTP surface, database, background work, and model-facing behaviour. Client code is out of scope.
+
+**Surface docs**
+
 | Doc | Covers | Primary source roots |
 |---|---|---|
-| `api.md` | Custom HTTP routes, hook-modified collection endpoints, auth posture, wire/error conventions | Route-registration sites; `internal/handlers/`; `internal/api/`; hook registrations |
+| `api.md` | Every custom HTTP route and hook-modified collection endpoint, auth posture, wire/error conventions. A route index: the behaviour column points at the owning domain doc rather than re-explaining mechanics | Route-registration sites; `internal/handlers/`; `internal/api/`; hook registrations |
 | `schema.md` | Collections, fields, indexes, access rules, stored-JSON shapes, cascades, migration mechanics | `migrations/`; boot-time schema assertions |
-| `lifecycle-projection.md` | Projection-specific lifecycle | `internal/handlers/`; `internal/engine/` |
-| `lifecycle-reflection.md` | Reflection-specific lifecycle | `internal/handlers/`; `internal/engine/` |
-| `lens-distillation.md` | Shared lens machinery: intent timeline, distillation loop, worker, model aliasing | `internal/engine/`; model-role resolution in `llm/` |
-| `rotation.md` | Shared freshness machinery: staleness evaluation, reconcile waves | `internal/status/`; `internal/reconcile/` |
-| `windows.md` | Reflection window calculation: spec versioning, tiling, identity | `internal/engine/` window/spec code |
-| `ingestion.md` | Entry paths, parsers, writer, fragment birth hooks, colour tagging | `internal/ingest/` (+ parsers); `internal/colour/`; fragment hook registrations |
+| `boot-and-workers.md` | The asynchronous index: boot order, every background goroutine with its trigger (signal, hook, interval, settle callback), drain/retry semantics, startup sweeps, deferred follow-up queue. Domain behaviour of each worker stays in its own doc | `cmd/`; `server/`; every `Register`/`OnServe` site; `internal/followup/` |
 
-Shared, entity-agnostic machinery gets its own doc; the lifecycle docs stay per-entity and point to it, and a per-entity asymmetry inside a shared mechanism is stated once, in the shared doc. Source roots above are discovery seeds, not boundaries — follow the code wherever it goes.
+**Entity lifecycle docs**
+
+| Doc | Covers | Primary source roots |
+|---|---|---|
+| `lifecycle-projection.md` | Projection-specific lifecycle: creation, authoring, generation claims, approval, deletion | `internal/handlers/`; `internal/engine/` |
+| `lifecycle-reflection.md` | Reflection-specific lifecycle: schedule editing, windowed generation, backfill, per-window approval, deletion | `internal/handlers/`; `internal/engine/` |
+| `windows.md` | Reflection window calculation: spec versioning, tiling, identity, per-window staleness | `internal/engine/` window/spec code |
+
+**Shared machinery docs**
+
+| Doc | Covers | Primary source roots |
+|---|---|---|
+| `refinement.md` | The refinement conversation shared by projections and reflections: lens drafting via tool call and its invariants, the window-reapply leg, the from-scratch preview leg, commit; the lens row (immutability, lineage, stamping on snapshots) and active-lens resolution | `internal/handlers/` refinement code; `internal/engine/` lens/refine code; `internal/chat/` |
+| `context.md` | The context spec as shared machinery: resolution to pinned fragment/snapshot ids, hydration to model text (flat vs summaries), the pinned receipt on snapshots and its diff for staleness, token estimate/guard | `internal/llmcontext/`; `internal/engine/` guard code |
+| `rotation.md` | Shared freshness machinery: staleness evaluation across the dependency graph, reconcile waves | `internal/status/`; `internal/reconcile/` |
+| `models.md` | Model selection: registry (model sets, roles, provider per model, per-role generation options), workspace config record (boot load, update hooks, validation), role resolution with overrides, local-model status/pull/preload | `llm/`; `internal/config/`; `internal/ollama/`; `gemini/` |
+| `llm-queue-quota.md` | The LLM call runtime: scheduler (priorities, admission, preemption, throttle back-off, progress, published status), per-call usage recording and period quota with its exhaustion response, provider error classification and wire envelope | `internal/llmq/`; `internal/usage/`; `quota/`; `llm/` errors; queue-status publication in `server/` |
+| `prompts.md` | Inventory of every prompt template: consuming flow, model role, interpolated inputs, shared blocks. Never the prompt text itself | `internal/prompts/` |
+
+**Flow docs**
+
+| Doc | Covers | Primary source roots |
+|---|---|---|
+| `ingestion.md` | How content becomes fragments: entry paths, parsers, writer, birth hooks and what they signal, soft delete | `internal/ingest/` (+ parsers); fragment hook registrations |
+| `map.md` | The map flow: per-fragment annotation worker and pending set, aggregate/settle loop and consolidate-due rule, whole-scope consolidation of the things document, document shape and version/run records, auto-map flag, kick route, settle callbacks | `internal/mapping/`; `internal/mapdoc/` |
+| `colours.md` | Colours: colour rows and prompt, the materialised membership join and its match-type precedence, preview and create-time seeding, the judging worker and its watermark and examples, thing rematch on settle and on demand, per-colour provider-error recording, delete-time scrubbing from specs | `internal/colour/`; colour handlers |
+| `discover.md` | The discover flows: run record and states, the reusable tool loop, the flow kinds and their order, what each proposes vs creates, rhythm detection for reflections, kick/retry behaviour, handoff to refine | `internal/discover/` |
+| `chat.md` | The general chat conversation: persistence, routing to the refinement handler, mention expansion, per-turn model resolution, stream shape, token guard; the summaries mode (selection by spec, seeding rows and map digest, read tools, read persistence and replay) | `internal/chat/`; chat handlers; `internal/llmcontext/` summaries code |
+
+Shared, entity-agnostic machinery gets its own doc; the lifecycle docs stay per-entity and point to it, and a per-entity asymmetry inside a shared mechanism is stated once, in the shared doc. A signal or callback between subsystems (a worker kicked by a hook, a settle callback another package subscribes to) is described once, in the doc of the *emitting* side; the receiving doc names the trigger and points there. Source roots above are discovery seeds, not boundaries — follow the code wherever it goes.
+
+**Retirement.** When the mechanism a doc describes no longer exists in source, the doc is retired: it is not regenerated as empty or as a description of its replacement. Retirement is reported to the user, the series table here and in `kalaidoscope/AGENTS.md` is updated, and the file is deleted (the human commits the deletion). Retired so far: `lens-distillation.md`, whose subject was replaced by the refinement conversation described in `refinement.md`.
 
 ## Format conventions
 
@@ -55,7 +85,7 @@ Shared, entity-agnostic machinery gets its own doc; the lifecycle docs stay per-
 ## Workflow
 
 ### 1. Scope
-Map the request to docs via the series table. A code-area request ("the engine changed") may touch several docs; confirm the set with the user if ambiguous.
+Map the request to docs via the series table. A code-area request ("the engine changed") may touch several docs; confirm the set with the user if ambiguous. If the source no longer contains the mechanism a targeted doc describes, retire it (§ "The doc series") instead of regenerating.
 
 ### 2. Harvest
 Read each target doc as it stands. Note a stale marker (expected; it will be removed). If the content contains hand edits, stop and report them as pending design requests (Core Directive 5).
