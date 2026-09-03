@@ -142,12 +142,26 @@ type TaskInfo struct {
 	TokensPerSecond float64 `json:"tokens_per_second,omitempty"`
 }
 
+type Held struct {
+	Reason string     `json:"reason"`
+	Until  *time.Time `json:"until,omitempty"`
+}
+
+const (
+	HeldBackoff     = "backoff"
+	HeldIdleBlocked = "idle_blocked"
+	HeldIdleQuiet   = "idle_quiet"
+	HeldCapacity    = "capacity"
+	HeldRateSpacing = "rate_spacing"
+)
+
 type Status struct {
 	// Version orders asynchronously delivered snapshots so an observer can
 	// discard ones that arrive out of order.
 	Version uint64         `json:"-"`
 	Running []TaskInfo     `json:"running"`
 	Waiting map[string]int `json:"waiting,omitempty"` // count per Priority.String()
+	Held    *Held          `json:"held,omitempty"`
 }
 
 type Scheduler struct {
@@ -527,8 +541,37 @@ func (s *Scheduler) statusLocked() Status {
 		for _, w := range s.waiting {
 			st.Waiting[w.req.Priority.String()]++
 		}
+		st.Held = s.holdLocked(time.Now())
 	}
 	return st
+}
+
+func (s *Scheduler) holdLocked(now time.Time) *Held {
+	if len(s.waiting) == 0 {
+		return nil
+	}
+	w := s.waiting[0]
+	until := func(t time.Time) *time.Time { return &t }
+	if w.req.Priority != Interactive && now.Before(s.backoffUntil) {
+		return &Held{Reason: HeldBackoff, Until: until(s.backoffUntil)}
+	}
+	if w.req.Priority == Idle {
+		if s.nonIdleRunningLocked() {
+			return &Held{Reason: HeldIdleBlocked}
+		}
+		if ready := s.lastNonIdle.Add(s.cfg.IdleAfter); now.Before(ready) {
+			return &Held{Reason: HeldIdleQuiet, Until: until(ready)}
+		}
+	}
+	if len(s.running) >= s.cfg.MaxConcurrent {
+		return &Held{Reason: HeldCapacity}
+	}
+	if len(s.running) >= s.highWaterMark && s.cfg.MinStartInterval > 0 && !s.lastStart.IsZero() {
+		if ready := s.lastStart.Add(s.cfg.MinStartInterval); now.Before(ready) {
+			return &Held{Reason: HeldRateSpacing, Until: until(ready)}
+		}
+	}
+	return nil
 }
 
 func (s *Scheduler) publishLocked() {

@@ -47,6 +47,8 @@ func Register(app core.App) {
 // (2026-08-27) — flip to true to restore "generate all" behaviour.
 const waveEnabled = false
 
+func WaveEnabled() bool { return waveEnabled }
+
 // EnqueueWave requests a speculative generation wave and returns immediately.
 func EnqueueWave() {
 	if !waveEnabled {

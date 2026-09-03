@@ -81,8 +81,6 @@ export interface IngestStatus {
   status: string;
   ingested: number;
   error: string;
-  pipeline: string;
-  pipelineError: string;
 }
 
 function toStatus(r: IngestResponse): IngestStatus {
@@ -91,8 +89,6 @@ function toStatus(r: IngestResponse): IngestStatus {
     status: r.status ?? "",
     ingested: r.ingested ?? 0,
     error: r.error ?? "",
-    pipeline: r.pipeline ?? "",
-    pipelineError: r.pipeline_error ?? "",
   };
 }
 

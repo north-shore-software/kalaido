@@ -6,6 +6,7 @@ import (
 	"log"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/pocketbase/pocketbase/core"
 
@@ -27,6 +28,32 @@ var signal = make(chan struct{}, 1)
 var followUps followup.Queue
 
 var workerApp core.App
+
+var (
+	annotating     atomic.Bool
+	drainErrMu     sync.Mutex
+	lastDrainError string
+)
+
+func Annotating() bool { return annotating.Load() }
+
+func LastDrainError() string {
+	drainErrMu.Lock()
+	defer drainErrMu.Unlock()
+	return lastDrainError
+}
+
+func AutoMapEnabled() bool { return autoMapEnabled }
+
+func setLastDrainError(err error) {
+	drainErrMu.Lock()
+	defer drainErrMu.Unlock()
+	if err == nil {
+		lastDrainError = ""
+		return
+	}
+	lastDrainError = err.Error()
+}
 
 func Register(app core.App) {
 	workerApp = app
@@ -64,7 +91,10 @@ func AfterDrain(fn func(err error)) {
 func loop() {
 	for range signal {
 		active := followUps.Take()
+		annotating.Store(true)
 		err := drain(workerApp)
+		annotating.Store(false)
+		setLastDrainError(err)
 		if err != nil {
 			log.Printf("mapping: drain: %v", err)
 		}

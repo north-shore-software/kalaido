@@ -144,6 +144,8 @@ func RegisterRoutes(app core.App) {
 		// Rotation / Staleness endpoint
 		se.Router.GET("/api/rotation", handlers.HandleGetRotation(app))
 
+		se.Router.GET("/api/organize", handlers.HandleGetOrganize(app))
+
 		// Speculative "generate all" wave over the stale set
 		se.Router.POST("/api/reconcile", handlers.HandleReconcile(app))
 

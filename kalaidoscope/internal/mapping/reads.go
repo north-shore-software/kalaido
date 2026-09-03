@@ -71,3 +71,5 @@ func IndexRows(d *mapdoc.Document, rows []Row) map[string][]int {
 	}
 	return byThing
 }
+
+func PendingCount(app core.App) (int, error) { return pendingCount(app) }

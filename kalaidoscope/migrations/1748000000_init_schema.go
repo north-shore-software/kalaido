@@ -72,8 +72,6 @@ var schema = []tableDef{
 			&core.NumberField{Name: "ingested"},
 			&core.TextField{Name: "error"},
 			&core.BoolField{Name: "organize_after"},
-			&core.TextField{Name: "pipeline"},
-			&core.TextField{Name: "pipeline_error"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -477,6 +475,7 @@ var schema = []tableDef{
 			&core.TextField{Name: "state"}, // "idle" | "active"
 			&core.JSONField{Name: "running"},
 			&core.JSONField{Name: "waiting"},
+			&core.JSONField{Name: "held"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
