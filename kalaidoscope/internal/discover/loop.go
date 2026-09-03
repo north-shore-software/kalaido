@@ -81,7 +81,7 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 	tools := append(sharedTools(), flow.Tools(c)...)
 	msgs := []llm.Message{
 		{Role: "system", Content: flow.System()},
-		{Role: "user", Content: flow.Initial(c) + "\n\n" + prompts.DiscoverExistingBlock(c.listExisting(existing)) + "\n\n" + prompts.DiscoverCoverageBlock(c.coverage(existing))},
+		{Role: "user", Content: flow.Initial(c) + "\n\n" + prompts.DiscoverExistingBlock(c.listExisting(existing)) + "\n\n" + prompts.DiscoverCoverageBlock(flow.Coverage(c, existing))},
 	}
 	for c.rounds < maxRounds {
 		var reply string
@@ -114,8 +114,10 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 					return err
 				}
 				results = append(results, c.listExisting(existing))
+			case prompts.ReadColourToolName:
+				results = append(results, c.ReadColours(idsArg(call)))
 			case prompts.CoverageToolName:
-				results = append(results, c.coverage(existing))
+				results = append(results, flow.Coverage(c, existing))
 			case prompts.FinishToolName:
 				finished = true
 				// Some models put the closing note in the tool call rather than

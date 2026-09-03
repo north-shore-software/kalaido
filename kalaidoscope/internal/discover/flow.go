@@ -17,6 +17,10 @@ type Flow interface {
 	Initial(c *Context) string
 	Tools(c *Context) []llm.Tool
 	Existing(c *Context) ([]Existing, error)
+	// Coverage answers the coverage tool: the colours flow measures what the
+	// colours leave uncovered by thing; projections and reflections measure
+	// what their scopes leave uncovered by colour.
+	Coverage(c *Context, existing []Existing) string
 	Dispatch(ctx context.Context, c *Context, call llm.ToolCall) (string, *Output, error)
 }
 
@@ -26,6 +30,10 @@ var flows = map[string]Flow{
 	"reflections": reflectionsFlow{},
 }
 
+// scopesByColour is the flows whose proposals pin colours: they cannot run
+// until some exist, which the pipeline order (colours first) guarantees.
+var scopesByColour = map[string]bool{"projections": true, "reflections": true}
+
 func Kinds() []string {
 	kinds := make([]string, 0, len(flows))
 	for k := range flows {
@@ -34,7 +42,10 @@ func Kinds() []string {
 	return kinds
 }
 
-var errNoMap = errors.New("discover: the map is empty")
+var (
+	errNoMap     = errors.New("discover: the map is empty")
+	errNoColours = errors.New("discover: no colours exist yet")
+)
 
 func Run(app core.App, flow Flow) error {
 	model, err := llm.ResolveRole(llm.RoleMap)
@@ -51,6 +62,9 @@ func Run(app core.App, flow Flow) error {
 	}
 	if len(c.Doc.Things) == 0 {
 		return errNoMap
+	}
+	if scopesByColour[flow.Kind()] && len(c.Colours) == 0 {
+		return errNoColours
 	}
 	run, err := newRun(app, flow.Kind(), c.Version, model)
 	if err != nil {

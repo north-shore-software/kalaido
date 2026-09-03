@@ -9,10 +9,10 @@ import (
 )
 
 // Rhythm detection is the reflections flow's evidence: a reflection is about
-// a rhythm, not a thing, so the flow needs to know which scopes (one thing,
-// or a pair of things cited together) keep producing material at a steady
-// cadence, and since when. All of it is computed here from the annotation
-// rows; the model only reads the result.
+// a rhythm, not a thing, so the flow needs to know which scopes (one colour,
+// or a pair of colours sharing fragments) keep producing material at a steady
+// cadence, and since when. All of it is computed here from the colours'
+// member rows; the model only reads the result.
 const (
 	rhythmGrainWeek  = "week"
 	rhythmGrainMonth = "month"
@@ -22,7 +22,7 @@ const (
 	rhythmActiveFloor = 3
 	rhythmOnsetRun    = 3
 
-	// A thing cited in more than this share of all rows is the ever-present
+	// A scope holding more than this share of all rows is the ever-present
 	// cast (the user, their own company): flagged, and never paired.
 	ubiquityShare   = 0.4
 	ubiquityMinRows = 20
@@ -39,10 +39,10 @@ type rhythmBucket struct {
 	title   string
 }
 
-// Rhythm is one scope's cadence at one grain. Buckets holds only the active
-// buckets, in order.
+// Rhythm is one scope's cadence at one grain: IDs is the colour, or the pair
+// of colours, it measures. Buckets holds only the active buckets, in order.
 type Rhythm struct {
-	ThingIDs      []string
+	IDs           []string
 	Grain         string
 	Total         int
 	ActiveBuckets int
@@ -106,8 +106,8 @@ func (a *rhythmAccumulator) add(row mapping.Row) {
 	b.count++
 }
 
-func (a *rhythmAccumulator) rhythm(thingIDs []string) Rhythm {
-	r := Rhythm{ThingIDs: thingIDs, Grain: a.grain, Total: a.total}
+func (a *rhythmAccumulator) rhythm(ids []string) Rhythm {
+	r := Rhythm{IDs: ids, Grain: a.grain, Total: a.total}
 	if len(a.buckets) == 0 {
 		return r
 	}
@@ -144,22 +144,36 @@ func onset(buckets []rhythmBucket) time.Time {
 	return buckets[0].start
 }
 
-func (c *Context) ubiquitous(thingID string) bool {
+// ubiquitousRows says whether a scope holding n of the rows is the cast
+// rather than a slice.
+func (c *Context) ubiquitousRows(n int) bool {
 	if len(c.Rows) < ubiquityMinRows {
 		return false
 	}
-	return float64(len(c.ByThing[thingID])) > ubiquityShare*float64(len(c.Rows))
+	return float64(n) > ubiquityShare*float64(len(c.Rows))
 }
 
-// thingRhythms scores every thing above the fragment floor (or only `only`,
-// when given) at one grain.
-func (c *Context) thingRhythms(grain string, floor int, only map[string]bool) []Rhythm {
+// ubiquitous is the thing form, used by the colours flow to refuse a colour
+// on the user or their own organisation.
+func (c *Context) ubiquitous(thingID string) bool {
+	return c.ubiquitousRows(len(c.ByThing[thingID]))
+}
+
+// ubiquitousColour guards the scopes of projections and reflections: a colour
+// holding most of the workspace is the workspace, whoever made it.
+func (c *Context) ubiquitousColour(colourID string) bool {
+	return c.ubiquitousRows(len(c.ByColour[colourID]))
+}
+
+// colourRhythms scores every colour with at least floor member rows (or only
+// `only`, when given) at one grain.
+func (c *Context) colourRhythms(grain string, floor int, only map[string]bool) []Rhythm {
 	var out []Rhythm
-	for id, idxs := range c.ByThing {
+	for id, idxs := range c.ByColour {
 		if only != nil && !only[id] {
 			continue
 		}
-		if len(idxs) < floor || c.Doc.Find(id) == nil {
+		if len(idxs) < floor {
 			continue
 		}
 		acc := newRhythmAccumulator(grain)
@@ -167,40 +181,40 @@ func (c *Context) thingRhythms(grain string, floor int, only map[string]bool) []
 			acc.add(c.Rows[i])
 		}
 		r := acc.rhythm([]string{id})
-		r.Ubiquitous = c.ubiquitous(id)
+		r.Ubiquitous = c.ubiquitousColour(id)
 		out = append(out, r)
 	}
 	sortRhythms(out)
 	return out
 }
 
-// pairRhythms scores pairs of non-ubiquitous things cited in the same rows.
-// With `only` set, a pair must include one of the given things.
+// pairRhythms scores pairs of non-ubiquitous colours that share member rows.
+// With `only` set, a pair must include one of the given colours.
 func (c *Context) pairRhythms(grain string, floor int, only map[string]bool) []Rhythm {
 	eligible := map[string]bool{}
-	for id, idxs := range c.ByThing {
-		if len(idxs) >= floor && c.Doc.Find(id) != nil && !c.ubiquitous(id) {
+	for id, idxs := range c.ByColour {
+		if len(idxs) >= floor && !c.ubiquitousColour(id) {
 			eligible[id] = true
 		}
 	}
-	rowThings := make([][]string, len(c.Rows))
+	rowColours := make([][]string, len(c.Rows))
 	for id := range eligible {
-		for _, i := range c.ByThing[id] {
-			rowThings[i] = append(rowThings[i], id)
+		for _, i := range c.ByColour[id] {
+			rowColours[i] = append(rowColours[i], id)
 		}
 	}
 	accs := map[[2]string]*rhythmAccumulator{}
-	for i, things := range rowThings {
-		if len(things) < 2 {
+	for i, ids := range rowColours {
+		if len(ids) < 2 {
 			continue
 		}
-		sort.Strings(things)
-		for a := 0; a < len(things); a++ {
-			for b := a + 1; b < len(things); b++ {
-				if only != nil && !only[things[a]] && !only[things[b]] {
+		sort.Strings(ids)
+		for a := 0; a < len(ids); a++ {
+			for b := a + 1; b < len(ids); b++ {
+				if only != nil && !only[ids[a]] && !only[ids[b]] {
 					continue
 				}
-				key := [2]string{things[a], things[b]}
+				key := [2]string{ids[a], ids[b]}
 				acc := accs[key]
 				if acc == nil {
 					acc = newRhythmAccumulator(grain)
@@ -236,17 +250,17 @@ func sortRhythms(rs []Rhythm) {
 		if rs[i].Total != rs[j].Total {
 			return rs[i].Total > rs[j].Total
 		}
-		return rs[i].ThingIDs[0] < rs[j].ThingIDs[0]
+		return rs[i].IDs[0] < rs[j].IDs[0]
 	})
 }
 
 // rhythmsBlock renders singles and pairs at a grain for the model. `only`
-// restricts both lists to the given things (nil = everything).
+// restricts both lists to the given colours (nil = everything).
 func (c *Context) rhythmsBlock(grain string, only map[string]bool) string {
 	if grain != rhythmGrainWeek {
 		grain = rhythmGrainMonth
 	}
-	singles := c.thingRhythms(grain, worklistFloor, only)
+	singles := c.colourRhythms(grain, worklistFloor, only)
 	if len(singles) > rhythmSingleLimit {
 		singles = singles[:rhythmSingleLimit]
 	}
@@ -261,12 +275,12 @@ func (c *Context) rhythmCards(rs []Rhythm) []prompts.DiscoverRhythm {
 			Grain: r.Grain, Total: r.Total, Active: r.ActiveBuckets, Span: r.SpanBuckets,
 			Ubiquitous: r.Ubiquitous,
 		}
-		for _, id := range r.ThingIDs {
+		for _, id := range r.IDs {
 			name := id
-			if t := c.Doc.Find(id); t != nil {
-				name = t.Name
+			if info := c.colourByRef(id); info != nil {
+				name = info.Name
 			}
-			card.Things = append(card.Things, prompts.DiscoverRhythmThing{ID: id, Name: name})
+			card.Scopes = append(card.Scopes, prompts.DiscoverRhythmScope{ID: id, Name: name})
 		}
 		if r.ActiveBuckets > 0 {
 			card.First = r.First.Format("2006-01-02")
