@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { ImportPreview } from "./import-preview";
 import type { FileEntry } from "@/api/app/ingest-file";
+import { ImportPreview } from "./import-preview";
 
 export default { title: "Import / ImportPreview" };
 

@@ -1,9 +1,9 @@
 import type { Story } from "@ladle/react";
 import type { ReactNode } from "react";
-import { ProjCard, StatusBadge } from "./projection-card";
+import { action } from "@/lib/story-utils.ts";
 import { mockProjections } from "../fixtures";
 import type { SourceItem } from "../sources";
-import { action } from "@/lib/story-utils.ts";
+import { ProjCard, StatusBadge } from "./projection-card";
 
 export default { title: "Projections / ProjCard" };
 

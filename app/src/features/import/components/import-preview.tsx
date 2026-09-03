@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
 import type { FileEntry } from "@/api/app/ingest-file";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface ImportPreviewProps {
   entries: FileEntry[];

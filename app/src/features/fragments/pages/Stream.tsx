@@ -1,11 +1,10 @@
-import { Fragment as F, useMemo } from "react";
 import { PlusIcon } from "lucide-react";
+import { Fragment as F, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types.ts";
-import { Mono, Pill } from "@/components/kalaido";
+import { FragmentDrawer, Mono, Pill } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { FragmentDrawer } from "@/features/fragments/components/fragment-drawer";
 import {
   DayHeader,
   StreamCard,
@@ -29,7 +28,7 @@ export default function Stream() {
   const { id: selectedId } = useParams<{ id?: string }>();
   const { records, isLoading } = useLiveCollectionWatching(
     "view_stream",
-    ["fragment", "colour_fragment"],
+    ["fragment", "colour_fragment", "fragment_annotation"],
     { sort: "-source_time,-created" },
   );
 
@@ -50,6 +49,7 @@ export default function Stream() {
         return {
           id: f.id,
           type: formatType(f.type),
+          title: f.title,
           time: formatTime(occurredStr),
           day: formatDayGroup(occurredStr),
           colours: parsedColours,
@@ -98,14 +98,24 @@ export default function Stream() {
               return (
                 <F key={f.id}>
                   {head && <DayHeader day={f.day} first={i === 0} />}
-                  <button
-                    type="button"
+                  {/* biome-ignore lint/a11y/useSemanticElements: cannot be a <button> — child cards render markdown with interactive elements and nesting interactive elements inside a button is invalid. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     className="group flex w-full cursor-pointer items-start gap-4 text-left"
                     onClick={() =>
                       go(streamTransitions.openFragment, {
                         params: { id: f.id },
                       })
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        go(streamTransitions.openFragment, {
+                          params: { id: f.id },
+                        });
+                      }
+                    }}
                   >
                     <Mono className="w-11 shrink-0 pt-3 text-right text-meta text-fg-4">
                       {f.time}
@@ -117,7 +127,7 @@ export default function Stream() {
                       )}
                     </div>
                     <StreamCard f={f} />
-                  </button>
+                  </div>
                 </F>
               );
             })

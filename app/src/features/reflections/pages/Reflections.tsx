@@ -1,25 +1,25 @@
 import { ClockIcon, PlusIcon } from "lucide-react";
 import { useParams } from "react-router-dom";
-import { defineRoute } from "@/routes/route-kit";
-import { reflectionsTransitions } from "./Reflections.transitions";
 import { toast } from "sonner";
-import { useAppNavigate } from "@/routes/use-app-navigate";
+import { updateReflection } from "@/api/kalaidoscope/reflections";
+import type { ReflectionResponse } from "@/api/kalaidoscope/types";
+import { EmptyState, ListRow, PinToggle } from "@/components/kalaido";
 import {
   PageCard,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { EmptyState, ListRow, PinToggle } from "@/components/kalaido";
-import { ReflectionSeriesPanel } from "../components/reflection-series-panel";
 import {
   currentWindowSpec,
   describeWindow,
 } from "@/features/reflections/schedule";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { isPinned } from "@/lib/pins";
-import { updateReflection } from "@/api/kalaidoscope/reflections";
-import type { ReflectionResponse } from "@/api/kalaidoscope/types";
+import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { ReflectionSeriesPanel } from "../components/reflection-series-panel";
+import { reflectionsTransitions } from "./Reflections.transitions";
 
 async function togglePin(r: ReflectionResponse) {
   const res = await updateReflection(r.id, { pinned: !isPinned(r.pinned_by) });

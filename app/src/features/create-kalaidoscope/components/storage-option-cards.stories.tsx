@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { StorageOptionCards } from "./storage-option-cards";
 import { action } from "@/lib/story-utils.ts";
+import { StorageOptionCards } from "./storage-option-cards";
 
 export default { title: "Setup / StorageOptionCards" };
 

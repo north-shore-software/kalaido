@@ -1,5 +1,5 @@
-import type { IngestPhase } from "@/api/kalaidoscope/ingest";
 import { CheckIcon, TriangleAlert } from "lucide-react";
+import type { IngestPhase } from "@/api/kalaidoscope/ingest";
 import { Spinner } from "@/components/ui/spinner";
 
 export interface ImportStatusProps {

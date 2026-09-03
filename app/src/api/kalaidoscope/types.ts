@@ -452,6 +452,7 @@ export type ViewStreamRecord<Tcolours = unknown> = {
 	created: IsoAutoDateString
 	id: string
 	source_time?: IsoDateString
+	title?: string
 	type: ViewStreamTypeOptions
 }
 

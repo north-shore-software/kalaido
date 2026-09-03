@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { ModelDownloadCard } from "./model-download-card";
 import { action } from "@/lib/story-utils.ts";
+import { ModelDownloadCard } from "./model-download-card";
 
 export default { title: "Settings / ModelDownloadCard" };
 

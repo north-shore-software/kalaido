@@ -1,8 +1,8 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
-import { ModelRadioList } from "./model-radio-list";
-import { FIXTURE_MODELS_EMPTY, FIXTURE_MODELS_LIST } from "../fixtures";
 import { action } from "@/lib/story-utils.ts";
+import { FIXTURE_MODELS_EMPTY, FIXTURE_MODELS_LIST } from "../fixtures";
+import { ModelRadioList } from "./model-radio-list";
 
 export default { title: "Settings / ModelRadioList" };
 

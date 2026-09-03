@@ -1,5 +1,5 @@
-import { FragmentTypeOptions } from "@/api/kalaidoscope/types";
 import type { KalaidoscopeMeta } from "@/api/app/types";
+import { FragmentTypeOptions } from "@/api/kalaidoscope/types";
 
 export function kalaidoscopeTypeLabel(type: KalaidoscopeMeta["type"]): string {
   switch (type) {

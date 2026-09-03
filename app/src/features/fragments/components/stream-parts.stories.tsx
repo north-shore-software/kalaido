@@ -1,12 +1,12 @@
 import type { Story } from "@ladle/react";
+import { action } from "@/lib/story-utils.ts";
+import { mockFragments } from "../fixtures";
 import {
   DayHeader,
   StreamCard,
   StreamEmptyState,
   StreamSkeleton,
 } from "./stream-parts";
-import { mockFragments } from "../fixtures";
-import { action } from "@/lib/story-utils.ts";
 
 export default { title: "Fragments / StreamParts" };
 

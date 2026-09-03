@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 import { RecoveryScreen } from "@/features/boot/components/recovery-screen";
-import { stageError, type StageError } from "@/hooks/use-app-state.ts";
+import { type StageError, stageError } from "@/hooks/use-app-state.ts";
 
 interface RootErrorBoundaryProps {
   children: ReactNode;

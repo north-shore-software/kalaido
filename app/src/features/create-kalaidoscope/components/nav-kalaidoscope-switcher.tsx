@@ -1,8 +1,6 @@
 import { ChevronsUpDown, Plus } from "lucide-react";
 import { useSnapshot } from "valtio/react";
-import { useAppNavigate } from "@/routes/use-app-navigate";
-import { switcherTransitions } from "./nav-kalaidoscope-switcher.transitions";
-
+import { Label, Mark } from "@/components/kalaido";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,9 +17,10 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Label, Mark } from "@/components/kalaido";
 import { appState } from "@/hooks/use-app-state.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { switcherTransitions } from "./nav-kalaidoscope-switcher.transitions";
 
 export function NavKalaidoscopeSwitcher() {
   const { go } = useAppNavigate();

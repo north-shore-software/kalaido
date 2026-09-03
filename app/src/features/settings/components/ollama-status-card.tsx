@@ -1,7 +1,7 @@
 import { RefreshCwIcon } from "lucide-react";
-import { cn } from "@/lib/css-utils";
-import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/kalaido";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/css-utils";
 
 export interface OllamaStatusCardProps {
   reachable: boolean;

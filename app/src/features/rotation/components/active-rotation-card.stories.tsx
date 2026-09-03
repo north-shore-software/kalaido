@@ -1,11 +1,11 @@
 import type { Story } from "@ladle/react";
-import { ActiveRotationCard } from "./active-rotation-card";
+import { action } from "@/lib/story-utils.ts";
 import {
   mockActiveRotationProjection,
   mockActiveRotationProjectionGenerating,
   mockActiveRotationReflection,
 } from "../fixtures";
-import { action } from "@/lib/story-utils.ts";
+import { ActiveRotationCard } from "./active-rotation-card";
 
 export default { title: "Rotation / ActiveRotationCard" };
 

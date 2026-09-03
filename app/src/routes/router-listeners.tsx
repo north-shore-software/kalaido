@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSnapshot } from "valtio/react";
 import { registerMenuNavigateListener } from "@/api/app/os-integrations.ts";
 import { type AppStage, appState } from "@/hooks/use-app-state.ts";
-import { useSnapshot } from "valtio/react";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { pathFor } from "./registry";
 import { stageEntryRoute } from "./route-kit";

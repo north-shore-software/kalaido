@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { useSnapshot } from "valtio/react";
 import { NavSidebar } from "@/components/layout/nav-sidebar";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { UtilityBar } from "@/components/layout/utility-bar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AddFragmentModal } from "@/features/fragments";
-import { appState } from "@/hooks/use-app-state.ts";
 import { closeAddFragmentModal } from "@/hooks/app-state-actions.ts";
+import { appState } from "@/hooks/use-app-state.ts";
 
-export { PageHeader, PageBody, PageCard, PaneHeader } from "./page-chrome.tsx";
+export { PageBody, PageCard, PageHeader, PaneHeader } from "./page-chrome.tsx";
 
 export function PageLayout({ children }: { children: ReactNode }) {
   const { addFragmentModalOpen } = useSnapshot(appState);

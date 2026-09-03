@@ -1,8 +1,8 @@
-import { useState } from "react";
 import type { Story } from "@ladle/react";
-import { ChatComposer } from "./chat-composer";
+import { useState } from "react";
 import { QUOTA_MESSAGE } from "@/api/kalaidoscope/cloud/quota";
 import { action, noop } from "@/lib/story-utils.ts";
+import { ChatComposer } from "./chat-composer";
 
 export default { title: "Kalaido / ChatComposer" };
 

@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import type { TimeWindow } from "@/api/kalaidoscope/chat";
-import type { RefineSession } from "@/hooks/use-refine-session";
 import {
   ChatPanel,
   type ContextItem,
   type EntityKind,
 } from "@/components/kalaido";
+import type { RefineSession } from "@/hooks/use-refine-session";
 
 /**
  * A {@link ChatPanel} bound to a {@link RefineSession}. Every "refine via chat"

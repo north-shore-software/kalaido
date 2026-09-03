@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { ThemeProvider } from "./theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "./theme-provider";
 
 /**
  * Composes every top-level provider the app needs. Currently just theme; add

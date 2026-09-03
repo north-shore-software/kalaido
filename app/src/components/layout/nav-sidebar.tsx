@@ -1,4 +1,3 @@
-import type { ComponentProps } from "react";
 import {
   ArrowLeftRightIcon,
   FileTextIcon,
@@ -11,12 +10,14 @@ import {
   SettingsIcon,
   WavesIcon,
 } from "lucide-react";
+import type { ComponentProps } from "react";
 import { useLocation } from "react-router-dom";
-import { RouteLink } from "@/routes/route-link";
-import { navSidebarTransitions } from "./nav-sidebar.transitions";
-
-import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
-
+import {
+  NEUTRAL_DEST_CLASS,
+  RAIL_ICON_CLASS,
+  SidebarNav,
+  type SidebarNavItem,
+} from "@/components/layout/sidebar-nav";
 import {
   Sidebar,
   SidebarContent,
@@ -30,13 +31,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
-import {
-  NEUTRAL_DEST_CLASS,
-  RAIL_ICON_CLASS,
-  SidebarNav,
-  type SidebarNavItem,
-} from "@/components/layout/sidebar-nav";
+import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { RouteLink } from "@/routes/route-link";
+import { navSidebarTransitions } from "./nav-sidebar.transitions";
 
 /** Where you start: the two destinations you return to, not places you browse. */
 const MAIN_NAV: readonly SidebarNavItem[] = [

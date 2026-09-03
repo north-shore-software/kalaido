@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type FileIngestOptions,
   getIngest,
-  ingestFile,
   type IngestPhase,
   type IngestStatus,
+  ingestFile,
   subscribeIngest,
 } from "@/api/kalaidoscope/ingest";
 

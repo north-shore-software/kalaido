@@ -1,7 +1,7 @@
 import type { Story } from "@ladle/react";
-import { ProjectionSideRail } from "./projection-side-rail";
-import { mockTimelineItems, mockTimelineItemsWithCandidate } from "../fixtures";
 import { action } from "@/lib/story-utils.ts";
+import { mockTimelineItems, mockTimelineItemsWithCandidate } from "../fixtures";
+import { ProjectionSideRail } from "./projection-side-rail";
 
 export default { title: "Projections / ProjectionSideRail" };
 

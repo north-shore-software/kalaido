@@ -47,5 +47,6 @@ The series covers the Go backend binary only. Its authoritative definition (scop
 | `docs/colours.md` | Colours: membership join and precedence, preview/create seeding, judging worker, thing rematch, scrubbing | generated |
 | `docs/discover.md` | The discover flows: runs, tool loop, flow kinds, proposals vs created rows, rhythm detection | generated |
 | `docs/chat.md` | The general chat conversation and its summaries mode | generated |
+| `docs/organize.md` | The organise pipeline: the derived status behind `GET /api/organize` and the post-import chain | generated |
 
-`docs/lens-distillation.md` is **retired**: the mechanism it described no longer exists in source and its subject is taken over by `docs/refinement.md`. The file is pending deletion; do not regenerate it. Any future addition to the series follows the same rules.
+`docs/lens-distillation.md` is **retired**: the mechanism it described no longer exists in source and its subject is taken over by `docs/refinement.md`. The file has been deleted; do not regenerate it. Any future addition to the series follows the same rules.

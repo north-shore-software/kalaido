@@ -1,7 +1,7 @@
 import type { Story } from "@ladle/react";
-import { PinCard } from "./pin-card";
-import { mockPinItems } from "../fixtures";
 import { action } from "@/lib/story-utils.ts";
+import { mockPinItems } from "../fixtures";
+import { PinCard } from "./pin-card";
 
 export default { title: "Dashboard / PinCard" };
 

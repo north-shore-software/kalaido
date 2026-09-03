@@ -39,8 +39,25 @@ interface MdElementProps {
 }
 
 function styled(tag: keyof JSX.IntrinsicElements, classes: string) {
-  return ({ node: _node, className, ...props }: MdElementProps) =>
-    createElement(tag, { ...props, className: cn(classes, className) });
+  return ({
+    node: _node,
+    className,
+    vAlign,
+    ...props
+  }: MdElementProps & { vAlign?: string }) => {
+    const vAlignClass =
+      vAlign === "top"
+        ? "align-top"
+        : vAlign === "bottom"
+          ? "align-bottom"
+          : vAlign === "middle"
+            ? "align-middle"
+            : undefined;
+    return createElement(tag, {
+      ...props,
+      className: cn(classes, vAlignClass, className),
+    });
+  };
 }
 
 /**
@@ -105,11 +122,16 @@ const documentComponents: StreamdownProps["components"] = {
   code: styled("code", ""),
   inlineCode: styled("code", "bg-surface-2 px-1 py-px font-mono text-[0.9em]"),
   table: styled("table", "my-2 w-full border-collapse text-body-sm"),
+  thead: styled("thead", ""),
+  tbody: styled("tbody", ""),
+  tfoot: styled("tfoot", ""),
+  tr: styled("tr", ""),
   th: styled(
     "th",
     "border-b border-line-strong px-2 py-1 text-left font-mono text-label font-semibold text-fg-3 uppercase",
   ),
   td: styled("td", "border-b border-line px-2 py-1 align-top"),
+  img: styled("img", "max-w-full"),
   a: MarkdownLink,
   // Diff contract: markdown-diff.ts injects <ins>/<del> into compare views.
   ins: styled("ins", "bg-stable-wash text-stable-ink no-underline"),

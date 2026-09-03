@@ -1,8 +1,8 @@
 import { useId, useState } from "react";
 import {
   RequiredPill,
-  requiredHighlightClass,
   RevealToggle,
+  requiredHighlightClass,
   useRequiredHighlights,
 } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";

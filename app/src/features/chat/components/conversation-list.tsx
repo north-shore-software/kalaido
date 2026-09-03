@@ -1,6 +1,5 @@
 import { MessageCircleIcon } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
+import type { Conversation } from "@/api/kalaidoscope/chat";
 import {
   Empty,
   EmptyDescription,
@@ -8,9 +7,10 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/css-utils";
 import { formatShortDateTime } from "@/lib/datetime";
-import type { Conversation } from "@/api/kalaidoscope/chat";
 
 interface ConversationListProps {
   conversations: Conversation[];

@@ -1,3 +1,5 @@
+import type { SourceItem } from "@/components/kalaido";
+
 export type EntityKind = "projection" | "reflection";
 
 export interface PinItem {
@@ -32,12 +34,13 @@ export interface ProposedItem {
   kind: EntityKind;
   name: string;
   message: string;
-  fragments: number;
+  sources: SourceItem[];
 }
 
 export interface RecentFragment {
   id: string;
   type: string;
+  title?: string;
   time: string;
   day: string;
   colours: number[];

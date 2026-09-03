@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { FilePicker } from "./file-picker";
 import { action } from "@/lib/story-utils.ts";
+import { FilePicker } from "./file-picker";
 
 export default { title: "Import / FilePicker" };
 

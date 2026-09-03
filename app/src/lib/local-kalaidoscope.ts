@@ -1,14 +1,14 @@
 import { err, ok, type Result } from "neverthrow";
 import { startLocalKalaidoscope } from "@/api/app/local-scopes";
 import { setSetting } from "@/api/app/settings.ts";
+import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
+import { openKalaidoscope, setAppStage } from "@/hooks/app-state-actions.ts";
 import {
   appState,
   type StageEntry,
   stageError,
 } from "@/hooks/use-app-state.ts";
-import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
 import { setActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
-import { openKalaidoscope, setAppStage } from "@/hooks/app-state-actions.ts";
 import { toError } from "@/lib/errors.ts";
 
 export interface SwitchOptions {

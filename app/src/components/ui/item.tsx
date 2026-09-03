@@ -1,10 +1,9 @@
-import * as React from "react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
-
-import { cn } from "../../lib/css-utils";
+import * as React from "react";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "../../lib/css-utils";
 
 function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -189,13 +188,13 @@ function ItemFooter({ className, ...props }: React.ComponentProps<"div">) {
 
 export {
   Item,
-  ItemMedia,
-  ItemContent,
   ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
   ItemGroup,
+  ItemHeader,
+  ItemMedia,
   ItemSeparator,
   ItemTitle,
-  ItemDescription,
-  ItemHeader,
-  ItemFooter,
 };

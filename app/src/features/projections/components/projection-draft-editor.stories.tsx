@@ -1,11 +1,11 @@
 import type { Story } from "@ladle/react";
-import { ProjectionDraftEditor } from "./projection-draft-editor";
+import { action } from "@/lib/story-utils.ts";
 import {
   mockSession,
   mockSessionCommitting,
   mockSessionEmpty,
 } from "../fixtures";
-import { action } from "@/lib/story-utils.ts";
+import { ProjectionDraftEditor } from "./projection-draft-editor";
 
 export default { title: "Projections / ProjectionDraftEditor" };
 

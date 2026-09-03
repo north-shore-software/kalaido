@@ -1,9 +1,13 @@
 import { useEffect } from "react";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useSnapshot } from "valtio/react";
+import { RootErrorBoundary } from "@/components/error-boundary";
 import { TitleBar } from "@/components/layout/title-bar";
+import { BootError } from "@/features/boot";
 import { type AppStage, appState } from "@/hooks/use-app-state.ts";
-import { MenuEventListener, StateNavigationListener } from "./router-listeners";
+import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client";
+import { getActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { appRoutes, pathFor, sectionForRoute } from "./registry";
 import {
   currentScope,
@@ -11,11 +15,7 @@ import {
   type RouteDef,
   stageEntryRoute,
 } from "./route-kit";
-import { isFeatureEnabled } from "@/lib/feature-flags";
-import { getActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
-import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client";
-import { BootError } from "@/features/boot";
-import { RootErrorBoundary } from "@/components/error-boundary";
+import { MenuEventListener, StateNavigationListener } from "./router-listeners";
 
 export function AppRouter() {
   return (

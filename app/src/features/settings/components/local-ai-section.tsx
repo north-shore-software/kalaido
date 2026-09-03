@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { SectionHeader } from "@/components/layout/section";
+import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/llm-config";
 import {
   getLocalAiStatus,
   type LocalAiStatus,
   modelMatches,
   pullModel,
 } from "@/api/kalaidoscope/local/models";
-import { RECOMMENDED_MODEL } from "@/api/kalaidoscope/llm-config";
+import { SectionHeader } from "@/components/layout/section";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOllamaModel } from "@/hooks/use-ollama-model";
-
-import { OllamaStatusCard } from "./ollama-status-card";
 import { ModelDownloadCard } from "./model-download-card";
 import { ModelRadioList } from "./model-radio-list";
+import { OllamaStatusCard } from "./ollama-status-card";
 import { QualityWarning } from "./quality-warning";
 
 export function LocalAISection() {

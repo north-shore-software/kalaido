@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
+import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { Pill, StatusPill, SurfaceCard } from "@/components/kalaido";
 import { LocationLabel } from "@/components/layout/location-label";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/css-utils";
 import { kalaidoscopeTypeLabel } from "@/lib/labels";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
-import { cn } from "@/lib/css-utils";
-import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 
 export function KalaidoscopeRow({
   kalaidoscope,

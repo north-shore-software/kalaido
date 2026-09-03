@@ -1,29 +1,29 @@
 import { err, ok, type Result } from "neverthrow";
-import type { KalaidoscopeMeta } from "@/api/app/types.ts";
-import { appState, type StageEntry } from "@/hooks/use-app-state.ts";
-import {
-  addAvailableKalaidoscope,
-  setAppStage,
-} from "@/hooks/app-state-actions.ts";
-import { setSetting } from "@/api/app/settings.ts";
 import {
   createLocalKalaidoscope,
   deleteLocalKalaidoscope,
   startLocalKalaidoscope,
   stopLocalKalaidoscope,
 } from "@/api/app/local-scopes.ts";
+import { setSetting } from "@/api/app/settings.ts";
+import type { KalaidoscopeMeta } from "@/api/app/types.ts";
+import { createCloudKalaidoscope } from "@/api/cloud/user.ts";
 import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
 import {
   type WorkspaceLlmConfig,
   writeWorkspaceLlmConfig,
 } from "@/api/kalaidoscope/llm-config.ts";
-import { setActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
-import { openKalaidoscope } from "@/hooks/app-state-actions.ts";
 import {
   formatLocalNetLocator,
   isLoopbackHostname,
 } from "@/api/kalaidoscope/local-url.ts";
-import { createCloudKalaidoscope } from "@/api/cloud/user.ts";
+import {
+  addAvailableKalaidoscope,
+  openKalaidoscope,
+  setAppStage,
+} from "@/hooks/app-state-actions.ts";
+import { appState, type StageEntry } from "@/hooks/use-app-state.ts";
+import { setActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
 import { toError } from "@/lib/errors.ts";
 
 export interface CreateKalaidoscopeInput {

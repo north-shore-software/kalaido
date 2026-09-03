@@ -4,9 +4,9 @@ import { Label, StatusPill } from "@/components/kalaido";
 import { SectionHeader } from "@/components/layout/section";
 import { Button } from "@/components/ui/button";
 import { appState } from "@/hooks/use-app-state.ts";
+import { DiscoverDebugPanel } from "./discover-section";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
 import { MapDebugPanel } from "./map-section";
-import { DiscoverDebugPanel } from "./discover-section";
 
 export function KalaidoscopesSection() {
   const { appStage, availableKalaidoscopes: kalaidoscopes } =

@@ -1,7 +1,7 @@
-import { useId } from "react";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
-import type { Theme } from "@/lib/theme";
+import { useId } from "react";
 import { cn } from "@/lib/css-utils";
+import type { Theme } from "@/lib/theme";
 
 interface ThemeToggleProps {
   theme: Theme;

@@ -1,8 +1,8 @@
+import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 import { deleteSetting, getSetting, setSetting } from "@/api/app/settings.ts";
 import { authClient } from "@/api/cloud/auth.ts";
 import { setAvailableKalaidoscopes } from "@/hooks/app-state-actions.ts";
 import { appState } from "@/hooks/use-app-state.ts";
-import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 
 /**
  * Signs out of Kalaido Cloud and returns the app to a genuinely signed-out

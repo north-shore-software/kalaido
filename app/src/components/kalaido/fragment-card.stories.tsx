@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { FragmentCard } from "./fragment-card.tsx";
 import { FRAGMENT_FIXTURES } from "./fixtures.ts";
+import { FragmentCard } from "./fragment-card.tsx";
 
 export default { title: "Kalaido / FragmentCard" };
 

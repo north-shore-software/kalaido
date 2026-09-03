@@ -1,12 +1,19 @@
 import { SlidersHorizontalIcon } from "lucide-react";
 import { useId, useState } from "react";
 import {
+  GEMINI_SUGGESTED_MODELS,
+  LLM_ROLE_LABELS,
+  LLM_ROLES,
+  type LlmProvider,
+  type LlmRole,
+} from "@/api/kalaidoscope/llm-config";
+import {
   type OptionCard,
   OptionCards,
   Pill,
   RequiredPill,
-  requiredHighlightClass,
   RevealToggle,
+  requiredHighlightClass,
 } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +33,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/css-utils";
-import {
-  GEMINI_SUGGESTED_MODELS,
-  type LlmProvider,
-  type LlmRole,
-  LLM_ROLE_LABELS,
-  LLM_ROLES,
-} from "@/api/kalaidoscope/llm-config";
 import { OllamaSetupStatus } from "./ollama-setup-status";
 
 const providerOptions: OptionCard<LlmProvider>[] = [

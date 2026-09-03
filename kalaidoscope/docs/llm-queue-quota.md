@@ -1,13 +1,11 @@
-> **STALE** — code has changed since this document was generated.
-
 # LLM Queue & Quota — Generated Audit Snapshot
 
-> **Generated:** 2026-09-02, from source at commit `3998ebd`.
+> **Generated:** 2026-09-03, from source at commit `f67e51c`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.
 
-**Scope.** What happens to every outbound model call between the caller and the provider: the single call path, the scheduler (priorities, admission, rate spacing, idle gating, preemption, throttle back-off), the status it publishes, usage recording and the period quota, and how provider failures are classified and returned on the wire. Which model a call uses is `models.md`; the callers are the flow and lifecycle docs.
+**Scope.** What happens to every outbound model call between the caller and the provider: the single call path, the scheduler (priorities, admission, rate spacing, idle gating, preemption, throttle back-off), the status it publishes and the held reason it reports, usage recording and the period quota, and how provider failures are classified and returned on the wire. Which model a call uses is `models.md`; the callers are the flow and lifecycle docs.
 
-**Completeness anchor.** One provider entry point, `usage.stream` (4 public wrappers: `Stream`, `GenerateOnce`/`GenerateOnceMsgs`, `GenerateStreamMsgs`, `GenerateWithToolCalls`); one scheduler instance (`llmq.std`); one quota `Authorizer` slot (`quota.Set`), **never set** in this binary; 1 status collection (`llm_queue_status`); 1 usage collection (`usage`).
+**Completeness anchor.** One provider entry point, `usage.stream` (4 public wrappers: `Stream`, `GenerateOnce`/`GenerateOnceMsgs`, `GenerateStreamMsgs`, `GenerateWithToolCalls`); one scheduler instance (`llmq.std`); one quota `Authorizer` slot (`quota.Set`), **never set** in this binary; 1 status collection (`llm_queue_status`); 1 usage collection (`usage`); 5 held reasons.
 
 ---
 
@@ -18,8 +16,8 @@ Every model call — chat, refinement, apply, snapshot, delta/merge, colour judg
 1. **Quota check** `Authorized(ctx, app)`: returns `ErrExhausted` when the installed `quota.Authorizer` says no. No authorizer is installed anywhere in this binary (`quota.Set` has no caller), so this check **always passes** and `ErrExhausted` is never produced here; the handlers' 402 branches are unreachable in this build.
 2. Empty model → error (`no model resolved for role`).
 3. **Admission** `llmq.Acquire` with priority = the context's override, else the role default (§ 2); blocks until admitted or the caller's context ends.
-4. The provider's `Stream` is invoked under the **run context** the scheduler returned. A synchronous failure releases the slot; a `ProviderError` of kind `quota` or `transient` also calls `ReportThrottled` (§ 2.5).
-5. The event channel is wrapped: the slot is held until the stream **fully drains**; streamed characters are reported to the scheduler as `chars / 4` token progress; when the channel closes, `Record` (§ 5) runs with the provider's final usage.
+4. The provider's `Stream` is invoked under the **run context** the scheduler returned, with the role's generation options. A synchronous failure releases the slot; a `ProviderError` of kind `quota` or `transient` also calls `ReportThrottled` (§ 2.5).
+5. The event channel is wrapped: the slot is held until the stream **fully drains**; streamed characters (text and tool-argument bytes) are reported to the scheduler as `chars / 4` token progress; when the channel closes, `Record` (§ 5) runs with the provider's final usage.
 
 Exceptions: config validation calls (`models.md` § 4) hit the provider directly and bypass all of this.
 
@@ -31,7 +29,7 @@ One process-wide `Scheduler`, booted with the Ollama configuration and reconfigu
 
 ### 2.1 Priorities
 
-`Interactive` (0) < `Background` (1) < `Idle` (2); numerically lower runs first. Role defaults: `map`, `annotate` → Background; `colour` → Idle; `chat`, `refinement`, `snapshot` → Interactive. Callers override via `WithPriority` on the context: the reconcile wave, discover runs, and reflection pending-window runs use Background; the colour preview route uses Interactive.
+`Interactive` (1) < `Background` (2) < `Idle` (3); numerically lower runs first (`PreemptNone`, 0, is a configuration value, not a schedulable priority). Role defaults: `map`, `annotate` → Background; `colour` → Idle; `chat`, `refinement`, `snapshot` → Interactive. Callers override via `WithPriority` on the context: the reconcile wave, discover runs, and reflection pending-window runs use Background; the colour preview route uses Interactive.
 
 ### 2.2 Configuration per provider
 
@@ -42,7 +40,7 @@ One process-wide `Scheduler`, booted with the Ollama configuration and reconfigu
 | `IdleAfter` | 5 min | 1 min |
 | `PreemptAtOrBelow` | Background (Background and Idle tasks may be cancelled) | none |
 
-`MaxConcurrent < 1` is clamped to 1. Reconfiguration applies at once; a lowered cap takes effect as running calls finish.
+`MaxConcurrent < 1` is clamped to 1. Reconfiguration applies at once and resets the high-water mark; a lowered cap takes effect as running calls finish.
 
 ### 2.3 Admission (`dispatchLocked`)
 
@@ -64,9 +62,21 @@ Only when `PreemptAtOrBelow` is set (Ollama). For each Interactive waiter that c
 
 `ReportThrottled` (called on provider `quota`/`transient` errors) opens a back-off window during which non-Interactive waiters are held: 2 s on the first report, doubling per report up to 60 s; a report more than 120 s after the previous one restarts at 2 s. The high-water mark is reset to the current running count so growth must re-earn itself. Interactive work is never held by back-off.
 
-### 2.6 Status
+### 2.6 Status and the held reason
 
-`Status{running: [{role, priority, model, started, tokens?, tokens_per_second?}], waiting: {priority: count}}`, versioned. Published asynchronously on every transition and at most every 500 ms for progress. `server/queue_status.go` mirrors it into the singleton `llm_queue_status` row (`state` = `active` when anything runs or waits, else `idle`; `running` and `waiting` as JSON), debounced 300 ms, discarding out-of-order versions, and **reset to empty at boot**. The row is server-written only; its writes are excluded from the SQL echo log.
+`Status{running: [{role, priority, model, started, tokens?, tokens_per_second?}], waiting: {priority: count}, held?}`, versioned. `held` is present only while something waits and describes why the **head** waiter is not running, evaluated in the same order as admission:
+
+| `reason` | When | `until` |
+|---|---|---|
+| `backoff` | head is non-Interactive and a back-off window is open | end of the window |
+| `idle_blocked` | head is Idle and a non-Idle task is running | — |
+| `idle_quiet` | head is Idle and the quiet period has not elapsed | when it will have |
+| `capacity` | running count is at the cap | — |
+| `rate_spacing` | growth past the high-water mark is waiting on `MinStartInterval` | the next allowed start |
+
+When none applies (the head is about to be admitted) `held` is null. `Waiting` counts are keyed by the priority name (`interactive`, `background`, `idle`).
+
+Published asynchronously on every transition and at most every 500 ms for progress. `server/queue_status.go` mirrors it into the singleton `llm_queue_status` row (`state` = `active` when anything runs or waits, else `idle`; `running`, `waiting`, and `held` as JSON — `held` is `null` when absent), debounced 300 ms, discarding out-of-order versions, and **reset to empty at boot**. The row is server-written only; its writes are excluded from the SQL echo log.
 
 ## 3. Priority overrides in use
 
@@ -88,7 +98,7 @@ Only when `PreemptAtOrBelow` is set (Ollama). For each Interactive waiter that c
 
 `WriteExhausted` → `402 {error: "quota_exhausted", period, used}` where `used` is the current period's `total_tokens`. Reachable from the chat, refinement, generation and colour-preview paths only if an authorizer were installed.
 
-Provider usage of **Ollama** calls is recorded like any other (`total_tokens` from prompt + eval counts).
+Provider usage of **Ollama** calls is recorded like any other (`total_tokens` from prompt + eval counts). Gemini usage is the cumulative `usageMetadata` of the last chunk that carried one; a Gemini stream that never reports usage records nothing.
 
 ## 6. Provider error classification and envelopes
 

@@ -1,7 +1,7 @@
 import type { Story } from "@ladle/react";
-import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client.ts";
-import type { TypedPocketBase } from "@/api/kalaidoscope/types.ts";
 import PocketBase from "pocketbase";
+import type { TypedPocketBase } from "@/api/kalaidoscope/types.ts";
+import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client.ts";
 import Colours from "./Colours";
 
 export default { title: "Pages / Colours" };

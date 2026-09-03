@@ -27,7 +27,9 @@ export { DocumentCard } from "./document-card";
 export { EditableText, type EditableTextProps } from "./editable-text";
 export { EmptyState } from "./empty-state";
 export { FragmentCard } from "./fragment-card";
+export { FragmentDrawer } from "./fragment-drawer";
 export { fragmentTypeIcon } from "./icons";
+export { KindPill, type PillKind } from "./kind-pill";
 export { ListRow } from "./list-row";
 export {
   MarkdownContent,
@@ -40,7 +42,6 @@ export {
   OptionCards,
   type OptionCardsProps,
 } from "./option-cards";
-export { KindPill, type PillKind } from "./kind-pill";
 export { Pill } from "./pill";
 export { PinToggle } from "./pin-toggle";
 export { RefineChatPanel } from "./refine-chat-panel";
@@ -52,6 +53,12 @@ export {
 } from "./required-highlight";
 export { RevealToggle, type RevealToggleProps } from "./reveal-toggle";
 export { Segmented } from "./segmented";
+export {
+  type SourceItem,
+  type SourceKind,
+  SourceList,
+  type SourceListProps,
+} from "./source-list";
 export { type StatusKind, StatusPill } from "./status-pill";
 export { SurfaceCard, surfaceCardClass } from "./surface-card";
 export { Label, Mono } from "./text";

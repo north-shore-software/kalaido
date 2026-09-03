@@ -1,11 +1,11 @@
-import { useEffect, useMemo } from "react";
 import type { UIMessage } from "ai";
-import { normalizeRefinementMessages } from "@/api/kalaidoscope/refinements";
+import { useEffect, useMemo } from "react";
 import { parseActiveContext, specToItems } from "@/api/kalaidoscope/chat";
-import type { RefineSession } from "@/hooks/use-refine-session";
-import { useLiveCollection } from "@/hooks/use-live-collection";
-import type { ContextItem } from "@/components/kalaido";
+import { normalizeRefinementMessages } from "@/api/kalaidoscope/refinements";
 import type { RefineProjSnapshotConversationResponse } from "@/api/kalaidoscope/types";
+import type { ContextItem } from "@/components/kalaido";
+import { useLiveCollection } from "@/hooks/use-live-collection";
+import type { RefineSession } from "@/hooks/use-refine-session";
 
 /**
  * Finds the in-progress refinement for a projection scope and adopts it into a

@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { AdvancedLocationFields } from "./advanced-location-fields";
 import { action } from "@/lib/story-utils.ts";
+import { AdvancedLocationFields } from "./advanced-location-fields";
 
 export default { title: "Setup / AdvancedLocationFields" };
 

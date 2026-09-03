@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
 import { CheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import type { ReactNode } from "react";
 import { Label, Timeline, type TimelineItem } from "@/components/kalaido";
+import { Button } from "@/components/ui/button";
 import type { ProjectionStatusInfo } from "@/features/projections/status";
 
 export interface ProjectionSideRailProps {

@@ -1,9 +1,9 @@
-import { useState } from "react";
 import type { Story } from "@ladle/react";
-import { ConversationList } from "./conversation-list";
-import { fixtureConversations } from "../fixtures";
+import { useState } from "react";
 import type { Conversation } from "@/api/kalaidoscope/chat";
 import { action } from "@/lib/story-utils.ts";
+import { fixtureConversations } from "../fixtures";
+import { ConversationList } from "./conversation-list";
 
 export default { title: "Chat / ConversationList" };
 

@@ -5,8 +5,8 @@ import type { CollectionResponses } from "@/api/kalaidoscope/types";
 import {
   type CollectionName,
   type CollectionQuery,
-  useCollection,
   type UseCollectionResult,
+  useCollection,
 } from "@/hooks/use-collection";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 

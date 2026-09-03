@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
 import { ClockIcon } from "lucide-react";
-import { FREQ, WIN } from "@/features/reflections/schedule";
+import type { ReactNode } from "react";
 import { Chip, Label, Mono } from "@/components/kalaido";
+import { FREQ, WIN } from "@/features/reflections/schedule";
 import { cn } from "@/lib/css-utils";
 
 export interface ScheduleChipsProps {

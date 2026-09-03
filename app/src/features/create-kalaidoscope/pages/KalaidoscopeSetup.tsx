@@ -2,6 +2,17 @@ import { useEffect, useId, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { proxy, useSnapshot } from "valtio";
 import {
+  validateWorkspaceLlmConfig,
+  validationMessage,
+} from "@/api/app/llm-validate.ts";
+import {
+  LLM_ROLES,
+  type LlmProvider,
+  type LlmRole,
+  RECOMMENDED_MODEL,
+  type WorkspaceLlmConfig,
+} from "@/api/kalaidoscope/llm-config.ts";
+import {
   RequiredPill,
   requiredHighlightClass,
   useRequiredHighlights,
@@ -9,26 +20,14 @@ import {
 import { PageBackButton } from "@/components/layout/page-back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/css-utils";
 import {
   createKalaidoscope,
   parseLocation,
 } from "@/features/create-kalaidoscope/actions.ts";
-import {
-  validateWorkspaceLlmConfig,
-  validationMessage,
-} from "@/api/app/llm-validate.ts";
-import {
-  LLM_ROLES,
-  RECOMMENDED_MODEL,
-  type LlmProvider,
-  type LlmRole,
-  type WorkspaceLlmConfig,
-} from "@/api/kalaidoscope/llm-config.ts";
 import { CloudAuthPanel } from "@/features/onboarding/components/cloud-auth-panel";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
-import { ProviderFields } from "../components/provider-fields";
+import { cn } from "@/lib/css-utils";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import {
@@ -36,6 +35,7 @@ import {
   CloudSignInNotice,
 } from "../components/cloud-identity-panel";
 import { IconPicker } from "../components/icon-picker.tsx";
+import { ProviderFields } from "../components/provider-fields";
 import {
   StorageOptionCards,
   type StorageType,

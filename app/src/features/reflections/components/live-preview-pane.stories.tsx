@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
-import { LivePreviewPane } from "./live-preview-pane";
 import { FIXTURE_CONTENT_1 } from "../fixtures";
+import { LivePreviewPane } from "./live-preview-pane";
 
 export default { title: "Reflections / LivePreviewPane" };
 
