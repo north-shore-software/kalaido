@@ -39,11 +39,7 @@ function ProposedLoadingCard() {
         </span>
       }
       title="Looking for patterns in your notes…"
-      trailing={
-        <StatusPill className="border-line bg-surface-2 text-fg-3">
-          DISCOVERING
-        </StatusPill>
-      }
+      trailing={<StatusPill>DISCOVERING</StatusPill>}
       contentClassName="flex h-[74px] flex-col justify-center gap-2"
       footer={
         <div className="flex items-center gap-1.5">

@@ -131,7 +131,7 @@ const documentComponents: StreamdownProps["components"] = {
     "border-b border-line-strong px-2 py-1 text-left font-mono text-label font-semibold text-fg-3 uppercase",
   ),
   td: styled("td", "border-b border-line px-2 py-1 align-top"),
-  img: styled("img", "max-w-full rounded"),
+  img: styled("img", "max-w-full"),
   a: MarkdownLink,
   // Diff contract: markdown-diff.ts injects <ins>/<del> into compare views.
   ins: styled("ins", "bg-stable-wash text-stable-ink no-underline"),

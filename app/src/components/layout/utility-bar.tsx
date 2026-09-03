@@ -161,7 +161,7 @@ function RateMeter({
             ? "bg-stable animate-pulse"
             : finishedRate !== undefined
               ? "bg-stable/60"
-              : "bg-muted-foreground/30",
+              : "bg-fg-5",
         )}
       />
       <span className={active ? "font-medium text-fg-2" : "text-fg-4"}>

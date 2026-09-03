@@ -37,14 +37,14 @@ import { OllamaSetupStatus } from "./ollama-setup-status";
 
 const providerOptions: OptionCard<LlmProvider>[] = [
   {
-    value: "gemini",
-    label: "Google Gemini",
-    lines: ["Use your own Google API key"],
-  },
-  {
     value: "ollama",
     label: "Local Ollama",
     lines: ["Runs privately on this device"],
+  },
+  {
+    value: "gemini",
+    label: "Google Gemini",
+    lines: ["Use your own Google API key"],
   },
 ];
 
@@ -93,7 +93,7 @@ export function ProviderFields({
         id={providerLabelId}
         className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
       >
-        der
+        Model provider
       </span>
 
       <OptionCards

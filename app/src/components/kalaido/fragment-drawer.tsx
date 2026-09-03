@@ -62,7 +62,7 @@ export function FragmentDrawer({
           </div>
         ) : !fragment ? (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center">
-            <SheetTitle className="text-body-sm">Fragment not found</SheetTitle>
+            <SheetTitle>Fragment not found</SheetTitle>
             <SheetDescription className="text-body-sm text-fg-3">
               This fragment may have been removed.
             </SheetDescription>
@@ -74,7 +74,7 @@ export function FragmentDrawer({
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-none bg-surface-2">
                   {Icon && <Icon className="size-3.5 text-fg-3" />}
                 </span>
-                <SheetTitle className="text-item font-semibold">
+                <SheetTitle>
                   {fragmentTypeLabel(fragment.type as FragmentTypeOptions)}
                 </SheetTitle>
               </div>

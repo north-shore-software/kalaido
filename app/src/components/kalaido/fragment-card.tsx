@@ -15,7 +15,7 @@ const cardMarkdownComponents = {
     </span>
   ),
   img: ({ src, alt }: { src?: string; alt?: string }) => (
-    <img src={src} alt={alt} className="max-h-24 rounded object-cover" />
+    <img src={src} alt={alt} className="max-h-24 object-cover" />
   ),
 };
 
