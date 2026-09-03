@@ -30,18 +30,24 @@ export type ContextKind =
    */
   | "WholeScope"
   /**
-   * Not a source either — a marker meaning "present the context as summaries
-   * and let the model read full fragments on demand". Round-trips through
-   * `ContextSpec.summaries`; the bar offers it for whole scope only.
+   * Not a source either — a marker meaning "present the whole scope as
+   * summaries, keep the pins in full, and let the model read fragments on
+   * demand". Round-trips through `ContextSpec.summaries`; always travels with
+   * the whole-scope marker.
    */
   | "Summaries";
 
 export {
+  isContentPin,
+  isSnapshotPin,
   isSummariesSelection,
   isWholeScopeSelection,
+  type ScopeMode,
   SUMMARIES_ID,
   SUMMARIES_ITEM,
-  toggleSummaries,
+  scopeModeOf,
+  selectionPins,
+  setScopeMode,
   WHOLE_SCOPE_ID,
   WHOLE_SCOPE_ITEM,
 } from "./context-items";
@@ -158,17 +164,14 @@ export function parseActiveWindow(messages: UIMessage[]): TimeWindow | null {
 }
 
 /**
- * Collapse the context picker's selection into a {@link ContextSpec}. Each
- * `ContextItem.kind` maps to one spec field; the picker's ids are exactly what
- * the backend expects (the fragment-type enum value for `Type`, record ids for
- * the rest). An empty selection yields `{}` — i.e. "clear the context".
+ * Collapse the context bar's selection into a {@link ContextSpec}. Each
+ * `ContextItem.kind` maps to one spec field; the bar's ids are exactly what
+ * the backend expects (the fragment-type enum value for a legacy `Type`,
+ * record ids for the rest). An empty selection yields `{}` — scope off,
+ * nothing pinned, which clears the conversation's context.
  */
 export function itemsToSpec(items: ContextItem[]): ContextSpec {
-  const spec = criteriaToSpec(items);
-
-  // "Nothing selected" means the whole kalaidoscope.
-  if (items.length === 0) spec.wholeScope = true;
-  return spec;
+  return criteriaToSpec(items);
 }
 
 /** Fold items into the spec fields they select, with no whole-scope logic. */

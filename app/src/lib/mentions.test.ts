@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem } from "@/api/kalaidoscope/chat";
-import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
+import {
+  SUMMARIES_ITEM,
+  WHOLE_SCOPE_ITEM,
+} from "@/api/kalaidoscope/context-items";
 import {
   buildMentionToken,
   mentionQueryAt,
@@ -146,35 +149,39 @@ describe("withContextItem", () => {
   const colour = { kind: "Colour" as const, id: "c1", label: "Work" };
   const type = { kind: "Type" as const, id: "email", label: "Email" };
   const pin = { kind: "Fragment" as const, id: "f1", label: "standup" };
+  const proj = { kind: "Projection" as const, id: "p1", label: "weekly" };
 
-  it("treats a colour or type tag as a no-op on a whole-scope selection", () => {
-    // Everything is already checked, so there is nothing to add.
-    const empty: ContextItem[] = [];
-    expect(withContextItem(empty, colour)).toBe(empty);
-    const marked = [WHOLE_SCOPE_ITEM, pin];
-    expect(withContextItem(marked, type)).toBe(marked);
+  it("ignores a fragment or colour tag on a Full selection", () => {
+    // Already in the context in full, and Full + content pins is not a state.
+    const full: ContextItem[] = [WHOLE_SCOPE_ITEM];
+    expect(withContextItem(full, colour)).toBe(full);
+    expect(withContextItem(full, pin)).toBe(full);
   });
 
-  it("checks a colour or type on an enumerated selection", () => {
-    const enumerated: ContextItem[] = [type];
-    expect(withContextItem(enumerated, colour)).toEqual([type, colour]);
+  it("pins a fragment or colour on Summaries and Off", () => {
+    const summaries = [WHOLE_SCOPE_ITEM, SUMMARIES_ITEM];
+    expect(withContextItem(summaries, pin)).toEqual([...summaries, pin]);
+    expect(withContextItem([], colour)).toEqual([colour]);
   });
 
-  it("pinning onto the empty selection materialises the whole-scope marker", () => {
-    // The pin adds to the union — the scope must not narrow to just the pin.
-    expect(withContextItem([], pin)).toEqual([WHOLE_SCOPE_ITEM, pin]);
-    expect(withContextItem([WHOLE_SCOPE_ITEM], pin)).toEqual([
+  it("pins a projection in any mode", () => {
+    expect(withContextItem([WHOLE_SCOPE_ITEM], proj)).toEqual([
       WHOLE_SCOPE_ITEM,
-      pin,
+      proj,
     ]);
+    expect(withContextItem([], proj)).toEqual([proj]);
   });
 
-  it("appends pins to an enumerated selection and ignores kind+id duplicates", () => {
-    const items = withContextItem([type], pin);
-    expect(items).toEqual([type, pin]);
+  it("treats a type tag as focus only", () => {
+    const items: ContextItem[] = [pin];
+    expect(withContextItem(items, type)).toBe(items);
+  });
+
+  it("ignores kind+id duplicates but not same-id other kinds", () => {
+    const items = withContextItem([], pin);
     expect(withContextItem(items, { ...pin, label: "renamed" })).toBe(items);
     expect(
       withContextItem(items, { kind: "Projection", id: "f1", label: "x" }),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
   });
 });

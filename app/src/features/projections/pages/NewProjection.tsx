@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import type { ContextSpec } from "@/api/kalaidoscope/chat";
 import { specToItems } from "@/api/kalaidoscope/chat";
+import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import { createProjection } from "@/api/kalaidoscope/projections";
 import {
   ContextBar,
@@ -80,7 +81,7 @@ export default function NewProjection() {
   const [context, setContext] = useState<ContextItem[]>(
     seedRef.current?.contextSpec
       ? specToItems(seedRef.current.contextSpec)
-      : [],
+      : [WHOLE_SCOPE_ITEM],
   );
   const [projectionId, setProjectionId] = useState<string | null>(null);
   const [input, setInput] = useState("");

@@ -20,7 +20,7 @@ import (
 
 // chatTooLargeHint follows the guard's message when a full-mode prompt is too
 // big: summaries mode is the way through.
-const chatTooLargeHint = ` Turn on "Use summaries" in the context bar to chat over this scope through summaries instead.`
+const chatTooLargeHint = ` Switch the scope to "Summaries" in the context bar to chat over it through summaries instead.`
 
 // maxChatToolRounds caps the model calls in one summaries turn; the last one
 // runs without tools so the turn ends in text.

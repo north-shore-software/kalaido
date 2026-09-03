@@ -7,6 +7,7 @@ import {
   specToItems,
   type TimeWindow,
 } from "@/api/kalaidoscope/chat";
+import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import {
   createReflection,
   updateReflection,
@@ -88,7 +89,7 @@ export default function ReflectionRefine() {
   const [win, setWin] = useState(DEFAULT_WIN);
   // "Summarize from": a calendar date (local), or empty for "from now on".
   const [fromDate, setFromDate] = useState("");
-  const [context, setContext] = useState<ContextItem[]>([]);
+  const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
   const [windowOverride, setWindowOverride] = useState<TimeWindow>();
   const [chipsSeeded, setChipsSeeded] = useState(isNew);
 
@@ -120,7 +121,7 @@ export default function ReflectionRefine() {
     setFreq(chips.freq);
     setWin(chips.win);
     const spec = parseContextSpec(existing.current_context_spec);
-    setContext(spec ? specToItems(spec) : []);
+    setContext(spec ? specToItems(spec) : [WHOLE_SCOPE_ITEM]);
     setChipsSeeded(true);
     const seedMessage =
       existing.status === "proposed" ? seedRef.current?.message.trim() : "";
@@ -324,6 +325,7 @@ export default function ReflectionRefine() {
                     items={context}
                     onChange={setContext}
                     entity="reflection"
+                    timeWindow={activeWindow}
                   />
                 }
               />

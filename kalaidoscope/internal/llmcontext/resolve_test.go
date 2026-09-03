@@ -209,3 +209,65 @@ func TestResolveColourSkipsExclusions(t *testing.T) {
 	got := resolveFragmentIDs(t, app, api.ContextSpec{ColourIDs: []string{colour.Id}})
 	assertIDs(t, got, sorted(pinned.Id, judged.Id))
 }
+
+// Under whole scope the fragment-level pins add nothing to the scope but are
+// recorded as ExpandedIDs — what renders in full under summaries. A pin that
+// the window excludes is not expanded either; without whole scope the pins
+// are both the scope and the expansion.
+func TestResolveWholeScopeExpandsPins(t *testing.T) {
+	app := testutil.NewApp(t)
+	pinned := addFragment(t, app, "note", "pinned")
+	viaColour := addFragment(t, app, "note", "via colour")
+	other := addFragment(t, app, "note", "other")
+	colour := testutil.NewRecord(t, app, "colour", map[string]any{"name": "c"})
+	testutil.NewRecord(t, app, "colour_fragment", map[string]any{"colour_id": colour.Id, "fragment_id": viaColour.Id, "match_type": "prompt"})
+
+	spec := api.ContextSpec{WholeScope: true, Summaries: true, FragmentIDs: []string{pinned.Id}, ColourIDs: []string{colour.Id}}
+	got, err := llmcontext.ResolveSpecToIDs(context.Background(), app, spec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIDs(t, sortedCopy(got.FragmentIDs), sorted(pinned.Id, viaColour.Id, other.Id))
+	assertIDs(t, sortedCopy(got.ExpandedIDs), sorted(pinned.Id, viaColour.Id))
+
+	// Window in the far past: nothing in scope, so nothing expanded.
+	win := &api.Window{Start: "2000-01-01 00:00:00.000Z", End: "2000-02-01 00:00:00.000Z"}
+	got, err = llmcontext.ResolveSpecToIDs(context.Background(), app, spec, win)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.FragmentIDs) != 0 || len(got.ExpandedIDs) != 0 {
+		t.Errorf("windowed resolution = %+v, want empty", got)
+	}
+
+	got, err = llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{FragmentIDs: []string{pinned.Id}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIDs(t, got.FragmentIDs, []string{pinned.Id})
+	assertIDs(t, got.ExpandedIDs, []string{pinned.Id})
+
+	got, err = llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.IsEmpty() || len(got.ExpandedIDs) != 0 {
+		t.Errorf("empty spec resolved to %+v", got)
+	}
+}
+
+// The diff is scope only: pinning a fragment already in scope changes nothing.
+func TestDiffPinnedIDsIsScopeOnly(t *testing.T) {
+	old := llmcontext.PinnedIDs{FragmentIDs: []string{"a", "b"}}
+	new := llmcontext.PinnedIDs{FragmentIDs: []string{"a", "b", "c"}, ExpandedIDs: []string{"b"}}
+	added, removed := llmcontext.DiffPinnedIDs(old, new)
+	assertIDs(t, added.FragmentIDs, []string{"c"})
+	if !removed.IsEmpty() || len(added.ExpandedIDs) != 0 {
+		t.Errorf("added/removed = %+v / %+v", added, removed)
+	}
+	added, removed = llmcontext.DiffPinnedIDs(new, old)
+	assertIDs(t, removed.FragmentIDs, []string{"c"})
+	if !added.IsEmpty() {
+		t.Errorf("added = %+v, want nothing", added)
+	}
+}
