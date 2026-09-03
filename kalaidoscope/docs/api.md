@@ -1,13 +1,11 @@
-> **STALE** — code has changed since this document was generated.
-
 # Kalaidoscope HTTP API — Generated Audit Snapshot
 
-> **Generated:** 2026-09-02, from source at commit `3998ebd`.
+> **Generated:** 2026-09-03, from source at commit `f67e51c`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.
 
 **Scope.** The externally callable HTTP surface of the kalaidoscope PocketBase server (single-tenant sidecar): every custom route, every hook that modifies PocketBase's built-in collection endpoints, auth posture, and shared wire/error conventions. This is a route index: each row states the request and response contract and points at the doc that describes the mechanics. PocketBase's generic surface (`/api/collections/*`, `/api/realtime`, `/api/files/*`, the `/_/` dashboard) is otherwise not documented.
 
-**Completeness anchor.** 31 custom routes, registered at exactly two sites: `server/server.go` `RegisterRoutes` (29 routes) and `internal/ollama/handlers.go` `RegisterRoutes` (2 routes). 6 collection hooks, registered in `server/server.go` `RegisterTriggers` (3), `internal/ingest/batch.go` (1), and `internal/config/hooks.go` (2).
+**Completeness anchor.** 32 custom routes, registered at exactly two sites: `server/server.go` `RegisterRoutes` (30 routes) and `internal/ollama/handlers.go` `RegisterRoutes` (2 routes). 6 collection hooks, registered in `server/server.go` `RegisterTriggers` (3), `internal/ingest/batch.go` (1), and `internal/config/hooks.go` (2).
 
 ---
 
@@ -31,7 +29,7 @@ The batch path is the `ingest` collection's create endpoint (§ 12).
 
 | Endpoint | Request | Behaviour & side effects | Response / errors |
 |---|---|---|---|
-| `POST /api/context/tokens` | a `ContextSpec` (`context.md` § 1) plus `window? {start, end}` | Resolves each selector separately and estimates `chars/4` of its full hydration (`summaries: true` → row hydration for the whole-scope case). A window with a missing bound is ignored. Resolution errors count as 0. | `200 {totalTokens, breakdown: {"WholeScope" \| "Fragment:<id>" \| "Type:<t>" \| "Colour:<id>" \| "Projection:<id>" \| "Reflection:<id>": n}}`; `400` bad JSON |
+| `POST /api/context/tokens` | a `ContextSpec` (`context.md` § 1) plus `window? {start, end}` | Estimates `chars/4` per selector, rendered as a fresh context (`context.md` § 4); whole scope is counted once in the requested mode, fragment-level pins are counted only when not whole scope or when `summaries` is set, snapshot pins always. A window with a missing bound is ignored. Resolution errors count as 0. `limit` is the chat role's default-model prompt budget (`context.md` § 6); `fits` is `totalTokens ≤ limit`, always true when `limit` is 0. | `200 {totalTokens, breakdown: {"WholeScope" \| "Fragment:<id>" \| "Type:<t>" \| "Colour:<id>" \| "Projection:<id>" \| "Reflection:<id>": n}, model, limit, fits}`; `400` bad JSON |
 | `GET /api/llm/preflight` | — | Per-role readiness without a model call (`models.md` § 4) | `200 {modelSet, ok, roles: [{role, model?, provider?, ok, detail?}]}` |
 | `POST /api/llm/validate` | `{provider, apiKey?, defaultModel?, roleModels?}` | Live-tests every referenced model without saving (`models.md` § 4) | `200 {ok}` or `200 {ok: false, kind?, provider?, model?, detail}`; `400` no provider / no model |
 
@@ -39,16 +37,16 @@ The batch path is the `ingest` collection's create endpoint (§ 12).
 
 | Endpoint | Request | Behaviour & side effects | Response / errors |
 |---|---|---|---|
-| `POST /api/chat` | `{id, messages: [UIMessage]}` | If `id` names a refinement conversation → `refinement.md` § 3–4. Else general chat: persists new messages, hydrates, streams one assistant turn; summaries mode loops read tools (`chat.md`). | SSE (`chat.md` § 6); before the stream: `400` bad body / empty transcript, `422` context too large, `402` quota (unreachable), provider envelope, `500` |
+| `POST /api/chat` | `{id, messages: [UIMessage]}` | If `id` names a refinement conversation → `refinement.md` § 3–4. Else general chat: persists new messages, hydrates against the conversation's final context, streams one assistant turn; summaries mode loops read tools (`chat.md`). | SSE (`chat.md` § 6); before the stream: `400` bad body / empty transcript, `422` context too large (full mode appends a hint to switch the scope to Summaries), `402` quota (unreachable), provider envelope, `500` |
 
 ## 5. Projections
 
 | Endpoint | Request | Behaviour & side effects | Response / errors |
 |---|---|---|---|
 | `POST /api/projections` | `{name}` (`windowSpec` → 400) | Creates an `active` projection with nothing else (`lifecycle-projection.md` § 2) | `201 {projectionId}` |
-| `PATCH /api/projections/{id}` | `{name?, pinned?, model?}` | Renames; sets/clears model override; toggles the authenticated user in `pinned_by` (`lifecycle-projection.md` § 7) | `200 {id}`; `404` |
+| `PATCH /api/projections/{id}` | `{name?, pinned?, model?}` (`windowSpec` → 400) | Renames; sets/clears model override; toggles the authenticated user in `pinned_by` (`lifecycle-projection.md` § 7) | `200 {id}`; `404` |
 | `DELETE /api/projections/{id}` | — | Deletes with cascades (`lifecycle-projection.md` § 6) | `204`; `404` |
-| `POST /api/projections/{id}/candidates` | `{preview?}` (other declared fields unread) | Generates one snapshot: `pending` if preview, else approved; claim row; minimal-diff rewrite (`lifecycle-projection.md` § 4) | `200 {snapshotId}`; `409` blocked by upstream / lens not ready / generation in flight; `422` context too large; `404`; provider envelope; `500` |
+| `POST /api/projections/{id}/candidates` | `{preview?}` (other declared fields unread; a malformed body is treated as empty) | Generates one snapshot: `pending` if preview, else approved; claim row; minimal-diff rewrite (`lifecycle-projection.md` § 4) | `200 {snapshotId}`; `409` blocked by upstream / lens not ready / generation in flight; `422` context too large; `404`; provider envelope; `500` |
 | `POST /api/projections/{id}/candidates/{rid}/approve` | — | Promotes the candidate; discards other pending (`lifecycle-projection.md` § 4.3) | `200 {snapshotId}`; `404` unknown or foreign candidate; `422` not approvable |
 
 ## 6. Reflections
@@ -80,18 +78,19 @@ Turns within a session go through `POST /api/chat` (§ 4).
 | Endpoint | Request | Behaviour & side effects | Response / errors |
 |---|---|---|---|
 | `POST /api/colours/preview` | `{prompt, positiveExamples?, negativeExamples?}` | Judges the 20 newest fragments at Interactive priority; streams matches (`colours.md` § 5) | SSE `data: <fragment JSON>` per match; `400`; `500` no model / no fragments |
-| `POST /api/colours` | `{name, prompt?, fragmentIds?, positiveExamples?, negativeExamples?}` | Creates; seeds `prompt` rows from `fragmentIds`; writes examples; signals the worker | `200 {colourId}`; `400` empty name; `500` |
+| `POST /api/colours` | `{name, prompt?, fragmentIds?, positiveExamples?, negativeExamples?}` | Creates; seeds `prompt` rows from `fragmentIds`; writes examples; signals the worker when a prompt is set | `200 {colourId}`; `400` empty name; `500` |
 | `PATCH /api/colours/{id}` | `{name?, prompt?, positiveExamples?, negativeExamples?, clearExamples?}` | Writes examples; renames; a changed prompt restarts matching | `200 {colourId, name, prompt}`; `400` missing id; `404`; `500` |
 | `DELETE /api/colours/{id}` | — | Scrubs the id from live context specs; deletes (links cascade) | `204`; `404` |
 | `POST /api/colours/{id}/rematch` | — | Drops prompt rows and watermark; recomputes thing rows; signals the worker | `202`; `404` |
 
-## 9. Rotation, reconcile, map & discover
+## 9. Rotation, organize, reconcile, map & discover
 
 | Endpoint | Request | Behaviour & side effects | Response / errors |
 |---|---|---|---|
 | `GET /api/rotation` | — | Full staleness evaluation (`rotation.md`) | `200 {statuses: [EntityStatus]}`; `500` |
+| `GET /api/organize` | — | Derived organise status: counts from rows plus the workers' in-flight flags; kicks nothing (`organize.md`). Creates the `kalaidoscope_map` singleton if it does not exist yet. | `200 {fragments, imports, map, discover, policy}` (`organize.md` § 1); `500` |
 | `POST /api/reconcile` | — | Requests a wave — **disabled**, logged and dropped (`rotation.md` § 3) | `202` |
-| `POST /api/map` | — | Signals the annotate worker (`map.md` § 5) | `202` |
+| `POST /api/map` | — | Signals the annotate worker for a full drain: annotate, then one map cycle (`map.md` § 5) | `202` |
 | `POST /api/discover` | `{kind}` | Signals a discover run for `colours`, `projections`, or `reflections` (`discover.md` § 2) | `202`; `400` unknown kind |
 
 ## 10. LLM provider
@@ -110,7 +109,7 @@ Covered in § 3 (`/api/llm/preflight`, `/api/llm/validate`); configuration itsel
 | Collection & operation | Hook | Effect |
 |---|---|---|
 | `fragment` create | `OnRecordCreate` | `source_time` defaults to now; `origin` defaults to `app` |
-| `fragment` create | `OnRecordAfterCreateSuccess` | Signals the colour worker; map auto-signal (compiled out) |
+| `fragment` create | `OnRecordAfterCreateSuccess` | Signals the colour worker; signals the annotate worker (annotate only, no map cycle) unless `origin = import` |
 | `fragment` delete (REST) | `OnRecordDeleteRequest` | **Soft delete**: sets `deleted_at`, returns `204`, row kept (`ingestion.md` § 7) |
 | `ingest` create | `OnRecordCreate` | Reads uploads and config, sets `status = pending`, processes in the background (`ingestion.md` § 3) |
 | `kalaidoscope_config` update (REST) | `OnRecordUpdateRequest` | `403` if the body touches `model_set` without superuser auth |
@@ -130,4 +129,4 @@ Every other collection endpoint behaves as PocketBase defines it, subject to the
 
 **Validation payloads.** Config-hook rejections are `400` with PocketBase validation data keyed on `default_model` (`model_required`) or `api_key` (`provider_<kind>` / `provider_validation_failed`).
 
-**Detached work.** Generation and commit run under `context.WithoutCancel`; a client disconnect does not stop them. Backfill, discover, map, reconcile, and rematch return `202`/`200` before any work; progress is visible only through collection changes over `/api/realtime` and the `llm_queue_status` row.
+**Detached work.** Generation and commit run under `context.WithoutCancel`; a client disconnect does not stop them. Backfill, discover, map, reconcile, and rematch return `202`/`200` before any work; progress is visible only through collection changes over `/api/realtime`, the `llm_queue_status` row, and `GET /api/organize`.

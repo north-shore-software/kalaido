@@ -1,11 +1,11 @@
 # Context Spec Resolution — Generated Audit Snapshot
 
-> **Generated:** 2026-09-02, from source at commit `3998ebd`.
+> **Generated:** 2026-09-03, from source at commit `f67e51c`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.
 
-**Scope.** The context spec as shared machinery: the spec's shape, how it resolves to a concrete set of fragment and snapshot ids (with and without a time window), how that set is rendered as model text in full and summaries modes, how the resolved set is stored on snapshots and on chat transcripts as a receipt, how two receipts are diffed, and the prompt-size guard applied before any model call. Consumers: chat (`chat.md`), refinement (`refinement.md`), snapshot generation (`lifecycle-projection.md` § 4), staleness (`rotation.md`), the token-count route (`api.md` § 3), and discover's entity listing (`discover.md`). Colour membership itself is in `colours.md`; the map rows summaries mode reads are in `map.md`.
+**Scope.** The context spec as shared machinery: the spec's shape, how it resolves to a concrete set of fragment and snapshot ids (with and without a time window) and which of those are marked as pinned, how that set is rendered as model text in full and summaries modes against a conversation's final context, how the resolved set is stored on snapshots and on chat transcripts as a receipt, how two receipts are diffed, and the prompt-size guard applied before any model call. Consumers: chat (`chat.md`), refinement (`refinement.md`), snapshot generation (`lifecycle-projection.md` § 4), staleness (`rotation.md`), the token-count route (`api.md` § 3), and discover's entity listing (`discover.md`). Colour membership itself is in `colours.md`; the map rows summaries mode reads are in `map.md`.
 
-**Completeness anchor.** One resolver, `llmcontext.ResolveSpecToIDs`; two hydrators, `HydrateIDsToText` (full) and `HydrateDeltaToText` (delta, full or summaries); one flattener, `Flatten`; one guard, `engine.CheckPromptFits`.
+**Completeness anchor.** One resolver, `llmcontext.ResolveSpecToIDs`; one flat hydrator, `HydrateIDsToText`; one delta hydrator, `Hydrator` (built by `NewHydrator`, single-shot form `HydrateDeltaToText`); one flattener, `Flatten`; one guard, `engine.CheckPromptFits`.
 
 ---
 
@@ -15,7 +15,7 @@
 
 | Field | Meaning |
 |---|---|
-| `wholeScope` | Every live fragment. When true, the five selectors below are **ignored** at resolution. |
+| `wholeScope` | Every live fragment. When true, the three fragment-level selectors below add nothing to the **scope** but still mark which fragments are **pinned** (§ 2, § 4). |
 | `summaries` | Render mode flag (§ 4). Does not affect which ids resolve. |
 | `fragmentIds` | Explicit fragments, by id. A static set: it never grows. |
 | `fragmentTypes` | Fragments whose `type` is one of these. |
@@ -27,11 +27,12 @@ A spec is stored as JSON in `projection.current_context_spec` / `reflection.curr
 
 ## 2. Resolving fragments
 
-`ResolveSpecToIDs(spec, window)` returns `PinnedIDs{fragmentIds, snapshotIds}`.
+`ResolveSpecToIDs(spec, window)` returns `PinnedIDs{fragmentIds, snapshotIds, expandedIds}`.
 
-- **Whole scope:** every `fragment` with `deleted_at = ''`, plus the window clause (§ 2.1).
-- **Otherwise:** a single query whose filter is the OR of: `id = <each fragmentIds>`, `type = <each fragmentTypes>`, and `id = <each colour member>`, ANDed with `deleted_at = ''` and the window clause. If all three selector lists are empty no fragment query runs and the fragment set is empty. A pinned fragment that has been soft-deleted therefore drops out like any other.
-- **Colour members** are looked up first, in Go: every `colour_fragment` row for any of the colour ids whose `match_type != 'manual_negative'`, deduplicated. `manual_negative` rows are exclusions and never contribute; a fragment excluded from colour A but explicitly listed in `fragmentIds` is still included by the OR. A lookup error is logged and yields no colour members (the spec still resolves).
+- **Pinned fragments** are always computed first: a single query whose filter is the OR of `id = <each fragmentIds>`, `type = <each fragmentTypes>`, and `id = <each colour member>`, ANDed with `deleted_at = ''` and the window clause (§ 2.1). If all three selector lists are empty no query runs and the pinned set is empty. A pinned fragment that has been soft-deleted therefore drops out like any other.
+- **Whole scope:** `fragmentIds` = every `fragment` with `deleted_at = ''`, plus the window clause; `expandedIds` = the pinned fragments that are also in that set (a pin outside the window, or deleted, is not expanded).
+- **Otherwise:** `fragmentIds` = the pinned fragments; `expandedIds` = a copy of the same list (recorded even though full mode ignores it, so a later switch to summaries keeps the pins in full).
+- **Colour members** are looked up in Go: every `colour_fragment` row for any of the colour ids whose `match_type != 'manual_negative'`, deduplicated. `manual_negative` rows are exclusions and never contribute; a fragment excluded from colour A but explicitly listed in `fragmentIds` is still included by the OR. A lookup error is logged and yields no colour members (the spec still resolves).
 - Resolution order is the database's; nothing sorts the fragment ids.
 
 ### 2.1 The window clause
@@ -55,36 +56,47 @@ Query errors in snapshot resolution are swallowed: the snapshot list is simply s
 
 ## 4. Hydration (rendering to text)
 
-**Full mode** (`HydrateIDsToText`): fragments first, each as a `FragmentBlock` (`--- <type> from <source> (ID: <id>) ---` + content) in the order `FindRecordsByIds` returns them (not the pinned order); then projection snapshots (`--- projection "<name>" (ID: <snapshot id>) ---` + decoded output), then reflection snapshots likewise. A snapshot whose parent record no longer exists is skipped silently. Lookup errors are ignored.
+**Flat** (`HydrateIDsToText`, used for generation source blocks and the refinement apply): fragments first, each as a `FragmentBlock` (`--- <type> from <source> (ID: <id>) ---` + content) in the order `FindRecordsByIds` returns them (not the pinned order); then projection snapshots (`--- projection "<name>" (ID: <snapshot id>) ---` + decoded output), then reflection snapshots likewise. A snapshot whose parent record no longer exists is skipped silently. Lookup errors are ignored. `expandedIds` plays no part.
 
-**Summaries mode** (`HydrateDeltaToText(…, summaries=true)`, used only for *added* context): fragments render as one line each, sorted by event time (`source_time`, else `created`):
+**Deltas** (`Hydrator`, used for transcripts): a hydrator is built once per prompt assembly from the conversation's **final** receipt and **final** mode (`LatestPinnedAndSpec`, § 5), then fed every `(added, removed)` step of the transcript in order. How an added fragment renders is decided by that final state, not by the mode in force when it arrived:
+
+| Added fragment is… | Rendered as |
+|---|---|
+| not in the final `fragmentIds` | omitted; counted into `OmittedAddedNotice(n)` |
+| already rendered earlier in this transcript (left and came back) | not re-rendered; counted into `RestoredNotice(n)` |
+| in the final set, and (final mode is full **or** the id is in the final `expandedIds`) | its full `FragmentBlock` under `AddedNotice` |
+| in the final set, otherwise (summaries mode, not pinned) | one summaries row under `SummariesAddedNotice` |
+
+Added snapshots always render in full under `AddedNotice`. A removed fragment is listed as `- Fragment ID: <id>` under `RemovedNotice` only if the model has actually seen it; removed fragments never shown are counted into `OmittedRemovedLine(n)`; removed snapshots are always listed as `- Snapshot ID: <id>`. Removed items are never re-rendered, only named.
+
+**Summaries rows**: fragments render as one line each, sorted by event time (`source_time`, else `created`):
 
 - an annotated fragment → its `fragment_annotation` row: `- <date> · <title> · <summary> (ID: <id>) [things: <name (id)>; …]`, thing citations resolved to current map names where possible;
 - an unannotated fragment → a stub: `- <date> · <type> from <source> · "<first 200 runes of content>" (ID: <id>; not yet annotated)`.
 
-All annotation rows are loaded in one pass and matched in Go. Snapshots in summaries mode render exactly as in full mode. Summaries mode is chosen per conversation from the **latest** `context_spec` part on the transcript and applied to every delta in it (`chat.md` § 3).
+All annotation rows are loaded in one pass and matched in Go; a row-load failure fails the hydration of that delta (the chat drops the text silently). The mode is the `summaries` flag of the **latest** `context_spec` part on the transcript (`chat.md` § 3).
 
-**Deltas** (`HydrateDeltaToText(added, removed, summaries)`): an added block opens with `AddedNotice` (or `SummariesAddedNotice`, which tells the model to call `read_fragment`); a removed block opens with `RemovedNotice` followed by `- Fragment ID: <id>` / `- Snapshot ID: <id>` lines. Removed items are never re-rendered, only named.
+`HydrateDeltaToText(added, removed, summaries)` is the single-shot form — a hydrator whose final context is `added` — used by the token estimate.
 
 ## 5. The receipt: `PinnedIDs`
 
 The resolved set is persisted in two places:
 
-- On every snapshot as `resolved_context` (`{fragmentIds, snapshotIds}`), written by `engine.applySnapshotSpec` at generation and at refinement commit.
+- On every snapshot as `resolved_context` (`{fragmentIds, snapshotIds, expandedIds}`), written by `engine.applySnapshotSpec` at generation and at refinement commit. `expandedIds` rides along because the whole struct is serialised; nothing on the snapshot path reads it.
 - On chat transcripts as a `pinned_ids` system-message part. `chat.ResolveContextSpecs` stamps it onto each incoming system message that carries a `context_spec` and/or `window` part: the pair is cumulative — a window-only message re-resolves the spec already in effect (read from history), and a spec-only message re-resolves under the window in effect. The refinement-create handler seeds the same part when it seeds a spec (`refinement.md` § 2).
 
 `LatestPinnedAndSpec(msgs)` reads a transcript's current state: for each of `pinned_ids`, `context_spec`, `window`, the **newest** system part of that type, independently. A `window` part with empty bounds resets the window to none.
 
-**Diffs.** `PinnedIDs.Diff(other)` = ids in the receiver not in `other` (one-directional; used by staleness). `DiffPinnedIDs(old, new)` returns both added and removed (used by transcript hydration and by the wave's dedup guard). Both compare ids as opaque strings.
+**Diffs.** `PinnedIDs.Diff(other)` = ids in the receiver not in `other` (one-directional; used by staleness). `DiffPinnedIDs(old, new)` returns both added and removed (used by transcript hydration and by the wave's dedup guard). Both compare `fragmentIds` and `snapshotIds` as opaque strings and **ignore `expandedIds`**; `IsEmpty` likewise ignores it.
 
 ## 6. Prompt-size guard
 
-`engine.CheckPromptFits(model, chars)`: estimates tokens as `chars / 4`, asks the model's provider for its `ContextWindow()` (Gemini: 1,000,000; Ollama: 256,000, a constant — the live `num_ctx` probe in `models.md` § 6 is not used here), and refuses when the estimate exceeds `window − window/8`. A provider reporting `0` is never checked. The error is a `ContextTooLargeError` (`the context is about <n> tokens but <model> accepts about <m> — narrow the window or the context`), unwrapping to `ErrContextTooLarge`.
+`engine.CheckPromptFits(model, chars)`: estimates tokens as `chars / 4`, asks the model's provider for its `ContextWindow()` (Gemini: 1,000,000; Ollama: 256,000, a constant — the live `num_ctx` probe in `models.md` § 6 is not used here), and refuses when the estimate exceeds `PromptBudget(model)` = `window − window/8`. A provider reporting `0` is never checked (budget 0). The error is a `ContextTooLargeError` (`the context is about <n> tokens but <model> accepts about <m> — narrow the window or the context`), unwrapping to `ErrContextTooLarge`.
 
-Applied before: chat turns (and again between summaries-mode tool rounds), refinement turns, the lens apply/preview, and snapshot generation. The same `chars / 4` estimate is what `POST /api/context/tokens` reports (`api.md` § 3).
+Applied before: chat turns (and again between summaries-mode tool rounds), refinement turns, the lens apply/preview, and snapshot generation. The same `chars / 4` estimate and the chat role's budget are what `POST /api/context/tokens` reports as `totalTokens`, `limit`, and `fits` (`api.md` § 3); that route ignores any per-conversation model override, so the chat guard remains authoritative.
 
 ## 7. Mentions and flattening
 
 `Flatten(uiMessages)` turns a persisted UI transcript into model messages. Per message: a message carrying a `data-window_reapply` part is dropped entirely; `text` parts are concatenated after `ExpandMentions`; `tool-update_lens` parts are echoed as `[You called update_lens, setting the lens to:]\n<lens>` (the **only** tool part echoed); `tool-read_fragment` / `tool-read_thing` parts with an output are replayed as the assistant's text + `[You called: <names>]` followed by a `user` message holding the outputs (`chat.md` § 5); every other part type (`tool-apply_result`, `tool-suggest_name`, `data-*`) is invisible to the model.
 
-`ExpandMentions` rewrites the client's wire token `@[Kind:id|Label]` (Kind ∈ Fragment, Projection, Reflection, Colour, Type; id ≤ 32 chars of `[A-Za-z0-9_-]`; label ≤ 80 chars without `]` or newlines) into the prompt forms in `prompts.md` § 1. Anything not matching passes through as literal text. The raw token is what persists; expansion happens only at prompt assembly. Mentions do **not** change resolution — the client is expected to have added the item to the spec.
+`ExpandMentions` rewrites the client's wire token `@[Kind:id|Label]` (Kind ∈ Fragment, Projection, Reflection, Colour, Type; id ≤ 32 chars of `[A-Za-z0-9_-]`; label ≤ 80 chars without `]` or newlines; an empty label falls back to the id) into the prompt forms in `prompts.md` § 1. Anything not matching passes through as literal text. The raw token is what persists; expansion happens only at prompt assembly. Mentions do **not** change resolution — the client is expected to have added the item to the spec.

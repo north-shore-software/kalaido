@@ -1,8 +1,6 @@
-> **STALE** — code has changed since this document was generated.
-
 # Kalaidoscope Database Schema — Generated Audit Snapshot
 
-> **Generated:** 2026-09-02, from source at commit `3998ebd`.
+> **Generated:** 2026-09-03, from source at commit `f67e51c`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.
 
 **Scope.** Every collection, field, index, access rule, and stored-JSON shape of the kalaidoscope PocketBase database, plus the migration mechanics and boot-time schema interactions. PocketBase's own system collections (`users`, `_superusers`, …) are covered only where the code touches them.
@@ -14,8 +12,8 @@
 ## 1. Migration mechanics
 
 - The single migration is **ensure-style and idempotent**: pass one creates any missing base collections empty (so relation fields can resolve targets), pass two sets fields, indexes, and rules on every collection.
-- `ensureField` only **adds** fields that are missing by name — it never alters an existing field's definition and never removes fields. A field rename, type change, or changed select values does not propagate by re-running the migration.
-- Indexes are (re-)added by name on every run. Rules are reassigned on every run.
+- `ensureField` only **adds** fields that are missing by name — it never alters an existing field's definition and never removes fields. A field rename, type change, changed select values, or a field dropped from the definition does not propagate by re-running the migration.
+- Indexes are (re-)added by name on every run. Rules are reassigned on every run. A view's query is reassigned on every run.
 - The down migration deletes all collections in reverse definition order.
 - **Access rules** are generated: every enabled operation gets `@request.auth.id != ''`; a disabled operation gets a `nil` rule (superuser/server-only). Flags per collection: `DisableWriteOperations` (create+update+delete), `DisableReadOperations` (list+view), and per-op `DisableCreate`/`DisableUpdate`/`DisableDelete`.
 - Migrations run only via the `migrate` subcommand (`Automigrate: false`); a start with an out-of-date schema is not detected.
@@ -57,8 +55,10 @@ Indexes: `idx_fragment_source_time (source_time)`, `idx_fragment_deleted_at (del
 | `skip_duplicates`, `organize_after` | bool | |
 | `status` | text | `pending`, `done`, `error` (server-written) |
 | `ingested` | number | |
-| `error`, `pipeline`, `pipeline_error` | text | `pipeline`: `mapping`, `organizing`, `done`, `error` |
+| `error` | text | |
 | `created`, `updated` | autodate | |
+
+No pipeline state is stored on the row; the post-import chain is in-memory only (`organize.md` § 7). A database that was migrated under an earlier definition keeps any extra columns it had, unread.
 
 ### 2.3 `colour` — tag definitions
 
@@ -122,7 +122,7 @@ Read **and** write disabled for clients. No `model`, `iterations`, or `converged
 | `projection_id` / `reflection_id` | relation(1), required, cascade | |
 | `status` | text | `generating`, `pending`, `approved`, `discarded` (free text field) |
 | `context_spec` | json | the lens's spec at generation |
-| `resolved_context` | json | `{fragmentIds, snapshotIds}` receipt |
+| `resolved_context` | json | `{fragmentIds, snapshotIds, expandedIds}` receipt (§ 3) |
 | `lens_id` | relation(1) → `lens` | |
 | `output` | json | a JSON string |
 | `created_from_refinement_id` | relation(1) → the matching refinement collection | |
@@ -171,7 +171,7 @@ Indexes on each relation column. Fully client-writable.
 
 ### 2.15 `llm_queue_status` — live scheduler mirror (singleton)
 
-`state` text (`idle` / `active`), `running` json, `waiting` json, `created`, `updated`. Server-written; reset at boot; excluded from the SQL echo log.
+`state` text (`idle` / `active`), `running` json, `waiting` json, `held` json, `created`, `updated`. Server-written; reset at boot; excluded from the SQL echo log.
 
 ### 2.16 `kalaidoscope_config` — workspace config (singleton)
 
@@ -179,7 +179,7 @@ Indexes on each relation column. Fully client-writable.
 
 ### 2.17 `view_stream` — SQL view
 
-Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`, `source_time`, `created`, and `colours` = JSON array of the 0–7 index (`row_number() over (order by created) − 1) mod 8` of each colour the fragment is a member of (`match_type != 'manual_negative'`).
+Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`, `source_time`, `created`, `title` (the fragment's `fragment_annotation.title` via left join; null when unannotated), and `colours` = JSON array of the 0–7 index (`row_number() over (order by created) − 1) mod 8` of each colour the fragment is a member of (`match_type != 'manual_negative'`).
 
 ### 2.18 `reflection_window` — explicitly backfilled windows
 
@@ -215,7 +215,7 @@ Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`,
 | Where | Shape |
 |---|---|
 | `*.current_context_spec`, `lens.context_spec`, `*_snapshot.context_spec` | `{wholeScope?, summaries?, fragmentIds?, fragmentTypes?, colourIds?, sourceProjectionIds?, sourceReflectionIds?}` (`context.md` § 1) |
-| `*_snapshot.resolved_context` | `{fragmentIds?, snapshotIds?}` |
+| `*_snapshot.resolved_context` | `{fragmentIds?, snapshotIds?, expandedIds?}` — `expandedIds` is a rendering hint the snapshot path never reads (`context.md` § 5) |
 | `reflection.window_spec_versions` | `[{versionNumber, effectiveFrom, spec: {mode?, startTime, endTime?, period, duration}}]` |
 | `reflection_snapshot.window_spec` | one `spec` as above; `resolved_window` = `{start, end}` |
 | `lens.prompt`, `*_snapshot.output` | a JSON-encoded string |
@@ -225,14 +225,14 @@ Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`,
 | `fragment_annotation.things` | `[{ref} \| {name, kind, note}]`; `decisions`/`questions`/`conclusions`: `[{text, refs[]}]` |
 | `discover_run.outputs` | `[{kind, id, name, status?}]` |
 | `kalaidoscope_config.role_models` | `{"<role>": "<model>"}` |
-| `llm_queue_status.running` / `waiting` | `[{role, priority, model, started, tokens?, tokens_per_second?}]` / `{"<priority>": count}` |
+| `llm_queue_status.running` / `waiting` / `held` | `[{role, priority, model, started, tokens?, tokens_per_second?}]` / `{"<priority>": count}` / `{reason, until?}` or `null` (`llm-queue-quota.md` § 2.6) |
 
 ## 4. Boot-time schema interactions
 
 - `usage.Setup` fails boot unless `usage` has a unique single-column index on `period`.
 - `resolveModelSet` creates the `kalaidoscope_config` singleton if absent and seeds `model_set`.
 - `registerQueueStatus` finds or creates the `llm_queue_status` singleton and resets it.
-- `mapping.loadDocument` creates the `kalaidoscope_map` singleton (`version 0`) on first use, not at boot.
+- `mapping.loadDocument` creates the `kalaidoscope_map` singleton (`version 0`) on first use, not at boot; the first user is whichever runs first of the aggregate tick, an annotate drain, or a `GET /api/organize`.
 - `SweepGenerationClaims` deletes every `*_snapshot` row with `status = 'generating'`.
 - `seedSidecarUser` upserts the `users` record `user@kalaido.local`.
 
