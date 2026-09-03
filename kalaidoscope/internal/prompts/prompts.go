@@ -202,6 +202,25 @@ const (
 	RemovedNotice = "The following documents were REMOVED from the active context and should no longer be relied upon:\n"
 )
 
+// OmittedAddedNotice stands in for documents that entered the context at this
+// point but had left it again by the end of the conversation: their content
+// is not shown, so the transcript stays the size of the context it has now.
+func OmittedAddedNotice(n int) string {
+	return fmt.Sprintf("%d further documents were added to the active context here and removed again later in the conversation; they are not shown.\n\n", n)
+}
+
+// RestoredNotice announces documents that were removed earlier and are back:
+// they were shown in full or as rows when they first entered, and that copy
+// is the one to use again.
+func RestoredNotice(n int) string {
+	return fmt.Sprintf("%d documents removed earlier are back in the active context; rely on them again as first shown above.\n\n", n)
+}
+
+// OmittedRemovedLine closes the books on omitted documents under RemovedNotice.
+func OmittedRemovedLine(n int) string {
+	return fmt.Sprintf("- %d documents not shown above\n", n)
+}
+
 // WindowNotice announces the time window a reflection refinement is bound to.
 // It rides the same system turn as the context delta, so the lens-writing
 // model knows which slice of time its lens is being previewed against and can

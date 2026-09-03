@@ -50,8 +50,7 @@ func TestHydrateDeltaSummaries(t *testing.T) {
 }
 
 // A pinned fragment renders in full under summaries mode while the rest of the
-// scope renders as rows — once each, and a promotion (already in scope, newly
-// pinned) renders the body alone.
+// scope renders as rows — once each.
 func TestHydrateDeltaSummariesKeepsPinsFull(t *testing.T) {
 	app := testutil.NewApp(t)
 	pinned := addFragment(t, app, "email", "THE PINNED BODY")
@@ -78,15 +77,6 @@ func TestHydrateDeltaSummariesKeepsPinsFull(t *testing.T) {
 	}
 	if strings.Index(text, prompts.AddedNotice) > strings.Index(text, prompts.SummariesAddedNotice) {
 		t.Errorf("full blocks should precede the rows:\n%s", text)
-	}
-
-	promoted := llmcontext.PinnedIDs{ExpandedIDs: []string{rowed.Id}}
-	text, err = llmcontext.HydrateDeltaToText(context.Background(), app, promoted, llmcontext.PinnedIDs{}, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(text, "THE ROWED BODY") || strings.Contains(text, prompts.SummariesAddedNotice) {
-		t.Errorf("promotion did not render the body alone:\n%s", text)
 	}
 
 	// Full mode ignores the expansion: everything is a body, once.

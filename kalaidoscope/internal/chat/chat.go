@@ -292,14 +292,17 @@ func messageWindow(m api.UIMessage) *api.Window {
 	return nil
 }
 
-// HydrateDeltaHistory renders the transcript for the model. The mode is the
-// conversation's current one, applied to every delta: a transcript that turned
-// summaries on after a failed full-mode turn re-renders its whole context as
-// rows, which is what lets that turn recover.
+// HydrateDeltaHistory renders the transcript for the model. Every delta is
+// rendered against the conversation's *final* context and mode (see
+// llmcontext.Hydrator): a transcript that turned summaries on after a failed
+// full-mode turn re-renders its whole context as rows, which is what lets that
+// turn recover, and one narrowed from whole scope to a few pins carries only
+// those pins' bodies.
 func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMessage) []llm.Message {
 	var activeIDs llmcontext.PinnedIDs
 	var hydratedMsgs []llm.Message
-	summaries := ConversationSummaries(allMsgs)
+	final, spec, _ := llmcontext.LatestPinnedAndSpec(allMsgs)
+	hydrator := llmcontext.NewHydrator(app, final, spec.Summaries)
 
 	for _, m := range allMsgs {
 		if m.Role == "system" {
@@ -318,7 +321,7 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 			}
 			if foundPinned {
 				added, removed := llmcontext.DiffPinnedIDs(activeIDs, pinned)
-				deltaText, _ := llmcontext.HydrateDeltaToText(ctx, app, added, removed, summaries)
+				deltaText, _ := hydrator.Delta(ctx, added, removed)
 				text += deltaText
 				activeIDs = pinned
 			}

@@ -256,19 +256,17 @@ func TestResolveWholeScopeExpandsPins(t *testing.T) {
 	}
 }
 
-// Pinning a fragment already in scope shows up in the expanded delta alone.
-func TestDiffPinnedIDsCoversExpanded(t *testing.T) {
+// The diff is scope only: pinning a fragment already in scope changes nothing.
+func TestDiffPinnedIDsIsScopeOnly(t *testing.T) {
 	old := llmcontext.PinnedIDs{FragmentIDs: []string{"a", "b"}}
 	new := llmcontext.PinnedIDs{FragmentIDs: []string{"a", "b", "c"}, ExpandedIDs: []string{"b"}}
 	added, removed := llmcontext.DiffPinnedIDs(old, new)
 	assertIDs(t, added.FragmentIDs, []string{"c"})
-	assertIDs(t, added.ExpandedIDs, []string{"b"})
-	if !removed.IsEmpty() || len(removed.ExpandedIDs) != 0 {
-		t.Errorf("removed = %+v, want nothing", removed)
+	if !removed.IsEmpty() || len(added.ExpandedIDs) != 0 {
+		t.Errorf("added/removed = %+v / %+v", added, removed)
 	}
 	added, removed = llmcontext.DiffPinnedIDs(new, old)
 	assertIDs(t, removed.FragmentIDs, []string{"c"})
-	assertIDs(t, removed.ExpandedIDs, []string{"b"})
 	if !added.IsEmpty() {
 		t.Errorf("added = %+v, want nothing", added)
 	}

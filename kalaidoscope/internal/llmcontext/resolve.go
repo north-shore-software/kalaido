@@ -314,12 +314,11 @@ func LatestPinnedAndSpec(msgs []api.UIMessage) (PinnedIDs, api.ContextSpec, *api
 }
 
 // DiffPinnedIDs reports what entered and left the context between two states.
-// ExpandedIDs diff too: a fragment already in scope that gets pinned appears
-// in added.ExpandedIDs without appearing in added.FragmentIDs.
+// ExpandedIDs is not diffed: how a fragment renders is decided by the
+// conversation's final context (see Hydrator), not by when it was pinned.
 func DiffPinnedIDs(old, new PinnedIDs) (added, removed PinnedIDs) {
 	added.FragmentIDs, removed.FragmentIDs = diffIDs(old.FragmentIDs, new.FragmentIDs)
 	added.SnapshotIDs, removed.SnapshotIDs = diffIDs(old.SnapshotIDs, new.SnapshotIDs)
-	added.ExpandedIDs, removed.ExpandedIDs = diffIDs(old.ExpandedIDs, new.ExpandedIDs)
 	return added, removed
 }
 
