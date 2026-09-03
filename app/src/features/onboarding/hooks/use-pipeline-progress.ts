@@ -5,8 +5,10 @@ import { organizeStage, pipelineProgress } from "../pipeline-progress";
 /**
  * Splash-facing view of the workspace organise pipeline. The status is
  * workspace-wide, not per import: an `organize_after` import drains every
- * pending fragment anyway, so this is what actually happens. A fetch failure
- * reads as idle so the splash ends rather than spinning.
+ * pending fragment anyway, so this is what actually happens. The splash hands
+ * over once colours discovery is done; projections and reflections keep going
+ * behind the app. A fetch failure reads as idle so the splash ends rather than
+ * spinning.
  */
 export function usePipelineProgress() {
   const { status, error } = useOrganizeStatus();

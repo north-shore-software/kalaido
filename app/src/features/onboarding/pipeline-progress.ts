@@ -10,8 +10,9 @@ const ORGANIZING_SPAN = 0.25;
 
 /**
  * The splash's view of the workspace organise pipeline: `""` until the first
- * status arrives, then the stage that is actually moving, and `idle` once
- * nothing is in flight or queued — whether or not work is left over.
+ * status arrives, then the stage that is actually moving, and `idle` once the
+ * map and colours are done — whether or not work is left over. Projections and
+ * reflections discovery run on behind the app and never hold the splash.
  */
 export type OrganizeStage =
   | ""
@@ -30,8 +31,8 @@ export function organizeStage(status: OrganizeStatus | null): OrganizeStage {
     return "mapping";
   }
   if (
-    status.discover.state === "running" ||
-    status.discover.state === "pending"
+    status.discover.running === "colours" ||
+    status.discover.pending.includes("colours")
   ) {
     return "organizing";
   }
@@ -49,8 +50,10 @@ export function pipelineProgress(status: OrganizeStatus | null): number {
     case "idle":
       return 1;
     case "organizing": {
-      const running = status?.discover.running;
-      const rounds = running ? status?.discover.runs[running]?.rounds : 0;
+      const rounds =
+        status?.discover.running === "colours"
+          ? status.discover.runs.colours?.rounds
+          : 0;
       return ORGANIZING_START + ORGANIZING_SPAN * fraction(rounds, MAX_ROUNDS);
     }
     case "mapping":

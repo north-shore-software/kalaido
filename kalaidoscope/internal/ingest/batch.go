@@ -157,11 +157,11 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		log.Printf("ingest: save status for %s: %v", recID, err)
 	}
 	log.Printf("ingest: completed record %s (ingested %d fragments across %d file(s))", recID, total, len(files))
-	if cfg.organizeAfter && ingestErr == nil {
+	if cfg.organizeAfter {
 		startPipeline()
 		return
 	}
-	mapping.SignalAuto()
+	mapping.SignalAnnotate()
 }
 
 func normalizeExtensions(s string) []string {

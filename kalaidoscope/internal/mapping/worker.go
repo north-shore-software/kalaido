@@ -21,9 +21,9 @@ const (
 	maxThrottledAttempts = 6
 )
 
-const autoMapEnabled = false
-
 var signal = make(chan struct{}, 1)
+
+var wantSettle atomic.Bool
 
 var followUps followup.Queue
 
@@ -42,8 +42,6 @@ func LastDrainError() string {
 	defer drainErrMu.Unlock()
 	return lastDrainError
 }
-
-func AutoMapEnabled() bool { return autoMapEnabled }
 
 func setLastDrainError(err error) {
 	drainErrMu.Lock()
@@ -64,24 +62,22 @@ func Register(app core.App) {
 			return err
 		}
 		if n, err := pendingCount(app); err == nil && n > 0 {
-			SignalAuto()
+			SignalAnnotate()
 		}
 		return nil
 	})
 }
 
 func Signal() {
+	wantSettle.Store(true)
+	SignalAnnotate()
+}
+
+func SignalAnnotate() {
 	select {
 	case signal <- struct{}{}:
 	default:
 	}
-}
-
-func SignalAuto() {
-	if !autoMapEnabled {
-		return
-	}
-	Signal()
 }
 
 func AfterDrain(fn func(err error)) {
@@ -91,8 +87,9 @@ func AfterDrain(fn func(err error)) {
 func loop() {
 	for range signal {
 		active := followUps.Take()
+		full := wantSettle.Swap(false)
 		annotating.Store(true)
-		err := drain(workerApp)
+		err := drain(workerApp, full)
 		annotating.Store(false)
 		setLastDrainError(err)
 		if err != nil {
@@ -147,7 +144,7 @@ func pendingCount(app core.App) (int, error) {
 	return len(pending), nil
 }
 
-func drain(app core.App) error {
+func drain(app core.App, full bool) error {
 	model, err := llm.ResolveRole(llm.RoleAnnotate)
 	if err != nil {
 		return err
@@ -206,7 +203,9 @@ func drain(app core.App) error {
 			break
 		}
 	}
-	settle(app)
+	if full {
+		settle(app)
+	}
 	return firstErr
 }
 
