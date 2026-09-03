@@ -1,6 +1,7 @@
 package discover
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -20,9 +21,10 @@ func rhythmContext(rows []mapping.Row, things ...string) *Context {
 	byThing := mapping.IndexRows(doc, rows)
 	c := &Context{Reader: &Reader{Doc: doc, Rows: rows, ByThing: byThing}, ByColour: map[string][]int{}, covered: map[string]bool{}}
 	for _, id := range things {
-		info := colourInfo{ID: id, Name: "Colour " + id, ThingNames: []string{"Thing " + id}, RowIdx: byThing[id]}
+		info := colourInfo{ID: id, Name: "Colour " + id, ThingIDs: []string{id}, ThingNames: []string{"Thing " + id}, RowIdx: byThing[id], rowSet: map[int]bool{}}
 		for _, i := range info.RowIdx {
 			info.Members = append(info.Members, rows[i].FragmentID)
+			info.rowSet[i] = true
 		}
 		info.First, info.Last = c.span(info.RowIdx)
 		c.Colours = append(c.Colours, info)
@@ -66,13 +68,13 @@ func findRhythm(rs []Rhythm, ids ...string) *Rhythm {
 	return nil
 }
 
-// A colour with a fragment every Monday for ten weeks is regular at the week
+// A thing with a fragment every Monday for ten weeks is regular at the week
 // grain, and its onset is the start of that run — a stray mention months earlier is
 // neither the onset nor a reason to lower the regularity below the run's.
-func TestColourRhythmOnsetSkipsStrayMention(t *testing.T) {
+func TestThingRhythmOnsetSkipsStrayMention(t *testing.T) {
 	rows := append([]mapping.Row{row("2024-06-05", "t_a")}, weeklyRows("2025-03-03", 10, "t_a")...)
 	c := rhythmContext(rows, "t_a")
-	r := findRhythm(c.colourRhythms(rhythmGrainWeek, 1, nil), "t_a")
+	r := findRhythm(c.thingRhythms(rhythmGrainWeek, 1, nil), "t_a")
 	if r == nil {
 		t.Fatal("no rhythm for t_a")
 	}
@@ -99,7 +101,7 @@ func TestBurstIsOneBucket(t *testing.T) {
 		rows = append(rows, r)
 	}
 	c := rhythmContext(rows, "t_b")
-	r := findRhythm(c.colourRhythms(rhythmGrainWeek, 1, nil), "t_b")
+	r := findRhythm(c.thingRhythms(rhythmGrainWeek, 1, nil), "t_b")
 	if r == nil || r.ActiveBuckets != 1 || r.SpanBuckets != 1 || r.Total != 10 {
 		t.Fatalf("burst rhythm = %+v, want one active bucket of ten", r)
 	}
@@ -113,7 +115,7 @@ func TestBurstIsOneBucket(t *testing.T) {
 func TestMonthGrainSpansYearBoundary(t *testing.T) {
 	rows := []mapping.Row{row("2024-11-10", "t_c"), row("2024-12-02", "t_c"), row("2025-01-20", "t_c"), row("2025-03-01", "t_c")}
 	c := rhythmContext(rows, "t_c")
-	r := findRhythm(c.colourRhythms(rhythmGrainMonth, 1, nil), "t_c")
+	r := findRhythm(c.thingRhythms(rhythmGrainMonth, 1, nil), "t_c")
 	if r == nil || r.ActiveBuckets != 4 || r.SpanBuckets != 5 {
 		t.Fatalf("rhythm = %+v, want 4 active of 5 months", r)
 	}
@@ -122,16 +124,16 @@ func TestMonthGrainSpansYearBoundary(t *testing.T) {
 	}
 }
 
-// Pairs count the buckets in which both colours hold the same fragment; a
-// colour holding most of the workspace is ubiquitous and never paired.
-func TestPairRhythmsExcludeUbiquitousColours(t *testing.T) {
+// Pairs count the buckets in which both things are cited together; a thing
+// cited across most of the workspace is ubiquitous and never paired.
+func TestPairRhythmsExcludeUbiquitousThings(t *testing.T) {
 	// t_u appears on every row (the user); t_a and t_b appear together for
 	// four weeks; t_a alone for a further twenty.
 	rows := weeklyRows("2025-01-06", 4, "t_a", "t_b", "t_u")
 	rows = append(rows, weeklyRows("2025-02-03", 20, "t_a", "t_u")...)
 	c := rhythmContext(rows, "t_a", "t_b", "t_u")
 
-	singles := c.colourRhythms(rhythmGrainWeek, 1, nil)
+	singles := c.thingRhythms(rhythmGrainWeek, 1, nil)
 	if u := findRhythm(singles, "t_u"); u == nil || !u.Ubiquitous {
 		t.Fatalf("t_u should be flagged ubiquitous: %+v", u)
 	}
@@ -143,7 +145,7 @@ func TestPairRhythmsExcludeUbiquitousColours(t *testing.T) {
 	for _, p := range pairs {
 		for _, id := range p.IDs {
 			if id == "t_u" || id == "t_a" {
-				t.Fatalf("ubiquitous colour %s paired: %+v", id, p)
+				t.Fatalf("ubiquitous thing %s paired: %+v", id, p)
 			}
 		}
 	}
@@ -166,19 +168,57 @@ func TestPairRhythmsExcludeUbiquitousColours(t *testing.T) {
 }
 
 // The restriction passed to the rhythms tool keeps singles to the given
-// colours and pairs to those containing one of them.
+// things and pairs to those containing one of them.
 func TestRhythmsRestriction(t *testing.T) {
 	rows := weeklyRows("2025-01-06", 5, "t_a", "t_b")
 	rows = append(rows, weeklyRows("2025-01-06", 5, "t_c", "t_d")...)
 	rows = append(rows, weeklyRows("2025-06-02", 30, "t_e")...)
 	c := rhythmContext(rows, "t_a", "t_b", "t_c", "t_d", "t_e")
 	only := map[string]bool{"t_a": true}
-	singles := c.colourRhythms(rhythmGrainWeek, 1, only)
+	singles := c.thingRhythms(rhythmGrainWeek, 1, only)
 	if len(singles) != 1 || singles[0].IDs[0] != "t_a" {
 		t.Fatalf("singles = %+v, want only t_a", singles)
 	}
 	pairs := c.pairRhythms(rhythmGrainWeek, 1, only)
 	if len(pairs) != 1 || findRhythm(pairs, "t_a", "t_b") == nil {
 		t.Fatalf("pairs = %+v, want only a+b", pairs)
+	}
+}
+
+// A card's cover line names the colours holding the rhythm's rows: the one
+// built on the thing first, then by rows held, then what no colour holds.
+func TestRhythmCoverLine(t *testing.T) {
+	// t_a: 40 weekly rows; its own colour holds all 40. t_b: 40 rows, no
+	// colour of its own; t_a's colour holds the first 30 (cited together),
+	// the last 10 are in no colour. t_c: 5 rows nothing covers.
+	rows := weeklyRows("2025-01-06", 30, "t_a", "t_b")
+	rows = append(rows, weeklyRows("2025-08-04", 10, "t_a")...)
+	rows = append(rows, weeklyRows("2025-08-04", 10, "t_b")...)
+	rows = append(rows, weeklyRows("2026-01-05", 5, "t_c")...)
+	c := rhythmContext(rows, "t_a")
+	// Pad so nothing is ubiquitous.
+	c.Doc.Things = append(c.Doc.Things, mapdoc.Thing{ID: "t_b", Name: "Thing t_b"}, mapdoc.Thing{ID: "t_c", Name: "Thing t_c"}, mapdoc.Thing{ID: "t_pad", Name: "Pad"})
+	c.Rows = append(c.Rows, weeklyRows("2024-01-01", 120, "t_pad")...)
+	c.ByThing = mapping.IndexRows(c.Doc, c.Rows)
+
+	if got := c.coverLine(c.rhythmRows([]string{"t_a"}), []string{"t_a"}); got != "covered by: Colour t_a (t_a, built on it) 40 of 40" {
+		t.Fatalf("t_a cover = %q", got)
+	}
+	if got := c.coverLine(c.rhythmRows([]string{"t_b"}), []string{"t_b"}); got != "covered by: Colour t_a (t_a) 30 of 40 · 10 in no colour" {
+		t.Fatalf("t_b cover = %q", got)
+	}
+	if got := c.coverLine(c.rhythmRows([]string{"t_c"}), []string{"t_c"}); got != "no colour covers it: not proposable in this run" {
+		t.Fatalf("t_c cover = %q", got)
+	}
+	// A pair's rows are the ones citing both; the colour is not built on both.
+	if got := c.coverLine(c.rhythmRows([]string{"t_a", "t_b"}), []string{"t_a", "t_b"}); got != "covered by: Colour t_a (t_a) 30 of 30" {
+		t.Fatalf("pair cover = %q", got)
+	}
+	if held := c.heldBy([]string{"Colour t_a"}, c.rhythmRows([]string{"t_b"})); held != 30 {
+		t.Fatalf("heldBy = %d, want 30", held)
+	}
+	cards := c.rhythmCards(c.thingRhythms(rhythmGrainWeek, 1, map[string]bool{"t_b": true}))
+	if len(cards) != 1 || cards[0].Cover == "" || !strings.Contains(prompts.DiscoverRhythmCard(cards[0]), "\n  covered by: Colour t_a") {
+		t.Fatalf("card = %+v", cards)
 	}
 }

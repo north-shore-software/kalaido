@@ -112,7 +112,8 @@ func TestProposeProjectionPinsColours(t *testing.T) {
 }
 
 // Projections and reflections cannot run before colours exist; the colours
-// flow can.
+// flow can. Neither pins fragments; only reflections take things, as the
+// evidence a proposal is made from.
 func TestColourScopedFlowsNeedColours(t *testing.T) {
 	app := testutil.NewApp(t)
 	testutil.NewRecord(t, app, "kalaidoscope_map", map[string]any{"body": json.RawMessage(coloursMapBody), "version": 1})
@@ -133,8 +134,11 @@ func TestColourScopedFlowsNeedColours(t *testing.T) {
 			if !json.Valid(tool.Parameters) {
 				t.Fatalf("%s parameters are not valid JSON: %s", tool.Name, tool.Parameters)
 			}
-			if strings.Contains(string(tool.Parameters), "thingIds") || strings.Contains(string(tool.Parameters), "fragmentIds") {
-				t.Fatalf("%s still offers thing or fragment pins: %s", tool.Name, tool.Parameters)
+			if strings.Contains(string(tool.Parameters), "fragmentIds") {
+				t.Fatalf("%s still offers fragment pins: %s", tool.Name, tool.Parameters)
+			}
+			if flow.Kind() == "projections" && strings.Contains(string(tool.Parameters), "thingIds") {
+				t.Fatalf("%s still offers thing pins: %s", tool.Name, tool.Parameters)
 			}
 		}
 	}

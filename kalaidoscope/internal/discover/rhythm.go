@@ -9,10 +9,13 @@ import (
 )
 
 // Rhythm detection is the reflections flow's evidence: a reflection is about
-// a rhythm, not a thing, so the flow needs to know which scopes (one colour,
-// or a pair of colours sharing fragments) keep producing material at a steady
-// cadence, and since when. All of it is computed here from the colours'
-// member rows; the model only reads the result.
+// a rhythm, not a thing, so the flow needs to know which things (one, or a
+// pair cited together) keep producing material at a steady cadence, and since
+// when. Things are the finest grain the map has, so periodicity shows there
+// even when no colour isolates it; each card then says which existing colours
+// cover the rhythm's fragments, because a proposal's scope is colours. All of
+// it is computed here from the annotation rows; the model only reads the
+// result.
 const (
 	rhythmGrainWeek  = "week"
 	rhythmGrainMonth = "month"
@@ -27,6 +30,12 @@ const (
 	ubiquityShare   = 0.4
 	ubiquityMinRows = 20
 
+	// A proposal's colours must hold at least this share of the rhythm's rows,
+	// or the series would summarise something else; and a card lists at most
+	// this many covering colours.
+	rhythmCoverFloor = 0.5
+	rhythmCoverList  = 3
+
 	rhythmPairLimit    = 25
 	rhythmSingleLimit  = 25
 	rhythmBucketSample = 12
@@ -39,8 +48,8 @@ type rhythmBucket struct {
 	title   string
 }
 
-// Rhythm is one scope's cadence at one grain: IDs is the colour, or the pair
-// of colours, it measures. Buckets holds only the active buckets, in order.
+// Rhythm is one scope's cadence at one grain: IDs is the thing, or the pair
+// of things, it measures. Buckets holds only the active buckets, in order.
 type Rhythm struct {
 	IDs           []string
 	Grain         string
@@ -153,8 +162,8 @@ func (c *Context) ubiquitousRows(n int) bool {
 	return float64(n) > ubiquityShare*float64(len(c.Rows))
 }
 
-// ubiquitous is the thing form, used by the colours flow to refuse a colour
-// on the user or their own organisation.
+// ubiquitous is the thing form: the colours flow refuses a colour on the user
+// or their own organisation, and a rhythm on such a thing is the cast.
 func (c *Context) ubiquitous(thingID string) bool {
 	return c.ubiquitousRows(len(c.ByThing[thingID]))
 }
@@ -165,15 +174,15 @@ func (c *Context) ubiquitousColour(colourID string) bool {
 	return c.ubiquitousRows(len(c.ByColour[colourID]))
 }
 
-// colourRhythms scores every colour with at least floor member rows (or only
-// `only`, when given) at one grain.
-func (c *Context) colourRhythms(grain string, floor int, only map[string]bool) []Rhythm {
+// thingRhythms scores every thing with at least floor rows (or only `only`,
+// when given) at one grain.
+func (c *Context) thingRhythms(grain string, floor int, only map[string]bool) []Rhythm {
 	var out []Rhythm
-	for id, idxs := range c.ByColour {
+	for id, idxs := range c.ByThing {
 		if only != nil && !only[id] {
 			continue
 		}
-		if len(idxs) < floor {
+		if len(idxs) < floor || c.Doc.Find(id) == nil {
 			continue
 		}
 		acc := newRhythmAccumulator(grain)
@@ -181,30 +190,30 @@ func (c *Context) colourRhythms(grain string, floor int, only map[string]bool) [
 			acc.add(c.Rows[i])
 		}
 		r := acc.rhythm([]string{id})
-		r.Ubiquitous = c.ubiquitousColour(id)
+		r.Ubiquitous = c.ubiquitous(id)
 		out = append(out, r)
 	}
 	sortRhythms(out)
 	return out
 }
 
-// pairRhythms scores pairs of non-ubiquitous colours that share member rows.
-// With `only` set, a pair must include one of the given colours.
+// pairRhythms scores pairs of non-ubiquitous things cited in the same rows.
+// With `only` set, a pair must include one of the given things.
 func (c *Context) pairRhythms(grain string, floor int, only map[string]bool) []Rhythm {
 	eligible := map[string]bool{}
-	for id, idxs := range c.ByColour {
-		if len(idxs) >= floor && !c.ubiquitousColour(id) {
+	for id, idxs := range c.ByThing {
+		if len(idxs) >= floor && c.Doc.Find(id) != nil && !c.ubiquitous(id) {
 			eligible[id] = true
 		}
 	}
-	rowColours := make([][]string, len(c.Rows))
+	rowThings := make([][]string, len(c.Rows))
 	for id := range eligible {
-		for _, i := range c.ByColour[id] {
-			rowColours[i] = append(rowColours[i], id)
+		for _, i := range c.ByThing[id] {
+			rowThings[i] = append(rowThings[i], id)
 		}
 	}
 	accs := map[[2]string]*rhythmAccumulator{}
-	for i, ids := range rowColours {
+	for i, ids := range rowThings {
 		if len(ids) < 2 {
 			continue
 		}
@@ -254,13 +263,35 @@ func sortRhythms(rs []Rhythm) {
 	})
 }
 
+// rhythmRows is the union of the rows citing the rhythm's things: for a pair,
+// the rows citing both, which is what its buckets counted.
+func (c *Context) rhythmRows(ids []string) []int {
+	if len(ids) == 1 {
+		return c.ByThing[ids[0]]
+	}
+	count := map[int]int{}
+	for _, id := range ids {
+		for _, i := range c.ByThing[id] {
+			count[i]++
+		}
+	}
+	var out []int
+	for i, n := range count {
+		if n == len(ids) {
+			out = append(out, i)
+		}
+	}
+	sort.Ints(out)
+	return out
+}
+
 // rhythmsBlock renders singles and pairs at a grain for the model. `only`
-// restricts both lists to the given colours (nil = everything).
+// restricts both lists to the given things (nil = everything).
 func (c *Context) rhythmsBlock(grain string, only map[string]bool) string {
 	if grain != rhythmGrainWeek {
 		grain = rhythmGrainMonth
 	}
-	singles := c.colourRhythms(grain, worklistFloor, only)
+	singles := c.thingRhythms(grain, worklistFloor, only)
 	if len(singles) > rhythmSingleLimit {
 		singles = singles[:rhythmSingleLimit]
 	}
@@ -277,11 +308,12 @@ func (c *Context) rhythmCards(rs []Rhythm) []prompts.DiscoverRhythm {
 		}
 		for _, id := range r.IDs {
 			name := id
-			if info := c.colourByRef(id); info != nil {
-				name = info.Name
+			if t := c.Doc.Find(id); t != nil {
+				name = t.Name
 			}
 			card.Scopes = append(card.Scopes, prompts.DiscoverRhythmScope{ID: id, Name: name})
 		}
+		card.Cover = c.coverLine(c.rhythmRows(r.IDs), r.IDs)
 		if r.ActiveBuckets > 0 {
 			card.First = r.First.Format("2006-01-02")
 			card.Last = r.Last.Format("2006-01-02")

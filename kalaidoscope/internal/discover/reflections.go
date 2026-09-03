@@ -14,13 +14,17 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-// reflectionsFlow proposes reflections: colour scopes with a rhythm. The
-// evidence is computed, not asked for (rhythm.go); the model reads it, judges
-// which rhythms are a nameable recurring activity, and proposes each with a
-// cadence from a fixed vocabulary and the date it started. Go builds the
-// schedule, so a proposal can never carry an unparseable period, and the first
-// version is effective from the onset: opening and committing the proposal
-// backfills the series from there, exactly as "summarize from <date>" does.
+// reflectionsFlow proposes reflections: a rhythm found over map things, scoped
+// by the existing topic colours that cover it. The evidence is computed, not
+// asked for (rhythm.go); the model reads it, judges which rhythms are a
+// nameable recurring activity, and proposes each with a cadence from a fixed
+// vocabulary and the date it started. Colours stay what they are — the
+// workspace's topics — and this run makes none: the rhythm itself lives in the
+// schedule and the lens, and a rhythm no colour covers is reported, not
+// proposed. Go builds the schedule, so a proposal can never carry an
+// unparseable period, and the first version is effective from the onset:
+// opening and committing the proposal backfills the series from there,
+// exactly as "summarize from <date>" does.
 type reflectionsFlow struct{}
 
 func (reflectionsFlow) Kind() string   { return "reflections" }
@@ -48,7 +52,7 @@ var rhythmsTool = llm.Tool{
 	Description: prompts.RhythmsToolDescription,
 	Parameters: json.RawMessage(`{"type":"object","properties":{` +
 		`"grain":{"type":"string","enum":["week","month"],"description":` + strconv.Quote(prompts.RhythmsGrainParamDescription) + `},` +
-		`"colourIds":` + stringArray(prompts.RhythmsColourIDsParamDescription) +
+		`"thingIds":` + stringArray(prompts.RhythmsThingIDsParamDescription) +
 		`},"required":["grain"]}`),
 }
 
@@ -58,10 +62,11 @@ var proposeReflectionTool = llm.Tool{
 	Parameters: json.RawMessage(`{"type":"object","properties":{` +
 		`"name":{"type":"string","description":` + strconv.Quote(prompts.ProposeReflectionNameParamDescription) + `},` +
 		`"message":{"type":"string","description":` + strconv.Quote(prompts.ProposeReflectionMessageParamDescription) + `},` +
-		`"colourIds":` + stringArray(prompts.ProposeColourIDsParamDescription) + `,` +
+		`"thingIds":` + stringArray(prompts.ProposeReflectionThingIDsParamDescription) + `,` +
+		`"colourIds":` + stringArray(prompts.ProposeReflectionColourIDsParamDescription) + `,` +
 		`"cadence":{"type":"string","enum":["daily","weekly","monthly","quarterly"],"description":` + strconv.Quote(prompts.ProposeCadenceParamDescription) + `},` +
 		`"startTime":{"type":"string","description":` + strconv.Quote(prompts.ProposeStartTimeParamDescription) + `}` +
-		`},"required":["name","message","colourIds","cadence","startTime"]}`),
+		`},"required":["name","message","thingIds","colourIds","cadence","startTime"]}`),
 }
 
 func (reflectionsFlow) Tools(c *Context) []llm.Tool {
@@ -77,13 +82,14 @@ func (reflectionsFlow) Coverage(c *Context, existing []Existing) string {
 }
 
 type rhythmsArgs struct {
-	Grain     string   `json:"grain"`
-	ColourIDs []string `json:"colourIds"`
+	Grain    string   `json:"grain"`
+	ThingIDs []string `json:"thingIds"`
 }
 
 type proposeReflectionArgs struct {
 	Name      string   `json:"name"`
 	Message   string   `json:"message"`
+	ThingIDs  []string `json:"thingIds"`
 	ColourIDs []string `json:"colourIds"`
 	Cadence   string   `json:"cadence"`
 	StartTime string   `json:"startTime"`
@@ -106,8 +112,8 @@ func (reflectionsFlow) rhythms(c *Context, call llm.ToolCall) string {
 		return prompts.DiscoverRejected(prompts.DiscoverBadArgs)
 	}
 	var only map[string]bool
-	if len(args.ColourIDs) > 0 {
-		ids, reject := c.resolveColours(args.ColourIDs)
+	if len(args.ThingIDs) > 0 {
+		ids, reject := c.resolveThings(args.ThingIDs)
 		if reject != "" {
 			return prompts.DiscoverRejected(reject)
 		}
@@ -133,6 +139,23 @@ func (reflectionsFlow) propose(c *Context, call llm.ToolCall, now time.Time) (st
 	if reject != "" {
 		return prompts.DiscoverRejected(reject), nil, nil
 	}
+	// The things are the evidence: the rhythm the card measured. The colours
+	// are the scope, and they must actually hold that rhythm's material.
+	thingIDs, reject := c.resolveThings(args.ThingIDs)
+	if reject != "" {
+		return prompts.DiscoverRejected(reject), nil, nil
+	}
+	if len(thingIDs) == 0 {
+		return prompts.DiscoverRejected(prompts.DiscoverReflectionThingsRequired), nil, nil
+	}
+	var thingNames []string
+	for _, id := range thingIDs {
+		t := c.Doc.Find(id)
+		if c.ubiquitous(id) {
+			return prompts.DiscoverRejected(prompts.DiscoverUbiquitousThing(t.Name, id)), nil, nil
+		}
+		thingNames = append(thingNames, t.Name)
+	}
 	colourIDs, reject := c.resolveColours(args.ColourIDs)
 	if reject != "" {
 		return prompts.DiscoverRejected(reject), nil, nil
@@ -145,6 +168,15 @@ func (reflectionsFlow) propose(c *Context, call llm.ToolCall, now time.Time) (st
 			return prompts.DiscoverRejected(prompts.DiscoverUbiquitousColour(c.colourByRef(id).Name, id)), nil, nil
 		}
 	}
+	rows := c.rhythmRows(thingIDs)
+	held := c.heldBy(colourIDs, rows)
+	if float64(held) < rhythmCoverFloor*float64(len(rows)) {
+		covers, _ := c.coversFor(rows, thingIDs)
+		if len(covers) > rhythmCoverList {
+			covers = covers[:rhythmCoverList]
+		}
+		return prompts.DiscoverRejected(prompts.DiscoverScopeMissesRhythm(held, len(rows), thingNames, coverLines(covers))), nil, nil
+	}
 	contextSpec := api.ContextSpec{ColourIDs: colourIDs}
 	versions := engine.AppendWindowSpecVersion(nil, spec, start)
 	rec, err := insertProposed(c, "reflection", args.Name, args.Message, contextSpec, map[string]any{
@@ -156,7 +188,7 @@ func (reflectionsFlow) propose(c *Context, call llm.ToolCall, now time.Time) (st
 	members := c.fragmentIDsForColours(colourIDs)
 	c.markCovered(members)
 	out := &Output{Kind: "reflection", ID: rec.Id, Name: args.Name, Status: engine.EntityProposed}
-	return prompts.DiscoverProposedReflection(args.Name, rec.Id, len(members), args.Cadence, start.Format("2006-01-02")), out, nil
+	return prompts.DiscoverProposedReflection(args.Name, rec.Id, len(members), held, len(rows), thingNames, args.Cadence, start.Format("2006-01-02")), out, nil
 }
 
 // buildReflectionSpec turns the model's cadence word and start date into the
