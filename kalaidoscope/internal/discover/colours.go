@@ -44,6 +44,10 @@ func (coloursFlow) Existing(c *Context) ([]Existing, error) {
 	return existingEntities(c)
 }
 
+func (coloursFlow) Coverage(c *Context, existing []Existing) string {
+	return c.coverage(existing)
+}
+
 type createColourArgs struct {
 	Name     string   `json:"name"`
 	ThingIDs []string `json:"thingIds"`

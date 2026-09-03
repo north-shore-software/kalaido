@@ -9,12 +9,26 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
+// rhythmContext builds a run context over rows citing the given things, with
+// one colour per thing (same id, members = the rows citing it), which is what
+// the colours flow would have made.
 func rhythmContext(rows []mapping.Row, things ...string) *Context {
 	doc := &mapdoc.Document{}
 	for _, id := range things {
 		doc.Things = append(doc.Things, mapdoc.Thing{ID: id, Name: "Thing " + id, Fragments: 99})
 	}
-	return &Context{Reader: &Reader{Doc: doc, Rows: rows, ByThing: mapping.IndexRows(doc, rows)}, covered: map[string]bool{}}
+	byThing := mapping.IndexRows(doc, rows)
+	c := &Context{Reader: &Reader{Doc: doc, Rows: rows, ByThing: byThing}, ByColour: map[string][]int{}, covered: map[string]bool{}}
+	for _, id := range things {
+		info := colourInfo{ID: id, Name: "Colour " + id, ThingNames: []string{"Thing " + id}, RowIdx: byThing[id]}
+		for _, i := range info.RowIdx {
+			info.Members = append(info.Members, rows[i].FragmentID)
+		}
+		info.First, info.Last = c.span(info.RowIdx)
+		c.Colours = append(c.Colours, info)
+		c.ByColour[id] = info.RowIdx
+	}
+	return c
 }
 
 func row(date string, things ...string) mapping.Row {
@@ -36,12 +50,12 @@ func weeklyRows(from string, weeks int, things ...string) []mapping.Row {
 
 func findRhythm(rs []Rhythm, ids ...string) *Rhythm {
 	for i := range rs {
-		if len(rs[i].ThingIDs) != len(ids) {
+		if len(rs[i].IDs) != len(ids) {
 			continue
 		}
 		match := true
 		for j := range ids {
-			if rs[i].ThingIDs[j] != ids[j] {
+			if rs[i].IDs[j] != ids[j] {
 				match = false
 			}
 		}
@@ -52,13 +66,13 @@ func findRhythm(rs []Rhythm, ids ...string) *Rhythm {
 	return nil
 }
 
-// A thing cited every Monday for ten weeks is regular at the week grain, and
-// its onset is the start of that run — a stray mention months earlier is
+// A colour with a fragment every Monday for ten weeks is regular at the week
+// grain, and its onset is the start of that run — a stray mention months earlier is
 // neither the onset nor a reason to lower the regularity below the run's.
-func TestThingRhythmOnsetSkipsStrayMention(t *testing.T) {
+func TestColourRhythmOnsetSkipsStrayMention(t *testing.T) {
 	rows := append([]mapping.Row{row("2024-06-05", "t_a")}, weeklyRows("2025-03-03", 10, "t_a")...)
 	c := rhythmContext(rows, "t_a")
-	r := findRhythm(c.thingRhythms(rhythmGrainWeek, 1, nil), "t_a")
+	r := findRhythm(c.colourRhythms(rhythmGrainWeek, 1, nil), "t_a")
 	if r == nil {
 		t.Fatal("no rhythm for t_a")
 	}
@@ -85,7 +99,7 @@ func TestBurstIsOneBucket(t *testing.T) {
 		rows = append(rows, r)
 	}
 	c := rhythmContext(rows, "t_b")
-	r := findRhythm(c.thingRhythms(rhythmGrainWeek, 1, nil), "t_b")
+	r := findRhythm(c.colourRhythms(rhythmGrainWeek, 1, nil), "t_b")
 	if r == nil || r.ActiveBuckets != 1 || r.SpanBuckets != 1 || r.Total != 10 {
 		t.Fatalf("burst rhythm = %+v, want one active bucket of ten", r)
 	}
@@ -99,7 +113,7 @@ func TestBurstIsOneBucket(t *testing.T) {
 func TestMonthGrainSpansYearBoundary(t *testing.T) {
 	rows := []mapping.Row{row("2024-11-10", "t_c"), row("2024-12-02", "t_c"), row("2025-01-20", "t_c"), row("2025-03-01", "t_c")}
 	c := rhythmContext(rows, "t_c")
-	r := findRhythm(c.thingRhythms(rhythmGrainMonth, 1, nil), "t_c")
+	r := findRhythm(c.colourRhythms(rhythmGrainMonth, 1, nil), "t_c")
 	if r == nil || r.ActiveBuckets != 4 || r.SpanBuckets != 5 {
 		t.Fatalf("rhythm = %+v, want 4 active of 5 months", r)
 	}
@@ -108,17 +122,16 @@ func TestMonthGrainSpansYearBoundary(t *testing.T) {
 	}
 }
 
-// Pairs count the buckets in which both things are cited in the same
-// fragment; a thing cited in most of the workspace is ubiquitous and never
-// paired.
-func TestPairRhythmsExcludeUbiquitousThings(t *testing.T) {
+// Pairs count the buckets in which both colours hold the same fragment; a
+// colour holding most of the workspace is ubiquitous and never paired.
+func TestPairRhythmsExcludeUbiquitousColours(t *testing.T) {
 	// t_u appears on every row (the user); t_a and t_b appear together for
 	// four weeks; t_a alone for a further twenty.
 	rows := weeklyRows("2025-01-06", 4, "t_a", "t_b", "t_u")
 	rows = append(rows, weeklyRows("2025-02-03", 20, "t_a", "t_u")...)
 	c := rhythmContext(rows, "t_a", "t_b", "t_u")
 
-	singles := c.thingRhythms(rhythmGrainWeek, 1, nil)
+	singles := c.colourRhythms(rhythmGrainWeek, 1, nil)
 	if u := findRhythm(singles, "t_u"); u == nil || !u.Ubiquitous {
 		t.Fatalf("t_u should be flagged ubiquitous: %+v", u)
 	}
@@ -128,9 +141,9 @@ func TestPairRhythmsExcludeUbiquitousThings(t *testing.T) {
 
 	pairs := c.pairRhythms(rhythmGrainWeek, 1, nil)
 	for _, p := range pairs {
-		for _, id := range p.ThingIDs {
+		for _, id := range p.IDs {
 			if id == "t_u" || id == "t_a" {
-				t.Fatalf("ubiquitous thing %s paired: %+v", id, p)
+				t.Fatalf("ubiquitous colour %s paired: %+v", id, p)
 			}
 		}
 	}
@@ -153,15 +166,15 @@ func TestPairRhythmsExcludeUbiquitousThings(t *testing.T) {
 }
 
 // The restriction passed to the rhythms tool keeps singles to the given
-// things and pairs to those containing one of them.
+// colours and pairs to those containing one of them.
 func TestRhythmsRestriction(t *testing.T) {
 	rows := weeklyRows("2025-01-06", 5, "t_a", "t_b")
 	rows = append(rows, weeklyRows("2025-01-06", 5, "t_c", "t_d")...)
 	rows = append(rows, weeklyRows("2025-06-02", 30, "t_e")...)
 	c := rhythmContext(rows, "t_a", "t_b", "t_c", "t_d", "t_e")
 	only := map[string]bool{"t_a": true}
-	singles := c.thingRhythms(rhythmGrainWeek, 1, only)
-	if len(singles) != 1 || singles[0].ThingIDs[0] != "t_a" {
+	singles := c.colourRhythms(rhythmGrainWeek, 1, only)
+	if len(singles) != 1 || singles[0].IDs[0] != "t_a" {
 		t.Fatalf("singles = %+v, want only t_a", singles)
 	}
 	pairs := c.pairRhythms(rhythmGrainWeek, 1, only)

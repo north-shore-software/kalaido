@@ -44,9 +44,9 @@ func TestBuildReflectionSpec(t *testing.T) {
 	}
 }
 
-// propose_reflection writes a proposed row with the scope resolved from the
-// things and a first schedule version effective from the start date, which is
-// what makes the series backfill from there once the proposal is committed.
+// propose_reflection writes a proposed row pinning the colour (never the
+// fragments) and a first schedule version effective from the start date, which
+// is what makes the series backfill from there once the proposal is committed.
 func TestProposeReflectionWritesScheduleFromOnset(t *testing.T) {
 	app := testutil.NewApp(t)
 	run := testutil.NewRecord(t, app, "discover_run", map[string]any{"kind": "reflections", "status": "running"})
@@ -61,7 +61,7 @@ func TestProposeReflectionWritesScheduleFromOnset(t *testing.T) {
 
 	args, _ := json.Marshal(map[string]any{
 		"name": "Weekly newsletter", "message": "Each week, summarise the newsletter.",
-		"thingIds": []string{"t_news"}, "cadence": "weekly", "startTime": "2026-06-01",
+		"colourIds": []string{"Colour t_news"}, "cadence": "weekly", "startTime": "2026-06-01",
 	})
 	text, out, err := reflectionsFlow{}.propose(c, llm.ToolCall{Name: "propose_reflection", Args: args}, now)
 	if err != nil {
@@ -79,8 +79,11 @@ func TestProposeReflectionWritesScheduleFromOnset(t *testing.T) {
 	}
 	var spec api.ContextSpec
 	_ = rec.UnmarshalJSONField("current_context_spec", &spec)
-	if len(spec.FragmentIDs) != 12 {
-		t.Fatalf("scope = %d fragments, want the 12 citing the thing", len(spec.FragmentIDs))
+	if len(spec.ColourIDs) != 1 || spec.ColourIDs[0] != "t_news" || len(spec.FragmentIDs) != 0 {
+		t.Fatalf("scope = %+v, want the colour pinned by id and no fragments", spec)
+	}
+	if !strings.Contains(text, "12 fragments in scope") {
+		t.Fatalf("reply = %q, want the member count", text)
 	}
 	versions := engine.LoadWindowSpecVersions(rec)
 	if len(versions) != 1 || versions[0].VersionNumber != 1 {
@@ -97,17 +100,31 @@ func TestProposeReflectionWritesScheduleFromOnset(t *testing.T) {
 	if !c.covered[rows[0].FragmentID] {
 		t.Fatal("proposed scope not marked covered")
 	}
+
+	// No colour, or an unknown one, is rejected without writing anything.
+	for _, colours := range [][]string{{}, {"c_none"}} {
+		args, _ := json.Marshal(map[string]any{
+			"name": "x", "message": "x", "colourIds": colours, "cadence": "weekly", "startTime": "2026-06-01",
+		})
+		text, out, err := reflectionsFlow{}.propose(c, llm.ToolCall{Name: "propose_reflection", Args: args}, now)
+		if err != nil || out != nil || !strings.Contains(text, "Rejected") {
+			t.Fatalf("colourIds=%v: text=%q out=%v err=%v", colours, text, out, err)
+		}
+	}
+	if n, _ := app.CountRecords("reflection"); n != 1 {
+		t.Fatalf("reflection rows = %d, want only the accepted one", n)
+	}
 }
 
-// A ubiquitous thing cannot anchor a reflection.
-func TestProposeReflectionRejectsUbiquitousThing(t *testing.T) {
+// A ubiquitous colour cannot anchor a reflection.
+func TestProposeReflectionRejectsUbiquitousColour(t *testing.T) {
 	app := testutil.NewApp(t)
 	run := testutil.NewRecord(t, app, "discover_run", map[string]any{"kind": "reflections", "status": "running"})
 	rows := weeklyRows("2026-01-05", 30, "t_me")
 	c := rhythmContext(rows, "t_me")
 	c.App, c.Run = app, run
 	args, _ := json.Marshal(map[string]any{
-		"name": "Me", "message": "x", "thingIds": []string{"t_me"}, "cadence": "weekly", "startTime": "2026-01-05",
+		"name": "Me", "message": "x", "colourIds": []string{"t_me"}, "cadence": "weekly", "startTime": "2026-01-05",
 	})
 	text, out, err := reflectionsFlow{}.propose(c, llm.ToolCall{Name: "propose_reflection", Args: args}, now)
 	if err != nil || out != nil || !strings.Contains(text, "cast, not a rhythm") {

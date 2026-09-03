@@ -20,18 +20,23 @@ import (
 
 const worklistFloor = 5
 
+// projectionsFlow proposes projections scoped by colour. It runs after the
+// colours flow, so the colours are the worklist: a proposal pins colour ids
+// (never fragments), and its scope keeps growing as the colours do.
 type projectionsFlow struct{}
 
 func (projectionsFlow) Kind() string   { return "projections" }
 func (projectionsFlow) System() string { return prompts.DiscoverProjectionsSystem }
 
 func (projectionsFlow) Initial(c *Context) string {
-	return prompts.DiscoverProjectionsInitial(c.Doc, worklistFloor)
+	return prompts.DiscoverProjectionsInitial(c.Doc, c.coloursBlock())
 }
 
 func stringArray(description string) string {
 	return `{"type":"array","items":{"type":"string"},"description":` + strconv.Quote(description) + `}`
 }
+
+var readColourTool = idsTool(prompts.ReadColourToolName, prompts.ReadColourToolDescription, prompts.ReadColourParamDescription)
 
 var proposeProjectionTool = llm.Tool{
 	Name:        prompts.ProposeProjectionToolName,
@@ -39,19 +44,21 @@ var proposeProjectionTool = llm.Tool{
 	Parameters: json.RawMessage(`{"type":"object","properties":{` +
 		`"name":{"type":"string","description":` + strconv.Quote(prompts.ProposeNameParamDescription) + `},` +
 		`"message":{"type":"string","description":` + strconv.Quote(prompts.ProposeMessageParamDescription) + `},` +
-		`"thingIds":` + stringArray(prompts.ProposeThingIDsParamDescription) + `,` +
-		`"fragmentIds":` + stringArray(prompts.ProposeFragmentIDsParamDescription) + `,` +
 		`"colourIds":` + stringArray(prompts.ProposeColourIDsParamDescription) + `,` +
 		`"sourceProjectionIds":` + stringArray(prompts.ProposeSourceProjectionIDsParamDescription) +
 		`},"required":["name","message"]}`),
 }
 
 func (projectionsFlow) Tools(c *Context) []llm.Tool {
-	return []llm.Tool{proposeProjectionTool}
+	return []llm.Tool{readColourTool, proposeProjectionTool}
 }
 
 func (projectionsFlow) Existing(c *Context) ([]Existing, error) {
 	return existingEntities(c)
+}
+
+func (projectionsFlow) Coverage(c *Context, existing []Existing) string {
+	return c.colourCoverage(existing)
 }
 
 // existingEntities lists every colour, projection and reflection, made by a
@@ -115,8 +122,6 @@ func existingEntities(c *Context) ([]Existing, error) {
 type proposeProjectionArgs struct {
 	Name                string   `json:"name"`
 	Message             string   `json:"message"`
-	ThingIDs            []string `json:"thingIds"`
-	FragmentIDs         []string `json:"fragmentIds"`
 	ColourIDs           []string `json:"colourIds"`
 	SourceProjectionIDs []string `json:"sourceProjectionIds"`
 }
@@ -134,42 +139,36 @@ func (f projectionsFlow) Dispatch(ctx context.Context, c *Context, call llm.Tool
 	if args.Name == "" || args.Message == "" {
 		return prompts.DiscoverRejected(prompts.DiscoverNameAndMessageRequired), nil, nil
 	}
-	for _, id := range args.ThingIDs {
-		if mapping.ResolveRef(c.Doc, id) == nil {
-			return prompts.DiscoverRejected(prompts.DiscoverNoThing(id)), nil, nil
+	colourIDs, reject := c.resolveColours(args.ColourIDs)
+	if reject != "" {
+		return prompts.DiscoverRejected(reject), nil, nil
+	}
+	for _, id := range colourIDs {
+		if c.ubiquitousColour(id) {
+			return prompts.DiscoverRejected(prompts.DiscoverUbiquitousColour(c.colourByRef(id).Name, id)), nil, nil
 		}
 	}
-	for _, id := range args.FragmentIDs {
-		if _, err := c.App.FindRecordById("fragment", id); err != nil {
-			return prompts.DiscoverRejected(prompts.DiscoverNoFragment(id)), nil, nil
-		}
-	}
-	for _, id := range args.ColourIDs {
-		if _, err := c.App.FindRecordById("colour", id); err != nil {
-			return prompts.DiscoverRejected(prompts.DiscoverNoRecord("colour", id)), nil, nil
-		}
-	}
-	for _, id := range args.SourceProjectionIDs {
+	sourceIDs := union(nil, args.SourceProjectionIDs)
+	for _, id := range sourceIDs {
 		if _, err := c.App.FindRecordById("projection", id); err != nil {
 			return prompts.DiscoverRejected(prompts.DiscoverNoRecord("projection", id)), nil, nil
 		}
 	}
-	fragmentIDs := union(c.fragmentIDsForThings(args.ThingIDs), args.FragmentIDs)
-	if len(fragmentIDs)+len(args.ColourIDs)+len(args.SourceProjectionIDs) == 0 {
+	if len(colourIDs)+len(sourceIDs) == 0 {
 		return prompts.DiscoverRejected(prompts.DiscoverScopeRequired), nil, nil
 	}
 	spec := api.ContextSpec{
-		FragmentIDs:         fragmentIDs,
-		ColourIDs:           args.ColourIDs,
-		SourceProjectionIDs: args.SourceProjectionIDs,
+		ColourIDs:           colourIDs,
+		SourceProjectionIDs: sourceIDs,
 	}
 	rec, err := insertProposed(c, "projection", args.Name, args.Message, spec, nil)
 	if err != nil {
 		return "", nil, err
 	}
-	c.markCovered(fragmentIDs)
+	members := c.fragmentIDsForColours(colourIDs)
+	c.markCovered(members)
 	out := &Output{Kind: "projection", ID: rec.Id, Name: args.Name, Status: engine.EntityProposed}
-	return prompts.DiscoverProposed("projection", args.Name, rec.Id, len(fragmentIDs)), out, nil
+	return prompts.DiscoverProposed("projection", args.Name, rec.Id, len(members)), out, nil
 }
 
 // insertProposed writes a proposed row; `extra` carries any collection-specific
