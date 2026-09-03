@@ -10,6 +10,7 @@ import (
 
 const (
 	ReadThingToolName         = "read_thing"
+	ReadColourToolName        = "read_colour"
 	ReadFragmentToolName      = "read_fragment"
 	ListExistingToolName      = "list_existing"
 	CoverageToolName          = "coverage"
@@ -20,19 +21,19 @@ const (
 const (
 	ReadThingToolDescription      = "Read one thing from the map in depth: what it is, its relationships, how its fragments spread over time, and a sample of those fragments' titles and summaries with their ids. Call it before proposing anything built on a thing with many fragments or a vague blurb. Takes a thing id, or its exact name."
 	ReadThingParamDescription     = "The thing's id from the map, or its exact name."
+	ReadColourToolDescription     = "Read colours in depth: the things each is built on, how many fragments it holds, a month-by-month count of them, and a sample of their titles and summaries with ids. Pass every colour you want to see in one call, up to ten. Takes colour ids, or exact names."
+	ReadColourParamDescription    = "Colour ids from the colours list or list_existing, or their exact names."
 	ReadFragmentToolDescription   = "Read one fragment's full text, by id, when a summary is not enough to judge it. Budgeted per run."
 	ReadFragmentParamDescription  = "The fragment id, exactly as shown."
 	ListExistingToolDescription   = "List what already exists, with ids: everything a person has made and everything an earlier or current discover run produced. Free. Call it before proposing so you never propose what is already there."
-	CoverageToolDescription       = "How much of the workspace sits inside an existing or proposed scope, and which heavy things are least covered. Free. Use it to decide whether you are done."
+	CoverageToolDescription       = "How much of the workspace sits inside an existing or proposed scope, and what is least covered: the heaviest uncoloured things in the colours run, the colours no projection or reflection scopes in the others. Free. Use it to decide whether you are done."
 	FinishToolDescription         = "End the run. Give the summary: what you proposed, what you judged not worth surfacing, and what remains uncovered on purpose."
 	FinishSummaryParamDescription = "The run's closing note, for the person reviewing the proposals: what you proposed, what you judged not worth surfacing, and what remains uncovered on purpose."
 
-	ProposeProjectionToolDescription           = "Propose one projection for the user to review. Nothing is generated: the proposal is a name, an opening message and a scope. The user opens it, the message is sent as their first turn in a chat that drafts the projection, and they keep or discard it from there. Scope is built from thingIds (every fragment citing those things), fragmentIds (explicit fragments, to narrow), colourIds (existing colours), and sourceProjectionIds (existing or proposed projections whose content this one builds on); give at least one."
+	ProposeProjectionToolDescription           = "Propose one projection for the user to review. Nothing is generated: the proposal is a name, an opening message and a scope. The user opens it, the message is sent as their first turn in a chat that drafts the projection, and they keep or discard it from there. Scope is built from colourIds (existing colours, whose members are the material and keep growing as it arrives) and sourceProjectionIds (existing or proposed projections whose content this one builds on); give at least one."
 	ProposeNameParamDescription                = "2-6 words, the projection's title as the user will see it. Name the thing it is about, plainly."
 	ProposeMessageParamDescription             = "The opening message, 1-3 sentences, written in the user's own voice as their instruction to the assistant that will draft the projection: what to keep producing from the scope, what to emphasise, what to leave out. Name any source projections by their exact names. Never describe the proposal; write the instruction."
-	ProposeThingIDsParamDescription            = "Thing ids from the map. Every fragment citing any of them joins the scope."
-	ProposeFragmentIDsParamDescription         = "Fragment ids from read_thing or read_fragment, when the scope should be narrower than whole things."
-	ProposeColourIDsParamDescription           = "Ids of existing colours, from list_existing, whose members join the scope."
+	ProposeColourIDsParamDescription           = "Colour ids (or exact names) from the colours list or list_existing. Every fragment those colours hold is the scope, now and as new material arrives. Usually one colour."
 	ProposeSourceProjectionIDsParamDescription = "Ids of projections, existing or proposed in this run, whose content this projection builds on rather than restates."
 )
 
@@ -40,36 +41,39 @@ const DiscoverProjectionsSystem = `You are discovering projections for a user wh
 
 You do not create projections. You propose them. A proposal is a name, an opening message and a scope. The user sees the proposals, opens one, and the message is sent as their first turn in a chat that drafts the projection from the scope; they refine it there and keep or discard it. Nothing is generated until they open it, so a proposal costs nothing and a good set of proposals is the whole product of this run.
 
-What you can see: the workspace map — a narrative saying what the workspace is about, a flat list of "things" (people, organisations, places, projects, topics) with how many fragments cite each and over what span, and relationships between them — and, through the tools, the annotated fragments behind any thing.
+A scope is made of colours. A colour is a named slice of the workspace, built on one or more map things; it holds every fragment about that slice and keeps growing as new material arrives, so a projection scoped by colours stays current. You can only scope by colours that exist: they were made before this run, by the user or by the colours run, and this run makes no more. If no colour carries a thing worth a projection, propose nothing for it.
+
+What you can see: the workspace map — a narrative saying what the workspace is about, and the relationships between its "things" (people, organisations, places, projects, topics) — and the workspace as colours: each colour's id, name, the things it is built on, how many fragments it holds and over what span. Through the tools, the fragments behind any colour or thing.
 
 Tools:
-- read_thing: things in depth — blurb, relationships, a month-by-month count of fragments, and a sample of fragment titles and summaries with ids. Pass every thing you want to see in one call, up to ten. Use it before proposing on any heavy or vague thing: a big thing often hides several distinct projections, or one narrow one.
+- read_colour: colours in depth — the things each is built on, a month-by-month count of its fragments, and a sample of their titles and summaries with ids. Pass every colour you want to see in one call, up to ten. Use it before proposing on any large or vague colour: a big colour often holds several distinct projections, or one narrow one.
+- read_thing: a map thing in depth, by id or exact name — blurb, relationships, timeline and sampled fragments. For the things a colour is built on, when the colour card leaves a doubt.
 - read_fragment: one fragment's full text. Budgeted; use it when a summary leaves a real doubt.
-- list_existing: what exists already, with ids. Free. Always call it before proposing.
-- coverage: what share of the workspace sits inside an existing or proposed scope, and which heavy things are least covered. Free.
+- list_existing: what exists already, with ids: colours, projections and reflections. Free. Always call it before proposing.
+- coverage: what share of the workspace sits inside an existing or proposed projection or reflection, and which colours are least covered. Free.
 - propose_projection: propose one projection.
 - finish: end the run and say why.
 
-Work in few turns: read every thing you need to see in one read_thing call, and propose several projections in one turn once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
+Work in few turns: read every colour you need to see in one read_colour call, and propose several projections in one turn once you have decided. Every id you pass must be real; a bad id comes back as an error message, and you can try again.`
 
 const discoverProjectionsGuidance = `How to work:
-1. Read the narrative and the things list. Sketch three to eight candidate projections. Each is about a thing, not about a timeline: an ongoing relationship with a supplier, a dispute and where it stands, a project and its decisions, the standing arrangements around a place. Time is context, not the spine.
-2. Call list_existing. Drop candidates that are already covered. Judge by what the projection is about, not by which things it touches; two projections may legitimately share most of their scope.
-3. Before proposing on a heavy or vague thing, call read_thing with every such thing at once. Decide whether it is one projection or several, and whether the scope should be the whole thing or a narrower set of fragments. Use read_fragment only when a summary leaves a doubt that matters.
+1. Read the narrative and the colours. Sketch three to eight candidate projections. Each is about a thing, not about a timeline: an ongoing relationship with a supplier, a dispute and where it stands, a project and its decisions, the standing arrangements around a place. Time is context, not the spine. Each candidate lives in one colour, sometimes two.
+2. Call list_existing. Drop candidates already covered by a projection. Judge by what the projection is about, not by which colours it touches; two projections may legitimately share a colour.
+3. Before proposing on a large or vague colour, call read_colour with every such colour at once. Decide whether it holds one projection or several: several projections on one colour are fine when they are about different things, and the message tells the drafter which. Use read_fragment only when a summary leaves a doubt that matters.
 4. Narrow first. A single decision, one dispute, one supplier relationship is a projection on its own. When one candidate would contain another, propose the narrower first, then propose the broader one with the narrower as a source projection, and name it in the message. A broader projection builds on its sources; it does not restate them.
-5. Give every proposal the minimum scope its message needs. Prefer a few things to many; prefer explicit fragments to a whole thing when only part of it matters. Never propose a scope that is most of the workspace: that is not a projection, it is the workspace.
-6. Call coverage when your candidates are done. Propose more only if a heavy thing is uncovered and genuinely worth a projection. Proposing nothing for a thing is a legitimate outcome: not every recurring name is something the user wants a document about.
+5. Give every proposal the minimum scope its message needs: one colour rather than several. You cannot narrow below a colour; when only part of one matters, say what matters in the message and the drafter selects. Never propose a scope that is most of the workspace: that is not a projection, it is the workspace.
+6. Call coverage when your candidates are done. Propose more only if a colour is uncovered and genuinely worth a projection. Proposing nothing for a colour is a legitimate outcome: not every slice is something the user wants a document about.
 7. Call finish, and say what you proposed, what you left out, and why.
 
 Writing the message: it is the user's first chat turn, in their voice, addressed to the assistant that will draft the projection. Say what to keep producing and what matters: "Keep a running account of the lift contract: who the contractor is, what was quoted and agreed, what is outstanding, and the dates that matter." Not "This projection covers the lift contract." Name source projections by their exact names, because the drafter sees each one as a block headed by its name.
 
 Example of a narrow proposal:
-{"name": "Lift maintenance contract", "message": "Keep a current account of the lift maintenance arrangement: who holds the contract, what was quoted and agreed, open faults and what is outstanding, with the dates that matter.", "thingIds": ["t_lifts", "t_liftco"]}
+{"name": "Lift maintenance contract", "message": "Keep a current account of the lift maintenance arrangement: who holds the contract, what was quoted and agreed, open faults and what is outstanding, with the dates that matter.", "colourIds": ["<id of the Lifts colour>"]}
 
 Example of a broader proposal built on it:
-{"name": "Building operations", "message": "Give me a standing overview of how the building is run: the managing agent, the recurring contracts and who holds them, and what is currently unresolved. Draw on the projection 'Lift maintenance contract' for the lifts rather than restating it.", "thingIds": ["t_agent", "t_building"], "sourceProjectionIds": ["<id returned for Lift maintenance contract>"]}`
+{"name": "Building operations", "message": "Give me a standing overview of how the building is run: the managing agent, the recurring contracts and who holds them, and what is currently unresolved. Draw on the projection 'Lift maintenance contract' for the lifts rather than restating it.", "colourIds": ["<id of the Building colour>"], "sourceProjectionIds": ["<id returned for Lift maintenance contract>"]}`
 
-func DiscoverProjectionsInitial(d *mapdoc.Document, worklistFloor int) string {
+func DiscoverProjectionsInitial(d *mapdoc.Document, colours string) string {
 	var sb strings.Builder
 	sb.WriteString("What the workspace is about:\n")
 	if strings.TrimSpace(d.Narrative) == "" {
@@ -77,8 +81,7 @@ func DiscoverProjectionsInitial(d *mapdoc.Document, worklistFloor int) string {
 	} else {
 		sb.WriteString(strings.TrimSpace(d.Narrative) + "\n")
 	}
-	sb.WriteString("\nThings, heaviest first (id · name · kind · fragments · span · what it is):\n")
-	sb.WriteString(discoverThingsBlock(d, worklistFloor))
+	sb.WriteString("\n" + colours)
 	if len(d.Relationships) > 0 {
 		sb.WriteString("\nRelationships:\n")
 		for _, r := range d.Relationships {
@@ -166,7 +169,7 @@ const (
 	DiscoverNoteProposedEarlier    = "proposed by an earlier run, not yet opened"
 	DiscoverBadArgs                = "the arguments could not be read"
 	DiscoverNameAndMessageRequired = "name and message are both required"
-	DiscoverScopeRequired          = "give at least one of thingIds, fragmentIds, colourIds or sourceProjectionIds"
+	DiscoverScopeRequired          = "give at least one of colourIds or sourceProjectionIds"
 )
 
 type DiscoverRow struct {
@@ -195,6 +198,84 @@ const DiscoverReadThingLimit = 10
 
 func DiscoverTooManyThings(limit int) string {
 	return fmt.Sprintf("read_thing takes at most %d ids per call; the first %d were read.", limit, limit)
+}
+
+func DiscoverTooManyColours(limit int) string {
+	return fmt.Sprintf("read_colour takes at most %d ids per call; the first %d were read.", limit, limit)
+}
+
+// DiscoverColourLine is one colour as the projections and reflections flows
+// see it: the slice, what it is built on, and how much it holds.
+type DiscoverColourLine struct {
+	ID, Name    string
+	ThingNames  []string
+	Members     int
+	First, Last string
+}
+
+func discoverColourHead(c DiscoverColourLine) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "%s · %s", c.ID, c.Name)
+	if len(c.ThingNames) > 0 {
+		fmt.Fprintf(&sb, " · built on %s", strings.Join(c.ThingNames, ", "))
+	}
+	fmt.Fprintf(&sb, " · %d fragments", c.Members)
+	if c.First != "" {
+		fmt.Fprintf(&sb, " · %s to %s", c.First, c.Last)
+	}
+	return sb.String()
+}
+
+func DiscoverColoursBlock(colours []DiscoverColourLine) string {
+	var sb strings.Builder
+	sb.WriteString("Colours (id · name · built on · fragments · span):\n")
+	if len(colours) == 0 {
+		sb.WriteString("(no colours yet)\n")
+	}
+	for _, c := range colours {
+		sb.WriteString(discoverColourHead(c) + "\n")
+	}
+	return sb.String()
+}
+
+func DiscoverColourCard(c DiscoverColourLine, annotated int, timeline map[string]int, sample []DiscoverRow) string {
+	var b strings.Builder
+	b.WriteString(discoverColourHead(c) + "\n")
+	if annotated == 0 {
+		b.WriteString("None of its fragments is annotated yet.\n")
+		return b.String()
+	}
+	months := make([]string, 0, len(timeline))
+	for m := range timeline {
+		months = append(months, m)
+	}
+	sort.Strings(months)
+	b.WriteString("Timeline:\n")
+	for _, m := range months {
+		fmt.Fprintf(&b, "  %s: %d\n", m, timeline[m])
+	}
+	fmt.Fprintf(&b, "Fragments (%d of %d, spread over time):\n", len(sample), annotated)
+	for _, row := range sample {
+		fmt.Fprintf(&b, "  %s · %s · %s (%s)\n", row.Date, row.Title, row.Summary, row.FragmentID)
+	}
+	return b.String()
+}
+
+func DiscoverColourCoverage(hit, total int, gaps []DiscoverGap) string {
+	pct := 0
+	if total > 0 {
+		pct = hit * 100 / total
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d of %d annotated fragments (%d%%) sit inside an existing or proposed projection or reflection.\n", hit, total, pct)
+	if len(gaps) == 0 {
+		return b.String()
+	}
+	b.WriteString("Colours least covered:\n")
+	for _, g := range gaps {
+		fmt.Fprintf(&b, "  %s · %s · %d of %d fragments uncovered\n", g.ID, g.Name, g.Uncovered, g.Total)
+	}
+	return b.String()
 }
 
 func DiscoverReadBudgetExhausted(limit int) string {
@@ -268,10 +349,10 @@ const (
 )
 
 const (
-	RhythmsToolDescription                   = "Recompute the rhythm cards at a grain: for every heavy thing, and every pair of things cited together, how many week or month buckets are active over the span, the date the steady run began (the onset), and a sample of bucket counts with a title each. Pass thingIds to restrict to those things (and the pairs they take part in). Free."
+	RhythmsToolDescription                   = "Recompute the rhythm cards at a grain: for every colour, and every pair of colours sharing fragments, how many week or month buckets are active over the span, the date the steady run began (the onset), and a sample of bucket counts with a title each. Pass colourIds to restrict to those colours (and the pairs they take part in). Free."
 	RhythmsGrainParamDescription             = "\"week\" or \"month\": the bucket size to measure regularity at."
-	RhythmsThingIDsParamDescription          = "Thing ids (or exact names) to restrict the cards to; omit for everything above the floor."
-	ProposeReflectionToolDescription         = "Propose one reflection for the user to review. Nothing is generated: the proposal is a name, an opening message, a scope, a cadence and a start date. The user opens it, the message is sent as their first turn in a chat that drafts the reflection's lens, and on finishing the series is generated one window per period from the start date to now. Scope is built from thingIds (every fragment citing those things), fragmentIds (explicit fragments, to narrow) and colourIds; give at least one."
+	RhythmsColourIDsParamDescription         = "Colour ids (or exact names) to restrict the cards to; omit for every colour above the floor."
+	ProposeReflectionToolDescription         = "Propose one reflection for the user to review. Nothing is generated: the proposal is a name, an opening message, a scope, a cadence and a start date. The user opens it, the message is sent as their first turn in a chat that drafts the reflection's lens, and on finishing the series is generated one window per period from the start date to now. Scope is colourIds: existing colours whose fragments carry the rhythm, growing as new material arrives; give at least one."
 	ProposeReflectionNameParamDescription    = "2-6 words, the reflection's title as the user will see it. Name the recurring activity, plainly: \"Weekly BC Tech newsletter\", \"Monthly Workspace invoice\"."
 	ProposeReflectionMessageParamDescription = "The opening message, 1-3 sentences, in the user's own voice as their standing instruction to the assistant that will write each period's summary: what to pull out of that period's material every time, what to emphasise, what to leave out. Say the cadence in it (\"Each week, ...\"). Never describe the proposal; write the instruction."
 	ProposeCadenceParamDescription           = "How often a summary is produced and how much material each one covers: daily, weekly, monthly or quarterly. Pick the grain at which the rhythm card's buckets are steadily non-empty."
@@ -284,14 +365,17 @@ A projection is about a thing; a reflection is about a rhythm. You are looking f
 
 You do not create reflections. You propose them. A proposal is a name, an opening message, a scope, a cadence and a start date. The user sees the proposals, opens one, and the message is sent as their first turn in a chat that drafts the lens; on finishing, the series is generated from the start date to now. Nothing is generated until they open it, so a proposal costs nothing and a good set of proposals is the whole product of this run.
 
-What you can see: the workspace map — a narrative, a flat list of "things" with how many fragments cite each and over what span, and relationships — plus rhythm cards computed from the annotated fragments: for each heavy thing, and each pair of things cited together, how many buckets of a grain are active over the span, when the steady run began, and a sample of bucket counts with a title each. Things cited in a large share of the whole workspace are marked ubiquitous: they are the ever-present cast (the user, their own company), not a rhythm, and cannot be proposed on.
+A scope is made of colours. A colour is a named slice of the workspace, built on one or more map things; it holds every fragment about that slice and keeps growing as new material arrives, so a reflection scoped by colours keeps summarising each new period. You can only scope by colours that exist: they were made before this run, by the user or by the colours run, and this run makes no more. If no colour carries a rhythm, propose nothing for it.
+
+What you can see: the workspace map's narrative; the workspace as colours — each colour's id, name, the things it is built on, how many fragments it holds and over what span; and rhythm cards computed from the colours' fragments: for each colour, and each pair of colours sharing fragments, how many buckets of a grain are active over the span, when the steady run began, and a sample of bucket counts with a title each. A colour holding a large share of the whole workspace is marked ubiquitous: it is the ever-present cast (the user, their own company), not a rhythm, and cannot be proposed on.
 
 Tools:
-- rhythms: the rhythm cards at a grain (week or month), optionally restricted to given things. Free. Use the week grain to check whether something monthly is really weekly, and to confirm an onset.
-- read_thing: a thing in depth — blurb, relationships, month-by-month counts, and sampled fragment titles and summaries with ids. Pass every thing you want in one call, up to ten.
+- rhythms: the rhythm cards at a grain (week or month), optionally restricted to given colours. Free. Use the week grain to check whether something monthly is really weekly, and to confirm an onset.
+- read_colour: colours in depth — the things each is built on, month-by-month counts, and sampled fragment titles and summaries with ids. Pass every colour you want in one call, up to ten.
+- read_thing: a map thing in depth, by id or exact name, for the things a colour is built on.
 - read_fragment: one fragment's full text. Budgeted; use it when a title leaves a real doubt about what recurs.
-- list_existing: what exists already, with ids. Free. Always call it before proposing.
-- coverage: what share of the workspace sits inside an existing or proposed scope. Free.
+- list_existing: what exists already, with ids: colours, projections and reflections. Free. Always call it before proposing.
+- coverage: what share of the workspace sits inside an existing or proposed projection or reflection, and which colours are least covered. Free.
 - propose_reflection: propose one reflection.
 - finish: end the run and say why.
 
@@ -299,19 +383,19 @@ Work in few turns: read what you need in one call, and propose several reflectio
 
 const discoverReflectionsGuidance = `How to work:
 1. Read the rhythm cards. A candidate is a scope whose buckets are steadily non-empty over a sustained span: active close to span, at least a handful of periods. One burst of activity is not a rhythm; that is a projection's material, and this run leaves it alone.
-2. For each candidate, name the activity that recurs. "The weekly BC Tech newsletter", "the monthly Google Workspace invoice", "the standing Legado check-in" are reflections. If all you can name is the cast — the same people keep appearing, but about different things each time — decide whether the user would want a periodic digest of that group; propose it only if so, and say so in the message. Use read_thing or the week-grain rhythms when the sampled titles do not settle it.
-3. Call list_existing. Drop candidates already covered by a reflection. A projection on the same thing does not cover it: a projection is the standing account, a reflection is the period-by-period one.
+2. For each candidate, name the activity that recurs. "The weekly BC Tech newsletter", "the monthly Google Workspace invoice", "the standing Legado check-in" are reflections. If all you can name is the cast — the same people keep appearing, but about different things each time — decide whether the user would want a periodic digest of that group; propose it only if so, and say so in the message. Use read_colour or the week-grain rhythms when the sampled titles do not settle it.
+3. Call list_existing. Drop candidates already covered by a reflection. A projection on the same colour does not cover it: a projection is the standing account, a reflection is the period-by-period one.
 4. Choose the cadence as the grain at which the buckets are steadily non-empty: a weekly newsletter is weekly even though the month grain is also full; monthly invoices are monthly. Choose the start date as the onset on the card unless the titles show the steady run began later.
-5. Scope every proposal to the things that carry the rhythm — usually one, sometimes a pair. Never propose on a ubiquitous thing, and never a scope that is most of the workspace.
+5. Scope every proposal to the colours that carry the rhythm — usually one, sometimes a pair. Never propose on a ubiquitous colour, and never a scope that is most of the workspace.
 6. Call coverage when your candidates are done. Proposing nothing is a legitimate outcome: many workspaces have no rhythms worth a series.
 7. Call finish, and say what you proposed, what you judged a burst rather than a rhythm, and why.
 
 Writing the message: it is the user's first chat turn, in their voice, addressed to the assistant that will write each period's summary. Say the cadence and what to pull out every time: "Each week, summarise what the BC Tech newsletter covered: events, advocacy, and anything relevant to a small tech company in Vancouver." Not "This reflection tracks the newsletter."
 
 Example:
-{"name": "Weekly BC Tech newsletter", "message": "Each week, summarise what the BC Tech newsletter and event mailers covered: upcoming events with dates, advocacy positions, and anything a small Vancouver tech company should act on.", "thingIds": ["t_bctech"], "cadence": "weekly", "startTime": "2025-01-15"}`
+{"name": "Weekly BC Tech newsletter", "message": "Each week, summarise what the BC Tech newsletter and event mailers covered: upcoming events with dates, advocacy positions, and anything a small Vancouver tech company should act on.", "colourIds": ["<id of the BC Tech colour>"], "cadence": "weekly", "startTime": "2025-01-15"}`
 
-func DiscoverReflectionsInitial(d *mapdoc.Document, worklistFloor int, rhythms string) string {
+func DiscoverReflectionsInitial(d *mapdoc.Document, colours, rhythms string) string {
 	var sb strings.Builder
 	sb.WriteString("What the workspace is about:\n")
 	if strings.TrimSpace(d.Narrative) == "" {
@@ -319,14 +403,14 @@ func DiscoverReflectionsInitial(d *mapdoc.Document, worklistFloor int, rhythms s
 	} else {
 		sb.WriteString(strings.TrimSpace(d.Narrative) + "\n")
 	}
-	sb.WriteString("\nThings, heaviest first (id · name · kind · fragments · span · what it is):\n")
-	sb.WriteString(discoverThingsBlock(d, worklistFloor))
+	sb.WriteString("\n" + colours)
 	sb.WriteString("\n" + rhythms)
 	sb.WriteString("\n" + discoverReflectionsGuidance)
 	return sb.String()
 }
 
-type DiscoverRhythmThing struct {
+// DiscoverRhythmScope is one colour a rhythm card is about.
+type DiscoverRhythmScope struct {
 	ID   string
 	Name string
 }
@@ -338,7 +422,7 @@ type DiscoverBucket struct {
 }
 
 type DiscoverRhythm struct {
-	Things      []DiscoverRhythmThing
+	Scopes      []DiscoverRhythmScope
 	Grain       string
 	Total       int
 	Active      int
@@ -351,14 +435,14 @@ type DiscoverRhythm struct {
 
 func DiscoverRhythmsBlock(grain string, singles, pairs []DiscoverRhythm) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Rhythms at the %s grain (things, most regular first):\n", grain)
+	fmt.Fprintf(&b, "Rhythms at the %s grain (colours, most regular first):\n", grain)
 	if len(singles) == 0 {
-		b.WriteString("(nothing on the map reaches the floor yet)\n")
+		b.WriteString("(no colour reaches the floor yet)\n")
 	}
 	for _, r := range singles {
 		b.WriteString(DiscoverRhythmCard(r))
 	}
-	fmt.Fprintf(&b, "\nRhythms at the %s grain (pairs of things cited together, most regular first):\n", grain)
+	fmt.Fprintf(&b, "\nRhythms at the %s grain (pairs of colours sharing fragments, most regular first):\n", grain)
 	if len(pairs) == 0 {
 		b.WriteString("(no pair is cited together in three or more buckets)\n")
 	}
@@ -370,8 +454,8 @@ func DiscoverRhythmsBlock(grain string, singles, pairs []DiscoverRhythm) string 
 
 func DiscoverRhythmCard(r DiscoverRhythm) string {
 	var b strings.Builder
-	names := make([]string, 0, len(r.Things))
-	for _, t := range r.Things {
+	names := make([]string, 0, len(r.Scopes))
+	for _, t := range r.Scopes {
 		names = append(names, fmt.Sprintf("%s (%s)", t.Name, t.ID))
 	}
 	b.WriteString(strings.Join(names, " with "))
@@ -396,7 +480,7 @@ func DiscoverProposedReflection(name, id string, fragments int, cadence, start s
 	return fmt.Sprintf("Proposed reflection %q (id: %s, %d fragments in scope, %s from %s).", name, id, fragments, cadence, start)
 }
 
-const DiscoverReflectionScopeRequired = "give at least one of thingIds, fragmentIds or colourIds"
+const DiscoverReflectionScopeRequired = "give at least one colourId"
 
 func DiscoverUnknownCadence(cadence string, allowed []string) string {
 	return fmt.Sprintf("cadence %q is not one of %s", cadence, strings.Join(allowed, ", "))
@@ -416,6 +500,10 @@ func DiscoverTooManyWindows(windows, limit int) string {
 
 func DiscoverUbiquitousThing(name, id string) string {
 	return fmt.Sprintf("%s (%s) is cited across most of the workspace; it is the cast, not a rhythm, and cannot be a reflection's scope", name, id)
+}
+
+func DiscoverUbiquitousColour(name, id string) string {
+	return fmt.Sprintf("colour %s (%s) holds most of the workspace; that is the cast, not a rhythm, and it cannot be a scope on its own", name, id)
 }
 
 // Colours flow.
