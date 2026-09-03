@@ -79,3 +79,32 @@ func TestHydrateDeltaHistoryUsesCurrentMode(t *testing.T) {
 		t.Error("PrepareLLMPrompt did not fall back to the plain system prompt")
 	}
 }
+
+// Pinning a fragment mid-conversation in summaries mode promotes it: the delta
+// carries its full body, and nothing else changes.
+func TestHydrateDeltaHistoryPromotesPinnedFragment(t *testing.T) {
+	app := testutil.NewApp(t)
+	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "THE FULL BODY"})
+	testutil.NewRecord(t, app, "fragment_annotation", map[string]any{
+		"fragment_id": frag.Id, "title": "A note", "summary": "It says something.",
+	})
+	ctx := context.Background()
+	resolve := func(history []api.UIMessage, m api.UIMessage) []api.UIMessage {
+		batch := []api.UIMessage{m}
+		ResolveContextSpecs(ctx, app, history, batch)
+		return append(history, batch...)
+	}
+	history := resolve(nil, specMessage(t, "s1", api.ContextSpec{WholeScope: true, Summaries: true}))
+	history = resolve(history, specMessage(t, "s2", api.ContextSpec{WholeScope: true, Summaries: true, FragmentIDs: []string{frag.Id}}))
+
+	msgs := HydrateDeltaHistory(ctx, app, history)
+	if len(msgs) != 2 {
+		t.Fatalf("got %d messages, want 2: %+v", len(msgs), msgs)
+	}
+	if strings.Contains(msgs[0].Content, "THE FULL BODY") || !strings.Contains(msgs[0].Content, "A note") {
+		t.Errorf("first delta should be a row: %q", msgs[0].Content)
+	}
+	if !strings.Contains(msgs[1].Content, "THE FULL BODY") || strings.Contains(msgs[1].Content, prompts.SummariesAddedNotice) {
+		t.Errorf("second delta should be the promoted body: %q", msgs[1].Content)
+	}
+}

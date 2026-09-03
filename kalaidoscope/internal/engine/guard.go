@@ -48,11 +48,21 @@ func CheckPromptFits(model string, chars int) error {
 	if limit <= 0 {
 		return nil
 	}
-	budget := limit - limit/8
-	if est := EstimateTokens(chars); est > budget {
+	if est := EstimateTokens(chars); est > PromptBudget(model) {
 		return &ContextTooLargeError{Model: model, Estimated: est, Limit: limit}
 	}
 	return nil
+}
+
+// PromptBudget is the prompt size CheckPromptFits allows for a model: its
+// context window less a reserve for the output. Zero when the provider
+// reports no window, meaning "unchecked".
+func PromptBudget(model string) int {
+	limit := llm.SelectedProvider(model).ContextWindow()
+	if limit <= 0 {
+		return 0
+	}
+	return limit - limit/8
 }
 
 // MessagesChars totals the characters of a transcript for CheckPromptFits.

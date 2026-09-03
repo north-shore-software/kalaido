@@ -2,10 +2,10 @@ import {
   type ContextItem,
   diffContextSpecs,
   itemsToSpec,
+  SUMMARIES_ITEM,
+  setScopeMode,
   specKey,
   specToItems,
-  SUMMARIES_ITEM,
-  toggleSummaries,
   WHOLE_SCOPE_ITEM,
 } from "./chat";
 
@@ -33,7 +33,6 @@ describe("itemsToSpec", () => {
     });
   });
 
-  // An empty selection still means "everything", and a pin is a selection.
   test("a lone pin is not whole scope", () => {
     const spec = itemsToSpec([
       { kind: "Fragment", id: "f1", label: "A draft" },
@@ -42,9 +41,30 @@ describe("itemsToSpec", () => {
   });
 });
 
-describe("itemsToSpec whole scope", () => {
-  test("an empty selection is still whole scope", () => {
-    expect(itemsToSpec([])).toEqual({ wholeScope: true });
+describe("itemsToSpec scope modes", () => {
+  // Off with nothing pinned is a real state now: it clears the context.
+  test("an empty selection is scope off, nothing pinned", () => {
+    expect(itemsToSpec([])).toEqual({});
+  });
+
+  test("the marker alone is whole scope in full", () => {
+    expect(itemsToSpec([WHOLE_SCOPE_ITEM])).toEqual({ wholeScope: true });
+  });
+
+  test("summaries with pins carries both flags and the pins", () => {
+    expect(
+      itemsToSpec([
+        WHOLE_SCOPE_ITEM,
+        SUMMARIES_ITEM,
+        { kind: "Fragment", id: "f1", label: "A draft" },
+        { kind: "Colour", id: "c1", label: "Urgent" },
+      ]),
+    ).toEqual({
+      wholeScope: true,
+      summaries: true,
+      fragmentIds: ["f1"],
+      colourIds: ["c1"],
+    });
   });
 });
 
@@ -175,26 +195,14 @@ describe("summaries marker", () => {
   });
 });
 
-describe("toggleSummaries", () => {
-  test("materialises the whole-scope marker when turned on from empty", () => {
-    expect(toggleSummaries([])).toEqual([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM]);
-  });
-
-  test("turning off a bare marker pair collapses to empty", () => {
-    expect(toggleSummaries([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM])).toEqual([]);
-  });
-
-  test("keeps pins on both flips", () => {
+describe("setScopeMode on the wire", () => {
+  test("every mode round-trips through specToItems with its pins", () => {
     const pin: ContextItem = { kind: "Fragment", id: "f1", label: "A draft" };
-    const on = toggleSummaries([WHOLE_SCOPE_ITEM, pin]);
-    expect(on).toEqual([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM, pin]);
-    expect(toggleSummaries(on)).toEqual([WHOLE_SCOPE_ITEM, pin]);
-  });
-
-  test("is a no-op on an enumerated selection", () => {
-    const enumerated: ContextItem[] = [
-      { kind: "Type", id: "note", label: "Note" },
-    ];
-    expect(toggleSummaries(enumerated)).toBe(enumerated);
+    for (const mode of ["full", "summaries", "off"] as const) {
+      const items = setScopeMode([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM, pin], mode);
+      const spec = itemsToSpec(items);
+      expect(itemsToSpec(specToItems(spec))).toEqual(spec);
+      expect(spec.fragmentIds).toEqual(["f1"]);
+    }
   });
 });

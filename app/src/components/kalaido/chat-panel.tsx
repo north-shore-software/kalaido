@@ -289,6 +289,7 @@ export function ChatPanel({
           items={context}
           onChange={onContextChange}
           entity={entity}
+          timeWindow={timeWindow}
         />
       )}
 

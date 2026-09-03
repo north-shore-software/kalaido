@@ -119,26 +119,33 @@ func RenderFragmentRecords(recs []*core.Record) string {
 	return sb.String()
 }
 
-// HydrateDeltaToText renders a context change. In summaries mode the added
-// fragments are annotation rows rather than full bodies (see hydrateSummaries);
-// removals render the same way in both modes.
+// HydrateDeltaToText renders a context change. In summaries mode the pinned
+// fragments (added.ExpandedIDs) and snapshots render in full and the rest of
+// the added fragments as annotation rows (see hydrateSummaries); a fragment
+// that was already in scope as a row and is now pinned shows up in
+// ExpandedIDs alone and is promoted to its full body. Removals render the
+// same way in both modes; a pin dropped while its fragment stays in scope is
+// not announced — the model having seen more than a row is harmless.
 func HydrateDeltaToText(ctx stdctx.Context, app core.App, added, removed PinnedIDs, summaries bool) (string, error) {
 	var sb strings.Builder
 
-	if len(added.FragmentIDs) > 0 || len(added.SnapshotIDs) > 0 {
-		var hydrated string
-		var err error
-		if summaries {
-			sb.WriteString(prompts.SummariesAddedNotice)
-			hydrated, err = hydrateSummaries(ctx, app, added)
-		} else {
+	if summaries {
+		full := PinnedIDs{FragmentIDs: added.ExpandedIDs, SnapshotIDs: added.SnapshotIDs}
+		if !full.IsEmpty() {
 			sb.WriteString(prompts.AddedNotice)
-			hydrated, err = HydrateIDsToText(ctx, app, added)
+			sb.WriteString(hydrateFlat(ctx, app, full))
 		}
-		if err != nil {
-			return "", err
+		if rows := diffStringSlices(added.FragmentIDs, added.ExpandedIDs); len(rows) > 0 {
+			sb.WriteString(prompts.SummariesAddedNotice)
+			text, err := hydrateSummaries(ctx, app, rows)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(text)
 		}
-		sb.WriteString(hydrated)
+	} else if len(added.FragmentIDs) > 0 || len(added.SnapshotIDs) > 0 {
+		sb.WriteString(prompts.AddedNotice)
+		sb.WriteString(hydrateFlat(ctx, app, added))
 	}
 
 	if len(removed.FragmentIDs) > 0 || len(removed.SnapshotIDs) > 0 {

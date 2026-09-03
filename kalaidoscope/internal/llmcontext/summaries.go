@@ -10,51 +10,41 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
-// hydrateSummaries renders added context in summaries mode: one annotation row
-// per fragment (or a stub for a fragment not yet annotated), then any
-// snapshots exactly as full mode renders them. Rows are loaded in one pass and
+// hydrateSummaries renders fragments as annotation rows: one per fragment, or
+// a stub for a fragment not yet annotated. Rows are loaded in one pass and
 // filtered in Go — a whole-scope selection is thousands of ids, too many for a
 // filter clause.
-func hydrateSummaries(ctx stdctx.Context, app core.App, added PinnedIDs) (string, error) {
+func hydrateSummaries(ctx stdctx.Context, app core.App, fragmentIDs []string) (string, error) {
 	var sb strings.Builder
-	if len(added.FragmentIDs) > 0 {
-		rows, err := mapping.LoadRows(app)
-		if err != nil {
-			return "", err
-		}
-		byFragment := make(map[string]mapping.Row, len(rows))
-		for _, r := range rows {
-			byFragment[r.FragmentID] = r
-		}
-		names := map[string]string{}
-		if doc, _, err := mapping.LoadDocument(app); err == nil {
-			for _, t := range doc.Things {
-				names[t.ID] = t.Name
-			}
-		}
-		recs := LoadFragmentsByIDs(ctx, app, added.FragmentIDs)
-		sortFragmentsByEventTime(recs)
-		for _, rec := range recs {
-			if row, ok := byFragment[rec.Id]; ok {
-				sb.WriteString(prompts.SummaryRowLine(row, names))
-				continue
-			}
-			sb.WriteString(prompts.SummaryStubLine(
-				rec.GetString("type"),
-				rec.GetString("source"),
-				rec.Id,
-				fragmentEventDate(rec),
-				prompts.SummarySnippet(rec.GetString("content"))))
-		}
-		sb.WriteString("\n")
+	rows, err := mapping.LoadRows(app)
+	if err != nil {
+		return "", err
 	}
-	if len(added.SnapshotIDs) > 0 {
-		snaps, err := HydrateIDsToText(ctx, app, PinnedIDs{SnapshotIDs: added.SnapshotIDs})
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(snaps)
+	byFragment := make(map[string]mapping.Row, len(rows))
+	for _, r := range rows {
+		byFragment[r.FragmentID] = r
 	}
+	names := map[string]string{}
+	if doc, _, err := mapping.LoadDocument(app); err == nil {
+		for _, t := range doc.Things {
+			names[t.ID] = t.Name
+		}
+	}
+	recs := LoadFragmentsByIDs(ctx, app, fragmentIDs)
+	sortFragmentsByEventTime(recs)
+	for _, rec := range recs {
+		if row, ok := byFragment[rec.Id]; ok {
+			sb.WriteString(prompts.SummaryRowLine(row, names))
+			continue
+		}
+		sb.WriteString(prompts.SummaryStubLine(
+			rec.GetString("type"),
+			rec.GetString("source"),
+			rec.Id,
+			fragmentEventDate(rec),
+			prompts.SummarySnippet(rec.GetString("content"))))
+	}
+	sb.WriteString("\n")
 	return sb.String(), nil
 }
 

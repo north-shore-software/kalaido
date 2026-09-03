@@ -1,34 +1,34 @@
-import { useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, CheckIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useAppNavigate } from "@/routes/use-app-navigate";
-import { defineRoute } from "@/routes/route-kit";
-import { projectionReviewTransitions } from "./ProjectionReview.transitions";
 import { toast } from "sonner";
-import { approveProjectionCandidate } from "@/api/kalaidoscope/projections";
-import { findNextTarget } from "@/features/rotation/next-target";
 import { parseContextSpec, specToItems } from "@/api/kalaidoscope/chat";
-import { useRefineSession } from "@/hooks/use-refine-session";
-import { useResumeRefinement } from "@/hooks/use-resume-refinement";
-import {
-  PageCard,
-  PageHeader,
-  PageLayout,
-} from "@/components/layout/page-layout";
-import { Button } from "@/components/ui/button";
-
+import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
+import { approveProjectionCandidate } from "@/api/kalaidoscope/projections";
 import {
   ContextBar,
   type ContextItem,
   RefineChatPanel,
   RefineComposer,
 } from "@/components/kalaido";
-import { SnapshotComparePane } from "../components/snapshot-compare-pane";
+import {
+  PageCard,
+  PageHeader,
+  PageLayout,
+} from "@/components/layout/page-layout";
+import { Button } from "@/components/ui/button";
+import { findNextTarget } from "@/features/rotation/next-target";
 import {
   parseProjectionOutput,
   useProjectionSnapshot,
 } from "@/hooks/use-projection-snapshot";
+import { useRefineSession } from "@/hooks/use-refine-session";
+import { useResumeRefinement } from "@/hooks/use-resume-refinement";
 import { withContextItem } from "@/lib/mentions";
+import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { SnapshotComparePane } from "../components/snapshot-compare-pane";
+import { projectionReviewTransitions } from "./ProjectionReview.transitions";
 
 /**
  * "Approve & next" moves between projections without leaving this route, so
@@ -71,13 +71,13 @@ function ProjectionReviewPage() {
   // Editable context for the refine chat, seeded from the candidate's own
   // context_spec. Editing it re-emits a context_spec through the chat
   // (ChatPanel), and commit re-distills the lens with it.
-  const [context, setContext] = useState<ContextItem[]>([]);
+  const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
   const ctxInitedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!pending || ctxInitedFor.current === pending.id) return;
     ctxInitedFor.current = pending.id;
     const spec = parseContextSpec(pending.context_spec);
-    setContext(spec ? specToItems(spec) : []);
+    setContext(spec ? specToItems(spec) : [WHOLE_SCOPE_ITEM]);
   }, [pending]);
 
   // The refine session is created lazily on the user's first message (see

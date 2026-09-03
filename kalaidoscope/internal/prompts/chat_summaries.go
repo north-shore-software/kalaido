@@ -29,7 +29,7 @@ const SummarySnippetChars = 200
 // ChatSummariesLegend extends ContextLegend for summaries mode. It must stay
 // in sync with SummariesMapDigest, SummaryRowLine and SummaryStubLine, and it
 // overrides ContextLegend's rule on IDs: here the ids exist for tool calls.
-const ChatSummariesLegend = `In this conversation the active context is presented as summaries, not full documents. Below is the workspace map: a narrative saying what the workspace is about, a list of "things" (people, organisations, places, projects, topics) with how many fragments cite each, and relationships between them. Each document in the context is then one line: its date, a short title, a one-paragraph summary, the fragment's ID, and the things it cites. A line marked "not yet annotated" carries only the opening of the document instead of a summary.
+const ChatSummariesLegend = `In this conversation the active context is presented as summaries, not full documents. Below is the workspace map: a narrative saying what the workspace is about, a list of "things" (people, organisations, places, projects, topics) with how many fragments cite each, and relationships between them. Each document in the context is then one line: its date, a short title, a one-paragraph summary, the fragment's ID, and the things it cites. A line marked "not yet annotated" carries only the opening of the document instead of a summary. Documents the user pinned are the exception: they appear in full, wrapped in the "--- ... ---" headers described above, alongside the rows.
 
 Two tools give you the full material:
 - read_fragment: the full text of one or more fragments by id. Pass every id you need in one call. Budgeted per turn; when the budget is spent, work from the rows you have.

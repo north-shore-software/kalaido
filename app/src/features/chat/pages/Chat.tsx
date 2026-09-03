@@ -1,14 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { generateId, type UIMessage } from "ai";
 import { HistoryIcon, SquarePenIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import {
+  type Conversation,
+  getConversationMessages,
+  itemsToSpec,
+} from "@/api/kalaidoscope/chat.ts";
+import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
+import { ChatPanel, type ContextItem } from "@/components/kalaido";
 import {
   PageCard,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { ChatAnswerActions, ConversationList } from "@/features/chat";
-import { ChatPanel, type ContextItem } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -16,20 +21,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-
-import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
-import { useActiveContext } from "@/hooks/use-active-context";
+import { ChatAnswerActions, ConversationList } from "@/features/chat";
 import { useConversations } from "@/features/chat/hooks/use-conversations.ts";
-import {
-  type Conversation,
-  getConversationMessages,
-  itemsToSpec,
-} from "@/api/kalaidoscope/chat.ts";
+import { useActiveContext } from "@/hooks/use-active-context";
 import { fragmentLabel } from "@/hooks/use-fragment-labels";
-import { useAppNavigate } from "@/routes/use-app-navigate";
-import { defineRoute } from "@/routes/route-kit";
-import { chatTransitions } from "./Chat.transitions";
+import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { withContextItem } from "@/lib/mentions";
+import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { chatTransitions } from "./Chat.transitions";
 
 export default function Chat() {
   const client = useKalaidoscopeClient();
@@ -40,9 +40,9 @@ export default function Chat() {
   const location = useLocation();
   const seed = (location.state ?? {}) as { initialPrompt?: string };
   // The active context selection, owned here and mirrored to the backend by
-  // ChatPanel as `context_spec` stream messages. Starts empty; the picker fills
-  // it from real sources.
-  const [context, setContext] = useState<ContextItem[]>([]);
+  // ChatPanel as `context_spec` stream messages. Starts as the whole scope in
+  // full; the bar downgrades to summaries itself if that does not fit.
+  const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
   const initialPromptRef = useRef(seed.initialPrompt);
 
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -85,7 +85,7 @@ export default function Chat() {
   function handleNew() {
     setSelected(null);
     setNewChatId(generateId());
-    setContext([]);
+    setContext([WHOLE_SCOPE_ITEM]);
     setSyncedClientId(null);
     setHistoryOpen(false);
   }

@@ -1,5 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import { useState } from "react";
+import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import {
   type ContextItem,
   MarkdownContent,
@@ -47,7 +48,9 @@ export function ProjectionDraftEditor({
   onCancel,
   onApproveSuccess,
 }: ProjectionDraftEditorProps) {
-  const [context, setContext] = useState<ContextItem[]>(initialContext ?? []);
+  const [context, setContext] = useState<ContextItem[]>(
+    initialContext ?? [WHOLE_SCOPE_ITEM],
+  );
 
   const canApprove = session.previewReady && !session.committing;
 

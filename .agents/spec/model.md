@@ -61,7 +61,8 @@ A descriptor for the input into a projection or a reflection.
 - Stored primarily as a rule-based specification rather than a fixed list of IDs, allowing syntheses to dynamically pull in new matching data over time. A spec **may** additionally pin a set of **Explicit Fragments** by ID; these are a static supplement to the rule-based criteria, not a replacement for them.
 
 #### Scoping Modes
-- **Whole Scope**: Automatically selects all current and future fragments within the workspace. Suppresses all fragment-level Filter Criteria (Explicit Fragments, Fragment Types, Colours), but explicit **Source Composition** inputs (Source Projections/Reflections) may still be attached *(for Projections only)*.
+- **Whole Scope**: Automatically selects all current and future fragments within the workspace. Fragment-level Filter Criteria (Explicit Fragments, Fragment Types, Colours) add nothing to that scope; when present they mark the fragments that are rendered in full under **Summaries** (see below). Explicit **Source Composition** inputs (Source Projections/Reflections) may still be attached *(for Projections only)*.
+- **Summaries** *(with Whole Scope)*: The scope is presented to the model as one annotation row per fragment rather than full bodies, with read tools to fetch full text on demand; pinned fragments and colours stay in full. Chat only for now — refinement does not support it.
 - **Filtered Selection**: Selects a targeted subset of fragments based on explicit Filter Criteria.
 
 #### Filter Criteria

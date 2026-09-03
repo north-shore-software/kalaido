@@ -6,6 +6,11 @@ package llmcontext
 type PinnedIDs struct {
 	FragmentIDs []string `json:"fragmentIds,omitempty"`
 	SnapshotIDs []string `json:"snapshotIds,omitempty"`
+	// ExpandedIDs is the subset of FragmentIDs the user pinned directly (by id
+	// or through a colour). They render in full whatever the mode — summaries
+	// mode rows only the rest. Snapshot receipts and staleness (IsEmpty, Diff)
+	// ignore it: it is a rendering instruction, not scope.
+	ExpandedIDs []string `json:"expandedIds,omitempty"`
 }
 
 // IsEmpty reports whether this set names anything at all.

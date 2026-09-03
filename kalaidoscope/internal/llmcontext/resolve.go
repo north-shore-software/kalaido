@@ -23,11 +23,33 @@ import (
 func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, win *api.Window) (PinnedIDs, error) {
 	var pinned PinnedIDs
 
-	fragIDs, err := resolveFragments(ctx, app, spec, win)
+	pinnedFrags, err := resolvePinnedFragments(ctx, app, spec, win)
 	if err != nil {
 		return pinned, err
 	}
-	pinned.FragmentIDs = fragIDs
+	if spec.WholeScope {
+		all, err := resolveWholeScope(app, win)
+		if err != nil {
+			return pinned, err
+		}
+		pinned.FragmentIDs = all
+		// A pin outside the window (or deleted) is not in the scope either —
+		// intersect rather than trust the pin list.
+		inScope := make(map[string]bool, len(all))
+		for _, id := range all {
+			inScope[id] = true
+		}
+		for _, id := range pinnedFrags {
+			if inScope[id] {
+				pinned.ExpandedIDs = append(pinned.ExpandedIDs, id)
+			}
+		}
+	} else {
+		pinned.FragmentIDs = pinnedFrags
+		// Recorded even though full mode ignores it: a later flip to
+		// summaries keeps the pins in full.
+		pinned.ExpandedIDs = append([]string(nil), pinnedFrags...)
+	}
 
 	if snapIDs := resolveProjectionSnapshots(ctx, app, spec); len(snapIDs) > 0 {
 		pinned.SnapshotIDs = append(pinned.SnapshotIDs, snapIDs...)
@@ -57,19 +79,25 @@ func windowClause(win *api.Window) (string, dbx.Params) {
 		dbx.Params{"ws": start, "we": end}
 }
 
-func resolveFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec, win *api.Window) ([]string, error) {
+// resolveWholeScope is every live fragment, windowed.
+func resolveWholeScope(app core.App, win *api.Window) ([]string, error) {
+	winClause, winParams := windowClause(win)
+	recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''"+winClause, "", 0, 0, winParams)
+	if err != nil {
+		return nil, fmt.Errorf("resolve WholeScope fragments: %w", err)
+	}
+	var ids []string
+	for _, r := range recs {
+		ids = append(ids, r.Id)
+	}
+	return ids, nil
+}
+
+// resolvePinnedFragments is the union of the spec's fragment-level pins:
+// explicit ids, legacy types, and colour members — windowed and live.
+func resolvePinnedFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec, win *api.Window) ([]string, error) {
 	var ids []string
 	winClause, winParams := windowClause(win)
-	if spec.WholeScope {
-		recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''"+winClause, "", 0, 0, winParams)
-		if err != nil {
-			return nil, fmt.Errorf("resolve WholeScope fragments: %w", err)
-		}
-		for _, r := range recs {
-			ids = append(ids, r.Id)
-		}
-		return ids, nil
-	}
 
 	var ors []string
 	params := dbx.Params{}
@@ -286,34 +314,31 @@ func LatestPinnedAndSpec(msgs []api.UIMessage) (PinnedIDs, api.ContextSpec, *api
 }
 
 // DiffPinnedIDs reports what entered and left the context between two states.
+// ExpandedIDs diff too: a fragment already in scope that gets pinned appears
+// in added.ExpandedIDs without appearing in added.FragmentIDs.
 func DiffPinnedIDs(old, new PinnedIDs) (added, removed PinnedIDs) {
-	oldFrags := make(map[string]bool)
-	for _, id := range old.FragmentIDs {
-		oldFrags[id] = true
-	}
-	for _, id := range new.FragmentIDs {
-		if !oldFrags[id] {
-			added.FragmentIDs = append(added.FragmentIDs, id)
-		}
-		delete(oldFrags, id)
-	}
-	for id := range oldFrags {
-		removed.FragmentIDs = append(removed.FragmentIDs, id)
-	}
+	added.FragmentIDs, removed.FragmentIDs = diffIDs(old.FragmentIDs, new.FragmentIDs)
+	added.SnapshotIDs, removed.SnapshotIDs = diffIDs(old.SnapshotIDs, new.SnapshotIDs)
+	added.ExpandedIDs, removed.ExpandedIDs = diffIDs(old.ExpandedIDs, new.ExpandedIDs)
+	return added, removed
+}
 
-	oldSnaps := make(map[string]bool)
-	for _, id := range old.SnapshotIDs {
-		oldSnaps[id] = true
+// diffIDs is (new − old, old − new), each in its source order.
+func diffIDs(old, new []string) (added, removed []string) {
+	oldSet := make(map[string]bool, len(old))
+	for _, id := range old {
+		oldSet[id] = true
 	}
-	for _, id := range new.SnapshotIDs {
-		if !oldSnaps[id] {
-			added.SnapshotIDs = append(added.SnapshotIDs, id)
+	for _, id := range new {
+		if !oldSet[id] {
+			added = append(added, id)
 		}
-		delete(oldSnaps, id)
+		delete(oldSet, id)
 	}
-	for id := range oldSnaps {
-		removed.SnapshotIDs = append(removed.SnapshotIDs, id)
+	for _, id := range old {
+		if oldSet[id] {
+			removed = append(removed, id)
+		}
 	}
-
 	return added, removed
 }
