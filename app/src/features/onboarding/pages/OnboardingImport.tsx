@@ -42,12 +42,18 @@ export default function OnboardingImport() {
 
   return (
     <OnboardingShell
-      title="Import your notes"
-      description="Pick a file to bring in. Kalaido will map and organise it for you."
+      showMark={false}
+      title="Would you like to import your notes?"
+      description="Bring in your personal notes, research papers, documents, or message archives to let Kalaido organise and index them."
     >
       <section className="flex flex-col gap-2">
         <Label>File</Label>
         <FilePicker path={path} disabled={submitting} onChoose={chooseFile} />
+        <p className="text-body-sm text-fg-3">
+          Supported formats: Zip archives (.zip), Markdown &amp; plain text
+          (.md, .txt), Word documents (.docx), and mailbox exports (.mbox,
+          .eml).
+        </p>
         {pickError && <p className="text-body-sm text-fg-3">{pickError}</p>}
         {path && <ImportPreview entries={entries} scanning={scanning} />}
       </section>
@@ -62,7 +68,7 @@ export default function OnboardingImport() {
           disabled={submitting}
           onClick={() => go(transitions.skip, { replace: true })}
         >
-          Skip for now
+          Skip and start blank
         </Button>
         <Button
           variant="commit"

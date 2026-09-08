@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/sidebar";
 import { pathFor, type SectionId, sectionForRoute } from "@/routes/registry";
 import type { TransitionDef } from "@/routes/route-kit";
-import { RouteLink } from "@/routes/route-link";
+import { useAppNavigate } from "@/routes/use-app-navigate";
 
 export interface SidebarNavItem {
   title: string;
@@ -48,6 +48,7 @@ const DEST_ACTIVE_CLASS: Record<SectionId, string> = {
  */
 export function SidebarNav({ items }: { items: readonly SidebarNavItem[] }) {
   const { pathname } = useLocation();
+  const { go } = useAppNavigate();
   const isActive = (transition: TransitionDef) => {
     const path = pathFor(transition.to);
     return path === "/main" ? pathname === "/main" : pathname.startsWith(path);
@@ -65,7 +66,7 @@ export function SidebarNav({ items }: { items: readonly SidebarNavItem[] }) {
                 tooltip={item.title}
                 isActive={isActive(item.transition)}
                 className={DEST_ACTIVE_CLASS[destSection]}
-                render={<RouteLink transition={item.transition} />}
+                onClick={() => go(item.transition)}
               >
                 <Icon className={RAIL_ICON_CLASS} />
                 <span>{item.title}</span>

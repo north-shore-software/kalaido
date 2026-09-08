@@ -11,5 +11,5 @@ export interface KalaidoscopeSetupState {
   /** Arrived straight from sign-up — greet them rather than showing a bare form. */
   firstWorkspace?: boolean;
   /** Land on the onboarding import page once the workspace exists. */
-  intent?: "import";
+  intent?: "import" | "start";
 }

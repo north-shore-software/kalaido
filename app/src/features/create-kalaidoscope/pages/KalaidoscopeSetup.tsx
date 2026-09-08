@@ -119,12 +119,7 @@ export default function KalaidoscopeSetup() {
   // Submitting this path opens the sign-in gate before anything is created, so
   // promising "Create Kalaidoscope" would misdescribe what the button does.
   const needsSignIn = snap.storage === "cloud" && !signedIn;
-  const forImport = routeState.intent === "import";
-  const submitLabel = needsSignIn
-    ? "Sign in & create"
-    : forImport
-      ? "Create & import"
-      : "Create Kalaidoscope";
+  const submitLabel = needsSignIn ? "Sign in & create" : "Create Kalaidoscope";
 
   const canCreate =
     !!snap.name.trim() &&
@@ -191,7 +186,6 @@ export default function KalaidoscopeSetup() {
       cloudId: state.cloudId,
       locationInput: state.locationInput,
       llmConfig: config,
-      entry: forImport ? "onboarding-import" : undefined,
     });
 
     if (result.isErr()) {

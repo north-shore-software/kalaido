@@ -21,4 +21,8 @@ export const mainTransitions = defineTransitions({
     to: "projection-review",
     trigger: "Click a projection snapshot to review",
   },
+  startPipeline: {
+    to: "onboarding-organizing",
+    trigger: "Click 'Import' in the dashboard import modal",
+  },
 });

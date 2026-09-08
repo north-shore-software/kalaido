@@ -48,7 +48,7 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
           {unsupported > 0 ? ` · ${unsupported} unsupported` : ""}
         </span>
       </div>
-      <ul className="max-h-56 divide-y divide-line overflow-auto rounded-none border border-line bg-surface-1">
+      <ul className="max-h-48 divide-y divide-line overflow-auto rounded-none border border-line bg-surface-1">
         {shown
           .map((e, i) => ({ e, key: `${i}-${e.path}` }))
           .map(({ e, key }) => (
@@ -57,7 +57,7 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
               className="flex items-center justify-between gap-3 px-3 py-1.5"
             >
               <span
-                className="truncate font-mono text-mono-sm text-fg-1"
+                className="min-w-0 truncate font-mono text-mono-sm text-fg-1"
                 title={e.path}
               >
                 {entryName(e.path)}

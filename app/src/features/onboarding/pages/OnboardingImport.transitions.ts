@@ -8,6 +8,6 @@ export const onboardingImportTransitions = defineTransitions({
   },
   skip: {
     to: "main",
-    trigger: "Click 'Skip for now'",
+    trigger: "Click 'Skip and start blank'",
   },
 });

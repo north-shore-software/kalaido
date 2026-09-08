@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { classifyPath, type FileEntry } from "@/api/app/ingest-file";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
 
@@ -16,11 +16,11 @@ export function useImportPicker(onPicked?: () => void) {
   const [scanning, setScanning] = useState(false);
   const [pickError, setPickError] = useState("");
 
-  function clear() {
+  const clear = useCallback(() => {
     setPath("");
     setEntries([]);
     setPickError("");
-  }
+  }, []);
 
   async function chooseFile() {
     const pickerResult = await openFilePicker(FILE_FILTERS);

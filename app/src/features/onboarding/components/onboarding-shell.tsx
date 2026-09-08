@@ -4,12 +4,14 @@ import { Mark } from "@/components/kalaido";
 export interface OnboardingShellProps {
   title: string;
   description?: string;
+  showMark?: boolean;
   children: ReactNode;
 }
 
 export function OnboardingShell({
   title,
   description,
+  showMark = true,
   children,
 }: OnboardingShellProps) {
   return (
@@ -19,7 +21,9 @@ export function OnboardingShell({
     >
       <main className="m-auto flex w-full max-w-2xl flex-col gap-8 p-8">
         <header className="flex flex-col items-center text-center">
-          <Mark className="mb-4 size-16 p-2 animate-glow-shimmer" />
+          {showMark && (
+            <Mark className="mb-4 size-16 p-2 animate-glow-shimmer" />
+          )}
           <div className="flex flex-col gap-1">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             {description && (
