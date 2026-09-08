@@ -309,6 +309,9 @@ export default function ReflectionRefine() {
                 placeholder="‘a tight weekly work-snippet of what shipped’…"
                 disabled={creating}
                 onSubmit={() => void startReflection()}
+                onMention={(item) =>
+                  setContext((prev) => withContextItem(prev, item))
+                }
                 nameField={
                   <div className="shrink-0 px-4 pb-3">
                     <Input

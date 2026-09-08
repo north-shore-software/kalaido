@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { ProjectionDraftEditor } from "@/features/projections/components/projection-draft-editor";
 import { useDraftName } from "@/hooks/use-draft-name";
 import { useRefineSession } from "@/hooks/use-refine-session";
+import { withContextItem } from "@/lib/mentions";
 import { deriveName } from "@/lib/naming";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -248,6 +249,9 @@ export default function NewProjection() {
               placeholder="‘A live PRD for the checkout redesign’…"
               disabled={creating}
               onSubmit={() => void startProjection()}
+              onMention={(item) =>
+                setContext((prev) => withContextItem(prev, item))
+              }
               nameField={
                 <div className="shrink-0 px-4 pb-3">
                   <Input

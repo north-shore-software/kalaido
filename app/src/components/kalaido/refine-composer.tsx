@@ -1,8 +1,9 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
+import type { ContextItem } from "@/api/kalaidoscope/chat";
 import { PaneHeader } from "@/components/layout/page-chrome";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/css-utils";
 import { ComposerSendButton } from "./composer-send-button";
+import { MentionTextarea } from "./mention-textarea";
 
 export interface RefineComposerProps {
   title?: string;
@@ -26,6 +27,12 @@ export interface RefineComposerProps {
    * optional name field, keeping the ContextBar in its usual position.
    */
   nameField?: ReactNode;
+  /**
+   * See {@link MentionTextarea}'s onMention. Pre-session surfaces own a context
+   * selection (the ContextBar in `beforeInput`), so a mention picked here must
+   * land in it exactly as it would in the chat panel after the session starts.
+   */
+  onMention?: (item: ContextItem) => void;
 }
 
 export function RefineComposer({
@@ -42,6 +49,7 @@ export function RefineComposer({
   preparingText = "Preparing refine session…",
   beforeInput,
   nameField,
+  onMention,
 }: RefineComposerProps) {
   if (preparing) {
     return (
@@ -51,12 +59,9 @@ export function RefineComposer({
     );
   }
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (onSubmit && value.trim() && !disabled && !busy) {
-        onSubmit();
-      }
+  const submit = () => {
+    if (onSubmit && value.trim() && !disabled && !busy) {
+      onSubmit();
     }
   };
 
@@ -81,12 +86,12 @@ export function RefineComposer({
       {beforeInput}
       <div className="shrink-0 border-t border-line px-4 py-3">
         <div className="flex items-end gap-2">
-          <Textarea
+          <MentionTextarea
             value={value}
-            onChange={(e) => onChange?.(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onChange={(v) => onChange?.(v)}
+            onSubmit={submit}
+            onMention={onMention}
             placeholder={placeholder}
-            rows={1}
             disabled={disabled || busy}
             className="max-h-40 min-h-0 flex-1 overflow-y-auto"
           />

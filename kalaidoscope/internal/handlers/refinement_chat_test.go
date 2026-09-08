@@ -41,6 +41,13 @@ type refineScript struct {
 	chatText  string
 	applyOut  string
 	applyFail bool
+
+	// suggestName, when set, makes the first chat leg emit a bare suggest_name
+	// call (no text) — the shape Gemini returns on a question turn.
+	// continueText is what the continuation leg (no tools advertised) says.
+	suggestName  string
+	continueText string
+	chatCalls    int
 }
 
 func (s *refineScript) install(t *testing.T) {
@@ -71,7 +78,25 @@ func (p refineScriptProvider) Stream(ctx context.Context, msgs []llm.Message, to
 		return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
 	}
 
+	p.s.mu.Lock()
+	p.s.chatCalls++
+	continuation := p.s.suggestName != "" && p.s.chatCalls > 1
+	p.s.mu.Unlock()
+
 	ch := make(chan llm.StreamEvent, 8)
+	if continuation {
+		if len(tools) != 0 {
+			panic("continuation leg advertised tools")
+		}
+		ch <- llm.StreamEvent{Kind: llm.EventText, Text: p.s.continueText}
+		close(ch)
+		return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
+	}
+	if p.s.suggestName != "" {
+		args, _ := json.Marshal(map[string]string{"name": p.s.suggestName})
+		ch <- llm.StreamEvent{Kind: llm.EventToolStart, ToolCallID: "tc-n", ToolName: prompts.SuggestNameToolName}
+		ch <- llm.StreamEvent{Kind: llm.EventToolEnd, ToolCallID: "tc-n", ToolName: prompts.SuggestNameToolName, Args: args}
+	}
 	if p.s.chatText != "" {
 		ch <- llm.StreamEvent{Kind: llm.EventText, Text: p.s.chatText}
 	}
@@ -311,6 +336,56 @@ func TestRefinementClarifyTurnSkipsApply(t *testing.T) {
 	script.mu.Lock()
 	applies := len(script.applyCalls)
 	script.mu.Unlock()
+	if applies != 0 {
+		t.Errorf("apply model calls = %d, want 0", applies)
+	}
+}
+
+// A question turn that arrives as a bare suggest_name call (no text — the shape
+// Gemini returns with a function call) gets one continuation call with no
+// tools, and its text lands on the same assistant message beside the name.
+func TestRefinementNameOnlyTurnContinuesForText(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	script := &refineScript{
+		suggestName:  "Feature Overview",
+		continueText: "One entry per feature, or grouped by the page they live on?",
+	}
+	script.install(t)
+
+	body, msgs := runRefinementTurn(t, app, ref, "list the features")
+
+	if !strings.Contains(body, "grouped by the page") {
+		t.Error("continuation text was not streamed")
+	}
+	if strings.Contains(body, prompts.ApplyResultToolName) {
+		t.Error("name-only turn streamed apply events")
+	}
+	parts := assistantParts(t, msgs)
+	if _, ok := parts["tool-"+prompts.SuggestNameToolName]; !ok {
+		t.Error("suggest_name part not persisted")
+	}
+	var text string
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != "assistant" {
+			continue
+		}
+		for _, p := range msgs[i].Parts {
+			if p.Type == "text" {
+				text = p.Text
+			}
+		}
+		break
+	}
+	if text != script.continueText {
+		t.Errorf("persisted text = %q, want the continuation text", text)
+	}
+	script.mu.Lock()
+	chatCalls, applies := script.chatCalls, len(script.applyCalls)
+	script.mu.Unlock()
+	if chatCalls != 2 {
+		t.Errorf("chat model calls = %d, want 2 (turn + continuation)", chatCalls)
+	}
 	if applies != 0 {
 		t.Errorf("apply model calls = %d, want 0", applies)
 	}
