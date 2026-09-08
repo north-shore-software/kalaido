@@ -1,10 +1,5 @@
 import type { Story } from "@ladle/react";
-import {
-  ArchiveIcon,
-  CloudIcon,
-  FolderInputIcon,
-  PlusIcon,
-} from "lucide-react";
+import { ArchiveIcon, CloudIcon, PlusIcon } from "lucide-react";
 import { PrimaryChoice, SecondaryChoice } from "./choice-cards";
 
 export default { title: "Onboarding / Choice cards" };
@@ -15,15 +10,9 @@ export const Landing: Story = () => (
     className="flex max-w-2xl flex-col gap-3 bg-background p-8"
   >
     <PrimaryChoice
-      icon={<FolderInputIcon className="size-6" />}
-      title="Import your notes"
-      description="Bring in documents, notes or an email archive and let Kalaido organise them."
-      onClick={() => {}}
-    />
-    <SecondaryChoice
-      icon={<PlusIcon className="size-4" />}
-      title="Start from blank"
-      description="An empty local or cloud workspace."
+      icon={<PlusIcon className="size-6" />}
+      title="Create New Workspace"
+      description="create your first kalaidoscope, start from blank or import your notes"
       onClick={() => {}}
     />
     <div className="grid gap-3 sm:grid-cols-2">

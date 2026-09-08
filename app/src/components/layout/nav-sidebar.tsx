@@ -33,7 +33,7 @@ import {
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { RouteLink } from "@/routes/route-link";
+import { useAppNavigate } from "@/routes/use-app-navigate";
 import { navSidebarTransitions } from "./nav-sidebar.transitions";
 
 /** Where you start: the two destinations you return to, not places you browse. */
@@ -108,6 +108,7 @@ function NavCapture() {
  */
 function NavConnections() {
   const { pathname } = useLocation();
+  const { go } = useAppNavigate();
   return (
     <>
       <SidebarSeparator />
@@ -118,10 +119,8 @@ function NavConnections() {
               tooltip="Connections"
               isActive={pathname.startsWith("/connections")}
               className={NEUTRAL_DEST_CLASS}
-              render={
-                <RouteLink
-                  transition={navSidebarTransitions.transitions.openConnections}
-                />
+              onClick={() =>
+                go(navSidebarTransitions.transitions.openConnections)
               }
             >
               <ArrowLeftRightIcon className={RAIL_ICON_CLASS} />
@@ -136,17 +135,14 @@ function NavConnections() {
 
 function SettingsButton() {
   const { pathname } = useLocation();
+  const { go } = useAppNavigate();
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         tooltip="Settings"
         isActive={pathname.startsWith("/settings")}
         className={NEUTRAL_DEST_CLASS}
-        render={
-          <RouteLink
-            transition={navSidebarTransitions.transitions.openSettings}
-          />
-        }
+        onClick={() => go(navSidebarTransitions.transitions.openSettings)}
       >
         <SettingsIcon />
         <span>Settings</span>

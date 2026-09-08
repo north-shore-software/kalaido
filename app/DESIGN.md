@@ -275,6 +275,10 @@ Consequences:
 - **A screen with nothing awaiting the user contains no magenta at all.** If you are
   reaching for magenta to make something prominent, you are using it wrong — reach for
   `line-strong` or `fg-1` instead.
+  **Exception:** the Dashboard's empty-workspace Import card wears magenta
+  (`magenta-edge` border, `magenta-wash` fill, `commit` button) despite the Dashboard's
+  cyan hue — an empty workspace is read as a demand rather than a state. A deliberate
+  one-off, do not extend; the Capture card beside it stays the section hue.
 - **Exactly one chamfered magenta button per screen.** The chamfer marks *the* action. A
   screen with two is a screen that has not decided what it is for.
 - **Warnings are not accent; reassurance is.** `drifting` and `critical` mean the same
@@ -601,6 +605,22 @@ Two-column option selector grids (Storage, Model Provider, sign in / sign up),
 - Option description 15px in `fg-3` — readable, avoiding micro-text.
 - Selected state wears `border-cyan-edge bg-cyan-veil` with subtle cyan halo.
 - Unselected state wears dashed border, hovering to `bg-surface-2`.
+
+### Dashboard action cards
+
+The Dashboard's two standing invitations — Import and Capture — in one component, two
+layouts, each card a single click target (§7 Cards).
+
+- **hero** (empty workspace): a 296px column, dashed accent border over the accent's
+  `veil` fill, 40px padding block. A 48px bordered icon tile, title `card-title` / 700,
+  description `body-sm` in `fg-3`, and a button at the foot. Hover promotes the border
+  to solid accent and fills `bg-2`.
+- **row** (once fragments exist): full-width, dashed `line-strong`, 16px/12px padding.
+  A 32px bordered icon tile in `fg-3`, title `row` / 600, description truncated in
+  `meta`. No button — the row is the control.
+
+The foot button is rendered as a styled span, not a nested control: the card is already
+the click target.
 
 ### Not specified
 

@@ -16,6 +16,7 @@ import type { FragmentTypeOptions } from "@/api/kalaidoscope/types";
 import { FragmentDrawer } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { resolveSources } from "@/features/projections/sources";
+import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { useContextSources } from "@/hooks/use-context-sources";
 import {
   useLiveCollection,
@@ -28,7 +29,12 @@ import { fragmentTypeLabel } from "@/lib/labels";
 import { isPinned } from "@/lib/pins";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import {
+  CaptureFragmentCard,
+  ImportNotesCard,
+} from "../components/action-cards";
 import { CaughtUpBanner } from "../components/caught-up-banner";
+import { ImportNotesDialog } from "../components/import-notes-dialog";
 import { NeedsActionSection } from "../components/needs-action-section";
 import { PinnedSection } from "../components/pinned-section";
 import { ProposedSection } from "../components/proposed-section";
@@ -73,6 +79,7 @@ export default function Main() {
   const [selectedFragmentId, setSelectedFragmentId] = useState<string | null>(
     null,
   );
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const {
     statuses,
@@ -228,6 +235,8 @@ export default function Main() {
       }),
     [statuses, nameById, candidateByProjection],
   );
+  const hasFragments = fragments.records.length > 0;
+  const cardLayout = hasFragments ? "row" : "hero";
   const caughtUp = !rotLoading && needsAction.length === 0;
 
   // "Generate all" has work only while some row is still missing its
@@ -398,7 +407,24 @@ export default function Main() {
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 pt-5 pb-6">
-            {caughtUp && <CaughtUpBanner />}
+            {hasFragments && caughtUp && <CaughtUpBanner />}
+
+            <div
+              className={
+                hasFragments
+                  ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+                  : "flex flex-wrap items-stretch gap-4"
+              }
+            >
+              <ImportNotesCard
+                layout={cardLayout}
+                onClick={() => setImportDialogOpen(true)}
+              />
+              <CaptureFragmentCard
+                layout={cardLayout}
+                onClick={() => openAddFragmentModal()}
+              />
+            </div>
 
             <NeedsActionSection
               items={needsAction}
@@ -423,7 +449,13 @@ export default function Main() {
               onDismiss={dismissProposal}
             />
 
-            <PinnedSection items={pinned} onOpen={openEntity} onUnpin={unpin} />
+            {hasFragments && (
+              <PinnedSection
+                items={pinned}
+                onOpen={openEntity}
+                onUnpin={unpin}
+              />
+            )}
           </div>
 
           <RecentFragmentsSidebar
@@ -436,6 +468,17 @@ export default function Main() {
       <FragmentDrawer
         id={selectedFragmentId ?? undefined}
         onClose={() => setSelectedFragmentId(null)}
+      />
+      <ImportNotesDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onImportSuccess={(ingestId) => {
+          setImportDialogOpen(false);
+          go(mainTransitions.startPipeline, {
+            params: { ingestId },
+            replace: true,
+          });
+        }}
       />
     </PageLayout>
   );

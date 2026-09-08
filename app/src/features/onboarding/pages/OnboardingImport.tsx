@@ -1,11 +1,9 @@
 import { UploadIcon } from "lucide-react";
-import { useEffect, useState } from "react";
-import { ingestFile } from "@/api/kalaidoscope/ingest";
-import { Label } from "@/components/kalaido";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { FilePicker } from "@/features/import/components/file-picker";
-import { ImportPreview } from "@/features/import/components/import-preview";
+import { ImportFields } from "@/features/import/components/import-fields";
 import { useImportPicker } from "@/features/import/hooks/use-import-picker";
+import { useImportSubmit } from "@/features/import/hooks/use-import-submit";
 import { clearStageEntry } from "@/hooks/app-state-actions.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -14,43 +12,23 @@ import { onboardingImportTransitions as transitions } from "./OnboardingImport.t
 
 export default function OnboardingImport() {
   const { go } = useAppNavigate();
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const { path, entries, scanning, pickError, chooseFile } = useImportPicker(
-    () => setSubmitError(""),
+  const { submitting, submitError, submit, clearError } = useImportSubmit(
+    (ingestId) =>
+      go(transitions.startPipeline, { params: { ingestId }, replace: true }),
   );
+  const picker = useImportPicker(clearError);
 
   useEffect(() => {
     clearStageEntry();
   }, []);
 
-  async function runImport() {
-    if (!path || submitting) return;
-    setSubmitting(true);
-    setSubmitError("");
-    const created = await ingestFile({ path, organizeAfter: true });
-    if (created.isErr()) {
-      setSubmitError(created.error.message || "Import failed.");
-      setSubmitting(false);
-      return;
-    }
-    go(transitions.startPipeline, {
-      params: { ingestId: created.value.id },
-      replace: true,
-    });
-  }
-
   return (
     <OnboardingShell
-      title="Import your notes"
-      description="Pick a file to bring in. Kalaido will map and organise it for you."
+      showMark={false}
+      title="Would you like to import your notes?"
+      description="Bring in your personal notes, research papers, documents, or message archives to let Kalaido organise and index them."
     >
-      <section className="flex flex-col gap-2">
-        <Label>File</Label>
-        <FilePicker path={path} disabled={submitting} onChoose={chooseFile} />
-        {pickError && <p className="text-body-sm text-fg-3">{pickError}</p>}
-        {path && <ImportPreview entries={entries} scanning={scanning} />}
-      </section>
+      <ImportFields picker={picker} disabled={submitting} />
 
       {submitError && (
         <p className="text-meta text-destructive">{submitError}</p>
@@ -62,12 +40,12 @@ export default function OnboardingImport() {
           disabled={submitting}
           onClick={() => go(transitions.skip, { replace: true })}
         >
-          Skip for now
+          Skip and start blank
         </Button>
         <Button
           variant="commit"
-          disabled={!path || submitting}
-          onClick={() => void runImport()}
+          disabled={!picker.path || submitting}
+          onClick={() => void submit(picker.path)}
         >
           <UploadIcon />
           {submitting ? "Uploading…" : "Import"}

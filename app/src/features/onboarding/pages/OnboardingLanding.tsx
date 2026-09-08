@@ -1,10 +1,4 @@
-import {
-  ArchiveIcon,
-  CloudIcon,
-  FolderInputIcon,
-  PlusIcon,
-  TriangleAlert,
-} from "lucide-react";
+import { ArchiveIcon, CloudIcon, PlusIcon, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
@@ -12,7 +6,6 @@ import type { WorkspaceLlmConfig } from "@/api/kalaidoscope/llm-config.ts";
 import { Button } from "@/components/ui/button";
 import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
-import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { appState } from "@/hooks/use-app-state.ts";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { defineRoute } from "@/routes/route-kit";
@@ -80,8 +73,6 @@ export default function OnboardingLanding() {
     setPending(inspected.value);
   }
 
-  const importState: KalaidoscopeSetupState = { intent: "import" };
-
   return (
     <>
       <OnboardingShell
@@ -104,17 +95,9 @@ export default function OnboardingLanding() {
 
         <div className="flex flex-col gap-3">
           <PrimaryChoice
-            icon={<FolderInputIcon className="size-6" />}
-            title="Import your notes"
-            description="Bring in documents, notes or an email archive and let Kalaido organise them."
-            onClick={() =>
-              go(transitions.createForImport, { state: importState })
-            }
-          />
-          <SecondaryChoice
-            icon={<PlusIcon className="size-4" />}
-            title="Start from blank"
-            description="An empty local or cloud workspace."
+            icon={<PlusIcon className="size-6" />}
+            title="Create New Workspace"
+            description="create your first kalaidoscope, start from blank or import your notes"
             onClick={() => go(transitions.createWorkspace)}
           />
 
