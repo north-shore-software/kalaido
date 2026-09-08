@@ -326,6 +326,9 @@ function ProjectionReviewPage() {
                 disabled={!pending}
                 busy={session.creating}
                 onSubmit={() => void startRefine()}
+                onMention={(item) =>
+                  setContext((prev) => withContextItem(prev, item))
+                }
                 beforeInput={
                   <ContextBar
                     items={context}

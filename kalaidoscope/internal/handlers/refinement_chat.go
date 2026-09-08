@@ -182,6 +182,19 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 			turnWriter.write(parts)
 		}
 
+		// A question turn that arrived as a bare suggest_name call: the model
+		// emitted the function call and no prose, so the user would see
+		// nothing. Feed the call back as a tool result and stream once more
+		// with no tools, which leaves text as the only thing it can produce.
+		if turn.Text == "" && len(turn.ToolCalls) > 0 && latestLensArg(turn.ToolCalls) == "" {
+			if text := streamNameOnlyContinuation(ctx, app, sse, assistantModel, hydratedMsgs, turn, textID); text != "" {
+				parts = append(parts, api.UIMessagePart{Type: "text", Text: text})
+				turnWriter.write(parts)
+			} else {
+				log.Printf("refinement chat %s: name-only turn produced no text on continuation", refRec.Id)
+			}
+		}
+
 		// Phase two: execute the drafted lens so the user previews what it
 		// actually produces — the same RoleSnapshot call a future regeneration
 		// under this lens makes, always from scratch (a drafted lens is a
@@ -213,6 +226,30 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		sse.Finish()
 		return nil
 	}
+}
+
+// streamNameOnlyContinuation makes the follow-up model call for a turn that
+// called suggest_name and nothing else, streaming its text into the open SSE
+// response. No tools are advertised, so the reply is the plain-text question
+// the turn owes. Returns the text, or "" if the call failed or stayed silent.
+func streamNameOnlyContinuation(ctx context.Context, app core.App, sse *chat.SSE, model string, msgs []llm.Message, turn chat.AssistantTurn, textID string) string {
+	names := make([]string, 0, len(turn.ToolCalls))
+	for _, tc := range turn.ToolCalls {
+		names = append(names, tc.Name)
+	}
+	msgs = append(msgs,
+		llm.Message{Role: "assistant", Content: strings.TrimSpace(prompts.DiscoverEchoToolCalls(names))},
+		llm.Message{Role: "user", Content: prompts.NameRecordedContinue})
+	if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
+		log.Printf("refinement continuation: %v", err)
+		return ""
+	}
+	comp, err := usage.Stream(ctx, app, llm.RoleRefinement, model, msgs, nil)
+	if err != nil {
+		log.Printf("refinement continuation: %v", err)
+		return ""
+	}
+	return sse.StreamTurn(comp, textID+"-c1", nil).Text
 }
 
 // reapplyWindow is the window a re-apply send names: the new messages hold no

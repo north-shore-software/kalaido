@@ -77,6 +77,8 @@ func TestRefinementPromptEpistemics(t *testing.T) {
 		"8 in total",                     // the count-pin worked example
 		"The lens must stand alone",      // hard rule 3
 		"Never encode a guessed reading", // clarify-with-a-guess
+		"Interview first",                // no lens until the essentials are settled
+		"Before the first lens exists",   // the confidence gate is first-lens scoped
 	} {
 		if !strings.Contains(RefinementSystemPrompt, marker) {
 			t.Errorf("RefinementSystemPrompt lost the %q contract", marker)
