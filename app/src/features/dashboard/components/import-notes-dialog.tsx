@@ -1,7 +1,4 @@
 import { UploadIcon } from "lucide-react";
-import { useState } from "react";
-import { ingestFile } from "@/api/kalaidoscope/ingest";
-import { Label } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,9 +8,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FilePicker } from "@/features/import/components/file-picker";
-import { ImportPreview } from "@/features/import/components/import-preview";
+import { ImportFields } from "@/features/import/components/import-fields";
 import { useImportPicker } from "@/features/import/hooks/use-import-picker";
+import { useImportSubmit } from "@/features/import/hooks/use-import-submit";
 
 export interface ImportNotesDialogProps {
   open: boolean;
@@ -26,31 +23,14 @@ export function ImportNotesDialog({
   onClose,
   onImportSuccess,
 }: ImportNotesDialogProps) {
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const { path, entries, scanning, pickError, chooseFile, clear } =
-    useImportPicker(() => setSubmitError(""));
+  const { submitting, submitError, submit, clearError } =
+    useImportSubmit(onImportSuccess);
+  const picker = useImportPicker(clearError);
 
   function handleClose() {
-    clear();
-    setSubmitError("");
-    setSubmitting(false);
+    picker.clear();
+    clearError();
     onClose();
-  }
-
-  async function runImport() {
-    if (!path || submitting) return;
-    setSubmitting(true);
-    setSubmitError("");
-    const created = await ingestFile({ path, organizeAfter: true });
-    if (created.isErr()) {
-      console.error("[import] ingest failed:", created.error);
-      setSubmitError(created.error.message || "Import failed.");
-      setSubmitting(false);
-      return;
-    }
-    setSubmitting(false);
-    onImportSuccess(created.value.id);
   }
 
   return (
@@ -73,21 +53,7 @@ export function ImportNotesDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-          <section className="flex flex-col gap-2">
-            <Label>File</Label>
-            <FilePicker
-              path={path}
-              disabled={submitting}
-              onChoose={chooseFile}
-            />
-            <p className="text-body-sm text-fg-3">
-              Supported formats: Zip archives (.zip), Markdown &amp; plain text
-              (.md, .txt), Word documents (.docx), and mailbox exports (.mbox,
-              .eml).
-            </p>
-            {pickError && <p className="text-body-sm text-fg-3">{pickError}</p>}
-            {path && <ImportPreview entries={entries} scanning={scanning} />}
-          </section>
+          <ImportFields picker={picker} disabled={submitting} />
 
           {submitError && (
             <p className="text-meta text-destructive">{submitError}</p>
@@ -106,8 +72,8 @@ export function ImportNotesDialog({
           <Button
             type="button"
             variant="commit"
-            disabled={!path || submitting}
-            onClick={() => void runImport()}
+            disabled={!picker.path || submitting}
+            onClick={() => void submit(picker.path)}
           >
             <UploadIcon />
             {submitting ? "Uploading…" : "Import"}

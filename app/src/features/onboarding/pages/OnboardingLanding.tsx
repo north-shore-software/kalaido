@@ -1,9 +1,4 @@
-import {
-  ArchiveIcon,
-  CloudIcon,
-  PlusIcon,
-  TriangleAlert,
-} from "lucide-react";
+import { ArchiveIcon, CloudIcon, PlusIcon, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { openFilePicker } from "@/api/app/os-integrations.ts";

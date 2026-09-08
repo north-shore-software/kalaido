@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { classifyPath, type FileEntry } from "@/api/app/ingest-file";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
 
@@ -10,17 +10,29 @@ const FILE_FILTERS = [
   { name: "All files", extensions: ["*"] },
 ];
 
+/**
+ * Prose form of FILE_FILTERS, derived so the two import surfaces can't drift
+ * from what the picker actually accepts.
+ */
+export const SUPPORTED_FORMATS_HINT = `Supported formats: ${FILE_FILTERS.filter(
+  (f) => !f.extensions.includes("*"),
+)
+  .map((f) => `${f.name} (${f.extensions.map((e) => `.${e}`).join(", ")})`)
+  .join(", ")}.`;
+
+export type ImportPicker = ReturnType<typeof useImportPicker>;
+
 export function useImportPicker(onPicked?: () => void) {
   const [path, setPath] = useState("");
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [scanning, setScanning] = useState(false);
   const [pickError, setPickError] = useState("");
 
-  const clear = useCallback(() => {
+  function clear() {
     setPath("");
     setEntries([]);
     setPickError("");
-  }, []);
+  }
 
   async function chooseFile() {
     const pickerResult = await openFilePicker(FILE_FILTERS);
