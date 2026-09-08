@@ -42,9 +42,10 @@
   --section-wash: var(--cyan-wash);
   --section-edge: var(--cyan-edge);
   --section-veil: var(--cyan-veil);
-  --section-fg: var(--gray-0);
+  --section-fg: #ffffff;
   --section-ink: var(--section);
-  --shadow-section: 4px 4px 0 0 rgb(34 211 238 / 0.28);
+  --shadow-section: 4px 4px 0 0
+    color-mix(in srgb, var(--section) 28%, transparent);
 
   /* Status — three momentum tiers */
   --status-stable: #22d3ee;
@@ -73,7 +74,7 @@
   --content-7: oklch(58% 0.19 300);
   --content-8: oklch(62% 0.13 190);
 
-  /* === Semantic surfaces — LIGHT (derived, never shipped) ========== */
+  /* === Semantic surfaces — LIGHT ================================== */
   --bg-0: #ffffff;
   --bg-1: #f7f6f3;
   --bg-2: #ffffff;
@@ -251,6 +252,7 @@
 
   --accent-cyan: var(--cyan-base);
   --accent-cyan-fg: var(--gray-0);
+  --section-fg: var(--gray-0);
   --accent-magenta: var(--magenta-base);
   --accent-magenta-fg: var(--gray-11);
   --accent-yellow: var(--yellow-base);
@@ -541,9 +543,7 @@
   --section-wash: var(--cyan-wash);
   --section-edge: var(--cyan-edge);
   --section-veil: var(--cyan-veil);
-  --section-fg: var(--gray-0);
   --section-ink: var(--cyan-base);
-  --shadow-section: 4px 4px 0 0 rgb(34 211 238 / 0.28);
 }
 
 [data-section="chat"] {
@@ -551,9 +551,7 @@
   --section-wash: var(--yellow-wash);
   --section-edge: var(--yellow-line);
   --section-veil: var(--yellow-veil);
-  --section-fg: var(--gray-0);
   --section-ink: var(--yellow-base);
-  --shadow-section: 4px 4px 0 0 rgb(245 217 10 / 0.28);
 }
 
 [data-section="projections"] {
@@ -561,9 +559,7 @@
   --section-wash: var(--green-wash);
   --section-edge: var(--green-edge);
   --section-veil: var(--green-veil);
-  --section-fg: var(--gray-0);
   --section-ink: var(--green-base);
-  --shadow-section: 4px 4px 0 0 rgb(74 222 128 / 0.28);
 }
 
 [data-section="reflections"] {
@@ -571,9 +567,7 @@
   --section-wash: var(--violet-wash);
   --section-edge: var(--violet-edge);
   --section-veil: var(--violet-veil);
-  --section-fg: var(--gray-0);
   --section-ink: var(--violet-base);
-  --shadow-section: 4px 4px 0 0 rgb(192 132 252 / 0.28);
 }
 
 [data-section="colours"] {
@@ -581,9 +575,7 @@
   --section-wash: var(--blush-wash);
   --section-edge: var(--blush-edge);
   --section-veil: var(--blush-veil);
-  --section-fg: var(--gray-0);
   --section-ink: var(--blush-base);
-  --shadow-section: 4px 4px 0 0 rgb(253 164 175 / 0.28);
 }
 
 [data-section="fragments"] {
@@ -591,9 +583,7 @@
   --section-wash: var(--lime-wash);
   --section-edge: var(--lime-edge);
   --section-veil: var(--lime-veil);
-  --section-fg: var(--gray-0);
   --section-ink: var(--lime-base);
-  --shadow-section: 4px 4px 0 0 rgb(163 230 53 / 0.28);
 }
 
 [data-section="connections"],
@@ -602,9 +592,7 @@
   --section-wash: color-mix(in srgb, var(--fg-2) 8%, transparent);
   --section-edge: color-mix(in srgb, var(--fg-2) 45%, transparent);
   --section-veil: color-mix(in srgb, var(--fg-2) 5%, transparent);
-  --section-fg: var(--gray-0);
   --section-ink: var(--fg-2);
-  --shadow-section: 4px 4px 0 0 color-mix(in srgb, var(--fg-2) 28%, transparent);
 }
 
 [data-section="onboarding"] {
@@ -612,9 +600,7 @@
   --section-wash: var(--cyan-wash);
   --section-edge: var(--cyan-edge);
   --section-veil: var(--cyan-veil);
-  --section-fg: var(--gray-0);
   --section-ink: var(--cyan-base);
-  --shadow-section: 4px 4px 0 0 rgb(34 211 238 / 0.28);
 }
 
 /* Unlayered — beats all @layer rules including Tailwind utilities */
