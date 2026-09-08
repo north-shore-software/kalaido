@@ -38,35 +38,6 @@
   --gray-10: #f5f6f8;
   --gray-11: #ffffff;
 
-  --cyan-base: #22d3ee;
-  --cyan-wash: rgb(34 211 238 / 0.08);
-  --cyan-edge: rgb(34 211 238 / 0.4);
-  --cyan-veil: rgb(34 211 238 / 0.04);
-  --magenta-base: #ff2e93;
-  --magenta-wash: rgb(255 46 147 / 0.04);
-  --magenta-edge: rgb(255 46 147 / 0.45);
-  --magenta-veil: rgb(255 46 147 / 0.05);
-  --yellow-base: #f5d90a;
-  --yellow-wash: rgb(245 217 10 / 0.08);
-  --yellow-line: rgb(245 217 10 / 0.4);
-  --yellow-veil: rgb(245 217 10 / 0.04);
-  --violet-base: #c084fc;
-  --violet-wash: rgb(192 132 252 / 0.08);
-  --violet-edge: rgb(192 132 252 / 0.45);
-  --violet-veil: rgb(192 132 252 / 0.05);
-  --green-base: #4ade80;
-  --green-wash: rgb(74 222 128 / 0.08);
-  --green-edge: rgb(74 222 128 / 0.45);
-  --green-veil: rgb(74 222 128 / 0.05);
-  --blush-base: #fda4af;
-  --blush-wash: rgb(253 164 175 / 0.08);
-  --blush-edge: rgb(253 164 175 / 0.45);
-  --blush-veil: rgb(253 164 175 / 0.05);
-  --lime-base: #a3e635;
-  --lime-wash: rgb(163 230 53 / 0.08);
-  --lime-edge: rgb(163 230 53 / 0.45);
-  --lime-veil: rgb(163 230 53 / 0.05);
-
   --section: var(--cyan-base);
   --section-wash: var(--cyan-wash);
   --section-edge: var(--cyan-edge);
@@ -103,27 +74,56 @@
   --content-8: oklch(62% 0.13 190);
 
   /* === Semantic surfaces — LIGHT (derived, never shipped) ========== */
-  --bg-0: var(--gray-10);
-  --bg-1: var(--gray-9);
-  --bg-2: var(--gray-8);
-  --bg-3: var(--gray-8);
-  --bg-inset: var(--gray-10);
+  --bg-0: #ffffff;
+  --bg-1: #f7f6f3;
+  --bg-2: #ffffff;
+  --bg-3: #f1f1ef;
+  --bg-inset: #f7f7f5;
 
-  --fg-1: var(--gray-0);
-  --fg-2: var(--gray-1);
-  --fg-3: var(--gray-3);
-  --fg-4: var(--gray-5);
-  --fg-5: var(--gray-6);
+  --fg-1: #37352f;
+  --fg-2: #5a5853;
+  --fg-3: #787774;
+  --fg-4: #9b9a97;
+  --fg-5: #c4c3c0;
 
-  --border-subtle: var(--gray-8);
-  --border-strong: var(--gray-7);
+  --border-subtle: #e9e9e7;
+  --border-strong: #d7d6d3;
+
+  --cyan-base: #0284c7;
+  --cyan-wash: rgb(2 132 199 / 0.08);
+  --cyan-edge: rgb(2 132 199 / 0.3);
+  --cyan-veil: rgb(2 132 199 / 0.04);
+  --magenta-base: #d91b70;
+  --magenta-wash: rgb(217 27 112 / 0.06);
+  --magenta-edge: rgb(217 27 112 / 0.3);
+  --magenta-veil: rgb(217 27 112 / 0.04);
+  --yellow-base: #ca8a04;
+  --yellow-wash: rgb(202 138 4 / 0.1);
+  --yellow-line: rgb(202 138 4 / 0.3);
+  --yellow-veil: rgb(202 138 4 / 0.04);
+  --violet-base: #9333ea;
+  --violet-wash: rgb(147 51 234 / 0.08);
+  --violet-edge: rgb(147 51 234 / 0.3);
+  --violet-veil: rgb(147 51 234 / 0.04);
+  --green-base: #16a34a;
+  --green-wash: rgb(22 163 74 / 0.08);
+  --green-edge: rgb(22 163 74 / 0.3);
+  --green-veil: rgb(22 163 74 / 0.04);
+  --blush-base: #e11d48;
+  --blush-wash: rgb(225 29 72 / 0.08);
+  --blush-edge: rgb(225 29 72 / 0.3);
+  --blush-veil: rgb(225 29 72 / 0.04);
+  --lime-base: #65a30d;
+  --lime-wash: rgb(101 163 13 / 0.08);
+  --lime-edge: rgb(101 163 13 / 0.3);
+  --lime-veil: rgb(101 163 13 / 0.04);
 
   --accent-cyan: var(--cyan-base);
-  --accent-cyan-fg: var(--gray-0);
+  --accent-cyan-fg: #ffffff;
   --accent-magenta: var(--magenta-base);
-  --accent-magenta-fg: var(--gray-11);
+  --accent-magenta-fg: #ffffff;
   --accent-yellow: var(--yellow-base);
-  --accent-yellow-fg: var(--gray-0);
+  --accent-yellow-fg: #ffffff;
 
   /* === shadcn semantic aliases → kalaido tokens =================== */
   --background: var(--bg-0);
@@ -219,6 +219,42 @@
 
   --border-subtle: var(--gray-4);
   --border-strong: var(--gray-5);
+
+  --cyan-base: #22d3ee;
+  --cyan-wash: rgb(34 211 238 / 0.08);
+  --cyan-edge: rgb(34 211 238 / 0.4);
+  --cyan-veil: rgb(34 211 238 / 0.04);
+  --magenta-base: #ff2e93;
+  --magenta-wash: rgb(255 46 147 / 0.04);
+  --magenta-edge: rgb(255 46 147 / 0.45);
+  --magenta-veil: rgb(255 46 147 / 0.05);
+  --yellow-base: #f5d90a;
+  --yellow-wash: rgb(245 217 10 / 0.08);
+  --yellow-line: rgb(245 217 10 / 0.4);
+  --yellow-veil: rgb(245 217 10 / 0.04);
+  --violet-base: #c084fc;
+  --violet-wash: rgb(192 132 252 / 0.08);
+  --violet-edge: rgb(192 132 252 / 0.45);
+  --violet-veil: rgb(192 132 252 / 0.05);
+  --green-base: #4ade80;
+  --green-wash: rgb(74 222 128 / 0.08);
+  --green-edge: rgb(74 222 128 / 0.45);
+  --green-veil: rgb(74 222 128 / 0.05);
+  --blush-base: #fda4af;
+  --blush-wash: rgb(253 164 175 / 0.08);
+  --blush-edge: rgb(253 164 175 / 0.45);
+  --blush-veil: rgb(253 164 175 / 0.05);
+  --lime-base: #a3e635;
+  --lime-wash: rgb(163 230 53 / 0.08);
+  --lime-edge: rgb(163 230 53 / 0.45);
+  --lime-veil: rgb(163 230 53 / 0.05);
+
+  --accent-cyan: var(--cyan-base);
+  --accent-cyan-fg: var(--gray-0);
+  --accent-magenta: var(--magenta-base);
+  --accent-magenta-fg: var(--gray-11);
+  --accent-yellow: var(--yellow-base);
+  --accent-yellow-fg: var(--gray-0);
 }
 
 @theme inline {
