@@ -59,9 +59,9 @@ function ActionCard({
       <button
         type="button"
         onClick={onClick}
-        className="group flex w-full items-center gap-3.5 rounded-none border border-dashed border-line-strong px-4 py-3 text-left transition-colors hover:border-foreground/30 hover:bg-surface-2"
+        className="group flex w-full items-center gap-3.5 rounded-none border border-dashed border-line-strong px-4 py-3 text-left transition-colors hover:border-cyan-edge hover:bg-cyan-wash dark:hover:border-foreground/30 dark:hover:bg-surface-2"
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-none border border-line bg-surface-1 text-fg-3 transition-colors group-hover:text-fg-1">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-none border border-line bg-surface-1 text-fg-3 transition-colors group-hover:text-cyan dark:group-hover:text-fg-1">
           <Icon className="size-4" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">

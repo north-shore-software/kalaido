@@ -656,10 +656,26 @@ Utilities follow Tailwind convention from those: `bg-surface-0`, `text-fg-3`, `b
 
 ## 9. Light mode
 
-There isn't one. The system is built on a dark ground — `#121315` text on solid section
-accents (white on solid magenta and danger),
-alpha fills at 0.04–0.08 that only read against dark surfaces — and does not transpose.
+Light mode ships. `:root` carries it and `.dark` carries the dark ground; the rail
+footer holds the toggle, and `LIGHT_THEME_SHIPPED` in `lib/theme.ts` is the kill switch
+that forces dark again.
 
-The theme mechanism stays wired and working so it cannot rot, and `:root` carries a
-mechanically inverted palette that never ships. The Appearance control is hidden, not
-removed. Do not build against light-mode values; they are not designed.
+It is a designed transposition, not an inversion. What changes:
+
+- **Surfaces and text** invert to a warm paper ramp (`bg-0` white, `bg-1` `#f7f6f3`,
+  `fg-1` `#37352f`) rather than mirrored greys.
+- **Every accent hue darkens** so it reads on paper — cyan `#0284c7`, magenta `#d91b70`,
+  yellow `#ca8a04`, violet `#9333ea`, green `#16a34a`, blush `#e11d48`, lime `#65a30d`.
+  The hue *roles* from §3 and §4 are unchanged; only the values move.
+- **Ink on a solid accent is white**, not `gray-0` — `--section-fg` and the
+  `--accent-*-fg` tokens all flip. On the dark ground they stay `gray-0` (magenta keeps
+  white in both).
+- **Edge tiers tighten** from 0.4–0.45 to 0.3, and veils from 0.05 to 0.04: the same
+  fills read heavier against paper.
+
+Two rules follow from this and hold in both themes:
+
+- `--section-fg` is a property of the *theme*, never of the section. Do not set it in a
+  `[data-section]` block.
+- `--shadow-section` derives from `var(--section)` via `color-mix`, so it follows both
+  the section hue and the theme. Never hardcode an rgb shadow.
