@@ -90,8 +90,13 @@ func (f coloursFlow) Dispatch(ctx context.Context, c *Context, call llm.ToolCall
 	if err != nil {
 		return "", nil, err
 	}
+	swatch, err := colour.NextSwatch(c.App)
+	if err != nil {
+		return "", nil, err
+	}
 	rec := core.NewRecord(col)
 	rec.Set("name", args.Name)
+	rec.Set("swatch", swatch)
 	raw, _ := json.Marshal(ids)
 	rec.Set("thing_ids", json.RawMessage(raw))
 	if c.Run != nil {

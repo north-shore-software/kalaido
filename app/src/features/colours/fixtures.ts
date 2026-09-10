@@ -9,7 +9,7 @@ export const mockColours: ColourResponse[] = [
   {
     id: "col_1",
     name: "Customer Feedback",
-    colour_value: "#3b82f6",
+    swatch: 0,
     prompt:
       "Emails and messages containing direct product feedback or feature requests.",
     created: "2026-07-01T10:00:00Z" as IsoAutoDateString,
@@ -24,7 +24,7 @@ export const mockColours: ColourResponse[] = [
   {
     id: "col_2",
     name: "Urgent Bugs",
-    colour_value: "#ef4444",
+    swatch: 1,
     prompt:
       "Sms and notes about service crashes, downtime, or critical failures.",
     created: "2026-07-02T11:00:00Z" as IsoAutoDateString,
@@ -39,7 +39,7 @@ export const mockColours: ColourResponse[] = [
   {
     id: "col_3",
     name: "Kudos & Compliments",
-    colour_value: "#10b981",
+    swatch: 2,
     prompt: "Positive feedback, team praises, or happy customer messages.",
     created: "2026-07-03T12:00:00Z" as IsoAutoDateString,
     updated: "2026-07-03T12:00:00Z" as IsoAutoDateString,

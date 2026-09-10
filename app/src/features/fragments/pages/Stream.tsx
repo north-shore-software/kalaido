@@ -18,6 +18,7 @@ import { fragmentTypeLabel } from "@/lib/labels.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { streamTransitions } from "./Stream.transitions";
+import { resolveSwatches, useColourSwatches } from "@/hooks/use-colour-swatches";
 
 const formatType = (type: string) => {
   return fragmentTypeLabel(type as FragmentTypeOptions);
@@ -31,32 +32,23 @@ export default function Stream() {
     ["fragment", "colour_fragment", "fragment_annotation"],
     { sort: "-source_time,-created" },
   );
+  const swatches = useColourSwatches();
 
   const filteredFragments = useMemo<LoadedFragment[]>(
     () =>
       records.map((f) => {
         const occurredStr = f.source_time || f.created;
-
-        let parsedColours: number[] = [];
-        if (typeof f.colours === "string") {
-          try {
-            parsedColours = JSON.parse(f.colours);
-          } catch {}
-        } else if (Array.isArray(f.colours)) {
-          parsedColours = f.colours;
-        }
-
         return {
           id: f.id,
           type: formatType(f.type),
           title: f.title,
           time: formatTime(occurredStr),
           day: formatDayGroup(occurredStr),
-          colours: parsedColours,
+          colours: resolveSwatches(f.colour_ids, swatches),
           preview: f.content || "",
         };
       }),
-    [records],
+    [records, swatches],
   );
 
   let lastDay: string | null = null;

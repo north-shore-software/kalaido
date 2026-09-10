@@ -49,6 +49,7 @@ import type {
   RecentFragment,
 } from "../types";
 import { mainTransitions } from "./Main.transitions";
+import { resolveSwatches, useColourSwatches } from "@/hooks/use-colour-swatches";
 
 type EntityKind = "projection" | "reflection";
 
@@ -56,20 +57,6 @@ type EntityKind = "projection" | "reflection";
 // disabled backend-side (reconcile.waveEnabled) so every generation traces to
 // an explicit user action; this hides its button. Flip both to restore.
 const GENERATE_ALL_ENABLED = false;
-
-/** Parse a `view_stream.colours` cell (JSON string or array) into indices. */
-function parseColours(raw: unknown): number[] {
-  if (Array.isArray(raw)) return raw as number[];
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
 
 export default function Main() {
   const { go } = useAppNavigate();
@@ -110,6 +97,7 @@ export default function Main() {
   // The reconcile wave keeps no run state of its own; whether it is working
   // shows in the scheduler mirror as background snapshot generation.
   const queue = useLiveCollection("llm_queue_status");
+  const swatches = useColourSwatches();
   // Projections and reflections discovery keep running after onboarding lets
   // the user in; the Proposed section says so until they finish.
   const { status: organize } = useOrganizeStatus();
@@ -270,10 +258,10 @@ export default function Main() {
           title: f.title,
           time: formatTime(occurred),
           day: formatDayGroup(occurred),
-          colours: parseColours(f.colours),
+          colours: resolveSwatches(f.colour_ids, swatches),
         };
       }),
-    [fragments.records],
+    [fragments.records, swatches],
   );
 
   function openEntity(it: PinItem) {

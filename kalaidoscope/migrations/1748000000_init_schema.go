@@ -89,7 +89,9 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.TextField{Name: "name", Required: true},
-			&core.TextField{Name: "colour_value"},
+			// Palette slot (0..colour.SwatchCount-1) the app draws this colour
+			// with. Assigned round-robin at creation and kept for life.
+			&core.NumberField{Name: "swatch"},
 			// A colour is defined by any of: a prompt (written by the user; every
 			// fragment is judged against it by the colour role), a set of map
 			// things (written by discover; every fragment citing one of them is a
@@ -539,10 +541,6 @@ var schema = []tableDef{
 		Name: "view_stream",
 		Type: "view",
 		ViewQuery: `
-			WITH indexed_colours AS (
-				SELECT id, (row_number() OVER (ORDER BY created) - 1) % 8 as idx
-				FROM colour
-			)
 			SELECT
 				f.id as id,
 				f.type as type,
@@ -551,13 +549,12 @@ var schema = []tableDef{
 				f.created as created,
 				fa.title as title,
 				COALESCE(
-					(SELECT json_group_array(ic.idx)
+					(SELECT json_group_array(cf.colour_id)
 					 FROM colour_fragment cf
-					 JOIN indexed_colours ic ON ic.id = cf.colour_id
 					 WHERE cf.fragment_id = f.id
 					   AND cf.match_type != 'manual_negative'),
 					'[]'
-				) as colours
+				) as colour_ids
 			FROM fragment f
 			LEFT JOIN fragment_annotation fa ON fa.fragment_id = f.id
 			WHERE f.deleted_at = ''

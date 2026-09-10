@@ -132,9 +132,14 @@ func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
 		if err != nil {
 			return e.InternalServerError("colour collection", err)
 		}
+		swatch, err := colour.NextSwatch(app)
+		if err != nil {
+			return e.InternalServerError("colour swatch", err)
+		}
 		colourRec := core.NewRecord(collection)
 		colourRec.Set("name", strings.TrimSpace(req.Name))
 		colourRec.Set("prompt", strings.TrimSpace(req.Prompt))
+		colourRec.Set("swatch", swatch)
 		if err := app.Save(colourRec); err != nil {
 			return e.InternalServerError("failed to save colour", err)
 		}

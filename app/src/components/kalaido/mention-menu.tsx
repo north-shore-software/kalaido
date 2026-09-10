@@ -38,7 +38,7 @@ export function useMentionOptions(
       .filter((c) => matches(c.name))
       .slice(0, MAX_PER_KIND)) {
       out.push({
-        item: { kind: "Colour", id: c.id, label: c.name, value: c.value },
+        item: { kind: "Colour", id: c.id, label: c.name, swatch: c.swatch },
         meta: "colour",
       });
     }
@@ -115,8 +115,8 @@ export function MentionMenu({
               i === activeIndex && "bg-surface-2",
             )}
           >
-            {o.item.value != null && (
-              <ColourSwatch value={o.item.value} size={9} />
+            {o.item.swatch != null && (
+              <ColourSwatch c={o.item.swatch} size={9} />
             )}
             <span className="min-w-0 truncate text-item font-semibold text-fg-1">
               {o.item.label}

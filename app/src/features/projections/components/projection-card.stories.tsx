@@ -11,12 +11,12 @@ const description =
   "Lay out the overall commercial strategy, building on the projection 'Pricing model' for the pricing decision and the projection 'Acquisition hooks' for the lead-magnet analysis — reference them rather than restating them.";
 
 const colourOnly: SourceItem[] = [
-  { kind: "Colour", id: "c1", label: "Business", value: "#fda4af" },
-  { kind: "Colour", id: "c2", label: "Design system", value: "#10b981" },
+  { kind: "Colour", id: "c1", label: "Business", swatch: 0 },
+  { kind: "Colour", id: "c2", label: "Design system", swatch: 3 },
 ];
 
 const mixed: SourceItem[] = [
-  { kind: "Colour", id: "c1", label: "Business", value: "#fda4af" },
+  { kind: "Colour", id: "c1", label: "Business", swatch: 0 },
   { kind: "Projection", id: "p1", label: "Pricing model" },
   { kind: "Projection", id: "p2", label: "Acquisition hooks" },
   { kind: "Reflection", id: "r1", label: "Weekly standups" },

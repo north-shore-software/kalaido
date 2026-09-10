@@ -24,7 +24,7 @@ export default function Colours() {
 
   const colours = useCollection("colour", {
     sort: "-created",
-    fields: "id,name,prompt,colour_value",
+    fields: "id,name,prompt,swatch",
   });
 
   const allLinks = useCollection("colour_fragment", {

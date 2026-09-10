@@ -58,8 +58,8 @@ export interface ContextItem {
   /** Record id for Colour/Fragment/Projection/Reflection; the fragment-type enum value for Type. */
   id: string;
   label: string;
-  /** A colour's `value` (tailwind class / hex / css colour) — Colour kind only. */
-  value?: string;
+  /** A colour's palette slot — Colour kind only. */
+  swatch?: number;
 }
 
 export type MessageRole = "user" | "assistant";

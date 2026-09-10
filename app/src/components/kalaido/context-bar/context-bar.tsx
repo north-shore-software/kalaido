@@ -95,7 +95,7 @@ export function ContextBar({
       if (pinned.has(key)) return;
       itemByKey.set(key, item);
       const option: PickerOption = { id: key, label: item.label, meta };
-      if (item.value != null) option.value = item.value;
+      if (item.swatch != null) option.swatch = item.swatch;
       options.push(option);
     };
 
@@ -104,7 +104,7 @@ export function ContextBar({
         .filter((o) => matches(o.name))
         .slice(0, MAX_PER_KIND)) {
         offer(
-          { kind: "Colour", id: c.id, label: c.name, value: c.value },
+          { kind: "Colour", id: c.id, label: c.name, swatch: c.swatch },
           "colour",
         );
       }
@@ -158,9 +158,9 @@ export function ContextBar({
     }
   }
 
-  function pinSwatch(pin: ContextItem): string | undefined {
+  function pinSwatch(pin: ContextItem): number | undefined {
     if (pin.kind !== "Colour") return undefined;
-    return sources.colours.find((o) => o.id === pin.id)?.value ?? pin.value;
+    return sources.colours.find((o) => o.id === pin.id)?.swatch ?? pin.swatch;
   }
 
   function closePanel() {
@@ -296,7 +296,7 @@ export function ContextBar({
           >
             <span className="shrink-0 uppercase">{KIND_ABBREV[pin.kind]}</span>
             {pinSwatch(pin) != null && (
-              <ColourSwatch value={pinSwatch(pin) as string} size={8} />
+              <ColourSwatch c={pinSwatch(pin)} size={8} />
             )}
             <span className="min-w-0 truncate normal-case font-sans text-meta text-fg-1">
               {pinLabel(pin)}

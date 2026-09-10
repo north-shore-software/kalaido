@@ -19,32 +19,24 @@ export function contentColour(c: number): string {
 
 export function ColourSwatch({
   c = 0,
-  value,
   size = 12,
   className,
   style,
 }: {
+  /** The colour's palette slot (`colour.swatch`). */
   c?: number;
-  /**
-   * A colour's stored `value`: a Tailwind background class (e.g. `bg-pink-500`)
-   * or a raw CSS colour (e.g. `#deadbeef`, `rgb(...)`, a named colour). Takes
-   * precedence over `c` when set — classes are appended to `className`, CSS
-   * colours are applied via `style.backgroundColor`.
-   */
-  value?: string;
   size?: number;
   className?: string;
   style?: CSSProperties;
 }) {
-  const isClass = value?.startsWith("bg-");
-  const bgClass =
-    value == null ? contentColour(c) : isClass ? value : undefined;
-  const bgStyle =
-    value != null && !isClass ? { backgroundColor: value } : undefined;
   return (
     <span
-      className={cn("inline-block shrink-0 rounded-sm", bgClass, className)}
-      style={{ width: size, height: size, ...bgStyle, ...style }}
+      className={cn(
+        "inline-block shrink-0 rounded-sm",
+        contentColour(c),
+        className,
+      )}
+      style={{ width: size, height: size, ...style }}
     />
   );
 }

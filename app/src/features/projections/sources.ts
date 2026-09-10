@@ -13,7 +13,7 @@ export function resolveSources(
   const items: SourceItem[] = [];
   for (const id of spec.colourIds ?? []) {
     const c = sources.colours.find((o) => o.id === id);
-    items.push({ kind: "Colour", id, label: c?.name ?? id, value: c?.value });
+    items.push({ kind: "Colour", id, label: c?.name ?? id, swatch: c?.swatch });
   }
   for (const id of spec.sourceProjectionIds ?? []) {
     const p = sources.projections.find((o) => o.id === id);
