@@ -529,6 +529,9 @@ var schema = []tableDef{
 			// namespaced per provider — a workspace has exactly one at a time,
 			// so a second provider needs no new columns.
 			&core.TextField{Name: "provider"},
+			// Written by the app, never read back by it: an enrich hook
+			// (config.RegisterHooks) strips it from every non-superuser
+			// response. Not a Hidden field, which would also block the write.
 			&core.TextField{Name: "api_key"},
 			&core.TextField{Name: "default_model"},
 			&core.JSONField{Name: "role_models"},
