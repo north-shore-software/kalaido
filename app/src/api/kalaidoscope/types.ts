@@ -134,7 +134,6 @@ export type ChatMessageRecord<Tcontent = unknown> = {
 }
 
 export type ColourRecord<Tthing_ids = unknown> = {
-	colour_value?: string
 	created: IsoAutoDateString
 	id: string
 	last_provider_error_kind?: string
@@ -142,6 +141,7 @@ export type ColourRecord<Tthing_ids = unknown> = {
 	origin_run_id?: RecordIdString
 	prompt?: string
 	prompt_matched_through?: string
+	swatch?: number
 	thing_ids?: null | Tthing_ids
 	updated: IsoAutoDateString
 }
@@ -468,8 +468,8 @@ export const ViewStreamTypeOptions = {
 	"chat": "chat",
 } as const
 export type ViewStreamTypeOptions = typeof ViewStreamTypeOptions[keyof typeof ViewStreamTypeOptions]
-export type ViewStreamRecord<Tcolours = unknown> = {
-	colours?: null | Tcolours
+export type ViewStreamRecord<Tcolour_ids = unknown> = {
+	colour_ids?: null | Tcolour_ids
 	content: string
 	created: IsoAutoDateString
 	id: string
@@ -506,7 +506,7 @@ export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_contex
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>
-export type ViewStreamResponse<Tcolours = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolours>> & BaseSystemFields<Texpand>
+export type ViewStreamResponse<Tcolour_ids = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolour_ids>> & BaseSystemFields<Texpand>
 
 // Types containing all Records and Responses, useful for creating typing helper functions
 
