@@ -331,11 +331,11 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approval_timestamp?: IsoDateString
-	chain_origin?: string
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_refinement_id?: RecordIdString
 	generation_timestamp?: IsoDateString
+	generation_trigger?: string
 	id: string
 	lens_id?: RecordIdString
 	model?: string
@@ -385,11 +385,11 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown> = {
 	approval_sequence_number?: number
 	approval_timestamp?: IsoDateString
-	chain_origin?: string
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_refinement_id?: RecordIdString
 	generation_timestamp?: IsoDateString
+	generation_trigger?: string
 	id: string
 	lens_id?: RecordIdString
 	model?: string

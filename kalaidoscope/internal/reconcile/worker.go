@@ -81,7 +81,7 @@ func runWave(app core.App) {
 	// it. Not a request context — the request that started the wave has
 	// already returned.
 	genCtx := llmq.WithPriority(
-		llmcontext.WithChainOrigin(context.Background(), llmcontext.ChainOriginGenerateAll),
+		llmcontext.WithGenerationTrigger(context.Background(), llmcontext.TriggerGenerateAll),
 		llmq.Background)
 
 	for _, s := range statuses { // EvaluateAll returns dependencies before dependents

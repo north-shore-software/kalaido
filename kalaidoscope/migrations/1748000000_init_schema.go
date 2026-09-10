@@ -213,7 +213,7 @@ var schema = []tableDef{
 			// "generate all" wave (it may have consumed unapproved upstream
 			// candidates); the marker also propagates through refinement commits
 			// so an edited chain re-triggers its downstream regeneration.
-			&core.TextField{Name: "chain_origin"},
+			&core.TextField{Name: "generation_trigger"},
 			&core.NumberField{Name: "approval_sequence_number"},
 			&core.DateField{Name: "approval_timestamp"},
 			&core.DateField{Name: "generation_timestamp"},
@@ -241,8 +241,8 @@ var schema = []tableDef{
 			// See projection_snapshot.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
 			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
-			// See projection_snapshot.chain_origin.
-			&core.TextField{Name: "chain_origin"},
+			// See projection_snapshot.generation_trigger.
+			&core.TextField{Name: "generation_trigger"},
 			&core.NumberField{Name: "approval_sequence_number"},
 			&core.DateField{Name: "approval_timestamp"},
 			&core.DateField{Name: "generation_timestamp"},

@@ -159,8 +159,8 @@ func TestWaveSpeculativelyGeneratesWholeChain(t *testing.T) {
 	if got := resolvedContext(t, rNew).FragmentIDs; len(got) != 2 {
 		t.Errorf("reflection wave snapshot consumed %v, want both fragments", got)
 	}
-	if rNew.GetString("chain_origin") != llmcontext.ChainOriginGenerateAll {
-		t.Errorf("reflection chain_origin = %q", rNew.GetString("chain_origin"))
+	if rNew.GetString("generation_trigger") != llmcontext.TriggerGenerateAll {
+		t.Errorf("reflection generation_trigger = %q", rNew.GetString("generation_trigger"))
 	}
 
 	// P1 got a pending candidate consuming R's *new* snapshot.
@@ -185,8 +185,8 @@ func TestWaveSpeculativelyGeneratesWholeChain(t *testing.T) {
 	if got := resolvedContext(t, p2Cand).SnapshotIDs; len(got) != 1 || got[0] != p1Cand.Id {
 		t.Errorf("p2 candidate consumed %v, want p1's pending candidate %s", got, p1Cand.Id)
 	}
-	if p2Cand.GetString("chain_origin") != llmcontext.ChainOriginGenerateAll {
-		t.Errorf("p2 chain_origin = %q", p2Cand.GetString("chain_origin"))
+	if p2Cand.GetString("generation_trigger") != llmcontext.TriggerGenerateAll {
+		t.Errorf("p2 generation_trigger = %q", p2Cand.GetString("generation_trigger"))
 	}
 }
 
@@ -266,8 +266,8 @@ func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find committed snapshot: %v", err)
 	}
-	if newSnap.GetString("chain_origin") != llmcontext.ChainOriginGenerateAll {
-		t.Errorf("committed snapshot chain_origin = %q, want carried forward", newSnap.GetString("chain_origin"))
+	if newSnap.GetString("generation_trigger") != llmcontext.TriggerGenerateAll {
+		t.Errorf("committed snapshot generation_trigger = %q, want carried forward", newSnap.GetString("generation_trigger"))
 	}
 
 	// Refining an already-approved snapshot — even a chain-marked one — is an

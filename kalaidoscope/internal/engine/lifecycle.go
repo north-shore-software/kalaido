@@ -43,9 +43,9 @@ type SnapshotSpec struct {
 	Model string
 
 	// Non-empty marks a snapshot as part of a speculative chain (see
-	// llmcontext.ChainOriginGenerateAll). Left empty, AppendSnapshot falls back
+	// llmcontext.TriggerGenerateAll). Left empty, AppendSnapshot falls back
 	// to the origin marked on ctx, so wave generations need no plumbing.
-	ChainOrigin string
+	GenerationTrigger string
 
 	// Set on refinement commits.
 	CreatedFromRefinementID string
@@ -95,11 +95,11 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName st
 	snap.Set("status", status)
 	snap.Set("model", s.Model)
 	snap.Set("created_from_refinement_id", s.CreatedFromRefinementID)
-	origin := s.ChainOrigin
-	if origin == "" {
-		origin = llmcontext.ChainOriginFromContext(ctx)
+	trigger := s.GenerationTrigger
+	if trigger == "" {
+		trigger = llmcontext.GenerationTriggerFromContext(ctx)
 	}
-	snap.Set("chain_origin", origin)
+	snap.Set("generation_trigger", trigger)
 	snap.Set("generation_timestamp", types.NowDateTime())
 }
 
@@ -221,7 +221,7 @@ func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int,
 // returned snapshot id is therefore empty for reflections.
 func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, _ *api.Window, refinementID, targetCol string) (string, error) {
 	var newSnapID string
-	var chainOrigin string
+	var generationTrigger string
 
 	err := app.RunInTransaction(func(tx core.App) error {
 		if sourceSnapshotID != "" && strat.TargetType() == "projection" {
@@ -232,7 +232,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 				// even if that snapshot was chain-generated once — it must not start
 				// background work on its own.
 				if sourceSnap.GetString("status") == StatusPending {
-					chainOrigin = sourceSnap.GetString("chain_origin")
+					generationTrigger = sourceSnap.GetString("generation_trigger")
 				}
 			}
 		}
@@ -278,8 +278,8 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 				ResolvedContext: pinned,
 				Status:          StatusApproved,
 
-				Model:       model,
-				ChainOrigin: chainOrigin,
+				Model:             model,
+				GenerationTrigger: generationTrigger,
 
 				CreatedFromRefinementID: refinementID,
 			})
@@ -304,7 +304,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 	// An edit to a chain-marked candidate has just superseded whatever its
 	// pre-generated dependents consumed. Re-run the wave so the downstream
 	// subtree regenerates; its dedup guard leaves untouched branches alone.
-	if chainOrigin != "" && RequestWave != nil {
+	if generationTrigger != "" && RequestWave != nil {
 		RequestWave()
 	}
 
