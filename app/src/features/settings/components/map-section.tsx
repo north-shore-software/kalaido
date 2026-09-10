@@ -81,7 +81,7 @@ function MapDebugContent() {
           <span className="font-mono text-mono-sm text-fg-4">
             last consolidate: {run.pending_in} new · {run.admits} added ·{" "}
             {run.merges} folded · v{run.version_before}→v{run.version_after}
-            {run.model ? ` · ${run.model}` : ""}
+            {run.generated_by_model ? ` · ${run.generated_by_model}` : ""}
           </span>
         </div>
       )}

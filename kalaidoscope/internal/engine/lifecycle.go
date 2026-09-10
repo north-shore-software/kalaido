@@ -250,9 +250,9 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		lensRec.Set("prompt", lensPrompt)
 		lensRec.Set("context_spec", pbutil.JSONObject(spec))
 		if strat.TargetType() == "reflection" {
-			lensRec.Set("created_from_refl_refinement_id", refinementID)
+			lensRec.Set("created_from_reflection_refinement_id", refinementID)
 		} else {
-			lensRec.Set("created_from_proj_refinement_id", refinementID)
+			lensRec.Set("created_from_projection_refinement_id", refinementID)
 		}
 		if err := tx.Save(lensRec); err != nil {
 			return err

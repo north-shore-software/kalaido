@@ -49,7 +49,7 @@ func consolidate(app core.App) error {
 	}
 	run := core.NewRecord(runCol)
 	run.Set("status", "running")
-	run.Set("model", model)
+	run.Set("generated_by_model", model)
 	run.Set("pending_in", len(pending))
 	run.Set("version_before", d.version)
 	if err := app.Save(run); err != nil {

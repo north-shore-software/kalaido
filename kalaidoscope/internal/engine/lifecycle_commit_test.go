@@ -25,7 +25,7 @@ func TestCommitRefinementInstallsLens(t *testing.T) {
 		"name":            "P",
 		"current_lens_id": oldLens.Id,
 	})
-	ref := testutil.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
+	ref := testutil.NewRecord(t, app, "projection_refinement", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "ext-1",
 	})
@@ -55,8 +55,8 @@ func TestCommitRefinementInstallsLens(t *testing.T) {
 	if got := lens.GetString("parent_lens_id"); got != oldLens.Id {
 		t.Errorf("parent_lens_id = %q, want the superseded lens %q", got, oldLens.Id)
 	}
-	if got := lens.GetString("created_from_proj_refinement_id"); got != ref.Id {
-		t.Errorf("created_from_proj_refinement_id = %q, want %q", got, ref.Id)
+	if got := lens.GetString("created_from_projection_refinement_id"); got != ref.Id {
+		t.Errorf("created_from_projection_refinement_id = %q, want %q", got, ref.Id)
 	}
 
 	snap, err := app.FindRecordById("projection_snapshot", snapID)
@@ -92,7 +92,7 @@ func TestGenerateSucceedsImmediatelyAfterCommit(t *testing.T) {
 	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{FragmentIDs: []string{frag.Id}}
 	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "P"})
-	ref := testutil.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
+	ref := testutil.NewRecord(t, app, "projection_refinement", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "ext-1",
 	})

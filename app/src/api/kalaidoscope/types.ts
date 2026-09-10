@@ -25,10 +25,10 @@ export const Collections = {
 	LlmQueueStatus: "llm_queue_status",
 	MapRun: "map_run",
 	Projection: "projection",
+	ProjectionRefinement: "projection_refinement",
 	ProjectionSnapshot: "projection_snapshot",
-	RefineProjSnapshotConversation: "refine_proj_snapshot_conversation",
-	RefineReflSnapshotConversation: "refine_refl_snapshot_conversation",
 	Reflection: "reflection",
+	ReflectionRefinement: "reflection_refinement",
 	ReflectionSnapshot: "reflection_snapshot",
 	ReflectionWindow: "reflection_window",
 	Usage: "usage",
@@ -128,8 +128,8 @@ export type ChatMessageRecord<Tcontent = unknown> = {
 	created: IsoAutoDateString
 	generated_by_model?: string
 	id: string
-	refine_proj_conversation_id?: RecordIdString
-	refine_refl_conversation_id?: RecordIdString
+	projection_refinement_id?: RecordIdString
+	reflection_refinement_id?: RecordIdString
 	updated: IsoAutoDateString
 }
 
@@ -178,10 +178,10 @@ export type DiscoverRunRecord<Toutputs = unknown> = {
 	created: IsoAutoDateString
 	error?: string
 	fragment_reads?: number
+	generated_by_model?: string
 	id: string
 	kind: DiscoverRunKindOptions
 	map_version?: number
-	model?: string
 	outputs?: null | Toutputs
 	rounds?: number
 	status: DiscoverRunStatusOptions
@@ -281,8 +281,8 @@ export type KalaidoscopeMapRecord<Tbody = unknown> = {
 export type LensRecord<Tcontext_spec = unknown> = {
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
-	created_from_proj_refinement_id?: RecordIdString
-	created_from_refl_refinement_id?: RecordIdString
+	created_from_projection_refinement_id?: RecordIdString
+	created_from_reflection_refinement_id?: RecordIdString
 	id: string
 	parent_lens_id?: RecordIdString
 	prompt?: string
@@ -313,9 +313,9 @@ export type MapRunRecord = {
 	admits?: number
 	created: IsoAutoDateString
 	error?: string
+	generated_by_model?: string
 	id: string
 	merges?: number
-	model?: string
 	pending_in?: number
 	status: MapRunStatusOptions
 	updated: IsoAutoDateString
@@ -340,6 +340,14 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	pinned_by?: RecordIdString[]
 	status: ProjectionStatusOptions
 	updated: IsoAutoDateString
+}
+
+export type ProjectionRefinementRecord = {
+	created: IsoAutoDateString
+	external_conversation_id?: string
+	id: string
+	projection_id?: RecordIdString
+	projection_snapshot_id?: RecordIdString
 }
 
 export const ProjectionSnapshotStatusOptions = {
@@ -367,22 +375,6 @@ export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context 
 	updated: IsoAutoDateString
 }
 
-export type RefineProjSnapshotConversationRecord = {
-	created: IsoAutoDateString
-	external_conversation_id?: string
-	id: string
-	projection_id?: RecordIdString
-	projection_snapshot_id?: RecordIdString
-}
-
-export type RefineReflSnapshotConversationRecord = {
-	created: IsoAutoDateString
-	external_conversation_id?: string
-	id: string
-	reflection_id?: RecordIdString
-	reflection_snapshot_id?: RecordIdString
-}
-
 export const ReflectionStatusOptions = {
 	"proposed": "proposed",
 	"active": "active",
@@ -401,6 +393,14 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	status: ReflectionStatusOptions
 	updated: IsoAutoDateString
 	window_spec_versions?: null | Twindow_spec_versions
+}
+
+export type ReflectionRefinementRecord = {
+	created: IsoAutoDateString
+	external_conversation_id?: string
+	id: string
+	reflection_id?: RecordIdString
+	reflection_snapshot_id?: RecordIdString
 }
 
 export const ReflectionSnapshotStatusOptions = {
@@ -498,10 +498,10 @@ export type LensResponse<Tcontext_spec = unknown, Texpand = unknown> = Required<
 export type LlmQueueStatusResponse<Theld = unknown, Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Theld, Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
+export type ProjectionRefinementResponse<Texpand = unknown> = Required<ProjectionRefinementRecord> & BaseSystemFields<Texpand>
 export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
-export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
-export type RefineReflSnapshotConversationResponse<Texpand = unknown> = Required<RefineReflSnapshotConversationRecord> & BaseSystemFields<Texpand>
 export type ReflectionResponse<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Twindow_spec_versions>> & BaseSystemFields<Texpand>
+export type ReflectionRefinementResponse<Texpand = unknown> = Required<ReflectionRefinementRecord> & BaseSystemFields<Texpand>
 export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
@@ -530,10 +530,10 @@ export type CollectionRecords = {
 	llm_queue_status: LlmQueueStatusRecord
 	map_run: MapRunRecord
 	projection: ProjectionRecord
+	projection_refinement: ProjectionRefinementRecord
 	projection_snapshot: ProjectionSnapshotRecord
-	refine_proj_snapshot_conversation: RefineProjSnapshotConversationRecord
-	refine_refl_snapshot_conversation: RefineReflSnapshotConversationRecord
 	reflection: ReflectionRecord
+	reflection_refinement: ReflectionRefinementRecord
 	reflection_snapshot: ReflectionSnapshotRecord
 	reflection_window: ReflectionWindowRecord
 	usage: UsageRecord
@@ -561,10 +561,10 @@ export type CollectionResponses = {
 	llm_queue_status: LlmQueueStatusResponse
 	map_run: MapRunResponse
 	projection: ProjectionResponse
+	projection_refinement: ProjectionRefinementResponse
 	projection_snapshot: ProjectionSnapshotResponse
-	refine_proj_snapshot_conversation: RefineProjSnapshotConversationResponse
-	refine_refl_snapshot_conversation: RefineReflSnapshotConversationResponse
 	reflection: ReflectionResponse
+	reflection_refinement: ReflectionRefinementResponse
 	reflection_snapshot: ReflectionSnapshotResponse
 	reflection_window: ReflectionWindowResponse
 	usage: UsageResponse

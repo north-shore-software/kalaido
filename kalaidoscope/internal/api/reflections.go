@@ -12,8 +12,3 @@ type CreateReflectionRequest struct {
 type CreateReflectionResponse struct {
 	ReflectionID string `json:"reflectionId"`
 }
-
-type UpdateReflectionRequest struct {
-	Name   *string `json:"name,omitempty"`
-	Pinned *bool   `json:"pinned,omitempty"`
-}

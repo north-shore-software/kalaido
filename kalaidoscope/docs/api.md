@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Kalaidoscope HTTP API — Generated Audit Snapshot
 
 > **STALE** — code has changed since this document was generated.

@@ -2,7 +2,7 @@ import type { UIMessage } from "ai";
 import { useEffect, useMemo } from "react";
 import { parseActiveContext, specToItems } from "@/api/kalaidoscope/chat";
 import { normalizeRefinementMessages } from "@/api/kalaidoscope/refinements";
-import type { RefineProjSnapshotConversationResponse } from "@/api/kalaidoscope/types";
+import type { ProjectionRefinementResponse } from "@/api/kalaidoscope/types";
 import type { ContextItem } from "@/components/kalaido";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import type { RefineSession } from "@/hooks/use-refine-session";
@@ -40,7 +40,7 @@ export function useResumeRefinement({
   /** Gate the whole lookup (e.g. only when the projection is empty, or a candidate exists). */
   enabled: boolean;
 }): {
-  openRefinement: RefineProjSnapshotConversationResponse | undefined;
+  openRefinement: ProjectionRefinementResponse | undefined;
   messages: UIMessage[];
   context: ContextItem[];
   /** The session has adopted this refinement. */
@@ -50,7 +50,7 @@ export function useResumeRefinement({
 } {
   const active = enabled && !!parentId;
   const conversationQuery = useLiveCollection(
-    "refine_proj_snapshot_conversation",
+    "projection_refinement",
     {
       filter: parentId
         ? `projection_id="${parentId}" && projection_snapshot_id="${snapshotId}"`
@@ -63,7 +63,7 @@ export function useResumeRefinement({
 
   const messagesQuery = useLiveCollection("chat_message", {
     filter: openRefinement
-      ? `refine_proj_conversation_id="${openRefinement.id}"`
+      ? `projection_refinement_id="${openRefinement.id}"`
       : undefined,
     sort: "created",
     enabled: !!openRefinement,

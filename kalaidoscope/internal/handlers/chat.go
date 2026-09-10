@@ -26,11 +26,11 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 
 		ctx := e.Request.Context()
 
-		if refRec, err := app.FindFirstRecordByFilter("refine_proj_snapshot_conversation", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+		if refRec, err := app.FindFirstRecordByFilter("projection_refinement", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
 			if refinementHandler != nil {
 				return refinementHandler(app, req, refRec)(e)
 			}
-		} else if refRec, err := app.FindFirstRecordByFilter("refine_refl_snapshot_conversation", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+		} else if refRec, err := app.FindFirstRecordByFilter("reflection_refinement", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
 			if refinementHandler != nil {
 				return refinementHandler(app, req, refRec)(e)
 			}

@@ -17,7 +17,7 @@ func newRun(app core.App, kind string, version int, model string) (*core.Record,
 	run.Set("kind", kind)
 	run.Set("status", "running")
 	run.Set("map_version", version)
-	run.Set("model", model)
+	run.Set("generated_by_model", model)
 	run.Set("rounds", 0)
 	run.Set("fragment_reads", 0)
 	run.Set("outputs", pbutil.JSONObject([]Output{}))

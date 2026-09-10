@@ -172,7 +172,7 @@ func runInfo(rec *core.Record) api.RunInfo {
 		ID:         rec.Id,
 		Status:     rec.GetString("status"),
 		Error:      rec.GetString("error"),
-		Model:      rec.GetString("model"),
+		Model:      rec.GetString("generated_by_model"),
 		Rounds:     rec.GetInt("rounds"),
 		MapVersion: rec.GetInt("map_version"),
 		Finished:   rec.GetDateTime("updated").Time().UTC().Format(time.RFC3339),

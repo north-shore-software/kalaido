@@ -67,7 +67,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 		t.Fatalf("seeded window = %+v, want [%s, %s)", seededWin, wantStart, wantEnd)
 	}
 
-	refRec, err := app.FindRecordById("refine_refl_snapshot_conversation", created.RefinementID)
+	refRec, err := app.FindRecordById("reflection_refinement", created.RefinementID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func openRefinement(t *testing.T, app core.App, reflID, body string) (api.Create
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
 	}
-	refRec, err := app.FindRecordById("refine_refl_snapshot_conversation", created.RefinementID)
+	refRec, err := app.FindRecordById("reflection_refinement", created.RefinementID)
 	if err != nil {
 		t.Fatal(err)
 	}

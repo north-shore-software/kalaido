@@ -194,8 +194,8 @@ var schema = []tableDef{
 			&core.JSONField{Name: "context_spec"},
 			// The standing instruction a refinement drafted (see chat.md).
 			&core.TextField{Name: "prompt"},
-			&core.RelationField{Name: "created_from_proj_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
-			&core.RelationField{Name: "created_from_refl_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
+			&core.RelationField{Name: "created_from_projection_refinement_id", CollectionId: "projection_refinement", MaxSelect: 1},
+			&core.RelationField{Name: "created_from_reflection_refinement_id", CollectionId: "reflection_refinement", MaxSelect: 1},
 			&core.RelationField{Name: "parent_lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
@@ -215,8 +215,9 @@ var schema = []tableDef{
 			// The generated document (markdown), as the model returned it.
 			&core.TextField{Name: "output"},
 			// Set when this snapshot was committed from a refinement conversation.
-			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
-			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "projection_refinement", MaxSelect: 1},
+			// The model that generated this row.
+			&core.TextField{Name: "generated_by_model"},
 			// Non-empty when this snapshot was generated as part of a speculative
 			// "generate all" wave (it may have consumed unapproved upstream
 			// candidates); the marker also propagates through refinement commits
@@ -262,8 +263,9 @@ var schema = []tableDef{
 			// The generated document (markdown), as the model returned it.
 			&core.TextField{Name: "output"},
 			// See projection_snapshot.
-			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
-			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "reflection_refinement", MaxSelect: 1},
+			// The model that generated this row.
+			&core.TextField{Name: "generated_by_model"},
 			// See projection_snapshot.generation_trigger.
 			&core.TextField{Name: "generation_trigger"},
 			&core.NumberField{Name: "approval_sequence_number"},
@@ -305,7 +307,7 @@ var schema = []tableDef{
 	},
 
 	{
-		Name:                   "refine_proj_snapshot_conversation",
+		Name:                   "projection_refinement",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "projection_id", CollectionId: "projection", MaxSelect: 1, CascadeDelete: true},
@@ -315,14 +317,14 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
-			{Name: "idx_refine_proj_external", Unique: true, Columns: "external_conversation_id"},
-			{Name: "idx_refine_proj_projection", Columns: "projection_id"},
-			{Name: "idx_refine_proj_snapshot", Columns: "projection_snapshot_id"},
+			{Name: "idx_projection_refinement_external", Unique: true, Columns: "external_conversation_id"},
+			{Name: "idx_projection_refinement_projection", Columns: "projection_id"},
+			{Name: "idx_projection_refinement_snapshot", Columns: "projection_snapshot_id"},
 		},
 	},
 
 	{
-		Name:                   "refine_refl_snapshot_conversation",
+		Name:                   "reflection_refinement",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", MaxSelect: 1, CascadeDelete: true},
@@ -331,9 +333,9 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
-			{Name: "idx_refine_refl_external", Unique: true, Columns: "external_conversation_id"},
-			{Name: "idx_refine_refl_reflection", Columns: "reflection_id"},
-			{Name: "idx_refine_refl_snapshot", Columns: "reflection_snapshot_id"},
+			{Name: "idx_reflection_refinement_external", Unique: true, Columns: "external_conversation_id"},
+			{Name: "idx_reflection_refinement_reflection", Columns: "reflection_id"},
+			{Name: "idx_reflection_refinement_snapshot", Columns: "reflection_snapshot_id"},
 		},
 	},
 
@@ -357,17 +359,18 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "chat_conversation_id", CollectionId: "chat_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
-			&core.RelationField{Name: "refine_proj_conversation_id", CollectionId: "refine_proj_snapshot_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
-			&core.RelationField{Name: "refine_refl_conversation_id", CollectionId: "refine_refl_snapshot_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
+			&core.RelationField{Name: "projection_refinement_id", CollectionId: "projection_refinement", Required: false, MaxSelect: 1, CascadeDelete: true},
+			&core.RelationField{Name: "reflection_refinement_id", CollectionId: "reflection_refinement", Required: false, MaxSelect: 1, CascadeDelete: true},
 			&core.JSONField{Name: "content"},
-			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance
+			// The model that generated this row.
+			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_chat_message_chat_conv", Columns: "chat_conversation_id"},
-			{Name: "idx_chat_message_refine_proj", Columns: "refine_proj_conversation_id"},
-			{Name: "idx_chat_message_refine_refl", Columns: "refine_refl_conversation_id"},
+			{Name: "idx_chat_message_projection_refinement", Columns: "projection_refinement_id"},
+			{Name: "idx_chat_message_reflection_refinement", Columns: "reflection_refinement_id"},
 		},
 	},
 
@@ -403,7 +406,7 @@ var schema = []tableDef{
 				Values:    []string{"running", "done", "error"},
 			},
 			&core.TextField{Name: "error"},
-			&core.TextField{Name: "model"},
+			&core.TextField{Name: "generated_by_model"},
 			// Pending things put in front of the model.
 			&core.NumberField{Name: "pending_in"},
 			// Deltas applied: pending merged into an existing thing (or two
@@ -426,7 +429,7 @@ var schema = []tableDef{
 			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"running", "done", "error"}},
 			&core.TextField{Name: "error"},
 			&core.NumberField{Name: "map_version"},
-			&core.TextField{Name: "model"},
+			&core.TextField{Name: "generated_by_model"},
 			&core.NumberField{Name: "rounds"},
 			&core.NumberField{Name: "fragment_reads"},
 			&core.JSONField{Name: "outputs"},

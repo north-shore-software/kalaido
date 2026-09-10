@@ -12,8 +12,3 @@ type CreateProjectionRequest struct {
 type CreateProjectionResponse struct {
 	ProjectionID string `json:"projectionId"`
 }
-
-type UpdateProjectionRequest struct {
-	Name   *string `json:"name,omitempty"`
-	Pinned *bool   `json:"pinned,omitempty"`
-}
