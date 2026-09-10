@@ -15,7 +15,7 @@ func resolveActiveLens(app core.App, strat Strategy, rec *core.Record) (string, 
 	var lensSpec api.ContextSpec
 	if lensID := rec.GetString("current_lens_id"); lensID != "" {
 		if lrec, err := app.FindRecordById(strat.LensCollectionName(), lensID); err == nil {
-			_ = lrec.UnmarshalJSONField("prompt", &lensPrompt)
+			lensPrompt = lrec.GetString("prompt")
 			_ = lrec.UnmarshalJSONField("context_spec", &lensSpec)
 			lastLensTime = lrec.GetDateTime("updated")
 		}

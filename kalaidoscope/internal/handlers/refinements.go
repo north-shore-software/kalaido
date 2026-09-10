@@ -15,7 +15,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -197,7 +196,7 @@ func seedLensTurn(app core.App, parent *core.Record, win *api.Window) (api.UIMes
 	if err != nil {
 		return api.UIMessage{}, false
 	}
-	lens := strings.TrimSpace(pbutil.DecodeJSONString(lensRec.GetString("prompt")))
+	lens := strings.TrimSpace(lensRec.GetString("prompt"))
 	if lens == "" {
 		return api.UIMessage{}, false
 	}
@@ -211,7 +210,7 @@ func seedLensTurn(app core.App, parent *core.Record, win *api.Window) (api.UIMes
 	if win != nil {
 		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, parent.Id, win)
 		if snaps, err := app.FindRecordsByFilter("reflection_snapshot", filter, "-approval_sequence_number", 1, 0, params); err == nil && len(snaps) > 0 {
-			if output := strings.TrimSpace(pbutil.DecodeJSONString(snaps[0].GetString("output"))); output != "" {
+			if output := strings.TrimSpace(snaps[0].GetString("output")); output != "" {
 				if p, ok := toolCallPart(llm.ToolCall{ID: fmt.Sprintf("seed-apply-%d", now), Name: prompts.ApplyResultToolName,
 					Args: mustJSON(map[string]string{"output": output})}); ok {
 					parts = append(parts, p)

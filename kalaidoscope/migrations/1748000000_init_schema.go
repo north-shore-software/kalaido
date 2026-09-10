@@ -192,7 +192,8 @@ var schema = []tableDef{
 		DisableReadOperations:  true,
 		Fields: []core.Field{
 			&core.JSONField{Name: "context_spec"},
-			&core.JSONField{Name: "prompt"},
+			// The standing instruction a refinement drafted (see chat.md).
+			&core.TextField{Name: "prompt"},
 			&core.RelationField{Name: "created_from_proj_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
 			&core.RelationField{Name: "created_from_refl_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
 			&core.RelationField{Name: "parent_lens_id", CollectionId: "lens", MaxSelect: 1},
@@ -211,7 +212,8 @@ var schema = []tableDef{
 			&core.JSONField{Name: "context_spec"},
 			&core.JSONField{Name: "resolved_context"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
-			&core.JSONField{Name: "output"},
+			// The generated document (markdown), as the model returned it.
+			&core.TextField{Name: "output"},
 			// Set when this snapshot was committed from a refinement conversation.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
 			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance
@@ -257,7 +259,8 @@ var schema = []tableDef{
 			&core.DateField{Name: "window_start"},
 			&core.DateField{Name: "window_end"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
-			&core.JSONField{Name: "output"},
+			// The generated document (markdown), as the model returned it.
+			&core.TextField{Name: "output"},
 			// See projection_snapshot.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
 			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance

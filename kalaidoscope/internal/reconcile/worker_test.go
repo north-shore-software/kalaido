@@ -47,7 +47,7 @@ type chainGraph struct {
 func newLens(t *testing.T, app core.App, spec api.ContextSpec) *core.Record {
 	t.Helper()
 	return testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       pbutil.JSONString("Summarize the sources."),
+		"prompt":       "Summarize the sources.",
 		"context_spec": pbutil.JSONObject(spec),
 	})
 }
@@ -57,7 +57,7 @@ func newApprovedSnapshot(t *testing.T, app core.App, col, fk, parentID, lensID s
 	return testutil.NewRecord(t, app, col, map[string]any{
 		fk:                         parentID,
 		"lens_id":                  lensID,
-		"output":                   pbutil.JSONString("old output"),
+		"output":                   "old output",
 		"resolved_context":         pbutil.JSONObject(pinned),
 		"status":                   engine.StatusApproved,
 		"approval_sequence_number": 1,

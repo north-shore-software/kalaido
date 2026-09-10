@@ -234,7 +234,7 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	effective := time.Now().Add(-15 * day).UTC()
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": pbutil.JSONString("THE CURRENT LENS"), "context_spec": pbutil.JSONObject(spec),
+		"prompt": "THE CURRENT LENS", "context_spec": pbutil.JSONObject(spec),
 	})
 	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
 	refl = testutil.NewRecord(t, app, "reflection", map[string]any{
@@ -247,7 +247,7 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	current = grid[len(grid)-1]
 	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 		"reflection_id": refl.Id, "status": engine.StatusApproved, "approval_sequence_number": 1,
-		"lens_id": lens.Id, "output": pbutil.JSONString("THIS WEEK'S SUMMARY"),
+		"lens_id": lens.Id, "output": "THIS WEEK'S SUMMARY",
 		"window_start": current.Start, "window_end": current.End,
 	})
 	return refl, current
@@ -440,7 +440,7 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	app := testutil.NewApp(t)
 	refl, current := scheduledReflection(t, app)
-	newLens := testutil.NewRecord(t, app, "lens", map[string]any{"prompt": pbutil.JSONString("NEW")})
+	newLens := testutil.NewRecord(t, app, "lens", map[string]any{"prompt": "NEW"})
 	refl.Set("current_lens_id", newLens.Id)
 	if err := app.Save(refl); err != nil {
 		t.Fatal(err)

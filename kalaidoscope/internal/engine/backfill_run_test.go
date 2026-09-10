@@ -23,7 +23,7 @@ func TestGeneratePendingWindowsFillsTheSeries(t *testing.T) {
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": pbutil.JSONString("LENS"), "context_spec": pbutil.JSONObject(spec),
+		"prompt": "LENS", "context_spec": pbutil.JSONObject(spec),
 	})
 	eff := time.Now().Add(-16 * day).UTC()
 	versions := AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
@@ -108,7 +108,7 @@ func TestGenerateWindowsRunsInParallel(t *testing.T) {
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": pbutil.JSONString("LENS"), "context_spec": pbutil.JSONObject(spec),
+		"prompt": "LENS", "context_spec": pbutil.JSONObject(spec),
 	})
 	eff := time.Now().Add(-16 * day).UTC()
 	versions := AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)

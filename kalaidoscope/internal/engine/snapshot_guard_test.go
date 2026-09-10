@@ -10,7 +10,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -125,7 +124,7 @@ func TestGenerateSnapshotSupersedesPriorPending(t *testing.T) {
 	old := testutil.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
 		strat.ForeignKeyCol(): proj.Id,
 		"lens_id":             proj.GetString("current_lens_id"),
-		"output":              pbutil.JSONString("OLD CANDIDATE"),
+		"output":              "OLD CANDIDATE",
 		"status":              StatusPending,
 	})
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
@@ -163,7 +162,7 @@ func TestApproveSnapshotGuards(t *testing.T) {
 	newPending := func(output string) *core.Record {
 		return testutil.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
 			strat.ForeignKeyCol(): proj.Id,
-			"output":              pbutil.JSONString(output),
+			"output":              output,
 			"status":              StatusPending,
 		})
 	}

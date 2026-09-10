@@ -278,14 +278,14 @@ export type KalaidoscopeMapRecord<Tbody = unknown> = {
 	version?: number
 }
 
-export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
+export type LensRecord<Tcontext_spec = unknown> = {
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_proj_refinement_id?: RecordIdString
 	created_from_refl_refinement_id?: RecordIdString
 	id: string
 	parent_lens_id?: RecordIdString
-	prompt?: null | Tprompt
+	prompt?: string
 }
 
 export const LlmQueueStatusStateOptions = {
@@ -349,7 +349,7 @@ export const ProjectionSnapshotStatusOptions = {
 	"discarded": "discarded",
 } as const
 export type ProjectionSnapshotStatusOptions = typeof ProjectionSnapshotStatusOptions[keyof typeof ProjectionSnapshotStatusOptions]
-export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
+export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
 	context_spec?: null | Tcontext_spec
@@ -360,7 +360,7 @@ export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	generation_trigger?: string
 	id: string
 	lens_id?: RecordIdString
-	output?: null | Toutput
+	output?: string
 	projection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
 	status: ProjectionSnapshotStatusOptions
@@ -410,7 +410,7 @@ export const ReflectionSnapshotStatusOptions = {
 	"discarded": "discarded",
 } as const
 export type ReflectionSnapshotStatusOptions = typeof ReflectionSnapshotStatusOptions[keyof typeof ReflectionSnapshotStatusOptions]
-export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
+export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
 	context_spec?: null | Tcontext_spec
@@ -421,7 +421,7 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	generation_trigger?: string
 	id: string
 	lens_id?: RecordIdString
-	output?: null | Toutput
+	output?: string
 	reflection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
 	status: ReflectionSnapshotStatusOptions
@@ -494,15 +494,15 @@ export type FragmentAnnotationResponse<Tconclusions = unknown, Tdecisions = unkn
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>
-export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
+export type LensResponse<Tcontext_spec = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec>> & BaseSystemFields<Texpand>
 export type LlmQueueStatusResponse<Theld = unknown, Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Theld, Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
-export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
+export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
 export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
 export type RefineReflSnapshotConversationResponse<Texpand = unknown> = Required<RefineReflSnapshotConversationRecord> & BaseSystemFields<Texpand>
 export type ReflectionResponse<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Twindow_spec_versions>> & BaseSystemFields<Texpand>
-export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
+export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>

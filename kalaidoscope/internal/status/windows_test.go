@@ -47,7 +47,7 @@ func TestReflectionStalenessIsPerWindow(t *testing.T) {
 
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": pbutil.JSONString("L"), "context_spec": pbutil.JSONObject(spec),
+		"prompt": "L", "context_spec": pbutil.JSONObject(spec),
 	})
 	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{
@@ -67,7 +67,7 @@ func TestReflectionStalenessIsPerWindow(t *testing.T) {
 		seen := []string{f1.Id, f2.Id}[i]
 		testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 			"reflection_id": refl.Id, "status": engine.StatusApproved, "approval_sequence_number": 1,
-			"lens_id": lens.Id, "output": pbutil.JSONString("summary"),
+			"lens_id": lens.Id, "output": "summary",
 			"window_start": w.Start, "window_end": w.End,
 			"resolved_context": pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{seen}}),
 		})

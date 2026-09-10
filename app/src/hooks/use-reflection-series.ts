@@ -11,7 +11,6 @@ import { useLiveCollection } from "@/hooks/use-live-collection";
 
 export interface ReflectionOutput {
   content?: string;
-  [key: string]: unknown;
 }
 
 /** One window of the series with what the store holds for it. */
@@ -144,17 +143,7 @@ export function useReflectionSeries(reflectionId: string | undefined) {
   };
 }
 
+/** A snapshot's `output` column holds the generated markdown as plain text. */
 export function parseReflectionOutput(raw: unknown): ReflectionOutput {
-  if (raw && typeof raw === "object") return raw as ReflectionOutput;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (parsed && typeof parsed === "object")
-        return parsed as ReflectionOutput;
-    } catch {
-      // not JSON — treat the string itself as the content
-    }
-    return { content: raw };
-  }
-  return {};
+  return typeof raw === "string" ? { content: raw } : {};
 }

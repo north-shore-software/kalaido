@@ -71,7 +71,7 @@ func AppendSnapshot(ctx context.Context, app core.App, collectionName string, fo
 func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName string, foreignKeyCol string, s SnapshotSpec) {
 	snap.Set(foreignKeyCol, s.SourceID)
 	snap.Set("lens_id", s.LensID)
-	snap.Set("output", pbutil.JSONString(s.Output))
+	snap.Set("output", s.Output)
 	snap.Set("context_spec", pbutil.JSONObject(s.ContextSpec))
 	snap.Set("resolved_context", pbutil.JSONObject(s.ResolvedContext))
 
@@ -132,7 +132,7 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		case StatusDiscarded:
 			return fmt.Errorf("%w: candidate was superseded", ErrNotApprovable)
 		}
-		if strings.TrimSpace(pbutil.DecodeJSONString(snap.GetString("output"))) == "" {
+		if strings.TrimSpace(snap.GetString("output")) == "" {
 			return fmt.Errorf("%w: candidate has no content", ErrNotApprovable)
 		}
 		seq, err := nextApprovalSequence(txApp, strat, snap)
@@ -247,7 +247,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		if oldLensID := parentRec.GetString("current_lens_id"); oldLensID != "" {
 			lensRec.Set("parent_lens_id", oldLensID)
 		}
-		lensRec.Set("prompt", pbutil.JSONString(lensPrompt))
+		lensRec.Set("prompt", lensPrompt)
 		lensRec.Set("context_spec", pbutil.JSONObject(spec))
 		if strat.TargetType() == "reflection" {
 			lensRec.Set("created_from_refl_refinement_id", refinementID)

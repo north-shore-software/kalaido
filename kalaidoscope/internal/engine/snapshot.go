@@ -14,7 +14,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -175,7 +174,7 @@ func latestApprovedOutput(app core.App, strat Strategy, parentID string, window 
 	if recs[0].GetString("lens_id") != lensID {
 		return "", true
 	}
-	return pbutil.DecodeJSONString(recs[0].GetString("output")), false
+	return recs[0].GetString("output"), false
 }
 
 // minimizeAgainstPrevious rewrites a freshly generated candidate as a minimal

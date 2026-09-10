@@ -11,7 +11,6 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
@@ -246,7 +245,7 @@ func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 		pid := snap.GetString("projection_id")
 		if proj := projMap[pid]; proj != nil {
 			name := proj.GetString("name")
-			sb.WriteString(prompts.ProjectionSnapshotBlock(name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output"))))
+			sb.WriteString(prompts.ProjectionSnapshotBlock(name, snap.Id, snap.GetString("output")))
 		}
 	}
 }
@@ -271,7 +270,7 @@ func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 		rid := snap.GetString("reflection_id")
 		if refl := reflMap[rid]; refl != nil {
 			name := refl.GetString("name")
-			sb.WriteString(prompts.ReflectionSnapshotBlock(name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output"))))
+			sb.WriteString(prompts.ReflectionSnapshotBlock(name, snap.Id, snap.GetString("output")))
 		}
 	}
 }

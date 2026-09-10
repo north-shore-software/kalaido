@@ -32,7 +32,7 @@ func approveSnapshot(t *testing.T, app core.App, projectionID string, seq int, p
 		"status":                   "approved",
 		"approval_sequence_number": seq,
 		"resolved_context":         pbutil.JSONObject(pinned),
-		"output":                   pbutil.JSONString("out"),
+		"output":                   "out",
 	})
 }
 
@@ -58,7 +58,7 @@ func pendingSnapshot(t *testing.T, app core.App, projectionID string, pinned llm
 		"projection_id":    projectionID,
 		"status":           "pending",
 		"resolved_context": pbutil.JSONObject(pinned),
-		"output":           pbutil.JSONString("out"),
+		"output":           "out",
 	})
 }
 

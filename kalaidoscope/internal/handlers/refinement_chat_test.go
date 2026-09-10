@@ -13,7 +13,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -301,7 +300,7 @@ func TestRefinementOfExistingSnapshotAppliesFromScratch(t *testing.T) {
 	snap := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id": ref.GetString("projection_id"),
 		"status":        "approved",
-		"output":        pbutil.JSONString("PUBLISHED OUTPUT"),
+		"output":        "PUBLISHED OUTPUT",
 	})
 	ref.Set("projection_snapshot_id", snap.Id)
 	if err := app.Save(ref); err != nil {

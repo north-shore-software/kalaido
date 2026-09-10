@@ -17,7 +17,7 @@ func TestSnapshotIsCurrentConsidersModel(t *testing.T) {
 	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       pbutil.JSONString("LENS"),
+		"prompt":       "LENS",
 		"context_spec": pbutil.JSONObject(spec),
 	})
 	newProj := func(model string) *core.Record {
@@ -32,7 +32,7 @@ func TestSnapshotIsCurrentConsidersModel(t *testing.T) {
 		testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 			"projection_id":            projID,
 			"status":                   StatusApproved,
-			"output":                   pbutil.JSONString("OUT"),
+			"output":                   "OUT",
 			"context_spec":             pbutil.JSONObject(spec),
 			"resolved_context":         pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}),
 			"lens_id":                  lens.Id,

@@ -69,7 +69,7 @@ func genFixture(t *testing.T, app core.App, collection string) *core.Record {
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       pbutil.JSONString("LENS"),
+		"prompt":       "LENS",
 		"context_spec": pbutil.JSONObject(spec),
 	})
 	return testutil.NewRecord(t, app, collection, map[string]any{
@@ -84,7 +84,7 @@ func priorApproved(t *testing.T, app core.App, strat Strategy, parent *core.Reco
 	fields := map[string]any{
 		strat.ForeignKeyCol():      parent.Id,
 		"lens_id":                  parent.GetString("current_lens_id"),
-		"output":                   pbutil.JSONString(output),
+		"output":                   output,
 		"status":                   StatusApproved,
 		"approval_sequence_number": 1,
 	}
@@ -100,7 +100,7 @@ func storedOutput(t *testing.T, app core.App, strat Strategy, snapID string) str
 	if err != nil {
 		t.Fatal(err)
 	}
-	return pbutil.DecodeJSONString(snap.GetString("output"))
+	return snap.GetString("output")
 }
 
 // With no approved predecessor the raw candidate is the snapshot — one model
@@ -134,7 +134,7 @@ func TestGenerateSnapshotLensChangeSkipsMinimize(t *testing.T) {
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 	oldLens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       pbutil.JSONString("OLD LENS"),
+		"prompt":       "OLD LENS",
 		"context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
 	})
 	priorApproved(t, app, strat, proj, "OLD V1", map[string]any{"lens_id": oldLens.Id})

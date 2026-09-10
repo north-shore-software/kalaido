@@ -39,7 +39,7 @@ func TestPendingWindowsExcludesApprovedAndInFlight(t *testing.T) {
 
 	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 		"reflection_id": refl.Id, "status": StatusApproved, "approval_sequence_number": 1,
-		"output":       pbutil.JSONString("week one"),
+		"output":       "week one",
 		"window_start": grid[0].Start, "window_end": grid[0].End,
 	})
 	got := PendingWindows(app, refl, now)
