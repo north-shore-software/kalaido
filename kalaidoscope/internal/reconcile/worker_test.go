@@ -70,7 +70,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 
 	g.f0 = testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "old fragment"})
 
-	reflSpec := api.ContextSpec{WholeScope: true}
+	reflSpec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	reflLens := newLens(t, app, reflSpec)
 	g.refl = testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name":                 "R",

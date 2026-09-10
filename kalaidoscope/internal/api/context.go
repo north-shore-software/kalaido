@@ -1,14 +1,14 @@
 package api
 
-type ContextSpec struct {
-	WholeScope bool `json:"wholeScope,omitempty"`
+type WholeScopeMode string
 
-	// Summaries renders the whole-scope fragments as their annotation rows
-	// (title, summary, cited map things) instead of their full bodies, and
-	// gives the chat read tools to pull full text on demand. Pinned fragments
-	// and colours (below) stay in full. Server-side the flag applies to
-	// whatever the spec resolves; the UI only offers it with WholeScope.
-	Summaries bool `json:"summaries,omitempty"`
+const (
+	WholeScopeFull      WholeScopeMode = "full"
+	WholeScopeSummaries WholeScopeMode = "summaries"
+)
+
+type ContextSpec struct {
+	WholeScope WholeScopeMode `json:"wholeScope,omitempty"`
 
 	// The pins. Without WholeScope they are the context. With WholeScope the
 	// fragment-level pins (FragmentIDs, FragmentTypes, ColourIDs) add nothing

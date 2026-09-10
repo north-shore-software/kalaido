@@ -45,7 +45,7 @@ func TestReflectionStalenessIsPerWindow(t *testing.T) {
 	eff := time.Now().Add(-16 * day).UTC().Truncate(time.Second)
 	now := time.Now()
 
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": pbutil.JSONString("L"), "context_spec": pbutil.JSONObject(spec),
 	})

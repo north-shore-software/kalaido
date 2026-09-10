@@ -26,7 +26,7 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "x"})
 
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := newLens(t, app, spec)
 	// Weekly window, created ~3 weeks ago -> 3 pending windows.
 	created := time.Now().Add(-21 * 24 * time.Hour)

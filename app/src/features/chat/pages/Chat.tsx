@@ -102,7 +102,8 @@ export default function Chat() {
   function graduate({ content }: { content: string }) {
     // Summaries mode is a chat presentation choice, not part of the
     // projection's scope.
-    const { summaries: _summaries, ...contextSpec } = itemsToSpec(context);
+    const spec = itemsToSpec(context);
+    const contextSpec = spec.wholeScope ? { ...spec, wholeScope: "full" as const } : spec;
     go(chatTransitions.graduateToProjection, {
       state: {
         seed: {

@@ -67,7 +67,7 @@ func (p snapshotScriptProvider) Stream(ctx context.Context, msgs []llm.Message, 
 func genFixture(t *testing.T, app core.App, collection string) *core.Record {
 	t.Helper()
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt":       pbutil.JSONString("LENS"),
 		"context_spec": pbutil.JSONObject(spec),
@@ -135,7 +135,7 @@ func TestGenerateSnapshotLensChangeSkipsMinimize(t *testing.T) {
 	proj := genFixture(t, app, "projection")
 	oldLens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt":       pbutil.JSONString("OLD LENS"),
-		"context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
+		"context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
 	})
 	priorApproved(t, app, strat, proj, "OLD V1", map[string]any{"lens_id": oldLens.Id})
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {

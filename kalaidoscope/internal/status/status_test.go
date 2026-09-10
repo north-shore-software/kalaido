@@ -72,7 +72,7 @@ func TestApprovingACandidateGeneratedAgainstOldContext(t *testing.T) {
 
 	upstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "upstream",
-		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
 	})
 	downstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name": "downstream",
@@ -130,7 +130,7 @@ func TestApprovingACandidateAfterAFragmentLands(t *testing.T) {
 
 	proj := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "notes",
-		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
 	})
 
 	f1 := addFragment(t, app, "first")
@@ -169,7 +169,7 @@ func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
 
 	upstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "upstream",
-		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
 	})
 	downstream := testutil.NewRecord(t, app, "projection", map[string]any{
 		"name": "downstream",

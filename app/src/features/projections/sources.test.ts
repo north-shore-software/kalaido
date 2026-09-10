@@ -13,7 +13,7 @@ const sources: ContextSources = {
 describe("resolveSources", () => {
   test("null spec and whole scope resolve to nothing", () => {
     expect(resolveSources(null, sources)).toEqual([]);
-    expect(resolveSources({ wholeScope: true }, sources)).toEqual([]);
+    expect(resolveSources({ wholeScope: "full" }, sources)).toEqual([]);
   });
 
   test("orders colours, then projections, then reflections", () => {

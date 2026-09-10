@@ -97,7 +97,7 @@ func TestResolveExplicitFragments(t *testing.T) {
 	// is in scope already, so there is nothing for a pin to add.
 	t.Run("whole scope subsumes pins", func(t *testing.T) {
 		got := resolveFragmentIDs(t, app, api.ContextSpec{
-			WholeScope:  true,
+			WholeScope:  api.WholeScopeFull,
 			FragmentIDs: []string{note.Id},
 		})
 		if len(got) != 3 {
@@ -156,7 +156,7 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 	win := &api.Window{Start: "2026-08-08T00:00:00Z", End: "2026-08-15T00:00:00Z"}
 
 	t.Run("whole scope", func(t *testing.T) {
-		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, win)
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: api.WholeScopeFull}, win)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,7 +176,7 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 			Start: types.NowDateTime().Time().Add(-time.Hour).UTC().Format(time.RFC3339),
 			End:   types.NowDateTime().Time().Add(time.Hour).UTC().Format(time.RFC3339),
 		}
-		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, now)
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: api.WholeScopeFull}, now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +184,7 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 	})
 
 	t.Run("nil window is unrestricted", func(t *testing.T) {
-		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, nil)
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: api.WholeScopeFull}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -222,7 +222,7 @@ func TestResolveWholeScopeExpandsPins(t *testing.T) {
 	colour := testutil.NewRecord(t, app, "colour", map[string]any{"name": "c"})
 	testutil.NewRecord(t, app, "colour_fragment", map[string]any{"colour_id": colour.Id, "fragment_id": viaColour.Id, "match_type": "prompt"})
 
-	spec := api.ContextSpec{WholeScope: true, Summaries: true, FragmentIDs: []string{pinned.Id}, ColourIDs: []string{colour.Id}}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeSummaries, FragmentIDs: []string{pinned.Id}, ColourIDs: []string{colour.Id}}
 	got, err := llmcontext.ResolveSpecToIDs(context.Background(), app, spec, nil)
 	if err != nil {
 		t.Fatal(err)

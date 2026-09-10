@@ -40,14 +40,14 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 			res.Breakdown[key] = tokens
 		}
 
-		if spec.WholeScope {
-			add("WholeScope", countTokensForSpec(ctx, app, api.ContextSpec{WholeScope: true, Summaries: spec.Summaries}, win))
+		if spec.WholeScope != "" {
+			add("WholeScope", countTokensForSpec(ctx, app, api.ContextSpec{WholeScope: spec.WholeScope}, win))
 		}
 
 		// Pins render in full whatever the mode. Under whole scope in full
 		// the fragment-level pins are already counted, so only the snapshot
 		// pins add; under summaries every pin is extra.
-		countFragmentPins := !spec.WholeScope || spec.Summaries
+		countFragmentPins := spec.WholeScope == "" || spec.WholeScope == api.WholeScopeSummaries
 		if countFragmentPins {
 			for _, fid := range spec.FragmentIDs {
 				add("Fragment:"+fid, countTokensForSpec(ctx, app, api.ContextSpec{FragmentIDs: []string{fid}}, win))
@@ -83,6 +83,6 @@ func countTokensForSpec(ctx context.Context, app core.App, spec api.ContextSpec,
 	if err != nil {
 		return 0
 	}
-	text, _ := llmcontext.HydrateDeltaToText(ctx, app, pinned, llmcontext.PinnedIDs{}, spec.Summaries)
+	text, _ := llmcontext.HydrateDeltaToText(ctx, app, pinned, llmcontext.PinnedIDs{}, spec.WholeScope == api.WholeScopeSummaries)
 	return engine.EstimateTokens(len(text))
 }

@@ -21,7 +21,7 @@ func TestGeneratePendingWindowsFillsTheSeries(t *testing.T) {
 	app := testutil.NewApp(t)
 	day := 24 * time.Hour
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": pbutil.JSONString("LENS"), "context_spec": pbutil.JSONObject(spec),
 	})
@@ -107,7 +107,7 @@ func TestGenerateWindowsRunsInParallel(t *testing.T) {
 	app := testutil.NewApp(t)
 	day := 24 * time.Hour
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": pbutil.JSONString("LENS"), "context_spec": pbutil.JSONObject(spec),
 	})

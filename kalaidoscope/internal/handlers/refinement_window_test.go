@@ -80,7 +80,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	req := api.ChatRequest{
 		ID: "win-1",
 		Messages: []api.UIMessage{
-			{ID: "sys-1", Role: "system", Parts: []api.UIMessagePart{{Type: "context_spec", Data: raw(t, api.ContextSpec{WholeScope: true})}}},
+			{ID: "sys-1", Role: "system", Parts: []api.UIMessagePart{{Type: "context_spec", Data: raw(t, api.ContextSpec{WholeScope: api.WholeScopeFull})}}},
 			{ID: "user-1", Role: "user", Parts: []api.UIMessagePart{{Type: "text", Text: "summarize the week"}}},
 		},
 	}
@@ -232,7 +232,7 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	t.Helper()
 	day := 24 * time.Hour
 	effective := time.Now().Add(-15 * day).UTC()
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": pbutil.JSONString("THE CURRENT LENS"), "context_spec": pbutil.JSONObject(spec),
 	})
@@ -298,7 +298,7 @@ func TestReflectionRefinementSeedsCurrentLens(t *testing.T) {
 		t.Fatalf("seeded %d messages, want a system and an assistant turn", len(created.Messages))
 	}
 	_, spec, win := extractWindow(t, created.Messages)
-	if !spec.WholeScope {
+	if spec.WholeScope == "" {
 		t.Errorf("seeded context = %+v, want the reflection's own whole-scope spec", spec)
 	}
 	if win == nil || win.ID != current.ID {

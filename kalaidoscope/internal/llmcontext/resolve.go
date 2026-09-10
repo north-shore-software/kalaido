@@ -27,7 +27,7 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, wi
 	if err != nil {
 		return pinned, err
 	}
-	if spec.WholeScope {
+	if spec.WholeScope != "" {
 		all, err := resolveWholeScope(app, win)
 		if err != nil {
 			return pinned, err
