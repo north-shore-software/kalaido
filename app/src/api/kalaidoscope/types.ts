@@ -215,15 +215,13 @@ export type FragmentRecord = {
 	type: FragmentTypeOptions
 }
 
-export type FragmentAnnotationRecord<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown> = {
-	annotation?: null | Tannotation
+export type FragmentAnnotationRecord<Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown> = {
 	conclusions?: null | Tconclusions
+	consolidated_at?: IsoDateString
 	created: IsoAutoDateString
 	decisions?: null | Tdecisions
-	folded?: boolean
 	fragment_id: RecordIdString
 	generated_by_model?: string
-	grounded_count?: number
 	id: string
 	questions?: null | Tquestions
 	summary?: string
@@ -467,7 +465,7 @@ export type ColourResponse<Tthing_ids = unknown, Texpand = unknown> = Required<C
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
 export type DiscoverRunResponse<Toutputs = unknown, Texpand = unknown> = Required<DiscoverRunRecord<Toutputs>> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>
-export type FragmentAnnotationResponse<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation, Tconclusions, Tdecisions, Tquestions, Tthings>> & BaseSystemFields<Texpand>
+export type FragmentAnnotationResponse<Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tconclusions, Tdecisions, Tquestions, Tthings>> & BaseSystemFields<Texpand>
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>

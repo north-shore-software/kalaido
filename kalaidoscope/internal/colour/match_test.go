@@ -7,6 +7,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
@@ -26,9 +27,11 @@ func fixture(t *testing.T) (core.App, []string) {
 	var ids []string
 	for i, c := range cites {
 		f := testutil.NewRecord(t, app, "fragment", map[string]any{"content": "fragment", "type": "note"})
-		testutil.NewRecord(t, app, "fragment_annotation", map[string]any{
-			"fragment_id": f.Id, "title": "t", "summary": "s", "things": json.RawMessage(c), "folded": i%2 == 0,
-		})
+		ann := map[string]any{"fragment_id": f.Id, "title": "t", "summary": "s", "things": json.RawMessage(c)}
+		if i%2 == 0 {
+			ann["consolidated_at"] = types.NowDateTime()
+		}
+		testutil.NewRecord(t, app, "fragment_annotation", ann)
 		ids = append(ids, f.Id)
 	}
 	return app, ids

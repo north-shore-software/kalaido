@@ -50,7 +50,7 @@ func aggregateLoop() {
 }
 
 func consolidateDue(app core.App, now time.Time) (bool, error) {
-	rows, err := app.FindRecordsByFilter("fragment_annotation", "folded = false", "-created", 0, 0, nil)
+	rows, err := app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "-created", 0, 0, nil)
 	if err != nil || len(rows) == 0 {
 		return false, err
 	}

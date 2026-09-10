@@ -44,7 +44,7 @@ export interface OrganizeStatus {
     version: number;
     annotated: number;
     pendingAnnotation: number;
-    unfolded: number;
+    unconsolidated: number;
     lastRun?: RunInfo;
     lastDrainError?: string;
   };

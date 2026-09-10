@@ -18,7 +18,7 @@ type MapStatus struct {
 	Version           int      `json:"version"`
 	Annotated         int      `json:"annotated"`
 	PendingAnnotation int      `json:"pendingAnnotation"`
-	Unfolded          int      `json:"unfolded"`
+	Unconsolidated    int      `json:"unconsolidated"`
 	LastRun           *RunInfo `json:"lastRun,omitempty"`
 	LastDrainError    string   `json:"lastDrainError,omitempty"`
 }

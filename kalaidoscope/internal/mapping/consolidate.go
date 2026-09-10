@@ -15,7 +15,7 @@ import (
 )
 
 func unintegratedRows(app core.App) ([]*core.Record, error) {
-	return app.FindRecordsByFilter("fragment_annotation", "folded = false", "created", 0, 0, nil)
+	return app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "created", 0, 0, nil)
 }
 
 func consolidate(app core.App) error {
@@ -87,13 +87,14 @@ func consolidate(app core.App) error {
 	admits, merges := finishDocument(d.doc, next, input, cites)
 	d.doc = next
 	err = app.RunInTransaction(func(tx core.App) error {
+		now := types.NowDateTime()
 		d.rec.Set("version", d.version+1)
-		d.rec.Set("consolidated_at", types.NowDateTime())
+		d.rec.Set("consolidated_at", now)
 		if err := d.save(tx); err != nil {
 			return err
 		}
 		for _, r := range pending {
-			r.Set("folded", true)
+			r.Set("consolidated_at", now)
 			if err := tx.Save(r); err != nil {
 				return err
 			}

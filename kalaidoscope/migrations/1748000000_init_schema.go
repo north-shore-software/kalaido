@@ -410,17 +410,15 @@ var schema = []tableDef{
 	},
 
 	{
-		// One row per annotated fragment, written once by an annotate worker
-		// and never rewritten except by a deliberate re-annotation. Its
-		// existence is the done-marker the dispatcher keys on. Client-readable
-		// (the UI shows title/summary); server-written only.
+		// One row per annotated fragment. Written once by an annotate worker
+		// (its existence is the done-marker the dispatcher keys on) and
+		// updated once by the consolidate pass that folds it into the map;
+		// there is no re-annotation. Client-readable (the UI shows
+		// title/summary); server-written only.
 		Name:                   "fragment_annotation",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", Required: true, MaxSelect: 1, CascadeDelete: true},
-			// Legacy v3 markup (map-tree vocabulary). Kept so pre-v4 rows
-			// survive; nothing reads it.
-			&core.JSONField{Name: "annotation"},
 			// 2-6 word display label for the fragment.
 			&core.TextField{Name: "title"},
 			// 1-5 sentences; things already in the map are tagged inline as
@@ -434,18 +432,17 @@ var schema = []tableDef{
 			&core.JSONField{Name: "decisions"},
 			&core.JSONField{Name: "questions"},
 			&core.JSONField{Name: "conclusions"},
-			// Active things the annotate call was shown — how well grounded the
-			// row is; the thin-tail re-annotate pass selects on it.
-			&core.NumberField{Name: "grounded_count"},
-			// Set once a consolidate pass has read this row into the map;
-			// rows with folded=false are what makes the next pass due.
-			&core.BoolField{Name: "folded"},
+			// When a consolidate pass read this row into the map (the same
+			// instant as kalaidoscope_map.consolidated_at for that pass).
+			// Empty until then; the rows still empty are what make the next
+			// pass due.
+			&core.DateField{Name: "consolidated_at"},
 			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_fragment_annotation_fragment", Unique: true, Columns: "fragment_id"},
-			{Name: "idx_fragment_annotation_folded", Columns: "folded"},
+			{Name: "idx_fragment_annotation_consolidated_at", Columns: "consolidated_at"},
 		},
 	},
 

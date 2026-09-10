@@ -69,7 +69,7 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 	if err != nil {
 		return err
 	}
-	unfolded, err := app.CountRecords("fragment_annotation", dbx.HashExp{"folded": false})
+	unconsolidated, err := app.CountRecords("fragment_annotation", dbx.HashExp{"consolidated_at": ""})
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 
 	out.Version = version
 	out.Annotated = int(annotated)
-	out.Unfolded = int(unfolded)
+	out.Unconsolidated = int(unconsolidated)
 	out.PendingAnnotation = pending
 	out.LastDrainError = mapping.LastDrainError()
 
@@ -104,7 +104,7 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 		out.State = api.MapStateAnnotating
 	case pending > 0:
 		out.State = api.MapStateUnannotated
-	case unfolded > 0:
+	case unconsolidated > 0:
 		out.State = api.MapStateFolding
 	default:
 		out.State = api.MapStateSettled

@@ -56,8 +56,6 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 		}
 		rec.Set(name, json.RawMessage(b))
 	}
-	rec.Set("grounded_count", prompts.AnnotateShown(d.doc))
-	rec.Set("folded", false)
 	rec.Set("generated_by_model", model)
 	return app.Save(rec)
 }
