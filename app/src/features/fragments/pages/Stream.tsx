@@ -18,7 +18,10 @@ import { fragmentTypeLabel } from "@/lib/labels.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { streamTransitions } from "./Stream.transitions";
-import { resolveSwatches, useColourSwatches } from "@/hooks/use-colour-swatches";
+import {
+  resolveSwatches,
+  useColourSwatches,
+} from "@/hooks/use-colour-swatches";
 
 const formatType = (type: string) => {
   return fragmentTypeLabel(type as FragmentTypeOptions);

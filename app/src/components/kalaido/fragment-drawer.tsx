@@ -162,10 +162,7 @@ function FragmentColours({ fragmentId }: { fragmentId: string }) {
               key={c.id}
               className="group flex items-center gap-1.5 border border-line px-1.5 py-0.5 text-body-sm text-fg-2"
             >
-              <ColourSwatch
-                c={c.swatch ?? 0}
-                size={9}
-              />
+              <ColourSwatch c={c.swatch ?? 0} size={9} />
               {c.name || "Untitled colour"}
               {link && (
                 <Mono className="text-meta text-fg-4">

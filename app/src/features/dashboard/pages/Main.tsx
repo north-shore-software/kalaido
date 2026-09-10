@@ -49,7 +49,10 @@ import type {
   RecentFragment,
 } from "../types";
 import { mainTransitions } from "./Main.transitions";
-import { resolveSwatches, useColourSwatches } from "@/hooks/use-colour-swatches";
+import {
+  resolveSwatches,
+  useColourSwatches,
+} from "@/hooks/use-colour-swatches";
 
 type EntityKind = "projection" | "reflection";
 

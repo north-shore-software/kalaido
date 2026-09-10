@@ -49,16 +49,13 @@ export function useResumeRefinement({
   ready: boolean;
 } {
   const active = enabled && !!parentId;
-  const conversationQuery = useLiveCollection(
-    "projection_refinement",
-    {
-      filter: parentId
-        ? `projection_id="${parentId}" && projection_snapshot_id="${snapshotId}"`
-        : undefined,
-      sort: "-created",
-      enabled: active,
-    },
-  );
+  const conversationQuery = useLiveCollection("projection_refinement", {
+    filter: parentId
+      ? `projection_id="${parentId}" && projection_snapshot_id="${snapshotId}"`
+      : undefined,
+    sort: "-created",
+    enabled: active,
+  });
   const openRefinement = active ? conversationQuery.records[0] : undefined;
 
   const messagesQuery = useLiveCollection("chat_message", {
