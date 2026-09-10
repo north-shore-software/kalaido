@@ -10,7 +10,7 @@ import type { FragmentTypeOptions } from "./types";
 export async function addFragment(
   type: FragmentTypeOptions,
   content: string,
-  opts?: { source?: string; occurredAt?: string; origin?: string },
+  opts?: { source?: string; occurredAt?: string; ingestedVia?: string },
 ): Promise<Result<string, Error>> {
   const client = activeClient();
   if (client.isErr()) return err(client.error);
@@ -26,9 +26,9 @@ export async function addFragment(
       body: JSON.stringify({
         type,
         content,
-        origin: opts?.origin ?? "app",
+        ingested_via: opts?.ingestedVia ?? "app",
         source: opts?.source,
-        source_time: opts?.occurredAt,
+        occurred_at: opts?.occurredAt,
       }),
     });
     if (!res.ok) {

@@ -56,6 +56,7 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 		}
 		rec.Set(name, json.RawMessage(b))
 	}
+	rec.Set("map_version", d.version)
 	rec.Set("generated_by_model", model)
 	return app.Save(rec)
 }

@@ -62,7 +62,7 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, wi
 }
 
 // windowClause is the fragment-level time filter for a window. The event date
-// is source_time (when the email was sent, the note written); a fragment that
+// is occurred_at (when the email was sent, the note written); a fragment that
 // arrived without one falls back to its import time, so nothing silently drops
 // out of every window. Empty clause and no params for a nil window.
 func windowClause(win *api.Window) (string, dbx.Params) {
@@ -74,7 +74,7 @@ func windowClause(win *api.Window) (string, dbx.Params) {
 	if err1 != nil || err2 != nil || start.IsZero() || end.IsZero() {
 		return "", dbx.Params{}
 	}
-	return " && ((source_time != '' && source_time >= {:ws} && source_time < {:we}) || (source_time = '' && created >= {:ws} && created < {:we}))",
+	return " && ((occurred_at != '' && occurred_at >= {:ws} && occurred_at < {:we}) || (occurred_at = '' && created >= {:ws} && created < {:we}))",
 		dbx.Params{"ws": start, "we": end}
 }
 

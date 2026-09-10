@@ -100,7 +100,7 @@ func (f coloursFlow) Dispatch(ctx context.Context, c *Context, call llm.ToolCall
 	raw, _ := json.Marshal(ids)
 	rec.Set("thing_ids", json.RawMessage(raw))
 	if c.Run != nil {
-		rec.Set("origin_run_id", c.Run.Id)
+		rec.Set("created_by_discover_run_id", c.Run.Id)
 	}
 	if err := c.App.Save(rec); err != nil {
 		return "", nil, err

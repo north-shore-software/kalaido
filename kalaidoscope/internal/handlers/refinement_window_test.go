@@ -41,10 +41,10 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 		return d
 	}
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "INSIDE THE CURRENT WEEK", "source_time": dt(effective.Add(10 * day)),
+		"type": "note", "content": "INSIDE THE CURRENT WEEK", "occurred_at": dt(effective.Add(10 * day)),
 	})
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "IN THE PREVIOUS WEEK", "source_time": dt(effective.Add(2 * day)),
+		"type": "note", "content": "IN THE PREVIOUS WEEK", "occurred_at": dt(effective.Add(2 * day)),
 	})
 
 	// Open the session through the handler so the seed is the real one.
@@ -234,7 +234,7 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	effective := time.Now().Add(-15 * day).UTC()
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": "THE CURRENT LENS", "context_spec": pbutil.JSONObject(spec),
+		"prompt": "THE CURRENT LENS",
 	})
 	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
 	refl = testutil.NewRecord(t, app, "reflection", map[string]any{
@@ -366,8 +366,8 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 	day := 24 * time.Hour
 	eff, _ := time.Parse(time.RFC3339, previous.Start)
 	dt := func(tm time.Time) types.DateTime { d, _ := types.ParseDateTime(tm); return d }
-	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "LAST WEEK", "source_time": dt(eff.Add(2 * day))})
-	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "THIS WEEK", "source_time": dt(eff.Add(9 * day))})
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "LAST WEEK", "occurred_at": dt(eff.Add(2 * day))})
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "THIS WEEK", "occurred_at": dt(eff.Add(9 * day))})
 
 	_, refRec := openRefinement(t, app, refl.Id, `{"clientId":"reapply-1","window":{"start":"`+current.Start+`","end":"`+current.End+`"}}`)
 

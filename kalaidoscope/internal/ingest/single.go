@@ -14,7 +14,7 @@ func IngestSingle(app core.App, m api.IngestMessage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	origin := strings.TrimSpace(m.Origin)
+	origin := strings.TrimSpace(m.IngestedVia)
 	if origin == "" {
 		origin = "sync"
 	}

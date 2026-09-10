@@ -74,18 +74,18 @@ func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
 
 func RegisterTriggers(app core.App) {
 	app.OnRecordCreate("fragment").BindFunc(func(e *core.RecordEvent) error {
-		if e.Record.GetDateTime("source_time").IsZero() {
-			e.Record.Set("source_time", types.NowDateTime())
+		if e.Record.GetDateTime("occurred_at").IsZero() {
+			e.Record.Set("occurred_at", types.NowDateTime())
 		}
-		if e.Record.GetString("origin") == "" {
-			e.Record.Set("origin", "app")
+		if e.Record.GetString("ingested_via") == "" {
+			e.Record.Set("ingested_via", "app")
 		}
 		return e.Next()
 	})
 
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
 		colour.Signal()
-		if e.Record.GetString("origin") != "import" {
+		if e.Record.GetString("ingested_via") != "import" {
 			mapping.SignalAnnotate()
 		}
 		return e.Next()

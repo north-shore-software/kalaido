@@ -1,6 +1,6 @@
 # Kalaidoscope Database Schema — Generated Audit Snapshot
 
-> **Generated:** 2026-09-10, from source at commit `bc1af53`.
+> **Generated:** 2026-09-10, from source at commit `6acd107`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.
 
 **Scope.** Every collection, field, index, access rule, and stored-JSON shape of the kalaidoscope PocketBase database, plus the migration mechanics and boot-time schema interactions. PocketBase's own system collections (`users`, `_superusers`, …) are covered only where the code touches them.
@@ -18,7 +18,7 @@
 - **Access rules** are generated: every enabled operation gets `@request.auth.id != ''`; a disabled operation gets a `nil` rule (superuser/server-only). Flags per collection: `DisableWriteOperations` (create+update+delete), `DisableReadOperations` (list+view), and per-op `DisableCreate`/`DisableUpdate`/`DisableDelete`.
 - Migrations run only via the `migrate` subcommand (`migratecmd` registered with `Automigrate: false`); a start with an out-of-date schema is not detected.
 
-Every base collection also has PocketBase's implicit `id`. `created`/`updated` are `AutodateField`s where listed. Date fields (`date`) store PocketBase's own `YYYY-MM-DD HH:MM:SS.sssZ` form. A single-value `select` is stored as plain text, which every status filter and partial index below relies on. A `text` field is capped at 5000 characters by PocketBase unless the definition sets a maximum; the three document-carrying fields (`fragment.content`, `lens.prompt`, `*_snapshot.output`) set 100,000,000. "Client" below means the authenticated `users` record.
+Every base collection also has PocketBase's implicit `id`. `created`/`updated` are `AutodateField`s where listed and keep PocketBase's own names; the migration's stated convention is that timestamps the application sets end in `_at`, relation fields end in `_id`. Date fields (`date`) store PocketBase's own `YYYY-MM-DD HH:MM:SS.sssZ` form. A single-value `select` is stored as plain text, which every status filter and partial index below relies on. A `text` field is capped at 5000 characters by PocketBase unless the definition sets a maximum; the three document-carrying fields (`fragment.content`, `lens.prompt`, `*_snapshot.output`) set 100,000,000. "Client" below means the authenticated `users` record.
 
 ## 2. Collections
 
@@ -36,14 +36,14 @@ Rule summary (client access):
 | Field | Type | Notes |
 |---|---|---|
 | `type` | select(1), required | `email`, `note`, `chat` |
-| `origin` | select(1) | `import`, `app`, `sync`; defaulted to `app` by hook |
-| `source` | text | |
+| `ingested_via` | select(1) | how the fragment entered: `import` (file batch), `app` (the add-fragment flow), `sync` (an external client on `POST /api/ingest`, the default when the body names nothing); defaulted to `app` by hook |
+| `source` | text | human-readable attribution of the content (an email's sender and subject, a file's name, a chat's id); rendered into prompts, never parsed |
 | `content` | text, required | max 100,000,000 chars |
-| `source_time` | date | defaulted to now by hook when zero |
+| `occurred_at` | date | when the underlying event happened (an email's `Date` header); defaulted to now by hook when zero |
 | `deleted_at` | date | soft delete; set by the delete-request hook (`ingestion.md`) |
 | `created` | autodate | |
 
-Indexes: `idx_fragment_source_time (source_time)`, `idx_fragment_deleted_at (deleted_at)`.
+Indexes: `idx_fragment_occurred_at (occurred_at)`, `idx_fragment_deleted_at (deleted_at)`.
 
 ### 2.2 `ingest` — async file-ingestion jobs
 
@@ -69,9 +69,9 @@ No indexes. No pipeline state is stored on the row; the post-import chain is in-
 | `swatch` | number | palette slot `0..7`; assigned `count(colour) % 8` at creation by both writers (create handler, discover colours flow); never changed afterwards |
 | `prompt` | text | |
 | `thing_ids` | json | string array of map thing ids; written by discover only |
-| `prompt_matched_through` | text | fragment id watermark; empty = nothing judged yet |
+| `prompt_match_completed_up_to_fragment_id` | relation(1) → `fragment` | prompt-matching watermark: the newest fragment (in `created, id` order) judged against the current prompt; empty = nothing judged yet; reset by a prompt edit; no cascade, so a hard-deleted fragment clears it and the scan starts over |
 | `last_provider_error_kind` | text | `auth` / `quota` / empty |
-| `origin_run_id` | relation(1) → `discover_run` | empty = human-created |
+| `created_by_discover_run_id` | relation(1) → `discover_run` | empty = human-created |
 | `created`, `updated` | autodate | |
 
 No indexes.
@@ -93,12 +93,12 @@ Indexes: `idx_colour_fragment_colour (colour_id)`, `idx_colour_fragment_fragment
 |---|---|---|
 | `name` | text | |
 | `status` | select(1), required | `proposed`, `active` |
-| `current_context_spec` | json | § 3 |
-| `window_spec_versions` | json | **reflection only**; § 3 |
+| `current_context_spec` | json | the scope every generation resolves (§ 3); owned by the entity, not the lens; written by discover, refinement commits, and the colour-delete scrub |
+| `window_spec_versions` | json | **reflection only**; append-only schedule history (§ 3): creation writes version 1, every schedule edit appends the next, only the version governing now is read |
 | `current_lens_id` | relation(1) → `lens` | no cascade |
 | `generate_with_model` | text | per-entity model override for future generations; empty = workspace role default |
 | `pinned_by` | relation(≤999) → `users` | |
-| `origin_run_id` | relation(1) → `discover_run` | empty = human-created |
+| `created_by_discover_run_id` | relation(1) → `discover_run` | empty = human-created |
 | `description` | text | seeded by discover from its proposal's opening message; empty for human-created entities |
 | `created`, `updated` | autodate | |
 
@@ -108,14 +108,13 @@ Indexes: `idx_projection_status (status)`; `idx_reflection_status (status)`.
 
 | Field | Type | Notes |
 |---|---|---|
-| `context_spec` | json | § 3 |
 | `prompt` | text | the standing instruction a refinement drafted; max 100,000,000 chars |
 | `created_from_projection_refinement_id` | relation(1) → `projection_refinement` | no cascade |
 | `created_from_reflection_refinement_id` | relation(1) → `reflection_refinement` | no cascade |
 | `parent_lens_id` | relation(1) → `lens` | |
 | `created` | autodate | |
 
-Read **and** write disabled for clients. No indexes.
+Read **and** write disabled for clients. No indexes. A lens carries no context spec: the scope it is applied to is the owning entity's `current_context_spec`, and each snapshot records the spec it was generated with.
 
 ### 2.8 `projection_snapshot` / 2.9 `reflection_snapshot` — generated outputs
 
@@ -123,14 +122,14 @@ Read **and** write disabled for clients. No indexes.
 |---|---|---|
 | `projection_id` / `reflection_id` | relation(1), required, cascade | |
 | `status` | select(1), required | `generating`, `pending`, `approved`, `discarded` |
-| `context_spec` | json | the lens's spec at generation (§ 3) |
+| `context_spec` | json | the entity's `current_context_spec` at generation (§ 3) |
 | `resolved_context` | json | `{fragmentIds, snapshotIds, expandedIds}` receipt (§ 3) |
 | `window_start`, `window_end` | date | **reflection only**; the half-open window the snapshot covers; both empty for an unscheduled reflection |
 | `lens_id` | relation(1) → `lens` | |
 | `output` | text | the generated markdown as returned by the model; max 100,000,000 chars |
 | `created_from_refinement_id` | relation(1) → the matching refinement collection | set on refinement commits |
 | `generated_by_model` | text | |
-| `generation_trigger` | text | non-empty when generated as part of a "generate all" wave; propagates through refinement commits |
+| `generation_trigger` | select(1) | `generate_all` when generated as part of a "generate all" wave, else empty; propagates through refinement commits |
 | `approval_sequence_number` | number | |
 | `approved_at` | date | set on approval |
 | `generated_at` | date | set when a generation completes; not set on the claim row |
@@ -182,7 +181,7 @@ Indexes: `idx_chat_message_chat_conv (chat_conversation_id)`, `idx_chat_message_
 
 ### 2.17 `view_stream` — SQL view
 
-Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`, `source_time`, `created`, `title` (the fragment's `fragment_annotation.title` via left join; null when unannotated), and `colour_ids` = JSON array of the ids of every colour the fragment is a member of (`colour_fragment` rows with `match_type != 'manual_negative'`); `'[]'` when none.
+Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`, `occurred_at`, `created`, `title` (the fragment's `fragment_annotation.title` via left join; null when unannotated), and `colour_ids` = JSON array of the ids of every colour the fragment is a member of (`colour_fragment` rows with `match_type != 'manual_negative'`); `'[]'` when none.
 
 ### 2.18 `reflection_window` — explicitly backfilled windows
 
@@ -196,6 +195,7 @@ Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`,
 | `title`, `summary` | text | |
 | `things`, `decisions`, `questions`, `conclusions` | json | § 3 |
 | `consolidated_at` | date | set by the consolidate pass that folded the row into the map, to the same instant as `kalaidoscope_map.consolidated_at` for that pass; empty until then; indexed `idx_fragment_annotation_consolidated_at` |
+| `map_version` | number | the `kalaidoscope_map.version` the annotation was grounded on (whose thing ids `things[].ref` cites); provenance only, not part of the key |
 | `generated_by_model` | text | |
 | `created` | autodate | |
 
@@ -217,7 +217,7 @@ Written once by an annotate worker and updated once by consolidate; there is no 
 
 | Where | Shape |
 |---|---|
-| `*.current_context_spec`, `lens.context_spec`, `*_snapshot.context_spec` | `{wholeScope?, fragmentIds?, fragmentTypes?, colourIds?, sourceProjectionIds?, sourceReflectionIds?}`; `wholeScope` is `"full"` or `"summaries"` (`context.md` § 1) |
+| `*.current_context_spec`, `*_snapshot.context_spec` | `{wholeScope?, fragmentIds?, fragmentTypes?, colourIds?, sourceProjectionIds?, sourceReflectionIds?}`; `wholeScope` is `"full"` or `"summaries"` (`context.md` § 1) |
 | `*_snapshot.resolved_context` | `{fragmentIds?, snapshotIds?, expandedIds?}` — `expandedIds` is a rendering hint the snapshot path never reads (`context.md`) |
 | `reflection.window_spec_versions` | `[{versionNumber, effectiveFrom, spec: {mode?, startTime, endTime?, period, duration}}]` |
 | `chat_message.content` | `{id, role, parts: [{type, text?, data?}]}`; part types the backend writes or recognises: `text`, `context_spec`, `window`, `pinned_ids`, `tool-<tool name>` (`update_lens`, `suggest_name`, `apply_result` in refinement; `read_fragment`, `read_thing` in chat summaries mode), `data-refine_lint`, `data-refine_error`, `data-window_reapply`, `data-lens_seed` |
@@ -236,15 +236,15 @@ Written once by an annotate worker and updated once by consolidate; there is no 
 - `resolveModelSet` (on serve, registered by the binary's main) finds or creates the `kalaidoscope_config` singleton; when `model_set` is empty it seeds it from `KALAIDO_MODEL_SET` (default `local`), otherwise the stored value wins and a differing environment value is logged and ignored.
 - `seedSidecarUser` (on serve) upserts the `users` record `user@kalaido.local`, sets its password from `KALAIDO_USER_PASSWORD` or a random one, and prints an auth token to stdout. No `_superusers` record is ever created by the binary.
 - `mapping.loadDocument` creates the `kalaidoscope_map` singleton (`version 0`) on first use, not at boot.
-- Record hooks that touch schema values: `fragment` create defaults `source_time` to now and `origin` to `app` (model-level, so programmatic saves too); `fragment` delete request sets `deleted_at` instead of deleting and answers `204` (reachable only by a superuser, since the client delete rule is disabled); `ingest` create forces `status = pending` and starts the batch; `kalaidoscope_config` update request rejects `403` when a non-superuser touches `model_set`, the model-level update validates provider/model/credential before the row is written, and the enrich hook hides `api_key` from non-superusers.
+- Record hooks that touch schema values: `fragment` create defaults `occurred_at` to now and `ingested_via` to `app` (model-level, so programmatic saves too); `fragment` delete request sets `deleted_at` instead of deleting and answers `204` (reachable only by a superuser, since the client delete rule is disabled); `ingest` create forces `status = pending` and starts the batch; `kalaidoscope_config` update request rejects `403` when a non-superuser touches `model_set`, the model-level update validates provider/model/credential before the row is written, and the enrich hook hides `api_key` from non-superusers.
 
 ## 5. Cascade graph
 
 Deleting → also deletes:
 
-- `fragment` (hard delete only; the API soft-deletes) → `colour_fragment`, `fragment_annotation`.
+- `fragment` (hard delete only; the API soft-deletes) → `colour_fragment`, `fragment_annotation`; a `colour.prompt_match_completed_up_to_fragment_id` pointing at it is cleared, not cascaded.
 - `colour` → `colour_fragment`.
 - `projection` → `projection_snapshot` → `projection_refinement` (via `projection_snapshot_id`) → `chat_message`; also `projection_refinement` directly (via `projection_id`).
 - `reflection` → `reflection_snapshot` → `reflection_refinement` (via `reflection_snapshot_id`) → `chat_message`; also `reflection_window` and `reflection_refinement` directly (via `reflection_id`).
 - `chat_conversation` → `chat_message`.
-- Nothing cascades to or from `lens`, `discover_run`, `map_run`; deleting a `discover_run` leaves `origin_run_id` empty on its entities (PocketBase clears the relation value).
+- Nothing cascades to or from `lens`, `discover_run`, `map_run`; deleting a `discover_run` leaves `created_by_discover_run_id` empty on its entities (PocketBase clears the relation value).

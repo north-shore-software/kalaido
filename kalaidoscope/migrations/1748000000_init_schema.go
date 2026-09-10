@@ -5,6 +5,12 @@ import (
 	m "github.com/pocketbase/pocketbase/migrations"
 )
 
+// Naming: snake_case; relation fields end in _id; timestamps the application
+// sets end in _at (occurred_at, approved_at, consolidated_at). The autodate
+// fields keep PocketBase's own names, created and updated, like id — the
+// system users collection carries those names regardless, so renaming ours
+// would only put two conventions on the wire.
+//
 // PocketBase caps a TextField at 5000 characters unless Max is set; the
 // fields that hold documents (fragment content, lens prompts, generated
 // output) carry this instead.
@@ -47,19 +53,28 @@ var schema = []tableDef{
 				// as a group once a workspace accumulates them.
 				Values: []string{"email", "note", "chat"},
 			},
+			// How the fragment entered: a file import batch, the app's
+			// add-fragment flow, or an external client on POST /api/ingest
+			// (the default when the body names nothing). The create hook
+			// defaults it to "app".
 			&core.SelectField{
-				Name:      "origin",
+				Name:      "ingested_via",
 				MaxSelect: 1,
 				Values:    []string{"import", "app", "sync"},
 			},
+			// Human-readable attribution of where the content came from: an
+			// email's sender and subject, a file's name, a chat's id. Rendered
+			// into prompts alongside the content; never parsed.
 			&core.TextField{Name: "source"},
 			&core.TextField{Name: "content", Required: true, Max: longTextMax},
-			&core.DateField{Name: "source_time"},
+			// When the underlying event happened (an email's Date header);
+			// the create hook defaults it to now when the source has none.
+			&core.DateField{Name: "occurred_at"},
 			&core.DateField{Name: "deleted_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
-			{Name: "idx_fragment_source_time", Columns: "source_time"},
+			{Name: "idx_fragment_occurred_at", Columns: "occurred_at"},
 			{Name: "idx_fragment_deleted_at", Columns: "deleted_at"},
 		},
 	},
@@ -104,16 +119,18 @@ var schema = []tableDef{
 			// Map thing ids (JSON array of strings). Backend-only: set by the
 			// discover colours flow, never edited from the app.
 			&core.JSONField{Name: "thing_ids"},
-			// Prompt-matching watermark: the id of the newest fragment (in
-			// created, id order) judged against the current prompt. Empty means
-			// nothing has been judged yet; a prompt edit resets it.
-			&core.TextField{Name: "prompt_matched_through"},
+			// Prompt-matching watermark: the newest fragment (in created, id
+			// order) judged against the current prompt. Empty means nothing has
+			// been judged yet; a prompt edit resets it. No cascade: if the
+			// fragment is ever hard-deleted PocketBase clears the reference and
+			// the scan starts over.
+			&core.RelationField{Name: "prompt_match_completed_up_to_fragment_id", CollectionId: "fragment", MaxSelect: 1},
 			// Last durable provider failure seen by the background evaluation
 			// worker ("auth"/"quota"), cleared on the next success. The worker
 			// has no request to fail, so this is how it surfaces a stuck key.
 			&core.TextField{Name: "last_provider_error_kind"},
 			// Set by the discover worker; empty = human-created.
-			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
+			&core.RelationField{Name: "created_by_discover_run_id", CollectionId: "discover_run", MaxSelect: 1},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -152,13 +169,16 @@ var schema = []tableDef{
 		Fields: []core.Field{
 			&core.TextField{Name: "name"},
 			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"proposed", "active"}},
+			// The scope every generation resolves (context.md); owned by the
+			// entity, not the lens. Written by discover, refinement commits, and
+			// the colour-delete scrub.
 			&core.JSONField{Name: "current_context_spec"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			// Optional per-entity model override; empty = workspace role default.
 			&core.TextField{Name: "generate_with_model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
-			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
+			&core.RelationField{Name: "created_by_discover_run_id", CollectionId: "discover_run", MaxSelect: 1},
 			// A short account of what this entity is for. Discover seeds it
 			// with its proposal's opening message; empty for human-created
 			// entities until one is written.
@@ -177,14 +197,23 @@ var schema = []tableDef{
 		Fields: []core.Field{
 			&core.TextField{Name: "name"},
 			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"proposed", "active"}},
+			// The scope every generation resolves (context.md); owned by the
+			// entity, not the lens. Written by discover, refinement commits, and
+			// the colour-delete scrub.
 			&core.JSONField{Name: "current_context_spec"},
+			// Append-only history of the schedule: [{versionNumber, effectiveFrom,
+			// spec}]. Creation writes version 1 and every schedule edit appends the
+			// next; only the version governing now is ever read, so the list is
+			// audit lineage in the same way lens.parent_lens_id is. Kept as one
+			// JSON value because it is tiny, always read whole, and never queried
+			// by version.
 			&core.JSONField{Name: "window_spec_versions"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			// Optional per-entity model override; empty = workspace role default.
 			&core.TextField{Name: "generate_with_model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
-			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
+			&core.RelationField{Name: "created_by_discover_run_id", CollectionId: "discover_run", MaxSelect: 1},
 			// A short account of what this entity is for. Discover seeds it
 			// with its proposal's opening message; empty for human-created
 			// entities until one is written.
@@ -198,11 +227,14 @@ var schema = []tableDef{
 	},
 
 	{
+		// A lens is the standing instruction only. The scope it is applied to
+		// is the entity's current_context_spec, and each snapshot records the
+		// spec it was actually generated with — so a lens never carries a copy
+		// that could drift from the entity's.
 		Name:                   "lens",
 		DisableWriteOperations: true,
 		DisableReadOperations:  true,
 		Fields: []core.Field{
-			&core.JSONField{Name: "context_spec"},
 			// The standing instruction a refinement drafted (see chat.md).
 			&core.TextField{Name: "prompt", Max: longTextMax},
 			&core.RelationField{Name: "created_from_projection_refinement_id", CollectionId: "projection_refinement", MaxSelect: 1},
@@ -233,7 +265,7 @@ var schema = []tableDef{
 			// "generate all" wave (it may have consumed unapproved upstream
 			// candidates); the marker also propagates through refinement commits
 			// so an edited chain re-triggers its downstream regeneration.
-			&core.TextField{Name: "generation_trigger"},
+			&core.SelectField{Name: "generation_trigger", MaxSelect: 1, Values: []string{"generate_all"}},
 			&core.NumberField{Name: "approval_sequence_number"},
 			// approved_at / generated_at are the lifecycle moments; created /
 			// updated are row bookkeeping and differ from them: a snapshot
@@ -278,7 +310,7 @@ var schema = []tableDef{
 			// The model that generated this row.
 			&core.TextField{Name: "generated_by_model"},
 			// See projection_snapshot.generation_trigger.
-			&core.TextField{Name: "generation_trigger"},
+			&core.SelectField{Name: "generation_trigger", MaxSelect: 1, Values: []string{"generate_all"}},
 			&core.NumberField{Name: "approval_sequence_number"},
 			// approved_at / generated_at are the lifecycle moments; created /
 			// updated are row bookkeeping and differ from them: a snapshot
@@ -480,6 +512,11 @@ var schema = []tableDef{
 			// Empty until then; the rows still empty are what make the next
 			// pass due.
 			&core.DateField{Name: "consolidated_at"},
+			// The kalaidoscope_map.version the annotation was grounded on: the
+			// map put in front of the model, whose thing ids things[].ref cites.
+			// Provenance only; not part of the key, since a fragment is
+			// annotated once.
+			&core.NumberField{Name: "map_version"},
 			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
@@ -557,7 +594,7 @@ var schema = []tableDef{
 				f.id as id,
 				f.type as type,
 				f.content as content,
-				f.source_time as source_time,
+				f.occurred_at as occurred_at,
 				f.created as created,
 				fa.title as title,
 				COALESCE(

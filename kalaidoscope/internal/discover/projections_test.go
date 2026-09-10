@@ -25,7 +25,7 @@ func TestProposeProjectionPinsColours(t *testing.T) {
 	var ids []string
 	for i, c := range cites {
 		f := testutil.NewRecord(t, app, "fragment", map[string]any{
-			"content": "f", "type": "note", "source_time": "2026-0" + string(rune('1'+i)) + "-10 12:00:00.000Z",
+			"content": "f", "type": "note", "occurred_at": "2026-0" + string(rune('1'+i)) + "-10 12:00:00.000Z",
 		})
 		testutil.NewRecord(t, app, "fragment_annotation", map[string]any{"fragment_id": f.Id, "title": "t", "summary": "s", "things": json.RawMessage(c)})
 		ids = append(ids, f.Id)
@@ -70,7 +70,7 @@ func TestProposeProjectionPinsColours(t *testing.T) {
 	if len(spec.ColourIDs) != 1 || spec.ColourIDs[0] != col.Id || len(spec.FragmentIDs) != 0 || len(spec.SourceProjectionIDs) != 0 {
 		t.Fatalf("spec = %+v, want only the colour id", spec)
 	}
-	if rec.GetString("origin_run_id") != run.Id || rec.GetString("description") != "Keep the account." {
+	if rec.GetString("created_by_discover_run_id") != run.Id || rec.GetString("description") != "Keep the account." {
 		t.Fatalf("row = %+v", rec)
 	}
 	if !c.covered[ids[0]] || !c.covered[ids[1]] || c.covered[ids[2]] {

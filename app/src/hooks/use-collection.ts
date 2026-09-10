@@ -36,7 +36,7 @@ export interface UseCollectionResult<T> extends SWRResponse<T[], Error> {
  *
  * ```ts
  * const { records, isLoading } = useCollection("view_stream", {
- *   sort: "-source_time,-created",
+ *   sort: "-occurred_at,-created",
  * }); // records: ViewStreamResponse[]
  * ```
  *

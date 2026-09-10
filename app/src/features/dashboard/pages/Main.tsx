@@ -95,7 +95,7 @@ export default function Main() {
   const fragments = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment", "fragment_annotation"],
-    { sort: "-source_time,-created" },
+    { sort: "-occurred_at,-created" },
   );
   // The reconcile wave keeps no run state of its own; whether it is working
   // shows in the scheduler mirror as background snapshot generation.
@@ -254,7 +254,7 @@ export default function Main() {
   const recent = useMemo<RecentFragment[]>(
     () =>
       fragments.records.slice(0, 8).map((f) => {
-        const occurred = f.source_time || f.created;
+        const occurred = f.occurred_at || f.created;
         return {
           id: f.id,
           type: fragmentTypeLabel(f.type as FragmentTypeOptions),

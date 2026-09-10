@@ -285,7 +285,7 @@ export function ColourDetailPane({
                             {badge.label}
                           </StatusPill>
                         )}
-                        {shortTime(frag?.source_time ?? frag?.created)}
+                        {shortTime(frag?.occurred_at ?? frag?.created)}
                       </span>
                     }
                     rejected={rejected}

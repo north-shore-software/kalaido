@@ -40,7 +40,7 @@ export function FragmentDrawer({
 
   const fragment = records[0];
   const Icon = fragment ? fragmentTypeIcon(fragment.type) : null;
-  const occurredStr = fragment?.source_time || fragment?.created;
+  const occurredStr = fragment?.occurred_at || fragment?.created;
 
   return (
     <Sheet open={!!id} onOpenChange={(open) => !open && onClose()}>

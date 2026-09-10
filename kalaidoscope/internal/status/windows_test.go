@@ -19,7 +19,7 @@ import (
 func dated(t *testing.T, app core.App, content string, at time.Time) *core.Record {
 	t.Helper()
 	d, _ := types.ParseDateTime(at)
-	return testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": content, "source_time": d})
+	return testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": content, "occurred_at": d})
 }
 
 func statusOf(t *testing.T, app core.App, id string, now time.Time) api.EntityStatus {
@@ -47,7 +47,7 @@ func TestReflectionStalenessIsPerWindow(t *testing.T) {
 
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": "L", "context_spec": pbutil.JSONObject(spec),
+		"prompt": "L",
 	})
 	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{

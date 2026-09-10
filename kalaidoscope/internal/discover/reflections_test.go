@@ -84,8 +84,8 @@ func TestProposeReflectionWritesScheduleFromOnset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.GetString("status") != engine.EntityProposed || rec.GetString("origin_run_id") != run.Id || rec.GetString("description") == "" {
-		t.Fatalf("row = status %s origin %s description %q", rec.GetString("status"), rec.GetString("origin_run_id"), rec.GetString("description"))
+	if rec.GetString("status") != engine.EntityProposed || rec.GetString("created_by_discover_run_id") != run.Id || rec.GetString("description") == "" {
+		t.Fatalf("row = status %s origin %s description %q", rec.GetString("status"), rec.GetString("created_by_discover_run_id"), rec.GetString("description"))
 	}
 	var spec api.ContextSpec
 	_ = rec.UnmarshalJSONField("current_context_spec", &spec)

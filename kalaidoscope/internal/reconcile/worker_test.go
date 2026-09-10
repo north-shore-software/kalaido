@@ -44,11 +44,10 @@ type chainGraph struct {
 	rSnap0, p1Snap0, p2Snap0 *core.Record
 }
 
-func newLens(t *testing.T, app core.App, spec api.ContextSpec) *core.Record {
+func newLens(t *testing.T, app core.App) *core.Record {
 	t.Helper()
 	return testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       "Summarize the sources.",
-		"context_spec": pbutil.JSONObject(spec),
+		"prompt": "Summarize the sources.",
 	})
 }
 
@@ -71,7 +70,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 	g.f0 = testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "old fragment"})
 
 	reflSpec := api.ContextSpec{WholeScope: api.WholeScopeFull}
-	reflLens := newLens(t, app, reflSpec)
+	reflLens := newLens(t, app)
 	g.refl = testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name":                 "R",
 		"current_context_spec": pbutil.JSONObject(reflSpec),
@@ -81,7 +80,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 		llmcontext.PinnedIDs{FragmentIDs: []string{g.f0.Id}})
 
 	p1Spec := api.ContextSpec{SourceReflectionIDs: []string{g.refl.Id}}
-	p1Lens := newLens(t, app, p1Spec)
+	p1Lens := newLens(t, app)
 	g.p1 = testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P1",
 		"current_context_spec": pbutil.JSONObject(p1Spec),
@@ -91,7 +90,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 		llmcontext.PinnedIDs{SnapshotIDs: []string{g.rSnap0.Id}})
 
 	p2Spec := api.ContextSpec{SourceProjectionIDs: []string{g.p1.Id}}
-	p2Lens := newLens(t, app, p2Spec)
+	p2Lens := newLens(t, app)
 	g.p2 = testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P2",
 		"current_context_spec": pbutil.JSONObject(p2Spec),

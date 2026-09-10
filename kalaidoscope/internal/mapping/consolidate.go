@@ -190,7 +190,7 @@ func fragmentDates(app core.App) (map[string]string, error) {
 	}
 	dates := make(map[string]string, len(recs))
 	for _, r := range recs {
-		if st := r.GetDateTime("source_time"); !st.IsZero() {
+		if st := r.GetDateTime("occurred_at"); !st.IsZero() {
 			dates[r.Id] = st.Time().Format("2006-01-02")
 		}
 	}

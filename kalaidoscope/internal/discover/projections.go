@@ -100,7 +100,7 @@ func existingEntities(c *Context) ([]Existing, error) {
 			pinned, _ := llmcontext.ResolveSpecToIDs(context.Background(), c.App, spec, nil)
 			note := ""
 			if rec.GetString("status") == engine.EntityProposed {
-				if c.Run != nil && rec.GetString("origin_run_id") == c.Run.Id {
+				if c.Run != nil && rec.GetString("created_by_discover_run_id") == c.Run.Id {
 					note = prompts.DiscoverNoteProposedThisRun
 				} else {
 					note = prompts.DiscoverNoteProposedEarlier
@@ -183,7 +183,7 @@ func insertProposed(c *Context, col, name, message string, spec api.ContextSpec,
 	rec.Set("status", engine.EntityProposed)
 	rec.Set("description", message)
 	rec.Set("current_context_spec", pbutil.JSONObject(spec))
-	rec.Set("origin_run_id", c.Run.Id)
+	rec.Set("created_by_discover_run_id", c.Run.Id)
 	for k, v := range extra {
 		rec.Set(k, v)
 	}

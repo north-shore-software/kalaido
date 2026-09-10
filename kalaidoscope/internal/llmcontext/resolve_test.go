@@ -125,8 +125,8 @@ func TestResolveExplicitFragmentsSkipsDeleted(t *testing.T) {
 	assertIDs(t, got, sorted(kept.Id))
 }
 
-// A window restricts resolution to fragments whose event date (source_time)
-// falls inside it, half-open. A fragment that arrived without a source_time is
+// A window restricts resolution to fragments whose event date (occurred_at)
+// falls inside it, half-open. A fragment that arrived without a occurred_at is
 // placed by its import time instead, so it belongs to the window covering
 // "now" rather than to none.
 func TestResolveWindowFiltersByEventDate(t *testing.T) {
@@ -140,18 +140,18 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 		return d
 	}
 	inside := testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "inside", "source_time": at("2026-08-10T12:00:00Z"),
+		"type": "note", "content": "inside", "occurred_at": at("2026-08-10T12:00:00Z"),
 	})
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "before", "source_time": at("2026-07-30T12:00:00Z"),
+		"type": "note", "content": "before", "occurred_at": at("2026-07-30T12:00:00Z"),
 	})
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "at the end (excluded)", "source_time": at("2026-08-15T00:00:00Z"),
+		"type": "note", "content": "at the end (excluded)", "occurred_at": at("2026-08-15T00:00:00Z"),
 	})
 	atStart := testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "at the start (included)", "source_time": at("2026-08-08T00:00:00Z"),
+		"type": "note", "content": "at the start (included)", "occurred_at": at("2026-08-08T00:00:00Z"),
 	})
-	undated := addFragment(t, app, "note", "no source_time; created now")
+	undated := addFragment(t, app, "note", "no occurred_at; created now")
 
 	win := &api.Window{Start: "2026-08-08T00:00:00Z", End: "2026-08-15T00:00:00Z"}
 

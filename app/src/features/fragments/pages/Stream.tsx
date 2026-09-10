@@ -33,14 +33,14 @@ export default function Stream() {
   const { records, isLoading } = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment", "fragment_annotation"],
-    { sort: "-source_time,-created" },
+    { sort: "-occurred_at,-created" },
   );
   const swatches = useColourSwatches();
 
   const filteredFragments = useMemo<LoadedFragment[]>(
     () =>
       records.map((f) => {
-        const occurredStr = f.source_time || f.created;
+        const occurredStr = f.occurred_at || f.created;
         return {
           id: f.id,
           type: formatType(f.type),

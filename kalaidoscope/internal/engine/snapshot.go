@@ -42,7 +42,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("%s not found: %s", strat.TargetType(), targetID)
 	}
 
-	lensPrompt, lensSpec, _ := resolveActiveLens(app, strat, rec)
+	lensPrompt, lensSpec := resolveActiveLens(app, strat, rec)
 	if strings.TrimSpace(lensPrompt) == "" {
 		// The entity has never had a refinement committed — a commit installs
 		// the drafted lens in the same transaction as the approved snapshot,
@@ -243,7 +243,7 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 			return false
 		}
 	}
-	_, lensSpec, _ := resolveActiveLens(app, strat, rec)
+	_, lensSpec := resolveActiveLens(app, strat, rec)
 	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec, nil)
 	if err != nil {
 		return false

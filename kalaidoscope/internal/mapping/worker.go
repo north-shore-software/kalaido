@@ -127,11 +127,11 @@ func pendingFragments(app core.App) ([]*core.Record, error) {
 		}
 	}
 	sort.SliceStable(pending, func(i, j int) bool {
-		li, lj := pending[i].GetString("origin") == "import", pending[j].GetString("origin") == "import"
+		li, lj := pending[i].GetString("ingested_via") == "import", pending[j].GetString("ingested_via") == "import"
 		if li != lj {
 			return !li
 		}
-		return pending[i].GetDateTime("source_time").Compare(pending[j].GetDateTime("source_time")) < 0
+		return pending[i].GetDateTime("occurred_at").Compare(pending[j].GetDateTime("occurred_at")) < 0
 	})
 	return pending, nil
 }
