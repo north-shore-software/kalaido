@@ -5,7 +5,10 @@ import (
 	m "github.com/pocketbase/pocketbase/migrations"
 )
 
-const fragmentContentMax = 100_000_000
+// PocketBase caps a TextField at 5000 characters unless Max is set; the
+// fields that hold documents (fragment content, lens prompts, generated
+// output) carry this instead.
+const longTextMax = 100_000_000
 
 type tableDef struct {
 	Name                   string
@@ -50,7 +53,7 @@ var schema = []tableDef{
 				Values:    []string{"import", "app", "sync"},
 			},
 			&core.TextField{Name: "source"},
-			&core.TextField{Name: "content", Required: true, Max: fragmentContentMax},
+			&core.TextField{Name: "content", Required: true, Max: longTextMax},
 			&core.DateField{Name: "source_time"},
 			&core.DateField{Name: "deleted_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
@@ -201,7 +204,7 @@ var schema = []tableDef{
 		Fields: []core.Field{
 			&core.JSONField{Name: "context_spec"},
 			// The standing instruction a refinement drafted (see chat.md).
-			&core.TextField{Name: "prompt"},
+			&core.TextField{Name: "prompt", Max: longTextMax},
 			&core.RelationField{Name: "created_from_projection_refinement_id", CollectionId: "projection_refinement", MaxSelect: 1},
 			&core.RelationField{Name: "created_from_reflection_refinement_id", CollectionId: "reflection_refinement", MaxSelect: 1},
 			&core.RelationField{Name: "parent_lens_id", CollectionId: "lens", MaxSelect: 1},
@@ -221,7 +224,7 @@ var schema = []tableDef{
 			&core.JSONField{Name: "resolved_context"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			// The generated document (markdown), as the model returned it.
-			&core.TextField{Name: "output"},
+			&core.TextField{Name: "output", Max: longTextMax},
 			// Set when this snapshot was committed from a refinement conversation.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "projection_refinement", MaxSelect: 1},
 			// The model that generated this row.
@@ -269,7 +272,7 @@ var schema = []tableDef{
 			&core.DateField{Name: "window_end"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			// The generated document (markdown), as the model returned it.
-			&core.TextField{Name: "output"},
+			&core.TextField{Name: "output", Max: longTextMax},
 			// See projection_snapshot.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "reflection_refinement", MaxSelect: 1},
 			// The model that generated this row.

@@ -18,7 +18,7 @@
 - **Access rules** are generated: every enabled operation gets `@request.auth.id != ''`; a disabled operation gets a `nil` rule (superuser/server-only). Flags per collection: `DisableWriteOperations` (create+update+delete), `DisableReadOperations` (list+view), and per-op `DisableCreate`/`DisableUpdate`/`DisableDelete`.
 - Migrations run only via the `migrate` subcommand (`migratecmd` registered with `Automigrate: false`); a start with an out-of-date schema is not detected.
 
-Every base collection also has PocketBase's implicit `id`. `created`/`updated` are `AutodateField`s where listed. Date fields (`date`) store PocketBase's own `YYYY-MM-DD HH:MM:SS.sssZ` form. A single-value `select` is stored as plain text, which every status filter and partial index below relies on. "Client" below means the authenticated `users` record.
+Every base collection also has PocketBase's implicit `id`. `created`/`updated` are `AutodateField`s where listed. Date fields (`date`) store PocketBase's own `YYYY-MM-DD HH:MM:SS.sssZ` form. A single-value `select` is stored as plain text, which every status filter and partial index below relies on. A `text` field is capped at 5000 characters by PocketBase unless the definition sets a maximum; the three document-carrying fields (`fragment.content`, `lens.prompt`, `*_snapshot.output`) set 100,000,000. "Client" below means the authenticated `users` record.
 
 ## 2. Collections
 
@@ -109,7 +109,7 @@ Indexes: `idx_projection_status (status)`; `idx_reflection_status (status)`.
 | Field | Type | Notes |
 |---|---|---|
 | `context_spec` | json | § 3 |
-| `prompt` | text | the standing instruction a refinement drafted |
+| `prompt` | text | the standing instruction a refinement drafted; max 100,000,000 chars |
 | `created_from_projection_refinement_id` | relation(1) → `projection_refinement` | no cascade |
 | `created_from_reflection_refinement_id` | relation(1) → `reflection_refinement` | no cascade |
 | `parent_lens_id` | relation(1) → `lens` | |
@@ -127,7 +127,7 @@ Read **and** write disabled for clients. No indexes.
 | `resolved_context` | json | `{fragmentIds, snapshotIds, expandedIds}` receipt (§ 3) |
 | `window_start`, `window_end` | date | **reflection only**; the half-open window the snapshot covers; both empty for an unscheduled reflection |
 | `lens_id` | relation(1) → `lens` | |
-| `output` | text | the generated markdown as returned by the model |
+| `output` | text | the generated markdown as returned by the model; max 100,000,000 chars |
 | `created_from_refinement_id` | relation(1) → the matching refinement collection | set on refinement commits |
 | `generated_by_model` | text | |
 | `generation_trigger` | text | non-empty when generated as part of a "generate all" wave; propagates through refinement commits |
