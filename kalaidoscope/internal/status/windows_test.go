@@ -68,8 +68,7 @@ func TestReflectionStalenessIsPerWindow(t *testing.T) {
 		testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 			"reflection_id": refl.Id, "status": engine.StatusApproved, "approval_sequence_number": 1,
 			"lens_id": lens.Id, "output": pbutil.JSONString("summary"),
-			"window_key":       engine.WindowKey(w),
-			"resolved_window":  pbutil.JSONObject(map[string]string{"start": w.Start, "end": w.End}),
+			"window_start": w.Start, "window_end": w.End,
 			"resolved_context": pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{seen}}),
 		})
 	}

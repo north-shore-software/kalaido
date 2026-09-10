@@ -22,14 +22,28 @@ export interface SeriesWindow extends ReflectionWindow {
   olderLens: boolean;
 }
 
-/** The key the backend files a windowless (unscheduled) reflection's snapshots under. */
+/** The series key of a windowless (unscheduled) reflection's snapshots. */
 export const ALL_TIME_KEY = "";
+
+/**
+ * A window's series key from its bounds. The served windows carry RFC3339
+ * and snapshot records carry PocketBase's own `YYYY-MM-DD HH:mm:ss.sssZ`, so
+ * both sides are normalised through Date before they are compared.
+ */
+function windowKey(start?: string, end?: string): string {
+  if (!start || !end) return ALL_TIME_KEY;
+  const iso = (s: string) => {
+    const t = new Date(s.replace(" ", "T")).getTime();
+    return Number.isNaN(t) ? s : new Date(t).toISOString();
+  };
+  return `${iso(start)}_${iso(end)}`;
+}
 
 /**
  * A reflection as a series of windows: the reflection record, its windows
  * (from `GET /api/reflections/:id/windows`, re-fetched whenever the live
  * snapshot list changes so generation progress shows up), and each window's
- * current approved snapshot joined in by `window_key`. Newest first. A
+ * current approved snapshot joined in by window bounds. Newest first. A
  * reflection with no windows at all (unscheduled, or legacy windowless
  * snapshots) surfaces one "All time" pseudo-window so its snapshots stay
  * reachable.
@@ -76,7 +90,7 @@ export function useReflectionSeries(reflectionId: string | undefined) {
     const map = new Map<string, ReflectionSnapshotResponse>();
     for (const s of snapshots) {
       if (s.status && s.status !== "approved") continue;
-      const key = s.window_key ?? ALL_TIME_KEY;
+      const key = windowKey(s.window_start, s.window_end);
       const prev = map.get(key);
       if (
         !prev ||
@@ -91,7 +105,7 @@ export function useReflectionSeries(reflectionId: string | undefined) {
   const windows = useMemo<SeriesWindow[]>(() => {
     const currentLens = reflection?.current_lens_id ?? "";
     const join = (w: ReflectionWindow): SeriesWindow => {
-      const snapshot = approvedByKey.get(w.key);
+      const snapshot = approvedByKey.get(windowKey(w.start, w.end));
       return {
         ...w,
         snapshot,
@@ -108,7 +122,7 @@ export function useReflectionSeries(reflectionId: string | undefined) {
           end: "",
           hasApproved: true,
           generating: snapshots.some(
-            (s) => s.status === "generating" && !s.window_key,
+            (s) => s.status === "generating" && !s.window_start,
           ),
           backfilled: false,
         }),

@@ -379,7 +379,7 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	window_spec_versions?: null | Twindow_spec_versions
 }
 
-export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown> = {
+export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
 	context_spec?: null | Tcontext_spec
@@ -393,22 +393,18 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	output?: null | Toutput
 	reflection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
-	resolved_window?: null | Tresolved_window
 	status?: string
 	updated: IsoAutoDateString
-	window_key?: string
-	window_spec?: null | Twindow_spec
-	window_spec_version_number?: number
+	window_end?: IsoDateString
+	window_start?: IsoDateString
 }
 
 export type ReflectionWindowRecord = {
 	created: IsoAutoDateString
-	end: string
 	id: string
 	reflection_id: RecordIdString
-	start: string
-	window_key: string
-	window_spec_version_number?: number
+	window_end: IsoDateString
+	window_start: IsoDateString
 }
 
 export type UsageRecord = {
@@ -477,7 +473,7 @@ export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknow
 export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
 export type RefineReflSnapshotConversationResponse<Texpand = unknown> = Required<RefineReflSnapshotConversationRecord> & BaseSystemFields<Texpand>
 export type ReflectionResponse<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Twindow_spec_versions>> & BaseSystemFields<Texpand>
-export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context, Tresolved_window, Twindow_spec>> & BaseSystemFields<Texpand>
+export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>

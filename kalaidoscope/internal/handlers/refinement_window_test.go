@@ -248,8 +248,7 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 		"reflection_id": refl.Id, "status": engine.StatusApproved, "approval_sequence_number": 1,
 		"lens_id": lens.Id, "output": pbutil.JSONString("THIS WEEK'S SUMMARY"),
-		"window_key":      engine.WindowKey(current),
-		"resolved_window": pbutil.JSONObject(map[string]string{"start": current.Start, "end": current.End}),
+		"window_start": current.Start, "window_end": current.End,
 	})
 	return refl, current
 }

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 )
 
 const (
@@ -43,10 +45,10 @@ const generationClaimTTL = 10 * time.Minute
 // status='generating' claim row. PocketBase funnels writes through a single
 // non-concurrent SQLite connection, so the check-then-insert inside one
 // transaction cannot race a concurrent claim.
-func claimGeneration(app core.App, strat Strategy, parentID, windowKey string) (string, error) {
+func claimGeneration(app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
 	var claimID string
 	err := app.RunInTransaction(func(tx core.App) error {
-		filter, params := statusSnapshotFilter(strat, parentID, windowKey, StatusGenerating)
+		filter, params := statusSnapshotFilter(strat, parentID, window, StatusGenerating)
 		claims, err := tx.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "", 0, 0, params)
 		if err != nil {
 			return err
@@ -67,7 +69,7 @@ func claimGeneration(app core.App, strat Strategy, parentID, windowKey string) (
 		claim.Set(strat.ForeignKeyCol(), parentID)
 		claim.Set("status", StatusGenerating)
 		if strat.TargetType() == "reflection" {
-			claim.Set("window_key", windowKey)
+			setSnapshotWindow(claim, window)
 		}
 		if err := tx.Save(claim); err != nil {
 			return err
@@ -98,8 +100,8 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 
 // discardOtherPending supersedes every other pending candidate for the same
 // parent (and window), leaving exceptID as the single reviewable one.
-func discardOtherPending(tx core.App, strat Strategy, parentID, windowKey, exceptID string) error {
-	filter, params := statusSnapshotFilter(strat, parentID, windowKey, StatusPending)
+func discardOtherPending(tx core.App, strat Strategy, parentID string, window *api.Window, exceptID string) error {
+	filter, params := statusSnapshotFilter(strat, parentID, window, StatusPending)
 	filter += " && id != {:except}"
 	params["except"] = exceptID
 	recs, err := tx.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "", 0, 0, params)

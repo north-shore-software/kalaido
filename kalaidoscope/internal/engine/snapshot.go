@@ -63,25 +63,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", err
 	}
 
-	var winSpec, resWin any
-	var winKey string
-	var specVersionNumber int
-	if strat.TargetType() == "reflection" {
-		if version, ok := GoverningVersion(LoadWindowSpecVersions(rec), time.Now()); ok {
-			winSpec = version.Spec
-			specVersionNumber = version.VersionNumber
-		}
-
-		if window != nil {
-			resWin = map[string]string{
-				"start": window.Start,
-				"end":   window.End,
-			}
-			winKey = window.Start + "_" + window.End
-		}
-	}
-
-	claimID, err := claimGeneration(app, strat, rec.Id, winKey)
+	claimID, err := claimGeneration(app, strat, rec.Id, window)
 	if err != nil {
 		return "", err
 	}
@@ -108,7 +90,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 	outputModel := model
 
-	switch prev, otherLens := latestApprovedOutput(app, strat, rec.Id, winKey, lensID); {
+	switch prev, otherLens := latestApprovedOutput(app, strat, rec.Id, window, lensID); {
 	case otherLens:
 		// The published output was produced by a different lens. Its wording
 		// and shape are not this lens's to preserve — the minimal-diff rewrite
@@ -150,17 +132,14 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 
 	if err := completeClaimedSnapshot(ctx, app, strat, claimID, SnapshotSpec{
-		SourceID:                rec.Id,
-		LensID:                  lensID,
-		Output:                  outputStr,
-		ContextSpec:             lensSpec,
-		ResolvedContext:         pinnedCtx,
-		WindowSpec:              winSpec,
-		ResolvedWindow:          resWin,
-		Status:                  status,
-		Model:                   outputModel,
-		WindowKey:               winKey,
-		WindowSpecVersionNumber: specVersionNumber,
+		SourceID:        rec.Id,
+		LensID:          lensID,
+		Output:          outputStr,
+		ContextSpec:     lensSpec,
+		ResolvedContext: pinnedCtx,
+		Window:          window,
+		Status:          status,
+		Model:           outputModel,
 	}); err != nil {
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
@@ -186,8 +165,8 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 // wrong when the lens itself changed. otherLens reports the latter — the
 // newest approved snapshot exists but belongs to another lens — so the caller
 // can say why it is generating from scratch.
-func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey, lensID string) (output string, otherLens bool) {
-	filter, params := ApprovedSnapshotFilter(strat, parentID, windowKey)
+func latestApprovedOutput(app core.App, strat Strategy, parentID string, window *api.Window, lensID string) (output string, otherLens bool) {
+	filter, params := ApprovedSnapshotFilter(strat, parentID, window)
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
 	if err != nil || len(recs) == 0 {

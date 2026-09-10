@@ -239,9 +239,15 @@ var schema = []tableDef{
 			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", Required: true, MaxSelect: 1, CascadeDelete: true},
 			&core.TextField{Name: "status"},
 			&core.JSONField{Name: "context_spec"},
-			&core.JSONField{Name: "window_spec"},
 			&core.JSONField{Name: "resolved_context"},
-			&core.JSONField{Name: "resolved_window"},
+			// The half-open [window_start, window_end) this snapshot covers.
+			// Each window carries its own approval chain (see the unique
+			// index). Both empty for an unscheduled reflection's snapshots.
+			// The schedule that produced the window is not recorded here:
+			// it is the governing entry of reflection.window_spec_versions
+			// at generation time, and the bounds are what matter.
+			&core.DateField{Name: "window_start"},
+			&core.DateField{Name: "window_end"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
 			&core.JSONField{Name: "output"},
 			// See projection_snapshot.
@@ -258,14 +264,12 @@ var schema = []tableDef{
 			// generate-all wave, which reads unapproved rows.
 			&core.DateField{Name: "approved_at"},
 			&core.DateField{Name: "generated_at"},
-			&core.TextField{Name: "window_key"},
-			&core.NumberField{Name: "window_spec_version_number"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_reflection_snapshot_reflection", Columns: "reflection_id"},
-			{Name: "idx_reflection_snapshot_approval_seq", Unique: true, Columns: "reflection_id, window_key, approval_sequence_number", Where: "status = 'approved'"},
+			{Name: "idx_reflection_snapshot_approval_seq", Unique: true, Columns: "reflection_id, window_start, window_end, approval_sequence_number", Where: "status = 'approved'"},
 		},
 	},
 
@@ -279,15 +283,13 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", Required: true, MaxSelect: 1, CascadeDelete: true},
-			&core.TextField{Name: "window_key", Required: true},
-			&core.TextField{Name: "start", Required: true},
-			&core.TextField{Name: "end", Required: true},
-			&core.NumberField{Name: "window_spec_version_number"},
+			&core.DateField{Name: "window_start", Required: true},
+			&core.DateField{Name: "window_end", Required: true},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
 			{Name: "idx_reflection_window_reflection", Columns: "reflection_id"},
-			{Name: "idx_reflection_window_key", Unique: true, Columns: "reflection_id, window_key"},
+			{Name: "idx_reflection_window_bounds", Unique: true, Columns: "reflection_id, window_start, window_end"},
 		},
 	},
 

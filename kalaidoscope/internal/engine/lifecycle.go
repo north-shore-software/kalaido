@@ -36,9 +36,10 @@ type SnapshotSpec struct {
 	Output          string
 	ContextSpec     api.ContextSpec
 	ResolvedContext llmcontext.PinnedIDs
-	WindowSpec      any // optional
-	ResolvedWindow  any // optional
-	Status          string
+	// Reflections: the window this snapshot covers; nil for a windowless
+	// (unscheduled) reflection. Ignored for projections.
+	Window *api.Window
+	Status string
 
 	Model string
 
@@ -49,9 +50,6 @@ type SnapshotSpec struct {
 
 	// Set on refinement commits.
 	CreatedFromRefinementID string
-
-	WindowKey               string
-	WindowSpecVersionNumber int
 }
 
 func AppendSnapshot(ctx context.Context, app core.App, collectionName string, foreignKeyCol string, s SnapshotSpec) (string, error) {
@@ -78,14 +76,7 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName st
 	snap.Set("resolved_context", pbutil.JSONObject(s.ResolvedContext))
 
 	if collectionName == "reflection_snapshot" {
-		if s.WindowSpec != nil {
-			snap.Set("window_spec", pbutil.JSONObject(s.WindowSpec))
-		}
-		if s.ResolvedWindow != nil {
-			snap.Set("resolved_window", pbutil.JSONObject(s.ResolvedWindow))
-			snap.Set("window_key", s.WindowKey)
-		}
-		snap.Set("window_spec_version_number", s.WindowSpecVersionNumber)
+		setSnapshotWindow(snap, s.Window)
 	}
 
 	status := s.Status
@@ -116,7 +107,7 @@ func completeClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, 
 		if err := tx.Save(snap); err != nil {
 			return err
 		}
-		return discardOtherPending(tx, strat, s.SourceID, s.WindowKey, snap.Id)
+		return discardOtherPending(tx, strat, s.SourceID, s.Window, snap.Id)
 	})
 }
 
@@ -156,8 +147,7 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		}
 		approvedSeq = seq
 		parentID = snap.GetString(strat.ForeignKeyCol())
-		return discardOtherPending(txApp, strat,
-			parentID, snap.GetString("window_key"), snap.Id)
+		return discardOtherPending(txApp, strat, parentID, SnapshotWindow(snap), snap.Id)
 	})
 	if err == nil && approvedSeq > 0 {
 		log.Printf("approve %s %s: snapshot %s is now the approved output (sequence %d)",
@@ -167,35 +157,40 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 }
 
 // ApprovedSnapshotFilter selects a parent's approved snapshots, scoped for
-// reflections to one window — each window key carries its own approval chain.
-func ApprovedSnapshotFilter(strat Strategy, parentID, windowKey string) (string, dbx.Params) {
-	return statusSnapshotFilter(strat, parentID, windowKey, StatusApproved)
+// reflections to one window (nil = the windowless chain) — each window
+// carries its own approval chain.
+func ApprovedSnapshotFilter(strat Strategy, parentID string, window *api.Window) (string, dbx.Params) {
+	return statusSnapshotFilter(strat, parentID, window, StatusApproved)
 }
 
 // statusSnapshotFilter selects a parent's snapshots of one status, with the
-// same reflection window scoping as approvedSnapshotFilter.
-func statusSnapshotFilter(strat Strategy, parentID, windowKey, status string) (string, dbx.Params) {
+// same reflection window scoping as ApprovedSnapshotFilter.
+func statusSnapshotFilter(strat Strategy, parentID string, window *api.Window, status string) (string, dbx.Params) {
 	filter := strat.ForeignKeyCol() + " = {:parent} && status = {:status}"
 	params := dbx.Params{"parent": parentID, "status": status}
 	if strat.TargetType() == "reflection" {
-		if windowKey == "" {
+		if window == nil {
 			// A bound empty param compares `= ''` in SQL and misses rows whose
-			// window_key was never written (NULL); PocketBase's literal ''
+			// bounds were never written (NULL); PocketBase's literal ''
 			// matches empty-or-null. Without this, every windowless snapshot
 			// would live in its own chain: approvals would all sequence from 1
 			// (and the second one hit the unique index), and the minimal-diff
 			// rewrite would never find its predecessor.
-			filter += " && window_key = ''"
+			filter += " && window_start = ''"
 		} else {
-			filter += " && window_key = {:wk}"
-			params["wk"] = windowKey
+			// DateFields store PocketBase's own datetime format, so the
+			// RFC3339 bounds on api.Window are normalised before comparing.
+			start, end := WindowBounds(window)
+			filter += " && window_start = {:ws} && window_end = {:we}"
+			params["ws"] = start.String()
+			params["we"] = end.String()
 		}
 	}
 	return filter, params
 }
 
 func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int, error) {
-	filter, params := ApprovedSnapshotFilter(strat, snap.GetString(strat.ForeignKeyCol()), snap.GetString("window_key"))
+	filter, params := ApprovedSnapshotFilter(strat, snap.GetString(strat.ForeignKeyCol()), SnapshotWindow(snap))
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
 	if err != nil {

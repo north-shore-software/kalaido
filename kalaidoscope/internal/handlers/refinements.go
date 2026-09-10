@@ -209,7 +209,7 @@ func seedLensTurn(app core.App, parent *core.Record, win *api.Window) (api.UIMes
 		parts = append(parts, p)
 	}
 	if win != nil {
-		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, parent.Id, engine.WindowKey(*win))
+		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, parent.Id, win)
 		if snaps, err := app.FindRecordsByFilter("reflection_snapshot", filter, "-approval_sequence_number", 1, 0, params); err == nil && len(snaps) > 0 {
 			if output := strings.TrimSpace(pbutil.DecodeJSONString(snaps[0].GetString("output"))); output != "" {
 				if p, ok := toolCallPart(llm.ToolCall{ID: fmt.Sprintf("seed-apply-%d", now), Name: prompts.ApplyResultToolName,

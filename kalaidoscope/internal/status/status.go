@@ -125,10 +125,9 @@ func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, statu
 			}
 			continue
 		}
-		snaps, err := e.app.FindRecordsByFilter("reflection_snapshot",
-			"reflection_id = {:id} && status = 'approved' && window_key = {:k}",
-			"-approval_sequence_number", 1, 0,
-			dbx.Params{"id": n.record.Id, "k": st.Key})
+		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, n.record.Id, &st.Window)
+		snaps, err := e.app.FindRecordsByFilter("reflection_snapshot", filter,
+			"-approval_sequence_number", 1, 0, params)
 		if err != nil || len(snaps) == 0 {
 			continue
 		}

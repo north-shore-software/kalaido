@@ -263,14 +263,8 @@ func TestGenerateSnapshotReflectionScopesBaseToWindow(t *testing.T) {
 
 	winA := &api.Window{Start: "2026-08-01 00:00:00.000Z", End: "2026-08-08 00:00:00.000Z"}
 	winB := &api.Window{Start: "2026-08-08 00:00:00.000Z", End: "2026-08-15 00:00:00.000Z"}
-	priorApproved(t, app, strat, refl, "OLD A", map[string]any{
-		"window_key":      winA.Start + "_" + winA.End,
-		"resolved_window": pbutil.JSONObject(map[string]string{"start": winA.Start, "end": winA.End}),
-	})
-	priorApproved(t, app, strat, refl, "OLD B", map[string]any{
-		"window_key":      winB.Start + "_" + winB.End,
-		"resolved_window": pbutil.JSONObject(map[string]string{"start": winB.Start, "end": winB.End}),
-	})
+	priorApproved(t, app, strat, refl, "OLD A", map[string]any{"window_start": winA.Start, "window_end": winA.End})
+	priorApproved(t, app, strat, refl, "OLD B", map[string]any{"window_start": winB.Start, "window_end": winB.End})
 
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
 		switch len(msgs) {

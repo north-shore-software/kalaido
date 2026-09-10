@@ -16,9 +16,33 @@ import (
 // walk; the newest windows are the ones kept.
 const MaxGridWindows = 1000
 
-// WindowKey is the identity a reflection snapshot is filed under: one approval
-// chain per key (see statusSnapshotFilter).
+// WindowKey is a window's in-memory identity (start_end), used to join the
+// grid, the backfilled windows and the snapshot rows in SeriesWindows and
+// served to the client as WindowInfo.Key. It is never stored: rows carry the
+// bounds themselves as window_start / window_end.
 func WindowKey(w api.Window) string { return w.Start + "_" + w.End }
+
+// SnapshotWindow is the window a reflection_snapshot or reflection_window
+// row is filed under, or nil when the row is windowless.
+func SnapshotWindow(rec *core.Record) *api.Window {
+	start, end := rec.GetDateTime("window_start"), rec.GetDateTime("window_end")
+	if start.IsZero() || end.IsZero() {
+		return nil
+	}
+	w := newWindow(rec.GetString("reflection_id"), start.Time(), end.Time())
+	return &w
+}
+
+// setSnapshotWindow stamps a window's bounds onto a row; a nil window leaves
+// the row windowless.
+func setSnapshotWindow(rec *core.Record, w *api.Window) {
+	if w == nil {
+		return
+	}
+	start, end := WindowBounds(w)
+	rec.Set("window_start", start)
+	rec.Set("window_end", end)
+}
 
 // WindowID is the id the API hands out for a window on a reflection's grid,
 // stable across evaluations.
