@@ -96,6 +96,9 @@ export const mockSnapshots: ProjectionSnapshotResponse[] = [
     lens_id: "lens-1",
     generated_by_model: "gemma4",
     created_from_refinement_id: "",
+    // Not wave-generated; PocketBase returns "" for an unset select, which
+    // the generated option type does not admit.
+    generation_trigger: "" as ProjectionSnapshotResponse["generation_trigger"],
     output: mockMarkdownContent2,
     resolved_context: null,
     status: "approved",
@@ -114,6 +117,9 @@ export const mockSnapshots: ProjectionSnapshotResponse[] = [
     lens_id: "lens-2",
     generated_by_model: "gemma4",
     created_from_refinement_id: "",
+    // Not wave-generated; PocketBase returns "" for an unset select, which
+    // the generated option type does not admit.
+    generation_trigger: "" as ProjectionSnapshotResponse["generation_trigger"],
     output: mockMarkdownContent1,
     resolved_context: null,
     status: "approved",
@@ -132,6 +138,9 @@ export const mockSnapshots: ProjectionSnapshotResponse[] = [
     lens_id: "lens-2",
     generated_by_model: "gemma4",
     created_from_refinement_id: "",
+    // Not wave-generated; PocketBase returns "" for an unset select, which
+    // the generated option type does not admit.
+    generation_trigger: "" as ProjectionSnapshotResponse["generation_trigger"],
     output: `${mockMarkdownContent1}\n- Review updates added.`,
     resolved_context: null,
     status: "pending_review",

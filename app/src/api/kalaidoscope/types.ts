@@ -135,12 +135,12 @@ export type ChatMessageRecord<Tcontent = unknown> = {
 
 export type ColourRecord<Tthing_ids = unknown> = {
 	created: IsoAutoDateString
+	created_by_discover_run_id?: RecordIdString
 	id: string
 	last_provider_error_kind?: string
 	name: string
-	origin_run_id?: RecordIdString
 	prompt?: string
-	prompt_matched_through?: string
+	prompt_match_completed_up_to_fragment_id?: RecordIdString
 	swatch?: number
 	thing_ids?: null | Tthing_ids
 	updated: IsoAutoDateString
@@ -196,20 +196,20 @@ export const FragmentTypeOptions = {
 } as const
 export type FragmentTypeOptions = typeof FragmentTypeOptions[keyof typeof FragmentTypeOptions]
 
-export const FragmentOriginOptions = {
+export const FragmentIngestedViaOptions = {
 	"import": "import",
 	"app": "app",
 	"sync": "sync",
 } as const
-export type FragmentOriginOptions = typeof FragmentOriginOptions[keyof typeof FragmentOriginOptions]
+export type FragmentIngestedViaOptions = typeof FragmentIngestedViaOptions[keyof typeof FragmentIngestedViaOptions]
 export type FragmentRecord = {
 	content: string
 	created: IsoAutoDateString
 	deleted_at?: IsoDateString
 	id: string
-	origin?: FragmentOriginOptions
+	ingested_via?: FragmentIngestedViaOptions
+	occurred_at?: IsoDateString
 	source?: string
-	source_time?: IsoDateString
 	type: FragmentTypeOptions
 }
 
@@ -220,6 +220,7 @@ export type FragmentAnnotationRecord<Tconclusions = unknown, Tdecisions = unknow
 	decisions?: null | Tdecisions
 	fragment_id: RecordIdString
 	generated_by_model?: string
+	generated_from_map_version?: number
 	id: string
 	questions?: null | Tquestions
 	summary?: string
@@ -276,8 +277,7 @@ export type KalaidoscopeMapRecord<Tbody = unknown> = {
 	version?: number
 }
 
-export type LensRecord<Tcontext_spec = unknown> = {
-	context_spec?: null | Tcontext_spec
+export type LensRecord = {
 	created: IsoAutoDateString
 	created_from_projection_refinement_id?: RecordIdString
 	created_from_reflection_refinement_id?: RecordIdString
@@ -328,13 +328,13 @@ export const ProjectionStatusOptions = {
 export type ProjectionStatusOptions = typeof ProjectionStatusOptions[keyof typeof ProjectionStatusOptions]
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	created: IsoAutoDateString
+	created_by_discover_run_id?: RecordIdString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
 	description?: string
 	generate_with_model?: string
 	id: string
 	name?: string
-	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString[]
 	status: ProjectionStatusOptions
 	updated: IsoAutoDateString
@@ -350,11 +350,16 @@ export type ProjectionRefinementRecord = {
 
 export const ProjectionSnapshotStatusOptions = {
 	"generating": "generating",
-	"pending": "pending",
+	"pending_review": "pending_review",
 	"approved": "approved",
 	"discarded": "discarded",
 } as const
 export type ProjectionSnapshotStatusOptions = typeof ProjectionSnapshotStatusOptions[keyof typeof ProjectionSnapshotStatusOptions]
+
+export const ProjectionSnapshotGenerationTriggerOptions = {
+	"generate_all": "generate_all",
+} as const
+export type ProjectionSnapshotGenerationTriggerOptions = typeof ProjectionSnapshotGenerationTriggerOptions[keyof typeof ProjectionSnapshotGenerationTriggerOptions]
 export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
@@ -363,7 +368,7 @@ export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context 
 	created_from_refinement_id?: RecordIdString
 	generated_at?: IsoDateString
 	generated_by_model?: string
-	generation_trigger?: string
+	generation_trigger?: ProjectionSnapshotGenerationTriggerOptions
 	id: string
 	lens_id?: RecordIdString
 	output?: string
@@ -380,13 +385,13 @@ export const ReflectionStatusOptions = {
 export type ReflectionStatusOptions = typeof ReflectionStatusOptions[keyof typeof ReflectionStatusOptions]
 export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown> = {
 	created: IsoAutoDateString
+	created_by_discover_run_id?: RecordIdString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
 	description?: string
 	generate_with_model?: string
 	id: string
 	name?: string
-	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString[]
 	status: ReflectionStatusOptions
 	updated: IsoAutoDateString
@@ -403,11 +408,16 @@ export type ReflectionRefinementRecord = {
 
 export const ReflectionSnapshotStatusOptions = {
 	"generating": "generating",
-	"pending": "pending",
+	"pending_review": "pending_review",
 	"approved": "approved",
 	"discarded": "discarded",
 } as const
 export type ReflectionSnapshotStatusOptions = typeof ReflectionSnapshotStatusOptions[keyof typeof ReflectionSnapshotStatusOptions]
+
+export const ReflectionSnapshotGenerationTriggerOptions = {
+	"generate_all": "generate_all",
+} as const
+export type ReflectionSnapshotGenerationTriggerOptions = typeof ReflectionSnapshotGenerationTriggerOptions[keyof typeof ReflectionSnapshotGenerationTriggerOptions]
 export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
@@ -416,7 +426,7 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context 
 	created_from_refinement_id?: RecordIdString
 	generated_at?: IsoDateString
 	generated_by_model?: string
-	generation_trigger?: string
+	generation_trigger?: ReflectionSnapshotGenerationTriggerOptions
 	id: string
 	lens_id?: RecordIdString
 	output?: string
@@ -471,7 +481,7 @@ export type ViewStreamRecord<Tcolour_ids = unknown> = {
 	content: string
 	created: IsoAutoDateString
 	id: string
-	source_time?: IsoDateString
+	occurred_at?: IsoDateString
 	title?: string
 	type: ViewStreamTypeOptions
 }
@@ -492,7 +502,7 @@ export type FragmentAnnotationResponse<Tconclusions = unknown, Tdecisions = unkn
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>
-export type LensResponse<Tcontext_spec = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec>> & BaseSystemFields<Texpand>
+export type LensResponse<Texpand = unknown> = Required<LensRecord> & BaseSystemFields<Texpand>
 export type LlmQueueStatusResponse<Theld = unknown, Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Theld, Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
