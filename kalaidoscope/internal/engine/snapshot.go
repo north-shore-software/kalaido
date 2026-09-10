@@ -58,7 +58,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	// statusSnapshotFilter).
 	lensID := rec.GetString("current_lens_id")
 
-	model, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model"))
+	model, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("generate_with_model"))
 	if err != nil {
 		return "", err
 	}
@@ -260,8 +260,8 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 	// A model change makes the latest snapshot non-current — but only when both
 	// sides are known: legacy and empty-lens snapshots carry no model and must
 	// not read as perpetually stale.
-	if snapModel := latest.GetString("model"); snapModel != "" {
-		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model")); err == nil && effective != snapModel {
+	if snapModel := latest.GetString("generated_by_model"); snapModel != "" {
+		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("generate_with_model")); err == nil && effective != snapModel {
 			return false
 		}
 	}

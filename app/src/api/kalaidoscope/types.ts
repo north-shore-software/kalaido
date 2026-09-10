@@ -118,16 +118,16 @@ export type SuperusersRecord = {
 export type ChatConversationRecord = {
 	created: IsoAutoDateString
 	external_conversation_id?: string
+	generate_with_model?: string
 	id: string
-	model?: string
 }
 
 export type ChatMessageRecord<Tcontent = unknown> = {
 	chat_conversation_id?: RecordIdString
 	content?: null | Tcontent
 	created: IsoAutoDateString
+	generated_by_model?: string
 	id: string
-	model?: string
 	refine_proj_conversation_id?: RecordIdString
 	refine_refl_conversation_id?: RecordIdString
 	updated: IsoAutoDateString
@@ -159,7 +159,6 @@ export type ColourFragmentRecord = {
 	fragment_id: RecordIdString
 	id: string
 	match_type: ColourFragmentMatchTypeOptions
-	model?: string
 }
 
 export const DiscoverRunKindOptions = {
@@ -223,9 +222,9 @@ export type FragmentAnnotationRecord<Tannotation = unknown, Tconclusions = unkno
 	decisions?: null | Tdecisions
 	folded?: boolean
 	fragment_id: RecordIdString
+	generated_by_model?: string
 	grounded_count?: number
 	id: string
-	model?: string
 	questions?: null | Tquestions
 	summary?: string
 	things?: null | Tthings
@@ -319,8 +318,8 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	generate_with_model?: string
 	id: string
-	model?: string
 	name?: string
 	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString[]
@@ -334,11 +333,11 @@ export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_refinement_id?: RecordIdString
+	generated_by_model?: string
 	generation_timestamp?: IsoDateString
 	generation_trigger?: string
 	id: string
 	lens_id?: RecordIdString
-	model?: string
 	output?: null | Toutput
 	projection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
@@ -372,8 +371,8 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	generate_with_model?: string
 	id: string
-	model?: string
 	name?: string
 	origin_run_id?: RecordIdString
 	pinned_by?: RecordIdString[]
@@ -388,11 +387,11 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_refinement_id?: RecordIdString
+	generated_by_model?: string
 	generation_timestamp?: IsoDateString
 	generation_trigger?: string
 	id: string
 	lens_id?: RecordIdString
-	model?: string
 	output?: null | Toutput
 	reflection_id: RecordIdString
 	resolved_context?: null | Tresolved_context

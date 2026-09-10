@@ -142,9 +142,8 @@ func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
 		// The preview's matches were judged by this prompt already: record
 		// them so the colour has members the moment it appears. The worker
 		// skips pairs that hold a row, so they are not judged twice.
-		model, _ := llm.ResolveRole(llm.RoleColour)
 		for _, fragID := range req.FragmentIDs {
-			if err := colour.SetPromptMatch(app, colourRec.Id, fragID, model); err != nil {
+			if err := colour.SetPromptMatch(app, colourRec.Id, fragID); err != nil {
 				log.Printf("colour create: seed %s: %v", fragID, err)
 			}
 		}

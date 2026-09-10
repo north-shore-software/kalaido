@@ -128,8 +128,6 @@ var schema = []tableDef{
 				MaxSelect: 1,
 				Values:    []string{"manual_positive", "manual_negative", "thing", "prompt"},
 			},
-			// Model that decided a "prompt" row. Empty otherwise.
-			&core.TextField{Name: "model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
@@ -148,7 +146,7 @@ var schema = []tableDef{
 			&core.JSONField{Name: "current_context_spec"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			// Optional per-entity model override; empty = workspace role default.
-			&core.TextField{Name: "model"},
+			&core.TextField{Name: "generate_with_model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
@@ -170,7 +168,7 @@ var schema = []tableDef{
 			&core.JSONField{Name: "window_spec_versions"},
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			// Optional per-entity model override; empty = workspace role default.
-			&core.TextField{Name: "model"},
+			&core.TextField{Name: "generate_with_model"},
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
@@ -208,7 +206,7 @@ var schema = []tableDef{
 			&core.JSONField{Name: "output"},
 			// Set when this snapshot was committed from a refinement conversation.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_proj_snapshot_conversation", MaxSelect: 1},
-			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance
 			// Non-empty when this snapshot was generated as part of a speculative
 			// "generate all" wave (it may have consumed unapproved upstream
 			// candidates); the marker also propagates through refinement commits
@@ -240,7 +238,7 @@ var schema = []tableDef{
 			&core.JSONField{Name: "output"},
 			// See projection_snapshot.
 			&core.RelationField{Name: "created_from_refinement_id", CollectionId: "refine_refl_snapshot_conversation", MaxSelect: 1},
-			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance
 			// See projection_snapshot.generation_trigger.
 			&core.TextField{Name: "generation_trigger"},
 			&core.NumberField{Name: "approval_sequence_number"},
@@ -319,7 +317,7 @@ var schema = []tableDef{
 		Fields: []core.Field{
 			&core.TextField{Name: "external_conversation_id"},
 			// Optional per-entity model override; empty = workspace role default.
-			&core.TextField{Name: "model"},
+			&core.TextField{Name: "generate_with_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{
@@ -335,7 +333,7 @@ var schema = []tableDef{
 			&core.RelationField{Name: "refine_proj_conversation_id", CollectionId: "refine_proj_snapshot_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
 			&core.RelationField{Name: "refine_refl_conversation_id", CollectionId: "refine_refl_snapshot_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
 			&core.JSONField{Name: "content"},
-			&core.TextField{Name: "model"}, // concrete model name that generated this row; empty = pre-provenance
+			&core.TextField{Name: "generated_by_model"}, // concrete model name that generated this row; empty = pre-provenance
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -442,7 +440,7 @@ var schema = []tableDef{
 			// Set once a consolidate pass has read this row into the map;
 			// rows with folded=false are what makes the next pass due.
 			&core.BoolField{Name: "folded"},
-			&core.TextField{Name: "model"},
+			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
 		Indexes: []indexDef{

@@ -61,7 +61,7 @@ func PersistMessage(ctx context.Context, app core.App, conversation *core.Record
 	}
 
 	rec.Set("content", types.JSONRaw(b))
-	rec.Set("model", model)
+	rec.Set("generated_by_model", model)
 	if err := app.Save(rec); err != nil {
 		return nil, err
 	}

@@ -19,14 +19,13 @@ func TestSnapshotIsCurrentConsidersModel(t *testing.T) {
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt":       pbutil.JSONString("LENS"),
 		"context_spec": pbutil.JSONObject(spec),
-		"model":        "gemma4",
 	})
 	newProj := func(model string) *core.Record {
 		return testutil.NewRecord(t, app, "projection", map[string]any{
 			"name":                 "P",
 			"current_context_spec": pbutil.JSONObject(spec),
 			"current_lens_id":      lens.Id,
-			"model":                model,
+			"generate_with_model":  model,
 		})
 	}
 	newSnap := func(projID, model string) {
@@ -37,7 +36,7 @@ func TestSnapshotIsCurrentConsidersModel(t *testing.T) {
 			"context_spec":             pbutil.JSONObject(spec),
 			"resolved_context":         pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}),
 			"lens_id":                  lens.Id,
-			"model":                    model,
+			"generated_by_model":       model,
 			"approval_sequence_number": 1,
 		})
 	}

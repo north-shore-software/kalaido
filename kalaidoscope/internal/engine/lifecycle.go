@@ -93,7 +93,7 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName st
 		status = StatusApproved
 	}
 	snap.Set("status", status)
-	snap.Set("model", s.Model)
+	snap.Set("generated_by_model", s.Model)
 	snap.Set("created_from_refinement_id", s.CreatedFromRefinementID)
 	trigger := s.GenerationTrigger
 	if trigger == "" {
@@ -268,7 +268,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 			// per-turn apply resolves RoleSnapshot against the parent, exactly as a
 			// future regeneration will, so SnapshotIsCurrent's model check stays
 			// coherent.
-			model, _ := llm.ResolveRoleFor(llm.RoleSnapshot, parentRec.GetString("model"))
+			model, _ := llm.ResolveRoleFor(llm.RoleSnapshot, parentRec.GetString("generate_with_model"))
 
 			newSnapID, err = AppendSnapshot(ctx, tx, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
 				SourceID:        parentID,

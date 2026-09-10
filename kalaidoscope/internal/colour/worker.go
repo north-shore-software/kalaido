@@ -149,7 +149,7 @@ func drainColour(ctx context.Context, app core.App, model string, c *core.Record
 			if !prompts.ParseYesNo(reply) {
 				continue
 			}
-			if err := insertLink(app, c.Id, f.Id, MatchPrompt, model); err != nil {
+			if err := insertLink(app, c.Id, f.Id, MatchPrompt); err != nil {
 				return err
 			}
 		}

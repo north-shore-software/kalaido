@@ -73,7 +73,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		// conversation record takes effect on the next message.
 		convModel := ""
 		if conv != nil {
-			convModel = conv.GetString("model")
+			convModel = conv.GetString("generate_with_model")
 		}
 		assistantModel, err := llm.ResolveRoleFor(llm.RoleChat, convModel)
 		if err != nil {
