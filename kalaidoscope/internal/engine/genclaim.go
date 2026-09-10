@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 const (
@@ -53,7 +52,7 @@ func claimGeneration(app core.App, strat Strategy, parentID, windowKey string) (
 			return err
 		}
 		for _, c := range claims {
-			if time.Since(c.GetDateTime("generation_timestamp").Time()) < generationClaimTTL {
+			if time.Since(c.GetDateTime("created").Time()) < generationClaimTTL {
 				return ErrGenerationInFlight
 			}
 			if err := tx.Delete(c); err != nil {
@@ -70,7 +69,6 @@ func claimGeneration(app core.App, strat Strategy, parentID, windowKey string) (
 		if strat.TargetType() == "reflection" {
 			claim.Set("window_key", windowKey)
 		}
-		claim.Set("generation_timestamp", types.NowDateTime())
 		if err := tx.Save(claim); err != nil {
 			return err
 		}

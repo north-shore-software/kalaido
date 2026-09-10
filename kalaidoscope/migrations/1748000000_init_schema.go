@@ -215,8 +215,14 @@ var schema = []tableDef{
 			// so an edited chain re-triggers its downstream regeneration.
 			&core.TextField{Name: "generation_trigger"},
 			&core.NumberField{Name: "approval_sequence_number"},
-			&core.DateField{Name: "approval_timestamp"},
-			&core.DateField{Name: "generation_timestamp"},
+			// approved_at / generated_at are the lifecycle moments; created /
+			// updated are row bookkeeping and differ from them: a snapshot
+			// starts life as a status='generating' claim row and is filled in
+			// place when the model returns (generated_at), then approved or
+			// discarded later. created is also the ordering key for the
+			// generate-all wave, which reads unapproved rows.
+			&core.DateField{Name: "approved_at"},
+			&core.DateField{Name: "generated_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -244,8 +250,14 @@ var schema = []tableDef{
 			// See projection_snapshot.generation_trigger.
 			&core.TextField{Name: "generation_trigger"},
 			&core.NumberField{Name: "approval_sequence_number"},
-			&core.DateField{Name: "approval_timestamp"},
-			&core.DateField{Name: "generation_timestamp"},
+			// approved_at / generated_at are the lifecycle moments; created /
+			// updated are row bookkeeping and differ from them: a snapshot
+			// starts life as a status='generating' claim row and is filled in
+			// place when the model returns (generated_at), then approved or
+			// discarded later. created is also the ordering key for the
+			// generate-all wave, which reads unapproved rows.
+			&core.DateField{Name: "approved_at"},
+			&core.DateField{Name: "generated_at"},
 			&core.TextField{Name: "window_key"},
 			&core.NumberField{Name: "window_spec_version_number"},
 			&core.AutodateField{Name: "created", OnCreate: true},

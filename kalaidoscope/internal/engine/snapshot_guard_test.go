@@ -75,7 +75,7 @@ func TestGenerateSnapshotInFlightGuard(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale, _ := types.ParseDateTime(time.Now().Add(-generationClaimTTL - time.Minute))
-	claim.Set("generation_timestamp", stale)
+	claim.SetRaw("created", stale)
 	if err := app.Save(claim); err != nil {
 		t.Fatal(err)
 	}

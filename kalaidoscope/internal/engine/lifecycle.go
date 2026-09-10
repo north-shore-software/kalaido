@@ -100,7 +100,7 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName st
 		trigger = llmcontext.GenerationTriggerFromContext(ctx)
 	}
 	snap.Set("generation_trigger", trigger)
-	snap.Set("generation_timestamp", types.NowDateTime())
+	snap.Set("generated_at", types.NowDateTime())
 }
 
 // completeClaimedSnapshot fills the generation claim row with the finished
@@ -149,7 +149,7 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 			return err
 		}
 		snap.Set("approval_sequence_number", seq)
-		snap.Set("approval_timestamp", types.NowDateTime())
+		snap.Set("approved_at", types.NowDateTime())
 		snap.Set("status", StatusApproved)
 		if err := txApp.Save(snap); err != nil {
 			return err
