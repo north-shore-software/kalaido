@@ -163,6 +163,9 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
+		Indexes: []indexDef{
+			{Name: "idx_projection_status", Columns: "status"},
+		},
 	},
 
 	{
@@ -185,6 +188,9 @@ var schema = []tableDef{
 			&core.TextField{Name: "description"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+		},
+		Indexes: []indexDef{
+			{Name: "idx_reflection_status", Columns: "status"},
 		},
 	},
 
@@ -394,10 +400,12 @@ var schema = []tableDef{
 	},
 
 	{
-		// One row per consolidate model call (the aggregate loop's judgment
-		// step), not per mechanical fold: the record of what each call was
-		// asked to adjudicate and what it changed, so a bad or failed
-		// consolidation is inspectable after the fact.
+		// One row per consolidate call: the record of what the call was asked
+		// to adjudicate and what it changed, so a bad or failed consolidation
+		// is inspectable after the fact. Created as "running" before the model
+		// is called and finished as "done" or "error"; a process that dies
+		// mid-call leaves it "running", which the organize status reads as
+		// interrupted. Never pruned.
 		Name:                   "map_run",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
@@ -489,8 +497,6 @@ var schema = []tableDef{
 			// Bumped per consolidate call, not per fold.
 			&core.NumberField{Name: "version"},
 			&core.DateField{Name: "consolidated_at"},
-			&core.NumberField{Name: "fragments"},
-			&core.NumberField{Name: "annotated"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

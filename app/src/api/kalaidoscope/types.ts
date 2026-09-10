@@ -268,11 +268,9 @@ export type KalaidoscopeConfigRecord<Trole_models = unknown> = {
 }
 
 export type KalaidoscopeMapRecord<Tbody = unknown> = {
-	annotated?: number
 	body?: null | Tbody
 	consolidated_at?: IsoDateString
 	created: IsoAutoDateString
-	fragments?: number
 	id: string
 	updated: IsoAutoDateString
 	version?: number
