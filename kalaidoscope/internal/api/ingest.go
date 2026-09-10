@@ -9,9 +9,9 @@ type IngestMessage struct {
 	OccurredAt string `json:"source_time,omitempty"` // RFC3339; optional
 
 	// File-ingestion config (async table; also accepted by sync for symmetry).
-	Format         string `json:"format,omitempty"` // override; else inferred from filename
-	Limit          int    `json:"limit,omitempty"`
-	Extensions     string `json:"extensions,omitempty"` // csv zip filter
+	Format         string `json:"format,omitempty"`         // override; else inferred from filename
+	Limit          int    `json:"fragment_limit,omitempty"` // stop after this many fragments; 0 = no limit
+	Extensions     string `json:"extensions,omitempty"`     // csv zip filter
 	SkipDuplicates bool   `json:"skip_duplicates,omitempty"`
 }
 

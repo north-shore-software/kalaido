@@ -192,8 +192,6 @@ export type DiscoverRunRecord<Toutputs = unknown> = {
 export const FragmentTypeOptions = {
 	"email": "email",
 	"note": "note",
-	"whatsapp": "whatsapp",
-	"sms": "sms",
 	"chat": "chat",
 } as const
 export type FragmentTypeOptions = typeof FragmentTypeOptions[keyof typeof FragmentTypeOptions]
@@ -229,18 +227,32 @@ export type FragmentAnnotationRecord<Tconclusions = unknown, Tdecisions = unknow
 	title?: string
 }
 
+export const IngestFormatOptions = {
+	"zip": "zip",
+	"mbox": "mbox",
+	"docx": "docx",
+	"text": "text",
+} as const
+export type IngestFormatOptions = typeof IngestFormatOptions[keyof typeof IngestFormatOptions]
+
+export const IngestStatusOptions = {
+	"pending": "pending",
+	"done": "done",
+	"error": "error",
+} as const
+export type IngestStatusOptions = typeof IngestStatusOptions[keyof typeof IngestStatusOptions]
 export type IngestRecord = {
 	created: IsoAutoDateString
 	error?: string
 	extensions?: string
 	file?: FileNameString[]
-	format?: string
+	format?: IngestFormatOptions
+	fragment_limit?: number
 	id: string
 	ingested?: number
-	limit?: number
 	organize_after?: boolean
 	skip_duplicates?: boolean
-	status?: string
+	status?: IngestStatusOptions
 	updated: IsoAutoDateString
 }
 
@@ -276,12 +288,17 @@ export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
 	prompt?: null | Tprompt
 }
 
+export const LlmQueueStatusStateOptions = {
+	"idle": "idle",
+	"active": "active",
+} as const
+export type LlmQueueStatusStateOptions = typeof LlmQueueStatusStateOptions[keyof typeof LlmQueueStatusStateOptions]
 export type LlmQueueStatusRecord<Theld = unknown, Trunning = unknown, Twaiting = unknown> = {
 	created: IsoAutoDateString
 	held?: null | Theld
 	id: string
 	running?: null | Trunning
-	state?: string
+	state?: LlmQueueStatusStateOptions
 	updated: IsoAutoDateString
 	waiting?: null | Twaiting
 }
@@ -325,6 +342,13 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	updated: IsoAutoDateString
 }
 
+export const ProjectionSnapshotStatusOptions = {
+	"generating": "generating",
+	"pending": "pending",
+	"approved": "approved",
+	"discarded": "discarded",
+} as const
+export type ProjectionSnapshotStatusOptions = typeof ProjectionSnapshotStatusOptions[keyof typeof ProjectionSnapshotStatusOptions]
 export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
@@ -339,7 +363,7 @@ export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	output?: null | Toutput
 	projection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
-	status?: string
+	status: ProjectionSnapshotStatusOptions
 	updated: IsoAutoDateString
 }
 
@@ -379,6 +403,13 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	window_spec_versions?: null | Twindow_spec_versions
 }
 
+export const ReflectionSnapshotStatusOptions = {
+	"generating": "generating",
+	"pending": "pending",
+	"approved": "approved",
+	"discarded": "discarded",
+} as const
+export type ReflectionSnapshotStatusOptions = typeof ReflectionSnapshotStatusOptions[keyof typeof ReflectionSnapshotStatusOptions]
 export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
@@ -393,7 +424,7 @@ export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown,
 	output?: null | Toutput
 	reflection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
-	status?: string
+	status: ReflectionSnapshotStatusOptions
 	updated: IsoAutoDateString
 	window_end?: IsoDateString
 	window_start?: IsoDateString
@@ -434,8 +465,6 @@ export type UsersRecord = {
 export const ViewStreamTypeOptions = {
 	"email": "email",
 	"note": "note",
-	"whatsapp": "whatsapp",
-	"sms": "sms",
 	"chat": "chat",
 } as const
 export type ViewStreamTypeOptions = typeof ViewStreamTypeOptions[keyof typeof ViewStreamTypeOptions]

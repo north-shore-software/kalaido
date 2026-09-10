@@ -94,7 +94,7 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 func readConfig(rec *core.Record) ingestConfig {
 	return ingestConfig{
 		format:         rec.GetString("format"),
-		limit:          int(rec.GetInt("limit")),
+		limit:          int(rec.GetInt("fragment_limit")),
 		extensions:     normalizeExtensions(rec.GetString("extensions")),
 		skipDuplicates: rec.GetBool("skip_duplicates"),
 		organizeAfter:  rec.GetBool("organize_after"),

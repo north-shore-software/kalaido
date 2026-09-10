@@ -64,7 +64,7 @@ func TestResolveExplicitFragments(t *testing.T) {
 
 	note := addFragment(t, app, "note", "a note")
 	email := addFragment(t, app, "email", "an email")
-	addFragment(t, app, "sms", "unrelated")
+	addFragment(t, app, "chat", "unrelated")
 
 	t.Run("a pin resolves to exactly that fragment", func(t *testing.T) {
 		got := resolveFragmentIDs(t, app, api.ContextSpec{

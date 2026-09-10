@@ -42,7 +42,7 @@ var schema = []tableDef{
 				// from outside. It is an ordinary fragment in every other respect;
 				// the distinct type is what lets these be selected — or excluded —
 				// as a group once a workspace accumulates them.
-				Values: []string{"email", "note", "whatsapp", "sms", "chat"},
+				Values: []string{"email", "note", "chat"},
 			},
 			&core.SelectField{
 				Name:      "origin",
@@ -67,11 +67,15 @@ var schema = []tableDef{
 		DisableDelete: true,
 		Fields: []core.Field{
 			&core.FileField{Name: "file", MaxSelect: 50, MaxSize: 200 << 20},
-			&core.TextField{Name: "format"},
-			&core.NumberField{Name: "limit"},
+			// Parser override; empty = infer per file from its name.
+			&core.SelectField{Name: "format", MaxSelect: 1, Values: []string{"zip", "mbox", "docx", "text"}},
+			// Stop after this many fragments; 0 = no limit.
+			&core.NumberField{Name: "fragment_limit"},
+			// Comma-separated zip member filter; empty = the parser default.
 			&core.TextField{Name: "extensions"},
 			&core.BoolField{Name: "skip_duplicates"},
-			&core.TextField{Name: "status"},
+			// Server-written lifecycle; the create hook forces "pending".
+			&core.SelectField{Name: "status", MaxSelect: 1, Values: []string{"pending", "done", "error"}},
 			&core.NumberField{Name: "ingested"},
 			&core.TextField{Name: "error"},
 			&core.BoolField{Name: "organize_after"},
@@ -201,7 +205,9 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "projection_id", CollectionId: "projection", Required: true, MaxSelect: 1, CascadeDelete: true},
-			&core.TextField{Name: "status"},
+			// MaxSelect must stay 1: a single select is stored as plain text,
+			// which the partial indexes below and every status filter rely on.
+			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"generating", "pending", "approved", "discarded"}},
 			&core.JSONField{Name: "context_spec"},
 			&core.JSONField{Name: "resolved_context"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
@@ -237,7 +243,9 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", Required: true, MaxSelect: 1, CascadeDelete: true},
-			&core.TextField{Name: "status"},
+			// MaxSelect must stay 1: a single select is stored as plain text,
+			// which the partial indexes below and every status filter rely on.
+			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"generating", "pending", "approved", "discarded"}},
 			&core.JSONField{Name: "context_spec"},
 			&core.JSONField{Name: "resolved_context"},
 			// The half-open [window_start, window_end) this snapshot covers.
@@ -488,7 +496,7 @@ var schema = []tableDef{
 		Name:                   "llm_queue_status",
 		DisableWriteOperations: true,
 		Fields: []core.Field{
-			&core.TextField{Name: "state"}, // "idle" | "active"
+			&core.SelectField{Name: "state", MaxSelect: 1, Values: []string{"idle", "active"}},
 			&core.JSONField{Name: "running"},
 			&core.JSONField{Name: "waiting"},
 			&core.JSONField{Name: "held"},

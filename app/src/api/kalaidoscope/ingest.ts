@@ -65,7 +65,8 @@ export interface FileIngestOptions {
   path: string;
   /** Format override; omit to let the backend infer it per file from the filename. */
   format?: ImportFormat;
-  limit?: number;
+  /** Stop after this many fragments; omit for no limit. */
+  fragmentLimit?: number;
   extensions?: string;
   skipDuplicates?: boolean;
   organizeAfter?: boolean;
@@ -117,7 +118,8 @@ export async function ingestFile(
     const form = new FormData();
     form.append("file", new Blob([bytes.value]), basename(opts.path));
     if (opts.format) form.append("format", opts.format);
-    if (opts.limit) form.append("limit", String(opts.limit));
+    if (opts.fragmentLimit)
+      form.append("fragment_limit", String(opts.fragmentLimit));
     if (opts.extensions) form.append("extensions", opts.extensions);
     form.append("skip_duplicates", opts.skipDuplicates ? "true" : "false");
     if (opts.organizeAfter) form.append("organize_after", "true");

@@ -68,7 +68,7 @@ export const mockFragments: FragmentResponse[] = [
   },
   {
     id: "frag_2",
-    type: "sms",
+    type: "note",
     origin: "sync",
     content:
       "ALERT: Production database latency has exceeded 500ms for the past 5 minutes. Investigating now.",

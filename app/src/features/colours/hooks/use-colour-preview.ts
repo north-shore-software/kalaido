@@ -3,13 +3,7 @@ import { toast } from "sonner";
 import { previewColourStream } from "@/api/kalaidoscope/colours";
 import type { FragmentResponse } from "@/api/kalaidoscope/types";
 
-export const TYPE_FILTERS = [
-  "all",
-  "email",
-  "note",
-  "whatsapp",
-  "sms",
-] as const;
+export const TYPE_FILTERS = ["all", "email", "note"] as const;
 export type TypeFilter = (typeof TYPE_FILTERS)[number];
 
 /** Debounced live preview of the fragments matching a draft colour's prompt.
