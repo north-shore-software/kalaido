@@ -54,7 +54,7 @@ export async function regenerateProjection(
  */
 export async function updateProjection(
   projectionId: string,
-  patch: { name?: string; pinned?: boolean },
+  patch: { name?: string; pinned?: boolean; generateWithModel?: string },
 ): Promise<Result<{ id: string }, Error>> {
   return withActiveClient((client) =>
     client.send<{ id: string }>(`/api/projections/${projectionId}`, {

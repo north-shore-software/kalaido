@@ -92,7 +92,12 @@ export async function listReflectionWindows(
  */
 export async function updateReflection(
   reflectionId: string,
-  patch: { name?: string; pinned?: boolean; windowSpec?: WindowSpec },
+  patch: {
+    name?: string;
+    pinned?: boolean;
+    windowSpec?: WindowSpec;
+    generateWithModel?: string;
+  },
 ): Promise<Result<{ id: string }, Error>> {
   return withActiveClient((client) =>
     client.send<{ id: string }>(`/api/reflections/${reflectionId}`, {
