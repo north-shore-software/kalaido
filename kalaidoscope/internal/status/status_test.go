@@ -56,7 +56,7 @@ func pendingSnapshot(t *testing.T, app core.App, projectionID string, pinned llm
 	t.Helper()
 	return testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":    projectionID,
-		"status":           "pending",
+		"status":           "pending_review",
 		"resolved_context": pbutil.JSONObject(pinned),
 		"output":           "out",
 	})

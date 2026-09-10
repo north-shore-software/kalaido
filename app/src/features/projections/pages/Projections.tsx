@@ -51,14 +51,14 @@ export default function Projections() {
     sort: "-updated",
   });
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending" || status="generating"',
+    filter: 'status="pending_review" || status="generating"',
     sort: "-created",
     fields: "id,projection_id,resolved_context,status",
   });
   const candidateByProjection = useMemo(() => {
     const map = new Map<string, { id: string; fragmentIds: Set<string> }>();
     for (const s of pending.records) {
-      if (s.status !== "pending") continue;
+      if (s.status !== "pending_review") continue;
       // records are newest-first, so the first seen per projection is latest.
       if (!map.has(s.projection_id)) {
         const ctx = s.resolved_context as { fragmentIds?: string[] } | null;

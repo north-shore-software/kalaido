@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	StatusPending  = "pending"
+	StatusPending  = "pending_review"
 	StatusApproved = "approved"
 
 	EntityProposed = "proposed"

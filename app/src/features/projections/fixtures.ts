@@ -134,7 +134,7 @@ export const mockSnapshots: ProjectionSnapshotResponse[] = [
     created_from_refinement_id: "",
     output: `${mockMarkdownContent1}\n- Review updates added.`,
     resolved_context: null,
-    status: "pending",
+    status: "pending_review",
     approval_sequence_number: 0,
     approved_at: "" as IsoAutoDateString,
     generated_at: "2026-07-06T10:20:00.000Z" as IsoAutoDateString,

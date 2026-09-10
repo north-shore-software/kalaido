@@ -44,7 +44,7 @@ export default function Rotation() {
   // Latest pending candidate per projection (with its output for the card).
   // Reflections have no review gate, so only projections have candidates.
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending"',
+    filter: 'status="pending_review"',
     sort: "-created",
     fields: "id,projection_id,output",
   });

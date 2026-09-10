@@ -88,7 +88,7 @@ export default function Main() {
   });
   // Latest pending candidate per projection — the snapshot to review.
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending"',
+    filter: 'status="pending_review"',
     sort: "-created",
     fields: "id,projection_id",
   });

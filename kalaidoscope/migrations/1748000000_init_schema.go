@@ -249,9 +249,17 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "projection_id", CollectionId: "projection", Required: true, MaxSelect: 1, CascadeDelete: true},
+			// One row's lifecycle: "generating" (the claim row, inserted when a
+			// generation starts; it is the lock) -> "pending_review" (a finished
+			// candidate awaiting the user) -> "approved" | "discarded". Server-side
+			// publication goes straight from generating to approved. "approved"
+			// means promoted at some point, not current: the current output is the
+			// highest approval_sequence_number per target (and per window for
+			// reflections), and a superseded approval keeps its status so history
+			// reads stay simple; a superseded candidate is marked discarded.
 			// MaxSelect must stay 1: a single select is stored as plain text,
 			// which the partial indexes below and every status filter rely on.
-			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"generating", "pending", "approved", "discarded"}},
+			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"generating", "pending_review", "approved", "discarded"}},
 			&core.JSONField{Name: "context_spec"},
 			&core.JSONField{Name: "resolved_context"},
 			&core.RelationField{Name: "lens_id", CollectionId: "lens", MaxSelect: 1},
@@ -289,9 +297,17 @@ var schema = []tableDef{
 		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "reflection_id", CollectionId: "reflection", Required: true, MaxSelect: 1, CascadeDelete: true},
+			// One row's lifecycle: "generating" (the claim row, inserted when a
+			// generation starts; it is the lock) -> "pending_review" (a finished
+			// candidate awaiting the user) -> "approved" | "discarded". Server-side
+			// publication goes straight from generating to approved. "approved"
+			// means promoted at some point, not current: the current output is the
+			// highest approval_sequence_number per target (and per window for
+			// reflections), and a superseded approval keeps its status so history
+			// reads stay simple; a superseded candidate is marked discarded.
 			// MaxSelect must stay 1: a single select is stored as plain text,
 			// which the partial indexes below and every status filter rely on.
-			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"generating", "pending", "approved", "discarded"}},
+			&core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"generating", "pending_review", "approved", "discarded"}},
 			&core.JSONField{Name: "context_spec"},
 			&core.JSONField{Name: "resolved_context"},
 			// The half-open [window_start, window_end) this snapshot covers.
@@ -516,7 +532,7 @@ var schema = []tableDef{
 			// map put in front of the model, whose thing ids things[].ref cites.
 			// Provenance only; not part of the key, since a fragment is
 			// annotated once.
-			&core.NumberField{Name: "map_version"},
+			&core.NumberField{Name: "generated_from_map_version"},
 			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},

@@ -226,7 +226,7 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 	// approved snapshots count. -approval_sequence_number breaks same-millisecond
 	// `created` ties deterministically (see .agents/bugs/engine-2026-08-20…).
 	recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(),
-		strat.ForeignKeyCol()+" = {:id} && (status = 'pending' || status = 'approved')",
+		strat.ForeignKeyCol()+" = {:id} && (status = 'pending_review' || status = 'approved')",
 		"-created,-approval_sequence_number", 1, 0, dbx.Params{"id": rec.Id})
 	if err != nil || len(recs) == 0 {
 		return false

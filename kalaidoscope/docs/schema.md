@@ -121,7 +121,7 @@ Read **and** write disabled for clients. No indexes. A lens carries no context s
 | Field | Type | Notes |
 |---|---|---|
 | `projection_id` / `reflection_id` | relation(1), required, cascade | |
-| `status` | select(1), required | `generating`, `pending`, `approved`, `discarded` |
+| `status` | select(1), required | the row's lifecycle: `generating` (the claim row) → `pending_review` (a finished candidate awaiting the user) → `approved` \| `discarded`; server-side publication goes straight to `approved`; `approved` means promoted at some point, the current output being the highest `approval_sequence_number` per target (and window), and a superseded approval keeps its status while a superseded candidate becomes `discarded` |
 | `context_spec` | json | the entity's `current_context_spec` at generation (§ 3) |
 | `resolved_context` | json | `{fragmentIds, snapshotIds, expandedIds}` receipt (§ 3) |
 | `window_start`, `window_end` | date | **reflection only**; the half-open window the snapshot covers; both empty for an unscheduled reflection |
@@ -195,7 +195,7 @@ Read-only. One row per fragment with `deleted_at = ''`: `id`, `type`, `content`,
 | `title`, `summary` | text | |
 | `things`, `decisions`, `questions`, `conclusions` | json | § 3 |
 | `consolidated_at` | date | set by the consolidate pass that folded the row into the map, to the same instant as `kalaidoscope_map.consolidated_at` for that pass; empty until then; indexed `idx_fragment_annotation_consolidated_at` |
-| `map_version` | number | the `kalaidoscope_map.version` the annotation was grounded on (whose thing ids `things[].ref` cites); provenance only, not part of the key |
+| `generated_from_map_version` | number | the `kalaidoscope_map.version` the annotation was grounded on (whose thing ids `things[].ref` cites); provenance only, not part of the key |
 | `generated_by_model` | text | |
 | `created` | autodate | |
 
