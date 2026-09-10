@@ -14,7 +14,11 @@ func IngestSingle(app core.App, m api.IngestMessage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	w.origin = "sync"
+	origin := strings.TrimSpace(m.Origin)
+	if origin == "" {
+		origin = "sync"
+	}
+	w.origin = origin
 	fragType := strings.TrimSpace(m.Type)
 	if fragType == "" {
 		fragType = "note"

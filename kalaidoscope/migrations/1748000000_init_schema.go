@@ -31,7 +31,8 @@ type indexDef struct {
 
 var schema = []tableDef{
 	{
-		Name: "fragment",
+		Name:                   "fragment",
+		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.SelectField{
 				Name:      "type",
@@ -61,7 +62,9 @@ var schema = []tableDef{
 	},
 
 	{
-		Name: "ingest",
+		Name:          "ingest",
+		DisableUpdate: true,
+		DisableDelete: true,
 		Fields: []core.Field{
 			&core.FileField{Name: "file", MaxSelect: 50, MaxSize: 200 << 20},
 			&core.TextField{Name: "format"},
@@ -310,7 +313,8 @@ var schema = []tableDef{
 	},
 
 	{
-		Name: "chat_conversation",
+		Name:                   "chat_conversation",
+		DisableWriteOperations: true,
 
 		Fields: []core.Field{
 			&core.TextField{Name: "external_conversation_id"},
@@ -324,7 +328,8 @@ var schema = []tableDef{
 	},
 
 	{
-		Name: "chat_message",
+		Name:                   "chat_message",
+		DisableWriteOperations: true,
 		Fields: []core.Field{
 			&core.RelationField{Name: "chat_conversation_id", CollectionId: "chat_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
 			&core.RelationField{Name: "refine_proj_conversation_id", CollectionId: "refine_proj_snapshot_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},

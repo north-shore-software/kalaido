@@ -3,6 +3,7 @@ package api
 type IngestMessage struct {
 	// Inline single-entry fields (sync endpoint).
 	Type       string `json:"type,omitempty"`
+	Origin     string `json:"origin,omitempty"`
 	Source     string `json:"source,omitempty"`
 	Content    string `json:"content,omitempty"`
 	OccurredAt string `json:"source_time,omitempty"` // RFC3339; optional
