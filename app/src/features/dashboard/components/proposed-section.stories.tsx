@@ -13,8 +13,8 @@ const items: ProposedItem[] = [
     message:
       "Keep a current account of the lift maintenance arrangement: who holds the contract, what was quoted and agreed, and what is outstanding.",
     sources: [
-      { kind: "Colour", id: "c1", label: "Maintenance", value: "#10b981" },
-      { kind: "Colour", id: "c2", label: "Contracts", value: "#3b82f6" },
+      { kind: "Colour", id: "c1", label: "Maintenance", swatch: 3 },
+      { kind: "Colour", id: "c2", label: "Contracts", swatch: 0 },
     ],
   },
   {
@@ -22,9 +22,7 @@ const items: ProposedItem[] = [
     kind: "reflection",
     name: "Monthly accounts",
     message: "Summarise each month's service charge accounts and queries.",
-    sources: [
-      { kind: "Colour", id: "c3", label: "Accounts", value: "#f59e0b" },
-    ],
+    sources: [{ kind: "Colour", id: "c3", label: "Accounts", swatch: 5 }],
   },
 ];
 
