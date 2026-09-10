@@ -312,10 +312,10 @@ export const ProjectionStatusOptions = {
 } as const
 export type ProjectionStatusOptions = typeof ProjectionStatusOptions[keyof typeof ProjectionStatusOptions]
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
-	brief?: string
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	description?: string
 	generate_with_model?: string
 	id: string
 	name?: string
@@ -365,10 +365,10 @@ export const ReflectionStatusOptions = {
 } as const
 export type ReflectionStatusOptions = typeof ReflectionStatusOptions[keyof typeof ReflectionStatusOptions]
 export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown> = {
-	brief?: string
 	created: IsoAutoDateString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	description?: string
 	generate_with_model?: string
 	id: string
 	name?: string

@@ -115,7 +115,7 @@ export default function Projections() {
         status={getProjectionStatus(statusById.get(p.id), !!candidate, {
           generating: generatingProjections.has(p.id),
         })}
-        brief={p.brief}
+        description={p.description}
         sources={resolveSources(
           parseContextSpec(p.current_context_spec),
           contextSources,

@@ -7,7 +7,7 @@ import { ProjCard, StatusBadge } from "./projection-card";
 
 export default { title: "Projections / ProjCard" };
 
-const brief =
+const description =
   "Lay out the overall commercial strategy, building on the projection 'Pricing model' for the pricing decision and the projection 'Acquisition hooks' for the lead-magnet analysis — reference them rather than restating them.";
 
 const colourOnly: SourceItem[] = [
@@ -43,7 +43,7 @@ export const Default: Story = () => (
     <ProjCard
       p={mockProjections[2]}
       status={stable}
-      brief={brief}
+      description={description}
       sources={colourOnly}
       {...handlers}
     />
@@ -55,7 +55,7 @@ export const WithSources: Story = () => (
     <ProjCard
       p={mockProjections[0]}
       status={stable}
-      brief={brief}
+      description={description}
       sources={mixed}
       {...handlers}
     />
@@ -67,19 +67,19 @@ export const WholeScope: Story = () => (
     <ProjCard
       p={mockProjections[2]}
       status={stable}
-      brief={brief}
+      description={description}
       sources={[]}
       {...handlers}
     />
   </Frame>
 );
 
-export const NoBrief: Story = () => (
+export const NoDescription: Story = () => (
   <Frame>
     <ProjCard
       p={mockProjections[2]}
       status={stable}
-      brief=""
+      description=""
       sources={colourOnly}
       {...handlers}
     />
@@ -91,7 +91,7 @@ export const Pinned: Story = () => (
     <ProjCard
       p={mockProjections[0]}
       status={stable}
-      brief={brief}
+      description={description}
       sources={colourOnly}
       {...handlers}
     />
@@ -104,7 +104,7 @@ export const WithReviewCandidate: Story = () => (
       p={mockProjections[1]}
       candidateId="snap-3"
       status={{ status: "pending", entropy: 0, blockedBy: [] }}
-      brief={brief}
+      description={description}
       sources={mixed}
       {...handlers}
     />

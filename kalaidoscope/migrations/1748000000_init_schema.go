@@ -150,9 +150,10 @@ var schema = []tableDef{
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
-			// The opening chat message a discover run proposed for this
-			// entity; empty for human-created entities.
-			&core.TextField{Name: "brief"},
+			// A short account of what this entity is for. Discover seeds it
+			// with its proposal's opening message; empty for human-created
+			// entities until one is written.
+			&core.TextField{Name: "description"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
@@ -172,9 +173,10 @@ var schema = []tableDef{
 			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
-			// The opening chat message a discover run proposed for this
-			// entity; empty for human-created entities.
-			&core.TextField{Name: "brief"},
+			// A short account of what this entity is for. Discover seeds it
+			// with its proposal's opening message; empty for human-created
+			// entities until one is written.
+			&core.TextField{Name: "description"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},

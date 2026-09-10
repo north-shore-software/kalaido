@@ -70,7 +70,7 @@ func TestProposeProjectionPinsColours(t *testing.T) {
 	if len(spec.ColourIDs) != 1 || spec.ColourIDs[0] != col.Id || len(spec.FragmentIDs) != 0 || len(spec.SourceProjectionIDs) != 0 {
 		t.Fatalf("spec = %+v, want only the colour id", spec)
 	}
-	if rec.GetString("origin_run_id") != run.Id || rec.GetString("brief") != "Keep the account." {
+	if rec.GetString("origin_run_id") != run.Id || rec.GetString("description") != "Keep the account." {
 		t.Fatalf("row = %+v", rec)
 	}
 	if !c.covered[ids[0]] || !c.covered[ids[1]] || c.covered[ids[2]] {

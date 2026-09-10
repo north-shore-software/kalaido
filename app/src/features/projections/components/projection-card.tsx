@@ -43,7 +43,7 @@ export interface ProjCardProps {
   /** In-scope fragments the pending candidate's resolved context misses. */
   newSinceCandidate?: number;
   status: ProjectionStatusInfo;
-  brief: string;
+  description: string;
   sources: SourceItem[];
   onOpen: (id: string) => void;
   onReview: (id: string, candidateId: string) => void;
@@ -55,7 +55,7 @@ export function ProjCard({
   candidateId,
   newSinceCandidate = 0,
   status,
-  brief,
+  description,
   sources,
   onOpen,
   onReview,
@@ -109,12 +109,12 @@ export function ProjCard({
         </div>
       }
     >
-      {brief ? (
+      {description ? (
         <p className="line-clamp-4 break-words text-meta text-fg-3 [text-wrap:pretty]">
-          {brief}
+          {description}
         </p>
       ) : (
-        <span className="text-meta text-fg-4 italic">No brief</span>
+        <span className="text-meta text-fg-4 italic">No description</span>
       )}
     </DocumentCard>
   );

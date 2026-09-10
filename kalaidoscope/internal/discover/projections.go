@@ -110,7 +110,7 @@ func existingEntities(c *Context) ([]Existing, error) {
 				Kind:        col,
 				ID:          rec.Id,
 				Name:        rec.GetString("name"),
-				Description: rec.GetString("brief"),
+				Description: rec.GetString("description"),
 				Note:        note,
 				FragmentIDs: pinned.FragmentIDs,
 			})
@@ -181,7 +181,7 @@ func insertProposed(c *Context, col, name, message string, spec api.ContextSpec,
 	rec := core.NewRecord(collection)
 	rec.Set("name", name)
 	rec.Set("status", engine.EntityProposed)
-	rec.Set("brief", message)
+	rec.Set("description", message)
 	rec.Set("current_context_spec", pbutil.JSONObject(spec))
 	rec.Set("origin_run_id", c.Run.Id)
 	for k, v := range extra {

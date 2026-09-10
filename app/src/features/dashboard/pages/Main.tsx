@@ -186,7 +186,7 @@ export default function Main() {
         id: p.id,
         kind,
         name: p.name || "Untitled",
-        message: p.brief ?? "",
+        message: p.description ?? "",
         sources: resolveSources(spec, contextSources, nameById),
       });
     }
