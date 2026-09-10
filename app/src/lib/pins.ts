@@ -1,5 +1,6 @@
-/** `pinned_by` is a multi-relation — truthy/non-empty means pinned. */
-export function isPinned(v: unknown): boolean {
-  if (Array.isArray(v)) return v.length > 0;
-  return typeof v === "string" && v.length > 0;
+export function isPinned(pinnedBy: unknown, userId?: string | null): boolean {
+  if (!userId) return false;
+  if (Array.isArray(pinnedBy)) return pinnedBy.includes(userId);
+  if (typeof pinnedBy === "string") return pinnedBy === userId;
+  return false;
 }

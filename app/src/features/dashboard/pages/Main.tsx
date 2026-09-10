@@ -18,6 +18,7 @@ import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { resolveSources } from "@/features/projections/sources";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { useContextSources } from "@/hooks/use-context-sources";
+import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import {
   useLiveCollection,
   useLiveCollectionWatching,
@@ -73,6 +74,7 @@ function parseColours(raw: unknown): number[] {
 export default function Main() {
   const { go } = useAppNavigate();
   const contextSources = useContextSources();
+  const currentUserId = useCurrentUserId();
   // Id of the row whose candidate is being generated, so the row can say so —
   // generation is a model call, not an instant hop.
   const [refreshing, setRefreshing] = useState<string | null>(null);
@@ -194,21 +196,21 @@ export default function Main() {
   const pinned = useMemo<PinItem[]>(() => {
     const items: PinItem[] = [];
     for (const p of projections.records)
-      if (p.status === "active" && isPinned(p.pinned_by))
+      if (p.status === "active" && isPinned(p.pinned_by, currentUserId))
         items.push({
           id: p.id,
           kind: "projection",
           name: p.name || "Untitled projection",
         });
     for (const r of reflections.records)
-      if (r.status === "active" && isPinned(r.pinned_by))
+      if (r.status === "active" && isPinned(r.pinned_by, currentUserId))
         items.push({
           id: r.id,
           kind: "reflection",
           name: r.name || "Untitled reflection",
         });
     return items;
-  }, [projections.records, reflections.records]);
+  }, [projections.records, reflections.records, currentUserId]);
 
   const needsAction = useMemo<NeedItem[]>(
     () =>

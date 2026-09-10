@@ -323,7 +323,7 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	model?: string
 	name?: string
 	origin_run_id?: RecordIdString
-	pinned_by?: RecordIdString
+	pinned_by?: RecordIdString[]
 	status: ProjectionStatusOptions
 	updated: IsoAutoDateString
 }
@@ -376,7 +376,7 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	model?: string
 	name?: string
 	origin_run_id?: RecordIdString
-	pinned_by?: RecordIdString
+	pinned_by?: RecordIdString[]
 	status: ReflectionStatusOptions
 	updated: IsoAutoDateString
 	window_spec_versions?: null | Twindow_spec_versions

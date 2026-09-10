@@ -146,7 +146,7 @@ var schema = []tableDef{
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			// Optional per-entity model override; empty = workspace role default.
 			&core.TextField{Name: "model"},
-			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
+			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
 			// The opening chat message a discover run proposed for this
@@ -168,7 +168,7 @@ var schema = []tableDef{
 			&core.RelationField{Name: "current_lens_id", CollectionId: "lens", MaxSelect: 1},
 			// Optional per-entity model override; empty = workspace role default.
 			&core.TextField{Name: "model"},
-			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 0},
+			&core.RelationField{Name: "pinned_by", CollectionId: "users", MaxSelect: 999},
 			// Set by the discover worker; empty = human-created.
 			&core.RelationField{Name: "origin_run_id", CollectionId: "discover_run", MaxSelect: 1},
 			// The opening chat message a discover run proposed for this
