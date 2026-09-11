@@ -1,9 +1,6 @@
-package migrations
+package schema
 
-import (
-	"github.com/pocketbase/pocketbase/core"
-	m "github.com/pocketbase/pocketbase/migrations"
-)
+import "github.com/pocketbase/pocketbase/core"
 
 // Naming: snake_case; relation fields end in _id; timestamps the application
 // sets end in _at (occurred_at, approved_at, consolidated_at). The autodate
@@ -16,29 +13,16 @@ import (
 // output) carry this instead.
 const longTextMax = 100_000_000
 
-type tableDef struct {
-	Name                   string
-	Type                   string // "base" or "view"
-	ViewQuery              string
-	DisableWriteOperations bool // shorthand for create+update+delete
-	DisableReadOperations  bool
-	// Per-operation overrides, for collections that are writable in one
-	// direction only. Each is OR-ed with DisableWriteOperations.
-	DisableCreate bool
-	DisableUpdate bool
-	DisableDelete bool
-	Fields        []core.Field
-	Indexes       []indexDef
-}
-
-type indexDef struct {
-	Name    string
-	Unique  bool
-	Columns string
-	Where   string
-}
-
-var schema = []tableDef{
+// Canonical is the latest product schema: what a brand-new kalaidoscope is
+// created with, in one pass, and stamped at Version. It is edited in place
+// for every schema change; the matching upgrade for existing databases is a
+// delta in schema/deltas (see delta.go). The two must converge: parity_test.go
+// boots a fresh database from this file and an old one from
+// baseline/v1.go plus every delta, and requires them identical.
+//
+// Keep this file to the constant and the literal below — schema:freeze copies
+// it verbatim into a baseline package when a version is frozen.
+var Canonical = []TableDef{
 	{
 		Name:                   "fragment",
 		DisableWriteOperations: true,
@@ -73,7 +57,7 @@ var schema = []tableDef{
 			&core.DateField{Name: "deleted_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_fragment_occurred_at", Columns: "occurred_at"},
 			{Name: "idx_fragment_deleted_at", Columns: "deleted_at"},
 		},
@@ -156,7 +140,7 @@ var schema = []tableDef{
 			},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_colour_fragment_colour", Columns: "colour_id"},
 			{Name: "idx_colour_fragment_fragment", Columns: "fragment_id"},
 			{Name: "idx_colour_fragment_pair", Unique: true, Columns: "colour_id, fragment_id"},
@@ -186,7 +170,7 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_projection_status", Columns: "status"},
 		},
 	},
@@ -221,7 +205,7 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_reflection_status", Columns: "status"},
 		},
 	},
@@ -286,7 +270,7 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_projection_snapshot_projection", Columns: "projection_id"},
 			{Name: "idx_projection_snapshot_approval_seq", Unique: true, Columns: "projection_id, approval_sequence_number", Where: "status = 'approved'"},
 		},
@@ -339,7 +323,7 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_reflection_snapshot_reflection", Columns: "reflection_id"},
 			{Name: "idx_reflection_snapshot_approval_seq", Unique: true, Columns: "reflection_id, window_start, window_end, approval_sequence_number", Where: "status = 'approved'"},
 		},
@@ -359,7 +343,7 @@ var schema = []tableDef{
 			&core.DateField{Name: "window_end", Required: true},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_reflection_window_reflection", Columns: "reflection_id"},
 			{Name: "idx_reflection_window_bounds", Unique: true, Columns: "reflection_id, window_start, window_end"},
 		},
@@ -375,7 +359,7 @@ var schema = []tableDef{
 
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_projection_refinement_external", Unique: true, Columns: "external_conversation_id"},
 			{Name: "idx_projection_refinement_projection", Columns: "projection_id"},
 			{Name: "idx_projection_refinement_snapshot", Columns: "projection_snapshot_id"},
@@ -391,7 +375,7 @@ var schema = []tableDef{
 			&core.TextField{Name: "external_conversation_id"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_reflection_refinement_external", Unique: true, Columns: "external_conversation_id"},
 			{Name: "idx_reflection_refinement_reflection", Columns: "reflection_id"},
 			{Name: "idx_reflection_refinement_snapshot", Columns: "reflection_snapshot_id"},
@@ -408,7 +392,7 @@ var schema = []tableDef{
 			&core.TextField{Name: "generate_with_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_chat_conversation_external", Unique: true, Columns: "external_conversation_id"},
 		},
 	},
@@ -426,7 +410,7 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_chat_message_chat_conv", Columns: "chat_conversation_id"},
 			{Name: "idx_chat_message_projection_refinement", Columns: "projection_refinement_id"},
 			{Name: "idx_chat_message_reflection_refinement", Columns: "reflection_refinement_id"},
@@ -445,7 +429,7 @@ var schema = []tableDef{
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_usage_period", Unique: true, Columns: "period"},
 		},
 	},
@@ -536,7 +520,7 @@ var schema = []tableDef{
 			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},
-		Indexes: []indexDef{
+		Indexes: []IndexDef{
 			{Name: "idx_fragment_annotation_fragment", Unique: true, Columns: "fragment_id"},
 			{Name: "idx_fragment_annotation_consolidated_at", Columns: "consolidated_at"},
 		},
@@ -625,97 +609,4 @@ var schema = []tableDef{
 			WHERE f.deleted_at = ''
 		`,
 	},
-}
-
-func ensureField(c *core.Collection, f core.Field) {
-	if c.Fields.GetByName(f.GetName()) == nil {
-		c.Fields.Add(f)
-	}
-}
-
-func ensureCollection(app core.App, def tableDef) error {
-	c, err := app.FindCollectionByNameOrId(def.Name)
-	if err != nil {
-		c = core.NewBaseCollection(def.Name)
-	}
-	rule := "@request.auth.id != ''"
-	var readRule *string = &rule
-	createRule, updateRule, deleteRule := &rule, &rule, &rule
-
-	if def.DisableReadOperations {
-		readRule = nil
-	}
-	if def.DisableWriteOperations || def.DisableCreate {
-		createRule = nil
-	}
-	if def.DisableWriteOperations || def.DisableUpdate {
-		updateRule = nil
-	}
-	if def.DisableWriteOperations || def.DisableDelete {
-		deleteRule = nil
-	}
-
-	if def.Type == "view" {
-		c.Type = core.CollectionTypeView
-		c.ViewQuery = def.ViewQuery
-		c.ViewRule = readRule
-		c.ListRule = readRule
-	} else if def.Type == "" || def.Type == "base" {
-		c.Type = core.CollectionTypeBase
-		c.ViewRule = readRule
-		c.ListRule = readRule
-		c.CreateRule = createRule
-		c.UpdateRule = updateRule
-		c.DeleteRule = deleteRule
-	}
-	for _, f := range def.Fields {
-		if relField, ok := f.(*core.RelationField); ok {
-			target, err := app.FindCollectionByNameOrId(relField.CollectionId)
-			if err == nil {
-				relField.CollectionId = target.Id
-			}
-		}
-		ensureField(c, f)
-	}
-	for _, idx := range def.Indexes {
-		c.AddIndex(idx.Name, idx.Unique, idx.Columns, idx.Where)
-	}
-	return app.Save(c)
-}
-
-func init() {
-	m.Register(func(app core.App) error {
-		// First pass: ensure base collections exist so they can be referenced
-		for _, t := range schema {
-			if t.Type == "view" {
-				continue
-			}
-			_, err := app.FindCollectionByNameOrId(t.Name)
-			if err != nil {
-				c := core.NewBaseCollection(t.Name)
-				if err := app.Save(c); err != nil {
-					return err
-				}
-			}
-		}
-		// Second pass: set fields, indexes, rules
-		for _, t := range schema {
-			if err := ensureCollection(app, t); err != nil {
-				return err
-			}
-		}
-		return nil
-	}, func(app core.App) error {
-		// Delete in reverse dependency order; ignore collections already gone.
-		for i := len(schema) - 1; i >= 0; i-- {
-			c, err := app.FindCollectionByNameOrId(schema[i].Name)
-			if err != nil {
-				continue
-			}
-			if err := app.Delete(c); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
 }

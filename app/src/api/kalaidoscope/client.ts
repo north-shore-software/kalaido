@@ -110,7 +110,7 @@ async function createSidecarClient(
  * filesystem path consumed by `createSidecarClient` above).
  *
  * Authentication is not optional here. Every collection's list rule is
- * `@request.auth.id != ''` (`migrations/1748000000_init_schema.go`), and
+ * `@request.auth.id != ''` (`kalaidoscope/schema/canonical.go`), and
  * PocketBase applies list rules as a *filter* rather than a gate: an anonymous
  * client gets `200 OK` with zero rows, not a 403. Without credentials the app
  * looks like an empty kalaidoscope with nothing to indicate anything is wrong.

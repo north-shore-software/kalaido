@@ -33,10 +33,6 @@ func startTestServer(t *testing.T) (*pocketbase.PocketBase, *testutil.TestServer
 	}
 	t.Cleanup(func() { _ = a.ResetBootstrapState() })
 
-	if err := a.RunAppMigrations(); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
 	config.LoadAtBoot(a)
 	server.EnsureReady()
 

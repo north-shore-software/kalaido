@@ -3,10 +3,10 @@ package server
 import (
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
@@ -20,8 +20,10 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 
-	_ "github.com/north-shore-software/kalaido/kalaidoscope/migrations"
+	// The core upgrade deltas register themselves on import.
+	_ "github.com/north-shore-software/kalaido/kalaidoscope/schema/deltas"
 )
 
 func New(hideStartBanner bool) *pocketbase.PocketBase {
@@ -29,11 +31,18 @@ func New(hideStartBanner bool) *pocketbase.PocketBase {
 }
 
 func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
+	return NewWithSchema(config, schema.Options{})
+}
+
+// NewWithSchema is NewWithConfig with the schema runner tuned for a flavour
+// (the cloud binary hands it a hook to close Litestream before a restore).
+func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketbase.PocketBase {
 	app := pocketbase.NewWithConfig(config)
 
-	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
-		Automigrate: false,
-	})
+	// Creates a new database from the canonical schema, or upgrades an old
+	// one, inside bootstrap — before anything below runs against collections.
+	schema.Install(app, schemaOpts)
+	schema.RegisterCommand(app.RootCmd)
 
 	// PocketBase's installer opens the OS browser at the superuser dashboard once
 	// the listener binds, and it re-fires on every start because we never create a
@@ -107,6 +116,22 @@ func RegisterTriggers(app core.App) {
 
 func RegisterRoutes(app core.App) {
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		// Every response names the schema this server speaks, and one route
+		// reports the database's state, so a client (or the cloud proxy) can
+		// tell a version mismatch from any other failure. Nothing is enforced
+		// on requests yet; that is the client-side half, still to come.
+		se.Router.BindFunc(func(e *core.RequestEvent) error {
+			e.Response.Header().Set("X-Kalaido-Schema-Version", strconv.Itoa(schema.Version))
+			return e.Next()
+		})
+		se.Router.GET("/api/schema", func(e *core.RequestEvent) error {
+			st, err := schema.CurrentStatus(app)
+			if err != nil {
+				return e.InternalServerError("schema status", err)
+			}
+			return e.JSON(http.StatusOK, st)
+		})
+
 		se.Router.POST("/api/chat", handlers.HandleChat(app, handlers.HandleChatForRefinement))
 
 		se.Router.POST("/api/ingest", handlers.HandleIngest(app))
