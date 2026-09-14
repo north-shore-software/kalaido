@@ -13,6 +13,16 @@ export interface TokenResolutionResponse {
   fits: boolean;
 }
 
+export interface ResolveTokensOptions {
+  /**
+   * A chat's client id. When given, the estimate is that conversation's
+   * whole next turn — system prompt, context and transcript — with `spec`
+   * as the pending context, against the model the conversation would use.
+   * The breakdown then carries `System`, `Context` and `Transcript`.
+   */
+  conversationId?: string;
+}
+
 /**
  * Estimate what a spec would put in front of the model, optionally within a
  * reflection's target window. The chat's 422 guard stays authoritative.
@@ -20,14 +30,17 @@ export interface TokenResolutionResponse {
 export async function resolveContextTokens(
   spec: ContextSpec,
   window?: TimeWindow,
+  opts: ResolveTokensOptions = {},
 ): Promise<TokenResolutionResponse> {
   const client = activeClient();
   if (client.isErr()) throw client.error;
   const baseURL = client.value.baseURL;
 
-  const body = window
-    ? { ...spec, window: { start: window.start, end: window.end } }
-    : spec;
+  const body = {
+    ...spec,
+    ...(window ? { window: { start: window.start, end: window.end } } : {}),
+    ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
+  };
   const res = await fetch(`${baseURL}/api/context/tokens`, {
     method: "POST",
     headers: {

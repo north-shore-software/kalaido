@@ -160,6 +160,7 @@ export default function Chat() {
             context={context}
             onContextChange={setContext}
             entity="chat"
+            meter={{ conversationId: activeClientId }}
             onMention={(item) =>
               setContext((prev) => withContextItem(prev, item))
             }

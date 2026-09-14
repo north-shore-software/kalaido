@@ -19,6 +19,8 @@ import { cn } from "@/lib/css-utils";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessages, type ChatMessagesProps } from "./chat-messages";
 import { ContextBar } from "./context-bar/context-bar";
+import { ContextMeter } from "./context-meter/context-meter";
+import { usePromptEstimate } from "./context-meter/use-prompt-estimate";
 import type { ContextItem, EntityKind } from "./context-picker";
 
 interface ChatPanelProps {
@@ -82,6 +84,12 @@ interface ChatPanelProps {
    * chat's answers are drafts of a snapshot, not material in their own right.
    */
   assistantActions?: ChatMessagesProps["assistantActions"];
+  /**
+   * Show how full the context window is, beneath the composer. Only plain
+   * chat opts in: a refinement's context is the document's, not a session
+   * that runs out.
+   */
+  meter?: { conversationId: string };
   /** Drop the card chrome when embedded in a column that already has a border. */
   flat?: boolean;
   className?: string;
@@ -103,6 +111,7 @@ export function ChatPanel({
   onMessagesChange,
   title,
   assistantActions,
+  meter,
   flat,
   className,
   transport: transportProp,
@@ -184,6 +193,14 @@ export function ChatPanel({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const isLoading = status === "submitted" || status === "streaming";
+
+  const estimate = usePromptEstimate({
+    conversationId: meter?.conversationId ?? "",
+    items: context ?? [],
+    messages,
+    streaming: isLoading,
+    enabled: meter !== undefined,
+  });
 
   const sentInitial = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges is intentionally unlisted — the send is a guarded one-shot
@@ -301,6 +318,15 @@ export function ChatPanel({
         disabled={isLoading}
         quotaMessage={quotaHit ? QUOTA_MESSAGE : undefined}
         onMention={context !== undefined ? onMention : undefined}
+        footer={
+          meter && (
+            <ContextMeter
+              total={estimate.total}
+              limit={estimate.limit}
+              model={estimate.model}
+            />
+          )
+        }
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ContextItem } from "@/api/kalaidoscope/chat";
 import { ComposerSendButton } from "./composer-send-button";
 import { MentionTextarea } from "./mention-textarea";
@@ -11,6 +12,8 @@ export interface ChatComposerProps {
   quotaMessage?: string;
   /** See {@link MentionTextarea}'s onMention — omit to disable mentions. */
   onMention?: (item: ContextItem) => void;
+  /** A row beneath the input, e.g. the context meter. */
+  footer?: ReactNode;
 }
 
 export function ChatComposer({
@@ -21,6 +24,7 @@ export function ChatComposer({
   disabled = false,
   quotaMessage,
   onMention,
+  footer,
 }: ChatComposerProps) {
   const isSendDisabled = !value.trim() || disabled || !!quotaMessage;
 
@@ -44,6 +48,7 @@ export function ChatComposer({
         />
         <ComposerSendButton onClick={onSubmit} disabled={isSendDisabled} />
       </div>
+      {footer && <div className="mt-2">{footer}</div>}
     </div>
   );
 }

@@ -17,6 +17,10 @@ export {
   ContextBar,
   type ContextBarProps,
 } from "./context-bar/context-bar";
+export {
+  ContextMeter,
+  type ContextMeterProps,
+} from "./context-meter/context-meter";
 export type {
   ContextItem,
   ContextKind,
