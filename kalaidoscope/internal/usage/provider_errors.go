@@ -2,6 +2,7 @@ package usage
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -23,6 +24,9 @@ func WriteProviderError(e *core.RequestEvent, err error) bool {
 	if !errors.As(err, &perr) {
 		return false
 	}
+	// The provider already logged the call's shape and the response body;
+	// this line ties that failure to the route the user was on.
+	log.Printf("%s %s: provider error surfaced to client: %v", e.Request.Method, e.Request.URL.Path, err)
 
 	status, code := http.StatusBadGateway, "provider_error"
 	switch perr.Kind {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -186,6 +187,10 @@ func (p *OllamaProvider) Stream(ctx context.Context, messages []llm.Message, too
 		return nil, fmt.Errorf("ollama: marshal: %w", err)
 	}
 
+	shape := llm.Shape(messages, tools, opts)
+	detail := fmt.Sprintf("num_ctx=%v body=%dB", options["num_ctx"], len(body))
+
+	llm.LogRequest(llm.ProviderOllama, modelName, Base+"/api/chat", body)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, Base+"/api/chat", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("ollama: new request: %w", err)
@@ -194,7 +199,30 @@ func (p *OllamaProvider) Stream(ctx context.Context, messages []llm.Message, too
 
 	resp, err := httpx.Streaming().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("ollama: request: %w", err)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		llm.LogFailure(llm.ProviderOllama, modelName, 0, shape, detail, err.Error())
+		return nil, &llm.ProviderError{
+			Provider: llm.ProviderOllama,
+			Kind:     llm.ErrKindTransient,
+			Model:    modelName,
+			Body:     err.Error(),
+		}
+	}
+	// A non-200 body is a JSON error, not a chunk stream; scanning it as
+	// chunks would surface as a silent empty reply.
+	if resp.StatusCode != http.StatusOK {
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		resp.Body.Close()
+		llm.LogFailure(llm.ProviderOllama, modelName, resp.StatusCode, shape, detail, string(errBody))
+		return nil, &llm.ProviderError{
+			Provider:   llm.ProviderOllama,
+			Kind:       llm.ClassifyStatus(resp.StatusCode),
+			StatusCode: resp.StatusCode,
+			Model:      modelName,
+			Body:       strings.TrimSpace(string(errBody)),
+		}
 	}
 
 	ch := make(chan llm.StreamEvent)
