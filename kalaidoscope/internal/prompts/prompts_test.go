@@ -138,3 +138,27 @@ func TestEditFragmentBlockCarriesGuidance(t *testing.T) {
 		t.Error("ContextLegend does not describe edit fragments")
 	}
 }
+
+// The brief transcript labels every turn by role, marks the bookmarked
+// ones, and ends by asking for the one tool call.
+func TestChatBriefTranscript(t *testing.T) {
+	got := ChatBriefTranscript([]ChatBriefLine{
+		{Role: "user", Text: " what about the lifts? "},
+		{Role: "assistant", Text: "The contract lapsed.", Bookmarked: true},
+	})
+	for _, want := range []string{
+		"user:\nwhat about the lifts?\n",
+		"assistant " + BookmarkedMarker + ":\nThe contract lapsed.\n",
+		"Call " + ProposeBriefToolName + " once.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("transcript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "user "+BookmarkedMarker) {
+		t.Errorf("unbookmarked turn marked:\n%s", got)
+	}
+	if !strings.Contains(ChatBriefSystem, ProductBrief) || !strings.Contains(ChatBriefSystem, ProposeBriefToolName) {
+		t.Error("brief system prompt must carry the product brief and name its tool")
+	}
+}

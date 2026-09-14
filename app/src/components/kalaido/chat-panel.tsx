@@ -19,6 +19,8 @@ import { cn } from "@/lib/css-utils";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessages, type ChatMessagesProps } from "./chat-messages";
 import { ContextBar } from "./context-bar/context-bar";
+import { ContextMeter } from "./context-meter/context-meter";
+import { usePromptEstimate } from "./context-meter/use-prompt-estimate";
 import type { ContextItem, EntityKind } from "./context-picker";
 
 interface ChatPanelProps {
@@ -77,11 +79,19 @@ interface ChatPanelProps {
   onMessagesChange?: (messages: UIMessage[]) => void;
   title?: ReactNode;
   /**
-   * Controls to attach under each assistant answer (see {@link ChatMessages}).
-   * Only the surfaces where an answer is worth keeping supply this — a refine
-   * chat's answers are drafts of a snapshot, not material in their own right.
+   * Controls to attach under each chat turn (see {@link ChatMessages}). Only
+   * the surfaces where a turn is worth keeping supply this — a refine chat's
+   * answers are drafts of a snapshot, not material in their own right.
    */
-  assistantActions?: ChatMessagesProps["assistantActions"];
+  messageActions?: ChatMessagesProps["messageActions"];
+  /** See {@link ChatMessages}: which turns keep their actions visible. */
+  actionsVisibleFor?: ChatMessagesProps["actionsVisibleFor"];
+  /**
+   * Show how full the context window is, beneath the composer. Only plain
+   * chat opts in: a refinement's context is the document's, not a session
+   * that runs out.
+   */
+  meter?: { conversationId: string };
   /** Drop the card chrome when embedded in a column that already has a border. */
   flat?: boolean;
   className?: string;
@@ -102,7 +112,9 @@ export function ChatPanel({
   onTurnComplete,
   onMessagesChange,
   title,
-  assistantActions,
+  messageActions,
+  actionsVisibleFor,
+  meter,
   flat,
   className,
   transport: transportProp,
@@ -184,6 +196,14 @@ export function ChatPanel({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const isLoading = status === "submitted" || status === "streaming";
+
+  const estimate = usePromptEstimate({
+    conversationId: meter?.conversationId ?? "",
+    items: context ?? [],
+    messages,
+    streaming: isLoading,
+    enabled: meter !== undefined,
+  });
 
   const sentInitial = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges is intentionally unlisted — the send is a guarded one-shot
@@ -279,7 +299,8 @@ export function ChatPanel({
           messages={messages}
           greeting={greeting}
           pending={isLoading}
-          assistantActions={assistantActions}
+          messageActions={messageActions}
+          actionsVisibleFor={actionsVisibleFor}
         />
         <div ref={bottomRef} />
       </div>
@@ -301,6 +322,15 @@ export function ChatPanel({
         disabled={isLoading}
         quotaMessage={quotaHit ? QUOTA_MESSAGE : undefined}
         onMention={context !== undefined ? onMention : undefined}
+        footer={
+          meter && (
+            <ContextMeter
+              total={estimate.total}
+              limit={estimate.limit}
+              model={estimate.model}
+            />
+          )
+        }
       />
     </div>
   );

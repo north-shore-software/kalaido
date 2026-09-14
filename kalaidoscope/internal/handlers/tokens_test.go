@@ -66,3 +66,60 @@ func TestResolveTokensReportsFit(t *testing.T) {
 		t.Errorf("full + pin = %d, want %d", fullPin.TotalTokens, whole.TotalTokens)
 	}
 }
+
+// The conversation form sizes the whole next turn — system prompt, context
+// deltas and the transcript so far — against the model the conversation
+// would use; an unknown conversation is an empty history plus the pending
+// context, not an error.
+func TestResolveTokensForConversation(t *testing.T) {
+	app := testutil.NewApp(t)
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": strings.Repeat("word ", 50)})
+	script := &chatScript{window: 4000}
+	script.install(t)
+
+	fresh := resolveTokens(t, app, `{"conversationId":"conv-none","wholeScope":"full"}`)
+	if fresh.Breakdown["Transcript"] != 0 || fresh.Breakdown["System"] <= 0 || fresh.Breakdown["Context"] <= 0 {
+		t.Errorf("fresh conversation = %+v, want system + context and no transcript", fresh)
+	}
+	if fresh.Limit != 3500 || fresh.Model == "" {
+		t.Errorf("limit/model = %d/%q, want 3500 and a model", fresh.Limit, fresh.Model)
+	}
+
+	if _, err := runChatTurn(t, app, "conv-est", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hello there"); err != nil {
+		t.Fatal(err)
+	}
+	after := resolveTokens(t, app, `{"conversationId":"conv-est","wholeScope":"full"}`)
+	if after.Breakdown["Transcript"] <= 0 || after.Breakdown["Context"] <= 0 {
+		t.Errorf("after a turn = %+v, want transcript and context", after)
+	}
+	// The pending spec equals the one in effect: no extra context is counted.
+	if after.Breakdown["Context"] != fresh.Breakdown["Context"] {
+		t.Errorf("context re-counted: %d vs %d", after.Breakdown["Context"], fresh.Breakdown["Context"])
+	}
+	if after.TotalTokens != after.Breakdown["System"]+after.Breakdown["Context"]+after.Breakdown["Transcript"] {
+		t.Errorf("total %d is not the sum of %+v", after.TotalTokens, after.Breakdown)
+	}
+	if !after.Fits {
+		t.Errorf("should fit a 4000 window: %+v", after)
+	}
+
+	// Off mode (no whole scope, no pins) drops the context bodies.
+	off := resolveTokens(t, app, `{"conversationId":"conv-est"}`)
+	if off.Breakdown["Context"] >= after.Breakdown["Context"] {
+		t.Errorf("off mode context %d not below full %d", off.Breakdown["Context"], after.Breakdown["Context"])
+	}
+
+	// The conversation's own model override is what gets reported.
+	conv, err := app.FindFirstRecordByFilter("chat_conversation", "external_conversation_id = 'conv-est'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conv.Set("generate_with_model", "custom/model")
+	if err := app.Save(conv); err != nil {
+		t.Fatal(err)
+	}
+	custom := resolveTokens(t, app, `{"conversationId":"conv-est","wholeScope":"full"}`)
+	if custom.Model != "custom/model" {
+		t.Errorf("model = %q, want the conversation override", custom.Model)
+	}
+}

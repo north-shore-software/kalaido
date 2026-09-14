@@ -3,6 +3,7 @@ import {
   type PrepareSendMessagesRequest,
   type UIMessage,
 } from "ai";
+import type { Result } from "neverthrow";
 import { kalaidoscopeAuthHeaders } from "@/api/kalaidoscope/client.ts";
 import {
   SUMMARIES_ITEM,
@@ -10,6 +11,7 @@ import {
 } from "@/api/kalaidoscope/context-items";
 import type { TypedPocketBase } from "@/api/kalaidoscope/types.ts";
 import { stripMentions } from "@/lib/mentions";
+import { withActiveClient } from "./_active";
 
 export type ContextKind =
   | "Colour"
@@ -467,4 +469,73 @@ export async function getConversationMessages(
     requestKey: null,
   });
   return records.map((r) => r.content as UIMessage);
+}
+
+/**
+ * A message's bookmark state, keyed by its UIMessage id — the only id the
+ * client has for a message. `fragmentId` is set once the conversation's
+ * bookmarks have been saved; it outlives the bookmark itself, which is what
+ * keeps a saved message from being saved twice.
+ */
+export interface MessageMark {
+  messageId: string;
+  bookmarked: boolean;
+  fragmentId?: string;
+}
+
+/** Set or clear the bookmark on one message of a plain chat. */
+export async function setBookmark(
+  clientId: string,
+  messageId: string,
+  bookmarked: boolean,
+): Promise<Result<MessageMark, Error>> {
+  return withActiveClient((client) =>
+    client.send<MessageMark>(
+      `/api/chat/conversations/${encodeURIComponent(clientId)}/messages/${encodeURIComponent(messageId)}/bookmark`,
+      { method: "PATCH", body: { bookmarked } },
+    ),
+  );
+}
+
+export interface SavedBookmark {
+  messageId: string;
+  fragmentId: string;
+  /** This call created the fragment; false when the turn was already saved. */
+  created: boolean;
+}
+
+/**
+ * Save every bookmarked turn of a chat as a fragment, in one transaction.
+ * Idempotent: turns already saved come back with their existing fragment.
+ */
+export async function saveBookmarks(
+  clientId: string,
+): Promise<Result<{ saved: SavedBookmark[] }, Error>> {
+  return withActiveClient((client) =>
+    client.send<{ saved: SavedBookmark[] }>(
+      `/api/chat/conversations/${encodeURIComponent(clientId)}/bookmarks/save`,
+      { method: "POST", requestKey: null },
+    ),
+  );
+}
+
+/** The projection a chat was working towards: a name and its opening message. */
+export interface ChatBrief {
+  name: string;
+  message: string;
+}
+
+/**
+ * Ask the model what projection the conversation was working towards. Nothing
+ * is created; the brief is shown for editing before the projection starts.
+ */
+export async function generateBrief(
+  clientId: string,
+): Promise<Result<ChatBrief, Error>> {
+  return withActiveClient((client) =>
+    client.send<ChatBrief>(
+      `/api/chat/conversations/${encodeURIComponent(clientId)}/brief`,
+      { method: "POST", requestKey: null },
+    ),
+  );
 }

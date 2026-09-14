@@ -55,6 +55,8 @@ export interface ProjectionSeed {
   message?: string;
   /** Inputs the new projection reads. Seeds both the picker and the chat. */
   contextSpec?: ContextSpec;
+  /** Kept on the projection as what it is for — a chat's brief. */
+  description?: string;
 }
 
 /**
@@ -141,7 +143,9 @@ export default function NewProjection() {
       setCreating(true);
       let newProjectionId = seed.id;
       if (!newProjectionId) {
-        const created = await createProjection(seed.name);
+        const created = await createProjection(seed.name, {
+          description: seed.description,
+        });
         if (created.isErr()) {
           setCreating(false);
           toast.error("Failed to create projection", {

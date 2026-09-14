@@ -12,7 +12,18 @@ export type TypeFilter = (typeof TYPE_FILTERS)[number];
  *  type; the type chip narrows them client-side (`fragments`) rather than
  *  re-running the LLM evaluation — the backend matches on the prompt only and
  *  ignores type. */
-export function useColourPreview(prompt: string, enabled: boolean) {
+/** The no-seed default, one identity, so it never re-runs the preview effect. */
+const NO_EXAMPLES: readonly string[] = [];
+
+export function useColourPreview(
+  prompt: string,
+  enabled: boolean,
+  /**
+   * Fragments the draft colour will pin; the preview judges with them in
+   * hand. Pass a stable array — it is an effect dependency.
+   */
+  positiveExamples: readonly string[] = NO_EXAMPLES,
+) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [matches, setMatches] = useState<FragmentResponse[]>([]);
   const [previewing, setPreviewing] = useState(false);
@@ -35,7 +46,9 @@ export function useColourPreview(prompt: string, enabled: boolean) {
     const handle = setTimeout(() => {
       void (async () => {
         const res = await previewColourStream(
-          { prompt: text },
+          positiveExamples.length > 0
+            ? { prompt: text, positiveExamples: [...positiveExamples] }
+            : { prompt: text },
           (frag) => {
             // A chunk can still arrive between the next run clearing the list
             // and this stream's abort landing; ignore it so it can't leak into
@@ -59,7 +72,7 @@ export function useColourPreview(prompt: string, enabled: boolean) {
       clearTimeout(handle);
       controller.abort();
     };
-  }, [prompt, enabled]);
+  }, [prompt, enabled, positiveExamples]);
 
   useEffect(() => {
     if (!enabled) setTypeFilter("all");

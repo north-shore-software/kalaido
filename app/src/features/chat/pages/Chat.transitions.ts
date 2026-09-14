@@ -2,12 +2,21 @@ import { defineTransitions } from "@/routes/route-kit";
 
 export const chatTransitions = defineTransitions({
   /**
-   * An answer worth keeping alive stops being a stepping stone and becomes a
-   * living document.
+   * The session's gathered turns stop being stepping stones and become the
+   * inputs of a living document, opened with the brief the chat arrived at.
    */
   graduateToProjection: {
     to: "new-projection",
-    trigger: "Click 'Make a projection' on a chat answer",
-    when: "The answer has been saved as a fragment",
+    trigger: "Click 'Start projection' in the Bookmarks tray",
+    when: "The bookmarked turns have been saved as fragments and a brief exists",
+  },
+  /**
+   * The gathered turns become the seed of a new colour: saved as fragments,
+   * then pinned as its positive examples.
+   */
+  newColourFromBookmarks: {
+    to: "colours",
+    trigger: "Click 'New colour…' in the Bookmarks tray",
+    when: "The bookmarked turns have been saved as fragments",
   },
 });

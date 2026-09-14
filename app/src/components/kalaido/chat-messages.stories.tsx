@@ -1,6 +1,6 @@
 import type { Story } from "@ladle/react";
 import type { UIMessage } from "ai";
-import { PinIcon } from "lucide-react";
+import { BookmarkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fixtureMessages } from "../../features/chat/fixtures";
 import { ChatMessages } from "./chat-messages";
@@ -25,16 +25,21 @@ export const Streaming: Story = () => (
   </div>
 );
 
-// Assistant answers can carry actions — capturing one as a fragment is the
+// Either turn can carry actions — bookmarking it for the session is the
 // first. They sit under the bubble and reveal on hover.
-export const WithAssistantActions: Story = () => (
+export const WithMessageActions: Story = () => (
   <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
     <ChatMessages
       messages={fixtureMessages}
-      assistantActions={() => (
-        <Button variant="ghost" size="xs" className="text-fg-3">
-          <PinIcon />
-          Save as fragment
+      messageActions={({ pending }) => (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="text-fg-3"
+          disabled={pending}
+        >
+          <BookmarkIcon />
+          Bookmark
         </Button>
       )}
     />

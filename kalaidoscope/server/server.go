@@ -138,6 +138,11 @@ func RegisterRoutes(app core.App) {
 
 		se.Router.POST("/api/context/tokens", handlers.HandleResolveTokens(app))
 
+		// Chat bookmarks: the session's gathered messages and what becomes of them.
+		se.Router.PATCH("/api/chat/conversations/{cid}/messages/{mid}/bookmark", handlers.HandleBookmarkMessage(app))
+		se.Router.POST("/api/chat/conversations/{cid}/bookmarks/save", handlers.HandleSaveBookmarks(app))
+		se.Router.POST("/api/chat/conversations/{cid}/brief", handlers.HandleChatBrief(app))
+
 		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
 
 		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))

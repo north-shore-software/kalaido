@@ -7,6 +7,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -15,13 +16,18 @@ import (
 // HandleResolveTokens estimates what a spec would put in front of the model,
 // per item, and whether that fits the chat model's prompt budget — the context
 // bar's pre-flight for offering whole scope in full.
+//
+// With a conversationId the estimate is the whole next turn of that chat
+// instead — system prompt, context and transcript — against the model the
+// conversation would actually use; the chat's context meter reads this.
 func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		// The spec's own fields plus an optional window: a reflection's
 		// context bar counts only what falls inside its target window.
 		var body struct {
 			api.ContextSpec
-			Window *api.Window `json:"window,omitempty"`
+			Window         *api.Window `json:"window,omitempty"`
+			ConversationID string      `json:"conversationId,omitempty"`
 		}
 		if err := e.BindBody(&body); err != nil {
 			return e.BadRequestError("Invalid JSON body", err)
@@ -32,6 +38,9 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		ctx := e.Request.Context()
+		if body.ConversationID != "" {
+			return resolvePromptTokens(e, app, body.ConversationID, spec, win)
+		}
 		res := api.TokenResolutionResponse{
 			Breakdown: make(map[string]int),
 		}
@@ -74,6 +83,30 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 
 		return e.JSON(http.StatusOK, res)
 	}
+}
+
+// resolvePromptTokens answers the conversation form: the next turn's prompt,
+// split into what the transcript is made of. The conversation's own model
+// override wins here, as it does on the turn itself.
+func resolvePromptTokens(e *core.RequestEvent, app core.App, clientID string, spec api.ContextSpec, win *api.Window) error {
+	est, err := chat.EstimatePrompt(e.Request.Context(), app, clientID, &spec, win)
+	if err != nil {
+		return e.InternalServerError("estimate failed", err)
+	}
+	res := api.TokenResolutionResponse{
+		TotalTokens: est.Total(),
+		Breakdown: map[string]int{
+			"System":     est.System,
+			"Context":    est.Context,
+			"Transcript": est.Transcript,
+		},
+	}
+	if model, err := llm.ResolveRoleFor(llm.RoleChat, est.Model); err == nil {
+		res.Model = model
+		res.Limit = engine.PromptBudget(model)
+	}
+	res.Fits = res.Limit <= 0 || res.TotalTokens <= res.Limit
+	return e.JSON(http.StatusOK, res)
 }
 
 // countTokensForSpec is the estimate for one spec rendered as a fresh context,

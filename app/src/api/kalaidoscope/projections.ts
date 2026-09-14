@@ -17,11 +17,17 @@ export interface RegenerateProjectionResult {
  */
 export async function createProjection(
   name: string,
+  opts: {
+    /** What the projection is for — a chat's brief. Empty for typed creates. */
+    description?: string;
+  } = {},
 ): Promise<Result<CreateProjectionResult, Error>> {
   return withActiveClient((client) =>
     client.send<CreateProjectionResult>("/api/projections", {
       method: "POST",
-      body: { name },
+      body: opts.description
+        ? { name, description: opts.description }
+        : { name },
     }),
   );
 }

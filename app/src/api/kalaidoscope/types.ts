@@ -123,9 +123,11 @@ export type ChatConversationRecord = {
 }
 
 export type ChatMessageRecord<Tcontent = unknown> = {
+	bookmarked?: boolean
 	chat_conversation_id?: RecordIdString
 	content?: null | Tcontent
 	created: IsoAutoDateString
+	fragment_id?: RecordIdString
 	generated_by_model?: string
 	id: string
 	projection_refinement_id?: RecordIdString

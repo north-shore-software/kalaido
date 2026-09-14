@@ -43,8 +43,11 @@ type WindowSpecVersion struct {
 }
 
 type TokenResolutionResponse struct {
-	TotalTokens int            `json:"totalTokens"`
-	Breakdown   map[string]int `json:"breakdown"`
+	TotalTokens int `json:"totalTokens"`
+	// Per-item under the spec form ("WholeScope", "Fragment:<id>", …); under
+	// the conversation form the prompt's three parts: "System", "Context",
+	// "Transcript".
+	Breakdown map[string]int `json:"breakdown"`
 	// Model is the chat role's default model the estimate was checked against;
 	// Limit its prompt budget (0 when the provider reports no window) and Fits
 	// whether TotalTokens is within it. The chat guard remains authoritative —

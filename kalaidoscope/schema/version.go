@@ -18,7 +18,8 @@ import (
 //
 // Version 1 is the launch schema, frozen in baseline/v1.go.
 // Version 2 adds the "edit" fragment type (deltas/v0002_add_fragment_type_edit.go).
-const Version = 2
+// Version 3 adds chat_message.bookmarked and .fragment_id (deltas/v0003_add_chat_message_bookmark.go).
+const Version = 3
 
 // BuildRev identifies the build, for the failed-migration marker: the same
 // build never retries a migration it already failed, a different build does.
