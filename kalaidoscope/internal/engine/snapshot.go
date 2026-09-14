@@ -14,7 +14,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -43,7 +42,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("%s not found: %s", strat.TargetType(), targetID)
 	}
 
-	lensPrompt, lensSpec, _ := resolveActiveLens(app, strat, rec)
+	lensPrompt, lensSpec := resolveActiveLens(app, strat, rec)
 	if strings.TrimSpace(lensPrompt) == "" {
 		// The entity has never had a refinement committed — a commit installs
 		// the drafted lens in the same transaction as the approved snapshot,
@@ -58,30 +57,12 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	// statusSnapshotFilter).
 	lensID := rec.GetString("current_lens_id")
 
-	model, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model"))
+	model, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("generate_with_model"))
 	if err != nil {
 		return "", err
 	}
 
-	var winSpec, resWin any
-	var winKey string
-	var specVersionNumber int
-	if strat.TargetType() == "reflection" {
-		if version, ok := GoverningVersion(LoadWindowSpecVersions(rec), time.Now()); ok {
-			winSpec = version.Spec
-			specVersionNumber = version.VersionNumber
-		}
-
-		if window != nil {
-			resWin = map[string]string{
-				"start": window.Start,
-				"end":   window.End,
-			}
-			winKey = window.Start + "_" + window.End
-		}
-	}
-
-	claimID, err := claimGeneration(app, strat, rec.Id, winKey)
+	claimID, err := claimGeneration(app, strat, rec.Id, window)
 	if err != nil {
 		return "", err
 	}
@@ -108,7 +89,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 	outputModel := model
 
-	switch prev, otherLens := latestApprovedOutput(app, strat, rec.Id, winKey, lensID); {
+	switch prev, otherLens := latestApprovedOutput(app, strat, rec.Id, window, lensID); {
 	case otherLens:
 		// The published output was produced by a different lens. Its wording
 		// and shape are not this lens's to preserve — the minimal-diff rewrite
@@ -150,17 +131,14 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 
 	if err := completeClaimedSnapshot(ctx, app, strat, claimID, SnapshotSpec{
-		SourceID:                rec.Id,
-		LensID:                  lensID,
-		Output:                  outputStr,
-		ContextSpec:             lensSpec,
-		ResolvedContext:         pinnedCtx,
-		WindowSpec:              winSpec,
-		ResolvedWindow:          resWin,
-		Status:                  status,
-		Model:                   outputModel,
-		WindowKey:               winKey,
-		WindowSpecVersionNumber: specVersionNumber,
+		SourceID:        rec.Id,
+		LensID:          lensID,
+		Output:          outputStr,
+		ContextSpec:     lensSpec,
+		ResolvedContext: pinnedCtx,
+		Window:          window,
+		Status:          status,
+		Model:           outputModel,
 	}); err != nil {
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
@@ -186,8 +164,8 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 // wrong when the lens itself changed. otherLens reports the latter — the
 // newest approved snapshot exists but belongs to another lens — so the caller
 // can say why it is generating from scratch.
-func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey, lensID string) (output string, otherLens bool) {
-	filter, params := ApprovedSnapshotFilter(strat, parentID, windowKey)
+func latestApprovedOutput(app core.App, strat Strategy, parentID string, window *api.Window, lensID string) (output string, otherLens bool) {
+	filter, params := ApprovedSnapshotFilter(strat, parentID, window)
 	recs, err := app.FindRecordsByFilter(
 		strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
 	if err != nil || len(recs) == 0 {
@@ -196,7 +174,7 @@ func latestApprovedOutput(app core.App, strat Strategy, parentID, windowKey, len
 	if recs[0].GetString("lens_id") != lensID {
 		return "", true
 	}
-	return pbutil.DecodeJSONString(recs[0].GetString("output")), false
+	return recs[0].GetString("output"), false
 }
 
 // minimizeAgainstPrevious rewrites a freshly generated candidate as a minimal
@@ -248,7 +226,7 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 	// approved snapshots count. -approval_sequence_number breaks same-millisecond
 	// `created` ties deterministically (see .agents/bugs/engine-2026-08-20…).
 	recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(),
-		strat.ForeignKeyCol()+" = {:id} && (status = 'pending' || status = 'approved')",
+		strat.ForeignKeyCol()+" = {:id} && (status = 'pending_review' || status = 'approved')",
 		"-created,-approval_sequence_number", 1, 0, dbx.Params{"id": rec.Id})
 	if err != nil || len(recs) == 0 {
 		return false
@@ -260,12 +238,12 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 	// A model change makes the latest snapshot non-current — but only when both
 	// sides are known: legacy and empty-lens snapshots carry no model and must
 	// not read as perpetually stale.
-	if snapModel := latest.GetString("model"); snapModel != "" {
-		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("model")); err == nil && effective != snapModel {
+	if snapModel := latest.GetString("generated_by_model"); snapModel != "" {
+		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("generate_with_model")); err == nil && effective != snapModel {
 			return false
 		}
 	}
-	_, lensSpec, _ := resolveActiveLens(app, strat, rec)
+	_, lensSpec := resolveActiveLens(app, strat, rec)
 	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec, nil)
 	if err != nil {
 		return false

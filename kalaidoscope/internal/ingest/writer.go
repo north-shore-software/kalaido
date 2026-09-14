@@ -56,12 +56,12 @@ func (w *writer) addAt(fragType, source, content string, sourceTime time.Time) e
 	}
 	rec := core.NewRecord(w.col)
 	rec.Set("type", fragType)
-	rec.Set("origin", w.origin)
+	rec.Set("ingested_via", w.origin)
 	rec.Set("source", source)
 	rec.Set("content", content)
 	if !sourceTime.IsZero() {
 		if dt, err := types.ParseDateTime(sourceTime); err == nil {
-			rec.Set("source_time", dt)
+			rec.Set("occurred_at", dt)
 		}
 	}
 	if err := w.app.Save(rec); err != nil {

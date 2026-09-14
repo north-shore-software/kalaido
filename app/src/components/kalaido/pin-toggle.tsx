@@ -7,26 +7,32 @@ import { cn } from "@/lib/css-utils";
 export function PinToggle({
   pinned,
   onToggle,
+  disabled,
 }: {
   pinned: boolean;
   onToggle: () => void;
+  disabled?: boolean;
 }) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> — `ListRow` and `DocumentCard` render this inside their own button, and nesting interactive elements inside a button is invalid.
     <span
       role="button"
-      tabIndex={0}
+      tabIndex={disabled ? -1 : 0}
       aria-label={pinned ? "Unpin" : "Pin"}
+      aria-disabled={disabled}
       className={cn(
-        "flex size-6 shrink-0 items-center justify-center rounded-none transition-colors hover:bg-surface-2",
+        "flex size-6 shrink-0 items-center justify-center rounded-none transition-colors",
+        disabled ? "cursor-not-allowed opacity-50" : "hover:bg-surface-2",
         pinned ? "text-section-ink" : "text-fg-4 hover:text-fg-2",
       )}
       onClick={(e) => {
         e.stopPropagation();
-        onToggle();
+        if (!disabled) {
+          onToggle();
+        }
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (!disabled && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
           e.stopPropagation();
           onToggle();

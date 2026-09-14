@@ -58,8 +58,8 @@ export interface ContextItem {
   /** Record id for Colour/Fragment/Projection/Reflection; the fragment-type enum value for Type. */
   id: string;
   label: string;
-  /** A colour's `value` (tailwind class / hex / css colour) — Colour kind only. */
-  value?: string;
+  /** A colour's palette slot — Colour kind only. */
+  swatch?: number;
 }
 
 export type MessageRole = "user" | "assistant";
@@ -81,6 +81,8 @@ export interface Conversation {
  *
  * An empty spec (`{}`) is meaningful: it clears all previously pinned context.
  */
+export type WholeScopeMode = "full" | "summaries";
+
 export interface ContextSpec {
   /**
    * Individual fragments pinned by id, included whatever their type or colours.
@@ -92,13 +94,7 @@ export interface ContextSpec {
   colourIds?: string[];
   sourceProjectionIds?: string[];
   sourceReflectionIds?: string[];
-  wholeScope?: boolean;
-  /**
-   * Render the resolved fragments as their annotation rows (title, summary,
-   * cited things) instead of full bodies, and give the model read tools. The
-   * way to chat over a scope too large for the context window.
-   */
-  summaries?: boolean;
+  wholeScope?: WholeScopeMode;
 }
 
 /**
@@ -212,8 +208,7 @@ function criteriaToSpec(items: ContextItem[]): ContextSpec {
   }
 
   const spec: ContextSpec = {};
-  if (wholeScope) spec.wholeScope = true;
-  if (summaries) spec.summaries = true;
+  if (wholeScope) spec.wholeScope = summaries ? "summaries" : "full";
   if (fragmentIds.length) spec.fragmentIds = fragmentIds;
   if (fragmentTypes.length) spec.fragmentTypes = fragmentTypes;
   if (colourIds.length) spec.colourIds = colourIds;
@@ -284,8 +279,12 @@ export function specToItems(spec: ContextSpec): ContextItem[] {
 
 function criteriaToItems(spec: ContextSpec): ContextItem[] {
   const items: ContextItem[] = [];
-  if (spec.wholeScope) items.push(WHOLE_SCOPE_ITEM);
-  if (spec.summaries) items.push(SUMMARIES_ITEM);
+  if (spec.wholeScope) {
+    items.push(WHOLE_SCOPE_ITEM);
+    if (spec.wholeScope === "summaries") {
+      items.push(SUMMARIES_ITEM);
+    }
+  }
   for (const id of spec.colourIds ?? [])
     items.push({ kind: "Colour", id, label: id });
   for (const t of spec.fragmentTypes ?? [])
@@ -311,8 +310,7 @@ export function specKey(spec: ContextSpec): string {
     colourIds: [...(spec.colourIds ?? [])].sort(),
     sourceProjectionIds: [...(spec.sourceProjectionIds ?? [])].sort(),
     sourceReflectionIds: [...(spec.sourceReflectionIds ?? [])].sort(),
-    wholeScope: spec.wholeScope ?? false,
-    summaries: spec.summaries ?? false,
+    wholeScope: spec.wholeScope ?? "",
   });
 }
 

@@ -48,7 +48,7 @@ describe("itemsToSpec scope modes", () => {
   });
 
   test("the marker alone is whole scope in full", () => {
-    expect(itemsToSpec([WHOLE_SCOPE_ITEM])).toEqual({ wholeScope: true });
+    expect(itemsToSpec([WHOLE_SCOPE_ITEM])).toEqual({ wholeScope: "full" });
   });
 
   test("summaries with pins carries both flags and the pins", () => {
@@ -60,8 +60,7 @@ describe("itemsToSpec scope modes", () => {
         { kind: "Colour", id: "c1", label: "Urgent" },
       ]),
     ).toEqual({
-      wholeScope: true,
-      summaries: true,
+      wholeScope: "summaries",
       fragmentIds: ["f1"],
       colourIds: ["c1"],
     });
@@ -90,15 +89,15 @@ describe("specToItems", () => {
     // The case the marker exists for. Without it this spec would come back as
     // "just this projection", silently dropping every fragment in the scope.
     const spec = {
-      wholeScope: true,
+      wholeScope: "full" as const,
       sourceProjectionIds: ["p1"],
     };
     expect(itemsToSpec(specToItems(spec))).toEqual(spec);
   });
 
   test("round-trips a bare whole scope", () => {
-    expect(itemsToSpec(specToItems({ wholeScope: true }))).toEqual({
-      wholeScope: true,
+    expect(itemsToSpec(specToItems({ wholeScope: "full" }))).toEqual({
+      wholeScope: "full",
     });
   });
 });
@@ -148,14 +147,14 @@ describe("diffContextSpecs", () => {
   });
 
   test("an unchanged spec diffs to nothing", () => {
-    const spec = { wholeScope: true, fragmentIds: ["f1"] };
+    const spec = { wholeScope: "full" as const, fragmentIds: ["f1"] };
     const delta = diffContextSpecs(spec, { ...spec });
     expect(delta).toEqual({ added: [], removed: [] });
   });
 
   test("the whole-scope marker takes part in the diff", () => {
     const delta = diffContextSpecs(
-      { wholeScope: true },
+      { wholeScope: "full" },
       {
         fragmentTypes: ["note"],
       },
@@ -166,29 +165,28 @@ describe("diffContextSpecs", () => {
 });
 
 describe("summaries marker", () => {
-  test("maps the marker to spec.summaries alongside whole scope", () => {
+  test("maps the marker to spec.wholeScope: 'summaries'", () => {
     expect(itemsToSpec([WHOLE_SCOPE_ITEM, SUMMARIES_ITEM])).toEqual({
-      wholeScope: true,
-      summaries: true,
+      wholeScope: "summaries",
     });
   });
 
   test("round-trips through specToItems", () => {
-    const spec = { wholeScope: true, summaries: true };
+    const spec = { wholeScope: "summaries" as const };
     expect(itemsToSpec(specToItems(spec))).toEqual(spec);
     expect(specToItems(spec)).toContainEqual(SUMMARIES_ITEM);
   });
 
   test("specKey changes on the flag alone", () => {
-    expect(specKey({ wholeScope: true })).not.toBe(
-      specKey({ wholeScope: true, summaries: true }),
+    expect(specKey({ wholeScope: "full" })).not.toBe(
+      specKey({ wholeScope: "summaries" }),
     );
   });
 
   test("diffContextSpecs reports the marker as added", () => {
     const delta = diffContextSpecs(
-      { wholeScope: true },
-      { wholeScope: true, summaries: true },
+      { wholeScope: "full" },
+      { wholeScope: "summaries" },
     );
     expect(delta.added).toEqual([SUMMARIES_ITEM]);
     expect(delta.removed).toEqual([]);

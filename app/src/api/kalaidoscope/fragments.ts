@@ -1,5 +1,6 @@
-import type { Result } from "neverthrow";
-import { withActiveClient } from "./_active";
+import { err, ok, type Result } from "neverthrow";
+import { activeClient, toError } from "./_active";
+import { kalaidoscopeAuthHeaders } from "./client";
 import type { FragmentTypeOptions } from "./types";
 
 /**
@@ -9,15 +10,38 @@ import type { FragmentTypeOptions } from "./types";
 export async function addFragment(
   type: FragmentTypeOptions,
   content: string,
-  opts?: { source?: string; occurredAt?: string },
+  opts?: { source?: string; occurredAt?: string; ingestedVia?: string },
 ): Promise<Result<string, Error>> {
-  return withActiveClient(async (client) => {
-    const rec = await client.collection("fragment").create({
-      type,
-      content,
-      ...(opts?.source ? { source: opts.source } : {}),
-      ...(opts?.occurredAt ? { source_time: opts.occurredAt } : {}),
+  const client = activeClient();
+  if (client.isErr()) return err(client.error);
+  const baseURL = client.value.baseURL;
+
+  try {
+    const res = await fetch(`${baseURL}/api/ingest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await kalaidoscopeAuthHeaders(baseURL)),
+      },
+      body: JSON.stringify({
+        type,
+        content,
+        ingested_via: opts?.ingestedVia ?? "app",
+        source: opts?.source,
+        occurred_at: opts?.occurredAt,
+      }),
     });
-    return rec.id;
-  });
+    if (!res.ok) {
+      let msg = `Ingest failed: ${res.status}`;
+      try {
+        const body = (await res.json()) as { message?: string };
+        if (body?.message) msg = body.message;
+      } catch {}
+      return err(new Error(msg));
+    }
+    const data = (await res.json()) as { fragmentId: string };
+    return ok(data.fragmentId);
+  } catch (e) {
+    return err(toError(e));
+  }
 }

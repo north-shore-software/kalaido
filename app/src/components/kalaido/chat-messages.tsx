@@ -175,7 +175,7 @@ function ContextSpecDivider({
   const entry = (it: (typeof delta.added)[number], sign: "+" | "−" | null) => {
     const swatch =
       it.kind === "Colour"
-        ? sources.colours.find((s) => s.id === it.id)?.value
+        ? sources.colours.find((s) => s.id === it.id)?.swatch
         : undefined;
     return (
       <span
@@ -193,7 +193,7 @@ function ContextSpecDivider({
               {KIND_ABBREV[it.kind]}
             </span>
           )}
-        {swatch != null && <ColourSwatch value={swatch} size={8} />}
+        {swatch != null && <ColourSwatch c={swatch} size={8} />}
         <span className="min-w-0 truncate">{display(it)}</span>
       </span>
     );

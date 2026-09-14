@@ -39,7 +39,7 @@ export function useActiveContext(messages: UIMessage[]) {
             return {
               ...it,
               label: opt?.name ?? "Unknown Colour",
-              value: opt?.value,
+              swatch: opt?.swatch,
             };
           }
           case "Projection": {

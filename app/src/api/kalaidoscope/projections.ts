@@ -54,7 +54,7 @@ export async function regenerateProjection(
  */
 export async function updateProjection(
   projectionId: string,
-  patch: { name?: string; pinned?: boolean },
+  patch: { name?: string; pinned?: boolean; generateWithModel?: string },
 ): Promise<Result<{ id: string }, Error>> {
   return withActiveClient((client) =>
     client.send<{ id: string }>(`/api/projections/${projectionId}`, {
@@ -74,9 +74,12 @@ export async function getPendingCandidate(
 ): Promise<Result<{ id: string } | null, Error>> {
   return withActiveClient(async (client) => {
     const recs = await client.collection("projection_snapshot").getFullList({
-      filter: client.filter('projection_id = {:id} && status = "pending"', {
-        id: projectionId,
-      }),
+      filter: client.filter(
+        'projection_id = {:id} && status = "pending_review"',
+        {
+          id: projectionId,
+        },
+      ),
       sort: "-created",
       fields: "id",
       requestKey: null,

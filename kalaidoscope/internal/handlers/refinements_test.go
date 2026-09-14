@@ -18,7 +18,7 @@ func newRefinement(t *testing.T, app core.App) *core.Record {
 	t.Helper()
 
 	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "target"})
-	return testutil.NewRecord(t, app, "refine_proj_snapshot_conversation", map[string]any{
+	return testutil.NewRecord(t, app, "projection_refinement", map[string]any{
 		"projection_id":            proj.Id,
 		"external_conversation_id": "client-1",
 	})

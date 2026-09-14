@@ -39,7 +39,7 @@ func TestResolveTokensReportsFit(t *testing.T) {
 	script := &chatScript{window: 400}
 	script.install(t)
 
-	whole := resolveTokens(t, app, `{"wholeScope":true}`)
+	whole := resolveTokens(t, app, `{"wholeScope":"full"}`)
 	if whole.Limit != 350 || whole.Model == "" {
 		t.Errorf("limit/model = %d/%q, want 350 and a model", whole.Limit, whole.Model)
 	}
@@ -52,7 +52,7 @@ func TestResolveTokensReportsFit(t *testing.T) {
 		t.Errorf("single pin = %+v, want a smaller fitting estimate", pin)
 	}
 
-	summaries := resolveTokens(t, app, `{"wholeScope":true,"summaries":true,"fragmentIds":["`+big.Id+`"]}`)
+	summaries := resolveTokens(t, app, `{"wholeScope":"summaries","fragmentIds":["`+big.Id+`"]}`)
 	if summaries.Breakdown["WholeScope"] >= whole.Breakdown["WholeScope"] {
 		t.Errorf("summaries whole scope not smaller: %+v vs %+v", summaries, whole)
 	}
@@ -61,7 +61,7 @@ func TestResolveTokensReportsFit(t *testing.T) {
 	}
 
 	// Full mode with a fragment pin: the pin is inside the whole scope, not extra.
-	fullPin := resolveTokens(t, app, `{"wholeScope":true,"fragmentIds":["`+big.Id+`"]}`)
+	fullPin := resolveTokens(t, app, `{"wholeScope":"full","fragmentIds":["`+big.Id+`"]}`)
 	if fullPin.TotalTokens != whole.TotalTokens {
 		t.Errorf("full + pin = %d, want %d", fullPin.TotalTokens, whole.TotalTokens)
 	}

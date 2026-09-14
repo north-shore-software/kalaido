@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Discover — Generated Audit Snapshot
 
 > **Generated:** 2026-09-03, from source at commit `f67e51c`.

@@ -37,7 +37,7 @@ func ExtractNewMessages(dbMsgs []api.UIMessage, incoming []api.UIMessage) []api.
 // hydration and the prompt choice.
 func ConversationSummaries(allMsgs []api.UIMessage) bool {
 	_, spec, _ := llmcontext.LatestPinnedAndSpec(allMsgs)
-	return spec.Summaries
+	return spec.WholeScope == api.WholeScopeSummaries
 }
 
 func PrepareLLMPrompt(ctx context.Context, app core.App, conv *core.Record, allMsgs []api.UIMessage) []llm.Message {
@@ -302,7 +302,7 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 	var activeIDs llmcontext.PinnedIDs
 	var hydratedMsgs []llm.Message
 	final, spec, _ := llmcontext.LatestPinnedAndSpec(allMsgs)
-	hydrator := llmcontext.NewHydrator(app, final, spec.Summaries)
+	hydrator := llmcontext.NewHydrator(app, final, spec.WholeScope == api.WholeScopeSummaries)
 
 	for _, m := range allMsgs {
 		if m.Role == "system" {

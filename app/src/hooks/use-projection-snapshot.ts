@@ -6,14 +6,9 @@ import type {
 } from "@/api/kalaidoscope/types";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 
-/**
- * Decoded snapshot payload. The generator emits the LLM output as plain text
- * (decoded into `{ content }` by {@link parseProjectionOutput}); the shape stays
- * loose so older/structured snapshots still render off `content`.
- */
+/** Snapshot payload: the generated markdown, wrapped by {@link parseProjectionOutput}. */
 export interface ProjectionOutput {
   content?: string;
-  [key: string]: unknown;
 }
 
 /**
@@ -131,23 +126,7 @@ export function useProjectionSnapshot(
   return { state, projection, snapshots, liveSnapshot, generating };
 }
 
-/**
- * Snapshot outputs are stored as a JSON-encoded string (see `pbutil.JSONString`
- * on the backend), so PocketBase hands us a string we still have to parse.
- * Tolerates an already-decoded object and falls back to treating the raw value
- * as the content rather than throwing.
- */
+/** A snapshot's `output` column holds the generated markdown as plain text. */
 export function parseProjectionOutput(raw: unknown): ProjectionOutput {
-  if (raw && typeof raw === "object") return raw as ProjectionOutput;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (parsed && typeof parsed === "object")
-        return parsed as ProjectionOutput;
-    } catch {
-      // not JSON — treat the string itself as the content
-    }
-    return { content: raw };
-  }
-  return {};
+  return typeof raw === "string" ? { content: raw } : {};
 }

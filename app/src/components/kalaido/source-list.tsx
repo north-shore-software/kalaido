@@ -9,7 +9,8 @@ export interface SourceItem {
   kind: SourceKind;
   id: string;
   label: string;
-  value?: string;
+  /** A colour's palette slot — Colour kind only. */
+  swatch?: number;
 }
 
 export interface SourceListProps {
@@ -31,7 +32,7 @@ export function SourceList({ sources, className }: SourceListProps) {
           className="inline-flex max-w-full items-center gap-1"
         >
           {s.kind === "Colour" ? (
-            <ColourSwatch value={s.value} size={8} />
+            <ColourSwatch c={s.swatch} size={8} />
           ) : (
             <KindPill
               kind={s.kind === "Projection" ? "projection" : "reflection"}

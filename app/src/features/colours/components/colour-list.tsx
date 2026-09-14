@@ -1,6 +1,5 @@
 import type { ColourResponse } from "@/api/kalaidoscope/types";
 import { ColourSwatch, EmptyState, ListRow } from "@/components/kalaido";
-import { swatchIndex } from "@/lib/colors";
 
 export function ColourList({
   colours,
@@ -31,8 +30,7 @@ export function ColourList({
             onClick={() => onSelect(c.id)}
             leading={
               <ColourSwatch
-                c={swatchIndex(c.id)}
-                value={c.colour_value || undefined}
+                c={c.swatch ?? 0}
                 size={16}
                 className="rounded-none"
               />

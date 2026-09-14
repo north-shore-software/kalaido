@@ -113,7 +113,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		// follows the entity it refines.
 		parentModel := ""
 		if p := refinementParent(app, refRec); p != nil {
-			parentModel = p.GetString("model")
+			parentModel = p.GetString("generate_with_model")
 		}
 
 		// A send that carries only a new target window (no user text) asks for

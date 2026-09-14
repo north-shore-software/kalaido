@@ -64,7 +64,7 @@ func TestResolveExplicitFragments(t *testing.T) {
 
 	note := addFragment(t, app, "note", "a note")
 	email := addFragment(t, app, "email", "an email")
-	addFragment(t, app, "sms", "unrelated")
+	addFragment(t, app, "chat", "unrelated")
 
 	t.Run("a pin resolves to exactly that fragment", func(t *testing.T) {
 		got := resolveFragmentIDs(t, app, api.ContextSpec{
@@ -97,7 +97,7 @@ func TestResolveExplicitFragments(t *testing.T) {
 	// is in scope already, so there is nothing for a pin to add.
 	t.Run("whole scope subsumes pins", func(t *testing.T) {
 		got := resolveFragmentIDs(t, app, api.ContextSpec{
-			WholeScope:  true,
+			WholeScope:  api.WholeScopeFull,
 			FragmentIDs: []string{note.Id},
 		})
 		if len(got) != 3 {
@@ -125,8 +125,8 @@ func TestResolveExplicitFragmentsSkipsDeleted(t *testing.T) {
 	assertIDs(t, got, sorted(kept.Id))
 }
 
-// A window restricts resolution to fragments whose event date (source_time)
-// falls inside it, half-open. A fragment that arrived without a source_time is
+// A window restricts resolution to fragments whose event date (occurred_at)
+// falls inside it, half-open. A fragment that arrived without a occurred_at is
 // placed by its import time instead, so it belongs to the window covering
 // "now" rather than to none.
 func TestResolveWindowFiltersByEventDate(t *testing.T) {
@@ -140,23 +140,23 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 		return d
 	}
 	inside := testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "inside", "source_time": at("2026-08-10T12:00:00Z"),
+		"type": "note", "content": "inside", "occurred_at": at("2026-08-10T12:00:00Z"),
 	})
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "before", "source_time": at("2026-07-30T12:00:00Z"),
+		"type": "note", "content": "before", "occurred_at": at("2026-07-30T12:00:00Z"),
 	})
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "at the end (excluded)", "source_time": at("2026-08-15T00:00:00Z"),
+		"type": "note", "content": "at the end (excluded)", "occurred_at": at("2026-08-15T00:00:00Z"),
 	})
 	atStart := testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "at the start (included)", "source_time": at("2026-08-08T00:00:00Z"),
+		"type": "note", "content": "at the start (included)", "occurred_at": at("2026-08-08T00:00:00Z"),
 	})
-	undated := addFragment(t, app, "note", "no source_time; created now")
+	undated := addFragment(t, app, "note", "no occurred_at; created now")
 
 	win := &api.Window{Start: "2026-08-08T00:00:00Z", End: "2026-08-15T00:00:00Z"}
 
 	t.Run("whole scope", func(t *testing.T) {
-		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, win)
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: api.WholeScopeFull}, win)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,7 +176,7 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 			Start: types.NowDateTime().Time().Add(-time.Hour).UTC().Format(time.RFC3339),
 			End:   types.NowDateTime().Time().Add(time.Hour).UTC().Format(time.RFC3339),
 		}
-		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, now)
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: api.WholeScopeFull}, now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +184,7 @@ func TestResolveWindowFiltersByEventDate(t *testing.T) {
 	})
 
 	t.Run("nil window is unrestricted", func(t *testing.T) {
-		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: true}, nil)
+		pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{WholeScope: api.WholeScopeFull}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -222,7 +222,7 @@ func TestResolveWholeScopeExpandsPins(t *testing.T) {
 	colour := testutil.NewRecord(t, app, "colour", map[string]any{"name": "c"})
 	testutil.NewRecord(t, app, "colour_fragment", map[string]any{"colour_id": colour.Id, "fragment_id": viaColour.Id, "match_type": "prompt"})
 
-	spec := api.ContextSpec{WholeScope: true, Summaries: true, FragmentIDs: []string{pinned.Id}, ColourIDs: []string{colour.Id}}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeSummaries, FragmentIDs: []string{pinned.Id}, ColourIDs: []string{colour.Id}}
 	got, err := llmcontext.ResolveSpecToIDs(context.Background(), app, spec, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -41,16 +40,12 @@ func aggregateLoop() {
 		}
 		if due {
 			cycle(workerApp)
-			continue
-		}
-		if err := refreshCounters(workerApp); err != nil {
-			log.Printf("mapping: counters: %v", err)
 		}
 	}
 }
 
 func consolidateDue(app core.App, now time.Time) (bool, error) {
-	rows, err := app.FindRecordsByFilter("fragment_annotation", "folded = false", "-created", 0, 0, nil)
+	rows, err := app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "-created", 0, 0, nil)
 	if err != nil || len(rows) == 0 {
 		return false, err
 	}
@@ -80,30 +75,6 @@ func integrate(app core.App) {
 	if err := consolidate(app); err != nil {
 		log.Printf("mapping: consolidate: %v", err)
 	}
-	if err := refreshCounters(app); err != nil {
-		log.Printf("mapping: counters: %v", err)
-	}
-}
-
-func refreshCounters(app core.App) error {
-	fragments, err := app.CountRecords("fragment", dbx.NewExp("deleted_at = ''"))
-	if err != nil {
-		return err
-	}
-	annotated, err := app.CountRecords("fragment_annotation")
-	if err != nil {
-		return err
-	}
-	d, err := loadDocument(app)
-	if err != nil {
-		return err
-	}
-	if d.rec.GetInt("fragments") == int(fragments) && d.rec.GetInt("annotated") == int(annotated) {
-		return nil
-	}
-	d.rec.Set("fragments", fragments)
-	d.rec.Set("annotated", annotated)
-	return app.Save(d.rec)
 }
 
 // WaitSettled blocks while a consolidation is in progress and returns once the

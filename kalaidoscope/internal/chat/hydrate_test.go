@@ -39,7 +39,7 @@ func TestHydrateDeltaHistoryUsesCurrentMode(t *testing.T) {
 		return append(history, batch...)
 	}
 	user := api.UIMessage{ID: "u1", Role: "user", Parts: []api.UIMessagePart{{Type: "text", Text: "hello"}}}
-	history := append(resolve(nil, specMessage(t, "s1", api.ContextSpec{WholeScope: true})), user)
+	history := append(resolve(nil, specMessage(t, "s1", api.ContextSpec{WholeScope: api.WholeScopeFull})), user)
 
 	// Full mode: the body.
 	msgs := HydrateDeltaHistory(ctx, app, history)
@@ -52,7 +52,7 @@ func TestHydrateDeltaHistoryUsesCurrentMode(t *testing.T) {
 
 	// Summaries turned on after the fact: the earlier delta renders as a row,
 	// the repeated spec adds nothing.
-	history = resolve(history, specMessage(t, "s2", api.ContextSpec{WholeScope: true, Summaries: true}))
+	history = resolve(history, specMessage(t, "s2", api.ContextSpec{WholeScope: api.WholeScopeSummaries}))
 	msgs = HydrateDeltaHistory(ctx, app, history)
 	if len(msgs) != 2 {
 		t.Fatalf("summaries mode = %d messages, want 2 (repeated spec adds nothing): %+v", len(msgs), msgs)
@@ -69,7 +69,7 @@ func TestHydrateDeltaHistoryUsesCurrentMode(t *testing.T) {
 	}
 
 	// Off again: bodies come back.
-	history = resolve(history, specMessage(t, "s3", api.ContextSpec{WholeScope: true}))
+	history = resolve(history, specMessage(t, "s3", api.ContextSpec{WholeScope: api.WholeScopeFull}))
 	msgs = HydrateDeltaHistory(ctx, app, history)
 	if !strings.Contains(msgs[0].Content, "THE FULL BODY") {
 		t.Errorf("full mode did not come back: %q", msgs[0].Content)
@@ -95,8 +95,8 @@ func TestHydrateDeltaHistoryRendersByFinalContext(t *testing.T) {
 		ResolveContextSpecs(ctx, app, history, batch)
 		return append(history, batch...)
 	}
-	history := resolve(nil, specMessage(t, "s1", api.ContextSpec{WholeScope: true, Summaries: true}))
-	history = resolve(history, specMessage(t, "s2", api.ContextSpec{WholeScope: true, Summaries: true, FragmentIDs: []string{frag.Id}}))
+	history := resolve(nil, specMessage(t, "s1", api.ContextSpec{WholeScope: api.WholeScopeSummaries}))
+	history = resolve(history, specMessage(t, "s2", api.ContextSpec{WholeScope: api.WholeScopeSummaries, FragmentIDs: []string{frag.Id}}))
 
 	msgs := HydrateDeltaHistory(ctx, app, history)
 	if len(msgs) != 1 {
@@ -124,8 +124,8 @@ func TestHydrateDeltaHistoryOmitsTransientScope(t *testing.T) {
 		ResolveContextSpecs(ctx, app, history, batch)
 		return append(history, batch...)
 	}
-	history := resolve(nil, specMessage(t, "s1", api.ContextSpec{WholeScope: true, Summaries: true}))
-	history = resolve(history, specMessage(t, "s2", api.ContextSpec{WholeScope: true, Summaries: true, ColourIDs: []string{colour.Id}}))
+	history := resolve(nil, specMessage(t, "s1", api.ContextSpec{WholeScope: api.WholeScopeSummaries}))
+	history = resolve(history, specMessage(t, "s2", api.ContextSpec{WholeScope: api.WholeScopeSummaries, ColourIDs: []string{colour.Id}}))
 	history = resolve(history, specMessage(t, "s3", api.ContextSpec{ColourIDs: []string{colour.Id}}))
 
 	msgs := HydrateDeltaHistory(ctx, app, history)
@@ -163,7 +163,7 @@ func TestHydrateDeltaHistoryRestoresWithoutRerender(t *testing.T) {
 		ResolveContextSpecs(ctx, app, history, batch)
 		return append(history, batch...)
 	}
-	summaries := api.ContextSpec{WholeScope: true, Summaries: true, ColourIDs: []string{colour.Id}}
+	summaries := api.ContextSpec{WholeScope: api.WholeScopeSummaries, ColourIDs: []string{colour.Id}}
 	history := resolve(nil, specMessage(t, "s1", summaries))
 	history = resolve(history, specMessage(t, "s2", api.ContextSpec{ColourIDs: []string{colour.Id}}))
 	history = resolve(history, specMessage(t, "s3", summaries))

@@ -67,9 +67,9 @@ func (p snapshotScriptProvider) Stream(ctx context.Context, msgs []llm.Message, 
 func genFixture(t *testing.T, app core.App, collection string) *core.Record {
 	t.Helper()
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       pbutil.JSONString("LENS"),
+		"prompt":       "LENS",
 		"context_spec": pbutil.JSONObject(spec),
 	})
 	return testutil.NewRecord(t, app, collection, map[string]any{
@@ -84,7 +84,7 @@ func priorApproved(t *testing.T, app core.App, strat Strategy, parent *core.Reco
 	fields := map[string]any{
 		strat.ForeignKeyCol():      parent.Id,
 		"lens_id":                  parent.GetString("current_lens_id"),
-		"output":                   pbutil.JSONString(output),
+		"output":                   output,
 		"status":                   StatusApproved,
 		"approval_sequence_number": 1,
 	}
@@ -100,7 +100,7 @@ func storedOutput(t *testing.T, app core.App, strat Strategy, snapID string) str
 	if err != nil {
 		t.Fatal(err)
 	}
-	return pbutil.DecodeJSONString(snap.GetString("output"))
+	return snap.GetString("output")
 }
 
 // With no approved predecessor the raw candidate is the snapshot — one model
@@ -134,8 +134,8 @@ func TestGenerateSnapshotLensChangeSkipsMinimize(t *testing.T) {
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
 	oldLens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       pbutil.JSONString("OLD LENS"),
-		"context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: true}),
+		"prompt":       "OLD LENS",
+		"context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
 	})
 	priorApproved(t, app, strat, proj, "OLD V1", map[string]any{"lens_id": oldLens.Id})
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
@@ -263,14 +263,8 @@ func TestGenerateSnapshotReflectionScopesBaseToWindow(t *testing.T) {
 
 	winA := &api.Window{Start: "2026-08-01 00:00:00.000Z", End: "2026-08-08 00:00:00.000Z"}
 	winB := &api.Window{Start: "2026-08-08 00:00:00.000Z", End: "2026-08-15 00:00:00.000Z"}
-	priorApproved(t, app, strat, refl, "OLD A", map[string]any{
-		"window_key":      winA.Start + "_" + winA.End,
-		"resolved_window": pbutil.JSONObject(map[string]string{"start": winA.Start, "end": winA.End}),
-	})
-	priorApproved(t, app, strat, refl, "OLD B", map[string]any{
-		"window_key":      winB.Start + "_" + winB.End,
-		"resolved_window": pbutil.JSONObject(map[string]string{"start": winB.Start, "end": winB.End}),
-	})
+	priorApproved(t, app, strat, refl, "OLD A", map[string]any{"window_start": winA.Start, "window_end": winA.End})
+	priorApproved(t, app, strat, refl, "OLD B", map[string]any{"window_start": winB.Start, "window_end": winB.End})
 
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
 		switch len(msgs) {

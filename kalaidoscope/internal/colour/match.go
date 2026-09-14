@@ -156,7 +156,7 @@ func applyThingRows(app core.App, colourID string, want map[string]bool) error {
 		if have[fid] {
 			continue
 		}
-		if err := insertLink(app, colourID, fid, MatchThing, ""); err != nil {
+		if err := insertLink(app, colourID, fid, MatchThing); err != nil {
 			return err
 		}
 	}
@@ -209,7 +209,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 			if existing != nil {
 				return nil
 			}
-			return insertLink(app, colourID, fragmentID, MatchThing, "")
+			return insertLink(app, colourID, fragmentID, MatchThing)
 		}
 	}
 	return nil
@@ -240,7 +240,7 @@ func findLink(app core.App, colourID, fragmentID string) (*core.Record, error) {
 	return recs[0], nil
 }
 
-func insertLink(app core.App, colourID, fragmentID, matchType, model string) error {
+func insertLink(app core.App, colourID, fragmentID, matchType string) error {
 	col, err := app.FindCollectionByNameOrId("colour_fragment")
 	if err != nil {
 		return err
@@ -249,18 +249,17 @@ func insertLink(app core.App, colourID, fragmentID, matchType, model string) err
 	rec.Set("colour_id", colourID)
 	rec.Set("fragment_id", fragmentID)
 	rec.Set("match_type", matchType)
-	rec.Set("model", model)
 	return app.Save(rec)
 }
 
 // SetPromptMatch records a prompt match decided outside the worker (the
 // create-time preview). A pair that already holds a row keeps it.
-func SetPromptMatch(app core.App, colourID, fragmentID, model string) error {
+func SetPromptMatch(app core.App, colourID, fragmentID string) error {
 	existing, err := findLink(app, colourID, fragmentID)
 	if err != nil || existing != nil {
 		return err
 	}
-	return insertLink(app, colourID, fragmentID, MatchPrompt, model)
+	return insertLink(app, colourID, fragmentID, MatchPrompt)
 }
 
 // SetManual writes a manual example, overriding whatever row the pair holds.
@@ -270,13 +269,12 @@ func SetManual(app core.App, colourID, fragmentID, matchType string) error {
 		return err
 	}
 	if existing == nil {
-		return insertLink(app, colourID, fragmentID, matchType, "")
+		return insertLink(app, colourID, fragmentID, matchType)
 	}
 	if existing.GetString("match_type") == matchType {
 		return nil
 	}
 	existing.Set("match_type", matchType)
-	existing.Set("model", "")
 	return app.Save(existing)
 }
 

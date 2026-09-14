@@ -44,11 +44,10 @@ type chainGraph struct {
 	rSnap0, p1Snap0, p2Snap0 *core.Record
 }
 
-func newLens(t *testing.T, app core.App, spec api.ContextSpec) *core.Record {
+func newLens(t *testing.T, app core.App) *core.Record {
 	t.Helper()
 	return testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt":       pbutil.JSONString("Summarize the sources."),
-		"context_spec": pbutil.JSONObject(spec),
+		"prompt": "Summarize the sources.",
 	})
 }
 
@@ -57,7 +56,7 @@ func newApprovedSnapshot(t *testing.T, app core.App, col, fk, parentID, lensID s
 	return testutil.NewRecord(t, app, col, map[string]any{
 		fk:                         parentID,
 		"lens_id":                  lensID,
-		"output":                   pbutil.JSONString("old output"),
+		"output":                   "old output",
 		"resolved_context":         pbutil.JSONObject(pinned),
 		"status":                   engine.StatusApproved,
 		"approval_sequence_number": 1,
@@ -70,8 +69,8 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 
 	g.f0 = testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "old fragment"})
 
-	reflSpec := api.ContextSpec{WholeScope: true}
-	reflLens := newLens(t, app, reflSpec)
+	reflSpec := api.ContextSpec{WholeScope: api.WholeScopeFull}
+	reflLens := newLens(t, app)
 	g.refl = testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name":                 "R",
 		"current_context_spec": pbutil.JSONObject(reflSpec),
@@ -81,7 +80,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 		llmcontext.PinnedIDs{FragmentIDs: []string{g.f0.Id}})
 
 	p1Spec := api.ContextSpec{SourceReflectionIDs: []string{g.refl.Id}}
-	p1Lens := newLens(t, app, p1Spec)
+	p1Lens := newLens(t, app)
 	g.p1 = testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P1",
 		"current_context_spec": pbutil.JSONObject(p1Spec),
@@ -91,7 +90,7 @@ func buildChain(t *testing.T, app core.App) chainGraph {
 		llmcontext.PinnedIDs{SnapshotIDs: []string{g.rSnap0.Id}})
 
 	p2Spec := api.ContextSpec{SourceProjectionIDs: []string{g.p1.Id}}
-	p2Lens := newLens(t, app, p2Spec)
+	p2Lens := newLens(t, app)
 	g.p2 = testutil.NewRecord(t, app, "projection", map[string]any{
 		"name":                 "P2",
 		"current_context_spec": pbutil.JSONObject(p2Spec),
@@ -159,8 +158,8 @@ func TestWaveSpeculativelyGeneratesWholeChain(t *testing.T) {
 	if got := resolvedContext(t, rNew).FragmentIDs; len(got) != 2 {
 		t.Errorf("reflection wave snapshot consumed %v, want both fragments", got)
 	}
-	if rNew.GetString("chain_origin") != llmcontext.ChainOriginGenerateAll {
-		t.Errorf("reflection chain_origin = %q", rNew.GetString("chain_origin"))
+	if rNew.GetString("generation_trigger") != llmcontext.TriggerGenerateAll {
+		t.Errorf("reflection generation_trigger = %q", rNew.GetString("generation_trigger"))
 	}
 
 	// P1 got a pending candidate consuming R's *new* snapshot.
@@ -185,8 +184,8 @@ func TestWaveSpeculativelyGeneratesWholeChain(t *testing.T) {
 	if got := resolvedContext(t, p2Cand).SnapshotIDs; len(got) != 1 || got[0] != p1Cand.Id {
 		t.Errorf("p2 candidate consumed %v, want p1's pending candidate %s", got, p1Cand.Id)
 	}
-	if p2Cand.GetString("chain_origin") != llmcontext.ChainOriginGenerateAll {
-		t.Errorf("p2 chain_origin = %q", p2Cand.GetString("chain_origin"))
+	if p2Cand.GetString("generation_trigger") != llmcontext.TriggerGenerateAll {
+		t.Errorf("p2 generation_trigger = %q", p2Cand.GetString("generation_trigger"))
 	}
 }
 
@@ -266,8 +265,8 @@ func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find committed snapshot: %v", err)
 	}
-	if newSnap.GetString("chain_origin") != llmcontext.ChainOriginGenerateAll {
-		t.Errorf("committed snapshot chain_origin = %q, want carried forward", newSnap.GetString("chain_origin"))
+	if newSnap.GetString("generation_trigger") != llmcontext.TriggerGenerateAll {
+		t.Errorf("committed snapshot generation_trigger = %q, want carried forward", newSnap.GetString("generation_trigger"))
 	}
 
 	// Refining an already-approved snapshot — even a chain-marked one — is an

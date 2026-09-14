@@ -41,10 +41,10 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 		return d
 	}
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "INSIDE THE CURRENT WEEK", "source_time": dt(effective.Add(10 * day)),
+		"type": "note", "content": "INSIDE THE CURRENT WEEK", "occurred_at": dt(effective.Add(10 * day)),
 	})
 	testutil.NewRecord(t, app, "fragment", map[string]any{
-		"type": "note", "content": "IN THE PREVIOUS WEEK", "source_time": dt(effective.Add(2 * day)),
+		"type": "note", "content": "IN THE PREVIOUS WEEK", "occurred_at": dt(effective.Add(2 * day)),
 	})
 
 	// Open the session through the handler so the seed is the real one.
@@ -67,7 +67,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 		t.Fatalf("seeded window = %+v, want [%s, %s)", seededWin, wantStart, wantEnd)
 	}
 
-	refRec, err := app.FindRecordById("refine_refl_snapshot_conversation", created.RefinementID)
+	refRec, err := app.FindRecordById("reflection_refinement", created.RefinementID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	req := api.ChatRequest{
 		ID: "win-1",
 		Messages: []api.UIMessage{
-			{ID: "sys-1", Role: "system", Parts: []api.UIMessagePart{{Type: "context_spec", Data: raw(t, api.ContextSpec{WholeScope: true})}}},
+			{ID: "sys-1", Role: "system", Parts: []api.UIMessagePart{{Type: "context_spec", Data: raw(t, api.ContextSpec{WholeScope: api.WholeScopeFull})}}},
 			{ID: "user-1", Role: "user", Parts: []api.UIMessagePart{{Type: "text", Text: "summarize the week"}}},
 		},
 	}
@@ -232,9 +232,9 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	t.Helper()
 	day := 24 * time.Hour
 	effective := time.Now().Add(-15 * day).UTC()
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": pbutil.JSONString("THE CURRENT LENS"), "context_spec": pbutil.JSONObject(spec),
+		"prompt": "THE CURRENT LENS",
 	})
 	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
 	refl = testutil.NewRecord(t, app, "reflection", map[string]any{
@@ -247,9 +247,8 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	current = grid[len(grid)-1]
 	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 		"reflection_id": refl.Id, "status": engine.StatusApproved, "approval_sequence_number": 1,
-		"lens_id": lens.Id, "output": pbutil.JSONString("THIS WEEK'S SUMMARY"),
-		"window_key":      engine.WindowKey(current),
-		"resolved_window": pbutil.JSONObject(map[string]string{"start": current.Start, "end": current.End}),
+		"lens_id": lens.Id, "output": "THIS WEEK'S SUMMARY",
+		"window_start": current.Start, "window_end": current.End,
 	})
 	return refl, current
 }
@@ -269,7 +268,7 @@ func openRefinement(t *testing.T, app core.App, reflID, body string) (api.Create
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
 	}
-	refRec, err := app.FindRecordById("refine_refl_snapshot_conversation", created.RefinementID)
+	refRec, err := app.FindRecordById("reflection_refinement", created.RefinementID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +297,7 @@ func TestReflectionRefinementSeedsCurrentLens(t *testing.T) {
 		t.Fatalf("seeded %d messages, want a system and an assistant turn", len(created.Messages))
 	}
 	_, spec, win := extractWindow(t, created.Messages)
-	if !spec.WholeScope {
+	if spec.WholeScope == "" {
 		t.Errorf("seeded context = %+v, want the reflection's own whole-scope spec", spec)
 	}
 	if win == nil || win.ID != current.ID {
@@ -367,8 +366,8 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 	day := 24 * time.Hour
 	eff, _ := time.Parse(time.RFC3339, previous.Start)
 	dt := func(tm time.Time) types.DateTime { d, _ := types.ParseDateTime(tm); return d }
-	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "LAST WEEK", "source_time": dt(eff.Add(2 * day))})
-	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "THIS WEEK", "source_time": dt(eff.Add(9 * day))})
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "LAST WEEK", "occurred_at": dt(eff.Add(2 * day))})
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "THIS WEEK", "occurred_at": dt(eff.Add(9 * day))})
 
 	_, refRec := openRefinement(t, app, refl.Id, `{"clientId":"reapply-1","window":{"start":"`+current.Start+`","end":"`+current.End+`"}}`)
 
@@ -441,7 +440,7 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	app := testutil.NewApp(t)
 	refl, current := scheduledReflection(t, app)
-	newLens := testutil.NewRecord(t, app, "lens", map[string]any{"prompt": pbutil.JSONString("NEW")})
+	newLens := testutil.NewRecord(t, app, "lens", map[string]any{"prompt": "NEW"})
 	refl.Set("current_lens_id", newLens.Id)
 	if err := app.Save(refl); err != nil {
 		t.Fatal(err)

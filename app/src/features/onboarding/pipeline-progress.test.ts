@@ -15,7 +15,7 @@ function status(over: {
       version: 1,
       annotated: 0,
       pendingAnnotation: 0,
-      unfolded: 0,
+      unconsolidated: 0,
       ...over.map,
     },
     discover: {

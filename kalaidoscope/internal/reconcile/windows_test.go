@@ -26,8 +26,8 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "x"})
 
-	spec := api.ContextSpec{WholeScope: true}
-	lens := newLens(t, app, spec)
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
+	lens := newLens(t, app)
 	// Weekly window, created ~3 weeks ago -> 3 pending windows.
 	created := time.Now().Add(-21 * 24 * time.Hour)
 	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h"}, created)
@@ -69,7 +69,7 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 	snaps := snapshotsFor(t, app, "reflection_snapshot", "reflection_id", refl.Id)
 	t.Logf("after wave: %d snapshots", len(snaps))
 	for _, s := range snaps {
-		t.Logf("  snap wk=%q seq=%d status=%s", s.GetString("window_key"), s.GetInt("approval_sequence_number"), s.GetString("status"))
+		t.Logf("  snap window=%q seq=%d status=%s", s.GetString("window_start"), s.GetInt("approval_sequence_number"), s.GetString("status"))
 	}
 	after := report("after wave")
 	if len(after) != 0 {

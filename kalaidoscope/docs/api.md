@@ -1,4 +1,8 @@
+> **STALE** — code has changed since this document was generated.
+
 # Kalaidoscope HTTP API — Generated Audit Snapshot
+
+> **STALE** — code has changed since this document was generated.
 
 > **Generated:** 2026-09-03, from source at commit `f67e51c`.
 > This file is a generated audit snapshot — do not edit it. See `AGENTS.md` § "Generated audit docs". When code described here changes, a stale marker line is prepended above this block; nothing else in the file is ever modified by hand.

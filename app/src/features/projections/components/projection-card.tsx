@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { SourceItem } from "@/features/projections/sources";
 import type { ProjectionStatusInfo } from "@/features/projections/status";
+import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import { isPinned } from "@/lib/pins";
 
 export interface StatusBadgeProps {
@@ -42,7 +43,7 @@ export interface ProjCardProps {
   /** In-scope fragments the pending candidate's resolved context misses. */
   newSinceCandidate?: number;
   status: ProjectionStatusInfo;
-  brief: string;
+  description: string;
   sources: SourceItem[];
   onOpen: (id: string) => void;
   onReview: (id: string, candidateId: string) => void;
@@ -54,13 +55,14 @@ export function ProjCard({
   candidateId,
   newSinceCandidate = 0,
   status,
-  brief,
+  description,
   sources,
   onOpen,
   onReview,
   onTogglePin,
 }: ProjCardProps) {
-  const pinned = isPinned(p.pinned_by);
+  const currentUserId = useCurrentUserId();
+  const pinned = isPinned(p.pinned_by, currentUserId);
   const action = candidateId ? (
     <>
       <Button
@@ -92,7 +94,13 @@ export function ProjCard({
         <span className="size-[13px] bg-section rounded-none shrink-0" />
       }
       title={p.name || "Untitled projection"}
-      trailing={<PinToggle pinned={pinned} onToggle={() => onTogglePin(p)} />}
+      trailing={
+        <PinToggle
+          pinned={pinned}
+          onToggle={() => onTogglePin(p)}
+          disabled={!currentUserId}
+        />
+      }
       contentClassName="h-[110px]"
       footer={
         <div className="flex flex-col gap-2">
@@ -101,12 +109,12 @@ export function ProjCard({
         </div>
       }
     >
-      {brief ? (
+      {description ? (
         <p className="line-clamp-4 break-words text-meta text-fg-3 [text-wrap:pretty]">
-          {brief}
+          {description}
         </p>
       ) : (
-        <span className="text-meta text-fg-4 italic">No brief</span>
+        <span className="text-meta text-fg-4 italic">No description</span>
       )}
     </DocumentCard>
   );

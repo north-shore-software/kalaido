@@ -6,8 +6,8 @@ import { FRAGMENT_TYPE_OPTIONS, type FragmentTypeOption } from "@/lib/labels";
 export interface ContextOption {
   id: string;
   name: string;
-  /** A colour's visual value (tailwind class / hex / css colour) — colours only. */
-  value?: string;
+  /** A colour's palette slot — colours only. */
+  swatch?: number;
 }
 
 export interface ContextSources {
@@ -42,7 +42,7 @@ export function useContextSources(): ContextSources {
   });
   const colours = useCollection("colour", {
     sort: "-created",
-    fields: "id,name,colour_value",
+    fields: "id,name,swatch",
   });
 
   // Name is optional on all three collections, and every other list in the app
@@ -69,7 +69,7 @@ export function useContextSources(): ContextSources {
       colours.records.map((r) => ({
         id: r.id,
         name: r.name || "Untitled colour",
-        value: r.colour_value,
+        swatch: r.swatch,
       })),
     [colours.records],
   );

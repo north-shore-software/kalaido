@@ -19,6 +19,7 @@ import {
   tierProjections,
 } from "@/features/projections/tiers";
 import { useContextSources } from "@/hooks/use-context-sources";
+import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { isPinned } from "@/lib/pins";
@@ -32,28 +33,32 @@ const TIER_ORDER: { tier: ProjectionTier; label: string }[] = [
   { tier: "composite", label: "Composite" },
 ];
 
-async function togglePin(p: ProjectionResponse) {
-  const res = await updateProjection(p.id, { pinned: !isPinned(p.pinned_by) });
+async function togglePin(p: ProjectionResponse, currentUserId?: string | null) {
+  if (!currentUserId) return;
+  const res = await updateProjection(p.id, {
+    pinned: !isPinned(p.pinned_by, currentUserId),
+  });
   if (res.isErr())
     toast.error("Failed to update pin", { description: res.error.message });
 }
 
 export default function Projections() {
   const { go } = useAppNavigate();
+  const currentUserId = useCurrentUserId();
 
   const { records: projections, isLoading } = useLiveCollection("projection", {
     filter: 'name != "" && status = "active"',
     sort: "-updated",
   });
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending" || status="generating"',
+    filter: 'status="pending_review" || status="generating"',
     sort: "-created",
     fields: "id,projection_id,resolved_context,status",
   });
   const candidateByProjection = useMemo(() => {
     const map = new Map<string, { id: string; fragmentIds: Set<string> }>();
     for (const s of pending.records) {
-      if (s.status !== "pending") continue;
+      if (s.status !== "pending_review") continue;
       // records are newest-first, so the first seen per projection is latest.
       if (!map.has(s.projection_id)) {
         const ctx = s.resolved_context as { fragmentIds?: string[] } | null;
@@ -110,7 +115,7 @@ export default function Projections() {
         status={getProjectionStatus(statusById.get(p.id), !!candidate, {
           generating: generatingProjections.has(p.id),
         })}
-        brief={p.brief}
+        description={p.description}
         sources={resolveSources(
           parseContextSpec(p.current_context_spec),
           contextSources,
@@ -125,7 +130,7 @@ export default function Projections() {
             params: { id, snapshotId: candId },
           })
         }
-        onTogglePin={() => void togglePin(p)}
+        onTogglePin={() => void togglePin(p, currentUserId)}
       />
     );
   }

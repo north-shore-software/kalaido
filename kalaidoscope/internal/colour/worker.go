@@ -70,7 +70,7 @@ func Rematch(app core.App, colourID string) error {
 			return err
 		}
 	}
-	rec.Set("prompt_matched_through", "")
+	rec.Set("prompt_match_completed_up_to_fragment_id", "")
 	if err := app.Save(rec); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func drainColour(ctx context.Context, app core.App, model string, c *core.Record
 	prompt := c.GetString("prompt")
 	positiveBlock, negativeBlock := exampleBlocks(ctx, app, c.Id)
 	for {
-		frags, err := pastWatermark(app, c.GetString("prompt_matched_through"))
+		frags, err := pastWatermark(app, c.GetString("prompt_match_completed_up_to_fragment_id"))
 		if err != nil {
 			return err
 		}
@@ -149,11 +149,11 @@ func drainColour(ctx context.Context, app core.App, model string, c *core.Record
 			if !prompts.ParseYesNo(reply) {
 				continue
 			}
-			if err := insertLink(app, c.Id, f.Id, MatchPrompt, model); err != nil {
+			if err := insertLink(app, c.Id, f.Id, MatchPrompt); err != nil {
 				return err
 			}
 		}
-		c.Set("prompt_matched_through", frags[len(frags)-1].Id)
+		c.Set("prompt_match_completed_up_to_fragment_id", frags[len(frags)-1].Id)
 		if err := app.Save(c); err != nil {
 			return err
 		}

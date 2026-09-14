@@ -4,6 +4,7 @@ import { Pill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { KalaidoscopeClientContext } from "@/hooks/use-kalaidoscope-client";
 import { useLiveCollection } from "@/hooks/use-live-collection";
+import { useOrganizeStatus } from "@/hooks/use-organize-status";
 import { getActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client";
 
 interface MapThing {
@@ -43,6 +44,7 @@ function MapDebugContent() {
   const { data: maps } = useLiveCollection("kalaidoscope_map");
   const { data: runs } = useLiveCollection("map_run", { sort: "-created" });
 
+  const { status: organize } = useOrganizeStatus();
   const map = maps?.[0];
   const run = runs?.[0];
   const [kicking, setKicking] = useState(false);
@@ -68,7 +70,8 @@ function MapDebugContent() {
           <span className="text-row font-semibold">Map</span>
           <Pill tone="muted">v{map.version}</Pill>
           <span className="font-mono text-mono-sm text-fg-4">
-            {map.annotated ?? 0}/{map.fragments ?? 0} fragments annotated
+            {organize?.map.annotated ?? 0}/{organize?.fragments ?? 0} fragments
+            annotated
             {map.consolidated_at
               ? ` · consolidated ${map.consolidated_at}`
               : " · not consolidated yet"}
@@ -81,7 +84,7 @@ function MapDebugContent() {
           <span className="font-mono text-mono-sm text-fg-4">
             last consolidate: {run.pending_in} new · {run.admits} added ·{" "}
             {run.merges} folded · v{run.version_before}→v{run.version_after}
-            {run.model ? ` · ${run.model}` : ""}
+            {run.generated_by_model ? ` · ${run.generated_by_model}` : ""}
           </span>
         </div>
       )}

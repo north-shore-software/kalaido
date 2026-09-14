@@ -110,7 +110,7 @@ func TestChatFullModeHasNoTools(t *testing.T) {
 	script := &chatScript{readID: frag.Id}
 	script.install(t)
 
-	body, err := runChatTurn(t, app, "conv-full", &api.ContextSpec{WholeScope: true}, "hi")
+	body, err := runChatTurn(t, app, "conv-full", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hi")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestChatSummariesModeReadsThenAnswers(t *testing.T) {
 	script := &chatScript{readID: frag.Id}
 	script.install(t)
 
-	body, err := runChatTurn(t, app, "conv-sum", &api.ContextSpec{WholeScope: true, Summaries: true}, "what is the secret?")
+	body, err := runChatTurn(t, app, "conv-sum", &api.ContextSpec{WholeScope: api.WholeScopeSummaries}, "what is the secret?")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,8 +209,8 @@ func TestChatRefusesOversizedPrompt(t *testing.T) {
 		spec api.ContextSpec
 		hint bool
 	}{
-		{"full", api.ContextSpec{WholeScope: true}, true},
-		{"summaries", api.ContextSpec{WholeScope: true, Summaries: true}, false},
+		{"full", api.ContextSpec{WholeScope: api.WholeScopeFull}, true},
+		{"summaries", api.ContextSpec{WholeScope: api.WholeScopeSummaries}, false},
 	} {
 		_, err := runChatTurn(t, app, "conv-big-"+tc.name, &tc.spec, "hi")
 		var apiErr *router.ApiError

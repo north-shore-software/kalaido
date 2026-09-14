@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { swatchIndex } from "@/lib/colors";
 import { fragmentTypeLabel } from "@/lib/labels";
 import {
   type MatchType,
@@ -138,8 +137,7 @@ export function ColourDetailPane({
     <div className="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-8 py-6">
       <div className="flex items-center gap-3">
         <ColourSwatch
-          c={swatchIndex(colour.id)}
-          value={colour.colour_value || undefined}
+          c={colour.swatch ?? 0}
           size={30}
           className="rounded-[7px]"
         />
@@ -287,7 +285,7 @@ export function ColourDetailPane({
                             {badge.label}
                           </StatusPill>
                         )}
-                        {shortTime(frag?.source_time ?? frag?.created)}
+                        {shortTime(frag?.occurred_at ?? frag?.created)}
                       </span>
                     }
                     rejected={rejected}

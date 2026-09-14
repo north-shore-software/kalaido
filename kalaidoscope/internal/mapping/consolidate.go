@@ -15,7 +15,7 @@ import (
 )
 
 func unintegratedRows(app core.App) ([]*core.Record, error) {
-	return app.FindRecordsByFilter("fragment_annotation", "folded = false", "created", 0, 0, nil)
+	return app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "created", 0, 0, nil)
 }
 
 func consolidate(app core.App) error {
@@ -49,7 +49,7 @@ func consolidate(app core.App) error {
 	}
 	run := core.NewRecord(runCol)
 	run.Set("status", "running")
-	run.Set("model", model)
+	run.Set("generated_by_model", model)
 	run.Set("pending_in", len(pending))
 	run.Set("version_before", d.version)
 	if err := app.Save(run); err != nil {
@@ -87,13 +87,14 @@ func consolidate(app core.App) error {
 	admits, merges := finishDocument(d.doc, next, input, cites)
 	d.doc = next
 	err = app.RunInTransaction(func(tx core.App) error {
+		now := types.NowDateTime()
 		d.rec.Set("version", d.version+1)
-		d.rec.Set("consolidated_at", types.NowDateTime())
+		d.rec.Set("consolidated_at", now)
 		if err := d.save(tx); err != nil {
 			return err
 		}
 		for _, r := range pending {
-			r.Set("folded", true)
+			r.Set("consolidated_at", now)
 			if err := tx.Save(r); err != nil {
 				return err
 			}
@@ -189,7 +190,7 @@ func fragmentDates(app core.App) (map[string]string, error) {
 	}
 	dates := make(map[string]string, len(recs))
 	for _, r := range recs {
-		if st := r.GetDateTime("source_time"); !st.IsZero() {
+		if st := r.GetDateTime("occurred_at"); !st.IsZero() {
 			dates[r.Id] = st.Time().Format("2006-01-02")
 		}
 	}

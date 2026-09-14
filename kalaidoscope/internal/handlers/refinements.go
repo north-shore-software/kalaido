@@ -15,17 +15,16 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 func HandleCreateProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
-	return handleCreateRefinementGeneric(app, "projection", "projection_snapshot", "refine_proj_snapshot_conversation")
+	return handleCreateRefinementGeneric(app, "projection", "projection_snapshot", "projection_refinement")
 }
 
 func HandleCreateReflectionRefinement(app core.App) func(e *core.RequestEvent) error {
-	return handleCreateRefinementGeneric(app, "reflection", "reflection_snapshot", "refine_refl_snapshot_conversation")
+	return handleCreateRefinementGeneric(app, "reflection", "reflection_snapshot", "reflection_refinement")
 }
 
 func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetRefinementCol string) func(e *core.RequestEvent) error {
@@ -197,7 +196,7 @@ func seedLensTurn(app core.App, parent *core.Record, win *api.Window) (api.UIMes
 	if err != nil {
 		return api.UIMessage{}, false
 	}
-	lens := strings.TrimSpace(pbutil.DecodeJSONString(lensRec.GetString("prompt")))
+	lens := strings.TrimSpace(lensRec.GetString("prompt"))
 	if lens == "" {
 		return api.UIMessage{}, false
 	}
@@ -209,9 +208,9 @@ func seedLensTurn(app core.App, parent *core.Record, win *api.Window) (api.UIMes
 		parts = append(parts, p)
 	}
 	if win != nil {
-		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, parent.Id, engine.WindowKey(*win))
+		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, parent.Id, win)
 		if snaps, err := app.FindRecordsByFilter("reflection_snapshot", filter, "-approval_sequence_number", 1, 0, params); err == nil && len(snaps) > 0 {
-			if output := strings.TrimSpace(pbutil.DecodeJSONString(snaps[0].GetString("output"))); output != "" {
+			if output := strings.TrimSpace(snaps[0].GetString("output")); output != "" {
 				if p, ok := toolCallPart(llm.ToolCall{ID: fmt.Sprintf("seed-apply-%d", now), Name: prompts.ApplyResultToolName,
 					Args: mustJSON(map[string]string{"output": output})}); ok {
 					parts = append(parts, p)
@@ -291,11 +290,11 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 }
 
 func HandleCommitProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
-	return handleCommitRefinementGeneric(app, "projection", "refine_proj_snapshot_conversation", "projection_snapshot_id")
+	return handleCommitRefinementGeneric(app, "projection", "projection_refinement", "projection_snapshot_id")
 }
 
 func HandleCommitReflectionRefinement(app core.App) func(e *core.RequestEvent) error {
-	return handleCommitRefinementGeneric(app, "reflection", "refine_refl_snapshot_conversation", "reflection_snapshot_id")
+	return handleCommitRefinementGeneric(app, "reflection", "reflection_refinement", "reflection_snapshot_id")
 }
 
 // refinementParent resolves the projection/reflection a refinement
@@ -303,7 +302,7 @@ func HandleCommitReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 // snapshot. Nil when neither path resolves.
 func refinementParent(app core.App, refRec *core.Record) *core.Record {
 	targetCol, snapshotField := "projection", "projection_snapshot_id"
-	if refRec.Collection().Name == "refine_refl_snapshot_conversation" {
+	if refRec.Collection().Name == "reflection_refinement" {
 		targetCol, snapshotField = "reflection", "reflection_snapshot_id"
 	}
 	parentID := refRec.GetString(targetCol + "_id")

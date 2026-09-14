@@ -19,8 +19,8 @@ const TINT: Record<PickerTint, { box: string; pill: string }> = {
 export interface PickerOption {
   id: string;
   label: string;
-  /** A colour's stored value — renders a swatch ahead of the label. */
-  value?: string;
+  /** A colour's palette slot — renders a swatch ahead of the label. */
+  swatch?: number;
   /** Right-aligned mono detail: a count, a type, a recency. */
   meta?: string;
 }
@@ -153,7 +153,7 @@ export function ItemPicker({
                   ✓
                 </span>
               )}
-              {o.value != null && <ColourSwatch value={o.value} size={9} />}
+              {o.swatch != null && <ColourSwatch c={o.swatch} size={9} />}
               <span className="min-w-0 truncate text-item font-semibold text-fg-1">
                 {o.label}
               </span>

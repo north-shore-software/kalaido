@@ -11,7 +11,6 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
@@ -27,7 +26,7 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, wi
 	if err != nil {
 		return pinned, err
 	}
-	if spec.WholeScope {
+	if spec.WholeScope != "" {
 		all, err := resolveWholeScope(app, win)
 		if err != nil {
 			return pinned, err
@@ -63,7 +62,7 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, wi
 }
 
 // windowClause is the fragment-level time filter for a window. The event date
-// is source_time (when the email was sent, the note written); a fragment that
+// is occurred_at (when the email was sent, the note written); a fragment that
 // arrived without one falls back to its import time, so nothing silently drops
 // out of every window. Empty clause and no params for a nil window.
 func windowClause(win *api.Window) (string, dbx.Params) {
@@ -75,7 +74,7 @@ func windowClause(win *api.Window) (string, dbx.Params) {
 	if err1 != nil || err2 != nil || start.IsZero() || end.IsZero() {
 		return "", dbx.Params{}
 	}
-	return " && ((source_time != '' && source_time >= {:ws} && source_time < {:we}) || (source_time = '' && created >= {:ws} && created < {:we}))",
+	return " && ((occurred_at != '' && occurred_at >= {:ws} && occurred_at < {:we}) || (occurred_at = '' && created >= {:ws} && created < {:we}))",
 		dbx.Params{"ws": start, "we": end}
 }
 
@@ -145,7 +144,7 @@ func resolvePinnedFragments(ctx stdctx.Context, app core.App, spec api.ContextSp
 // approval promotes the record in place (same ID), a downstream snapshot that
 // consumed a candidate becomes consistent the moment that candidate lands.
 func snapshotFilterAndSort(ctx stdctx.Context, entityFilter string) (filter, sort string) {
-	if ChainOriginFromContext(ctx) != "" {
+	if GenerationTriggerFromContext(ctx) != "" {
 		// "Regardless of status" still excludes rows that are not output:
 		// in-flight generation claims and superseded candidates.
 		return entityFilter + " && status != 'generating' && status != 'discarded'", "-created"
@@ -246,7 +245,7 @@ func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 		pid := snap.GetString("projection_id")
 		if proj := projMap[pid]; proj != nil {
 			name := proj.GetString("name")
-			sb.WriteString(prompts.ProjectionSnapshotBlock(name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output"))))
+			sb.WriteString(prompts.ProjectionSnapshotBlock(name, snap.Id, snap.GetString("output")))
 		}
 	}
 }
@@ -271,7 +270,7 @@ func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 		rid := snap.GetString("reflection_id")
 		if refl := reflMap[rid]; refl != nil {
 			name := refl.GetString("name")
-			sb.WriteString(prompts.ReflectionSnapshotBlock(name, snap.Id, pbutil.DecodeJSONString(snap.GetString("output"))))
+			sb.WriteString(prompts.ReflectionSnapshotBlock(name, snap.Id, snap.GetString("output")))
 		}
 	}
 }

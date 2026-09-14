@@ -21,9 +21,9 @@ func TestGeneratePendingWindowsFillsTheSeries(t *testing.T) {
 	app := testutil.NewApp(t)
 	day := 24 * time.Hour
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": pbutil.JSONString("LENS"), "context_spec": pbutil.JSONObject(spec),
+		"prompt": "LENS",
 	})
 	eff := time.Now().Add(-16 * day).UTC()
 	versions := AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
@@ -54,9 +54,8 @@ func TestGeneratePendingWindowsFillsTheSeries(t *testing.T) {
 		t.Fatalf("grid = %d, want 2", len(grid))
 	}
 	for i, w := range grid {
-		snaps, _ := app.FindRecordsByFilter("reflection_snapshot",
-			"reflection_id = {:id} && window_key = {:k} && status = 'approved'", "", 0, 0,
-			map[string]any{"id": refl.Id, "k": WindowKey(w)})
+		filter, params := ApprovedSnapshotFilter(ReflectionStrategy{}, refl.Id, &w)
+		snaps, _ := app.FindRecordsByFilter("reflection_snapshot", filter, "", 0, 0, params)
 		if len(snaps) != 1 {
 			t.Fatalf("window %d: %d approved snapshots, want 1", i, len(snaps))
 		}
@@ -107,9 +106,9 @@ func TestGenerateWindowsRunsInParallel(t *testing.T) {
 	app := testutil.NewApp(t)
 	day := 24 * time.Hour
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
-	spec := api.ContextSpec{WholeScope: true}
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
-		"prompt": pbutil.JSONString("LENS"), "context_spec": pbutil.JSONObject(spec),
+		"prompt": "LENS",
 	})
 	eff := time.Now().Add(-16 * day).UTC()
 	versions := AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)

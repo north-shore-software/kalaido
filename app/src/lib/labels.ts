@@ -15,8 +15,6 @@ export function kalaidoscopeTypeLabel(type: KalaidoscopeMeta["type"]): string {
 const FRAGMENT_TYPE_LABELS: Record<FragmentTypeOptions, string> = {
   email: "Email",
   note: "Note",
-  whatsapp: "WhatsApp",
-  sms: "SMS",
   chat: "Chat",
 };
 

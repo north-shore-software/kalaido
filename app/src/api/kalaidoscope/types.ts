@@ -25,10 +25,10 @@ export const Collections = {
 	LlmQueueStatus: "llm_queue_status",
 	MapRun: "map_run",
 	Projection: "projection",
+	ProjectionRefinement: "projection_refinement",
 	ProjectionSnapshot: "projection_snapshot",
-	RefineProjSnapshotConversation: "refine_proj_snapshot_conversation",
-	RefineReflSnapshotConversation: "refine_refl_snapshot_conversation",
 	Reflection: "reflection",
+	ReflectionRefinement: "reflection_refinement",
 	ReflectionSnapshot: "reflection_snapshot",
 	ReflectionWindow: "reflection_window",
 	Usage: "usage",
@@ -118,30 +118,30 @@ export type SuperusersRecord = {
 export type ChatConversationRecord = {
 	created: IsoAutoDateString
 	external_conversation_id?: string
+	generate_with_model?: string
 	id: string
-	model?: string
 }
 
 export type ChatMessageRecord<Tcontent = unknown> = {
 	chat_conversation_id?: RecordIdString
 	content?: null | Tcontent
 	created: IsoAutoDateString
+	generated_by_model?: string
 	id: string
-	model?: string
-	refine_proj_conversation_id?: RecordIdString
-	refine_refl_conversation_id?: RecordIdString
+	projection_refinement_id?: RecordIdString
+	reflection_refinement_id?: RecordIdString
 	updated: IsoAutoDateString
 }
 
 export type ColourRecord<Tthing_ids = unknown> = {
-	colour_value?: string
 	created: IsoAutoDateString
+	created_by_discover_run_id?: RecordIdString
 	id: string
 	last_provider_error_kind?: string
 	name: string
-	origin_run_id?: RecordIdString
 	prompt?: string
-	prompt_matched_through?: string
+	prompt_match_completed_up_to_fragment_id?: RecordIdString
+	swatch?: number
 	thing_ids?: null | Tthing_ids
 	updated: IsoAutoDateString
 }
@@ -159,7 +159,6 @@ export type ColourFragmentRecord = {
 	fragment_id: RecordIdString
 	id: string
 	match_type: ColourFragmentMatchTypeOptions
-	model?: string
 }
 
 export const DiscoverRunKindOptions = {
@@ -179,10 +178,10 @@ export type DiscoverRunRecord<Toutputs = unknown> = {
 	created: IsoAutoDateString
 	error?: string
 	fragment_reads?: number
+	generated_by_model?: string
 	id: string
 	kind: DiscoverRunKindOptions
 	map_version?: number
-	model?: string
 	outputs?: null | Toutputs
 	rounds?: number
 	status: DiscoverRunStatusOptions
@@ -193,57 +192,68 @@ export type DiscoverRunRecord<Toutputs = unknown> = {
 export const FragmentTypeOptions = {
 	"email": "email",
 	"note": "note",
-	"whatsapp": "whatsapp",
-	"sms": "sms",
 	"chat": "chat",
 } as const
 export type FragmentTypeOptions = typeof FragmentTypeOptions[keyof typeof FragmentTypeOptions]
 
-export const FragmentOriginOptions = {
+export const FragmentIngestedViaOptions = {
 	"import": "import",
 	"app": "app",
 	"sync": "sync",
 } as const
-export type FragmentOriginOptions = typeof FragmentOriginOptions[keyof typeof FragmentOriginOptions]
+export type FragmentIngestedViaOptions = typeof FragmentIngestedViaOptions[keyof typeof FragmentIngestedViaOptions]
 export type FragmentRecord = {
 	content: string
 	created: IsoAutoDateString
 	deleted_at?: IsoDateString
 	id: string
-	origin?: FragmentOriginOptions
+	ingested_via?: FragmentIngestedViaOptions
+	occurred_at?: IsoDateString
 	source?: string
-	source_time?: IsoDateString
 	type: FragmentTypeOptions
 }
 
-export type FragmentAnnotationRecord<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown> = {
-	annotation?: null | Tannotation
+export type FragmentAnnotationRecord<Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown> = {
 	conclusions?: null | Tconclusions
+	consolidated_at?: IsoDateString
 	created: IsoAutoDateString
 	decisions?: null | Tdecisions
-	folded?: boolean
 	fragment_id: RecordIdString
-	grounded_count?: number
+	generated_by_model?: string
+	generated_from_map_version?: number
 	id: string
-	model?: string
 	questions?: null | Tquestions
 	summary?: string
 	things?: null | Tthings
 	title?: string
 }
 
+export const IngestFormatOptions = {
+	"zip": "zip",
+	"mbox": "mbox",
+	"docx": "docx",
+	"text": "text",
+} as const
+export type IngestFormatOptions = typeof IngestFormatOptions[keyof typeof IngestFormatOptions]
+
+export const IngestStatusOptions = {
+	"pending": "pending",
+	"done": "done",
+	"error": "error",
+} as const
+export type IngestStatusOptions = typeof IngestStatusOptions[keyof typeof IngestStatusOptions]
 export type IngestRecord = {
 	created: IsoAutoDateString
 	error?: string
 	extensions?: string
 	file?: FileNameString[]
-	format?: string
+	format?: IngestFormatOptions
+	fragment_limit?: number
 	id: string
 	ingested?: number
-	limit?: number
 	organize_after?: boolean
 	skip_duplicates?: boolean
-	status?: string
+	status?: IngestStatusOptions
 	updated: IsoAutoDateString
 }
 
@@ -259,32 +269,34 @@ export type KalaidoscopeConfigRecord<Trole_models = unknown> = {
 }
 
 export type KalaidoscopeMapRecord<Tbody = unknown> = {
-	annotated?: number
 	body?: null | Tbody
 	consolidated_at?: IsoDateString
 	created: IsoAutoDateString
-	fragments?: number
 	id: string
 	updated: IsoAutoDateString
 	version?: number
 }
 
-export type LensRecord<Tcontext_spec = unknown, Tprompt = unknown> = {
-	context_spec?: null | Tcontext_spec
+export type LensRecord = {
 	created: IsoAutoDateString
-	created_from_proj_refinement_id?: RecordIdString
-	created_from_refl_refinement_id?: RecordIdString
+	created_from_projection_refinement_id?: RecordIdString
+	created_from_reflection_refinement_id?: RecordIdString
 	id: string
 	parent_lens_id?: RecordIdString
-	prompt?: null | Tprompt
+	prompt?: string
 }
 
+export const LlmQueueStatusStateOptions = {
+	"idle": "idle",
+	"active": "active",
+} as const
+export type LlmQueueStatusStateOptions = typeof LlmQueueStatusStateOptions[keyof typeof LlmQueueStatusStateOptions]
 export type LlmQueueStatusRecord<Theld = unknown, Trunning = unknown, Twaiting = unknown> = {
 	created: IsoAutoDateString
 	held?: null | Theld
 	id: string
 	running?: null | Trunning
-	state?: string
+	state?: LlmQueueStatusStateOptions
 	updated: IsoAutoDateString
 	waiting?: null | Twaiting
 }
@@ -299,9 +311,9 @@ export type MapRunRecord = {
 	admits?: number
 	created: IsoAutoDateString
 	error?: string
+	generated_by_model?: string
 	id: string
 	merges?: number
-	model?: string
 	pending_in?: number
 	status: MapRunStatusOptions
 	updated: IsoAutoDateString
@@ -315,38 +327,20 @@ export const ProjectionStatusOptions = {
 } as const
 export type ProjectionStatusOptions = typeof ProjectionStatusOptions[keyof typeof ProjectionStatusOptions]
 export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
-	brief?: string
 	created: IsoAutoDateString
+	created_by_discover_run_id?: RecordIdString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	description?: string
+	generate_with_model?: string
 	id: string
-	model?: string
 	name?: string
-	origin_run_id?: RecordIdString
-	pinned_by?: RecordIdString
+	pinned_by?: RecordIdString[]
 	status: ProjectionStatusOptions
 	updated: IsoAutoDateString
 }
 
-export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown> = {
-	approval_sequence_number?: number
-	approval_timestamp?: IsoDateString
-	chain_origin?: string
-	context_spec?: null | Tcontext_spec
-	created: IsoAutoDateString
-	created_from_refinement_id?: RecordIdString
-	generation_timestamp?: IsoDateString
-	id: string
-	lens_id?: RecordIdString
-	model?: string
-	output?: null | Toutput
-	projection_id: RecordIdString
-	resolved_context?: null | Tresolved_context
-	status?: string
-	updated: IsoAutoDateString
-}
-
-export type RefineProjSnapshotConversationRecord = {
+export type ProjectionRefinementRecord = {
 	created: IsoAutoDateString
 	external_conversation_id?: string
 	id: string
@@ -354,12 +348,34 @@ export type RefineProjSnapshotConversationRecord = {
 	projection_snapshot_id?: RecordIdString
 }
 
-export type RefineReflSnapshotConversationRecord = {
+export const ProjectionSnapshotStatusOptions = {
+	"generating": "generating",
+	"pending_review": "pending_review",
+	"approved": "approved",
+	"discarded": "discarded",
+} as const
+export type ProjectionSnapshotStatusOptions = typeof ProjectionSnapshotStatusOptions[keyof typeof ProjectionSnapshotStatusOptions]
+
+export const ProjectionSnapshotGenerationTriggerOptions = {
+	"generate_all": "generate_all",
+} as const
+export type ProjectionSnapshotGenerationTriggerOptions = typeof ProjectionSnapshotGenerationTriggerOptions[keyof typeof ProjectionSnapshotGenerationTriggerOptions]
+export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
+	approval_sequence_number?: number
+	approved_at?: IsoDateString
+	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
-	external_conversation_id?: string
+	created_from_refinement_id?: RecordIdString
+	generated_at?: IsoDateString
+	generated_by_model?: string
+	generation_trigger?: ProjectionSnapshotGenerationTriggerOptions
 	id: string
-	reflection_id?: RecordIdString
-	reflection_snapshot_id?: RecordIdString
+	lens_id?: RecordIdString
+	output?: string
+	projection_id: RecordIdString
+	resolved_context?: null | Tresolved_context
+	status: ProjectionSnapshotStatusOptions
+	updated: IsoAutoDateString
 }
 
 export const ReflectionStatusOptions = {
@@ -368,50 +384,66 @@ export const ReflectionStatusOptions = {
 } as const
 export type ReflectionStatusOptions = typeof ReflectionStatusOptions[keyof typeof ReflectionStatusOptions]
 export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown> = {
-	brief?: string
 	created: IsoAutoDateString
+	created_by_discover_run_id?: RecordIdString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	description?: string
+	generate_with_model?: string
 	id: string
-	model?: string
 	name?: string
-	origin_run_id?: RecordIdString
-	pinned_by?: RecordIdString
+	pinned_by?: RecordIdString[]
 	status: ReflectionStatusOptions
 	updated: IsoAutoDateString
 	window_spec_versions?: null | Twindow_spec_versions
 }
 
-export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown> = {
+export type ReflectionRefinementRecord = {
+	created: IsoAutoDateString
+	external_conversation_id?: string
+	id: string
+	reflection_id?: RecordIdString
+	reflection_snapshot_id?: RecordIdString
+}
+
+export const ReflectionSnapshotStatusOptions = {
+	"generating": "generating",
+	"pending_review": "pending_review",
+	"approved": "approved",
+	"discarded": "discarded",
+} as const
+export type ReflectionSnapshotStatusOptions = typeof ReflectionSnapshotStatusOptions[keyof typeof ReflectionSnapshotStatusOptions]
+
+export const ReflectionSnapshotGenerationTriggerOptions = {
+	"generate_all": "generate_all",
+} as const
+export type ReflectionSnapshotGenerationTriggerOptions = typeof ReflectionSnapshotGenerationTriggerOptions[keyof typeof ReflectionSnapshotGenerationTriggerOptions]
+export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
-	approval_timestamp?: IsoDateString
-	chain_origin?: string
+	approved_at?: IsoDateString
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_refinement_id?: RecordIdString
-	generation_timestamp?: IsoDateString
+	generated_at?: IsoDateString
+	generated_by_model?: string
+	generation_trigger?: ReflectionSnapshotGenerationTriggerOptions
 	id: string
 	lens_id?: RecordIdString
-	model?: string
-	output?: null | Toutput
+	output?: string
 	reflection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
-	resolved_window?: null | Tresolved_window
-	status?: string
+	status: ReflectionSnapshotStatusOptions
 	updated: IsoAutoDateString
-	window_key?: string
-	window_spec?: null | Twindow_spec
-	window_spec_version_number?: number
+	window_end?: IsoDateString
+	window_start?: IsoDateString
 }
 
 export type ReflectionWindowRecord = {
 	created: IsoAutoDateString
-	end: string
 	id: string
 	reflection_id: RecordIdString
-	start: string
-	window_key: string
-	window_spec_version_number?: number
+	window_end: IsoDateString
+	window_start: IsoDateString
 }
 
 export type UsageRecord = {
@@ -441,17 +473,15 @@ export type UsersRecord = {
 export const ViewStreamTypeOptions = {
 	"email": "email",
 	"note": "note",
-	"whatsapp": "whatsapp",
-	"sms": "sms",
 	"chat": "chat",
 } as const
 export type ViewStreamTypeOptions = typeof ViewStreamTypeOptions[keyof typeof ViewStreamTypeOptions]
-export type ViewStreamRecord<Tcolours = unknown> = {
-	colours?: null | Tcolours
+export type ViewStreamRecord<Tcolour_ids = unknown> = {
+	colour_ids?: null | Tcolour_ids
 	content: string
 	created: IsoAutoDateString
 	id: string
-	source_time?: IsoDateString
+	occurred_at?: IsoDateString
 	title?: string
 	type: ViewStreamTypeOptions
 }
@@ -468,23 +498,23 @@ export type ColourResponse<Tthing_ids = unknown, Texpand = unknown> = Required<C
 export type ColourFragmentResponse<Texpand = unknown> = Required<ColourFragmentRecord> & BaseSystemFields<Texpand>
 export type DiscoverRunResponse<Toutputs = unknown, Texpand = unknown> = Required<DiscoverRunRecord<Toutputs>> & BaseSystemFields<Texpand>
 export type FragmentResponse<Texpand = unknown> = Required<FragmentRecord> & BaseSystemFields<Texpand>
-export type FragmentAnnotationResponse<Tannotation = unknown, Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tannotation, Tconclusions, Tdecisions, Tquestions, Tthings>> & BaseSystemFields<Texpand>
+export type FragmentAnnotationResponse<Tconclusions = unknown, Tdecisions = unknown, Tquestions = unknown, Tthings = unknown, Texpand = unknown> = Required<FragmentAnnotationRecord<Tconclusions, Tdecisions, Tquestions, Tthings>> & BaseSystemFields<Texpand>
 export type IngestResponse<Texpand = unknown> = Required<IngestRecord> & BaseSystemFields<Texpand>
 export type KalaidoscopeConfigResponse<Trole_models = unknown, Texpand = unknown> = Required<KalaidoscopeConfigRecord<Trole_models>> & BaseSystemFields<Texpand>
 export type KalaidoscopeMapResponse<Tbody = unknown, Texpand = unknown> = Required<KalaidoscopeMapRecord<Tbody>> & BaseSystemFields<Texpand>
-export type LensResponse<Tcontext_spec = unknown, Tprompt = unknown, Texpand = unknown> = Required<LensRecord<Tcontext_spec, Tprompt>> & BaseSystemFields<Texpand>
+export type LensResponse<Texpand = unknown> = Required<LensRecord> & BaseSystemFields<Texpand>
 export type LlmQueueStatusResponse<Theld = unknown, Trunning = unknown, Twaiting = unknown, Texpand = unknown> = Required<LlmQueueStatusRecord<Theld, Trunning, Twaiting>> & BaseSystemFields<Texpand>
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
-export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context>> & BaseSystemFields<Texpand>
-export type RefineProjSnapshotConversationResponse<Texpand = unknown> = Required<RefineProjSnapshotConversationRecord> & BaseSystemFields<Texpand>
-export type RefineReflSnapshotConversationResponse<Texpand = unknown> = Required<RefineReflSnapshotConversationRecord> & BaseSystemFields<Texpand>
+export type ProjectionRefinementResponse<Texpand = unknown> = Required<ProjectionRefinementRecord> & BaseSystemFields<Texpand>
+export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
 export type ReflectionResponse<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Twindow_spec_versions>> & BaseSystemFields<Texpand>
-export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Toutput = unknown, Tresolved_context = unknown, Tresolved_window = unknown, Twindow_spec = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Toutput, Tresolved_context, Tresolved_window, Twindow_spec>> & BaseSystemFields<Texpand>
+export type ReflectionRefinementResponse<Texpand = unknown> = Required<ReflectionRefinementRecord> & BaseSystemFields<Texpand>
+export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>
-export type ViewStreamResponse<Tcolours = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolours>> & BaseSystemFields<Texpand>
+export type ViewStreamResponse<Tcolour_ids = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolour_ids>> & BaseSystemFields<Texpand>
 
 // Types containing all Records and Responses, useful for creating typing helper functions
 
@@ -508,10 +538,10 @@ export type CollectionRecords = {
 	llm_queue_status: LlmQueueStatusRecord
 	map_run: MapRunRecord
 	projection: ProjectionRecord
+	projection_refinement: ProjectionRefinementRecord
 	projection_snapshot: ProjectionSnapshotRecord
-	refine_proj_snapshot_conversation: RefineProjSnapshotConversationRecord
-	refine_refl_snapshot_conversation: RefineReflSnapshotConversationRecord
 	reflection: ReflectionRecord
+	reflection_refinement: ReflectionRefinementRecord
 	reflection_snapshot: ReflectionSnapshotRecord
 	reflection_window: ReflectionWindowRecord
 	usage: UsageRecord
@@ -539,10 +569,10 @@ export type CollectionResponses = {
 	llm_queue_status: LlmQueueStatusResponse
 	map_run: MapRunResponse
 	projection: ProjectionResponse
+	projection_refinement: ProjectionRefinementResponse
 	projection_snapshot: ProjectionSnapshotResponse
-	refine_proj_snapshot_conversation: RefineProjSnapshotConversationResponse
-	refine_refl_snapshot_conversation: RefineReflSnapshotConversationResponse
 	reflection: ReflectionResponse
+	reflection_refinement: ReflectionRefinementResponse
 	reflection_snapshot: ReflectionSnapshotResponse
 	reflection_window: ReflectionWindowResponse
 	usage: UsageResponse

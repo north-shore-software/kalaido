@@ -1,4 +1,5 @@
-import PocketBase from "pocketbase";
+import { jwtDecode } from "jwt-decode";
+import PocketBase, { type RecordModel } from "pocketbase";
 import {
   getLocalKalaidoscopeAuthToken,
   getLocalKalaidoscopeStatus,
@@ -90,7 +91,14 @@ async function createSidecarClient(
 
   // Authenticate as the sidecar's seeded user
   if (tokenResult.value) {
-    pb.authStore.save(tokenResult.value, null);
+    let model: RecordModel | null = null;
+    try {
+      const decoded = jwtDecode<{ id?: string }>(tokenResult.value);
+      if (decoded.id) {
+        model = { id: decoded.id } as RecordModel;
+      }
+    } catch {}
+    pb.authStore.save(tokenResult.value, model);
   }
 
   return pb;

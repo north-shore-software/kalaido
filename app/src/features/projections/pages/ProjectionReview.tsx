@@ -56,7 +56,7 @@ function ProjectionReviewPage() {
   // Always review the newest pending candidate. Tracking the latest pending —
   // rather than the id pinned in the URL — keeps the view correct if the set
   // changes. `snapshots` is newest-first.
-  const pending = snapshots.find((s) => s.status === "pending");
+  const pending = snapshots.find((s) => s.status === "pending_review");
   const pendingId = pending?.id;
 
   useEffect(() => {

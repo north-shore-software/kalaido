@@ -67,21 +67,24 @@ func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState 
 	}
 
 	backfills, _ := app.FindRecordsByFilter("reflection_window",
-		"reflection_id = {:id}", "start", 0, 0, dbx.Params{"id": rec.Id})
+		"reflection_id = {:id}", "window_start", 0, 0, dbx.Params{"id": rec.Id})
 	for _, b := range backfills {
-		add(api.Window{Start: b.GetString("start"), End: b.GetString("end")}, true)
+		if w := SnapshotWindow(b); w != nil {
+			add(*w, true)
+		}
 	}
 
+	// Claim rows carry their bounds from the moment they are inserted, so a
+	// window with a generation in flight is marked here too.
 	snaps, _ := app.FindRecordsByFilter("reflection_snapshot",
-		"reflection_id = {:id} && window_key != '' && (status = 'approved' || status = 'generating')",
+		"reflection_id = {:id} && window_start != '' && (status = 'approved' || status = 'generating')",
 		"", 0, 0, dbx.Params{"id": rec.Id})
 	for _, s := range snaps {
-		var rw map[string]string
-		if err := s.UnmarshalJSONField("resolved_window", &rw); err != nil || rw["start"] == "" || rw["end"] == "" {
-			// A claim row carries only the key until it completes.
+		w := SnapshotWindow(s)
+		if w == nil {
 			continue
 		}
-		st := add(api.Window{Start: rw["start"], End: rw["end"]}, false)
+		st := add(*w, false)
 		switch s.GetString("status") {
 		case StatusApproved:
 			st.HasApproved = true
@@ -93,15 +96,6 @@ func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState 
 			st.Generating = true
 		}
 	}
-	// Claim rows have a key but no resolved_window yet; mark them by key.
-	for _, s := range snaps {
-		if s.GetString("status") == StatusGenerating {
-			if st, ok := byKey[s.GetString("window_key")]; ok {
-				st.Generating = true
-			}
-		}
-	}
-
 	out := make([]WindowState, 0, len(order))
 	for _, key := range order {
 		out = append(out, *byKey[key])

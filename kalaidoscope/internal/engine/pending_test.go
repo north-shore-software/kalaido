@@ -39,21 +39,26 @@ func TestPendingWindowsExcludesApprovedAndInFlight(t *testing.T) {
 
 	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 		"reflection_id": refl.Id, "status": StatusApproved, "approval_sequence_number": 1,
-		"output":          pbutil.JSONString("week one"),
-		"window_key":      WindowKey(grid[0]),
-		"resolved_window": pbutil.JSONObject(map[string]string{"start": grid[0].Start, "end": grid[0].End}),
+		"output":       "week one",
+		"window_start": grid[0].Start, "window_end": grid[0].End,
 	})
 	got := PendingWindows(app, refl, now)
 	if len(got) != 1 || got[0].ID != grid[1].ID {
 		t.Fatalf("pending after approving week one = %+v, want only week two", got)
 	}
 
-	// A claim row (window_key only, no resolved_window yet) parks the window.
-	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
-		"reflection_id": refl.Id, "status": StatusGenerating, "window_key": WindowKey(grid[1]),
-	})
+	// A generation claim parks the window: the claim row is written by the
+	// real claim path and read back through the DB's own date format, so
+	// this also checks that a window round-trips to the same series key.
+	if _, err := claimGeneration(app, ReflectionStrategy{}, refl.Id, &grid[1]); err != nil {
+		t.Fatal(err)
+	}
 	if got := PendingWindows(app, refl, now); len(got) != 0 {
 		t.Fatalf("pending with a claim open = %+v, want none", got)
+	}
+	series := SeriesWindows(app, refl, now)
+	if len(series) != 2 || !series[0].HasApproved || !series[1].Generating || series[1].ID != grid[1].ID {
+		t.Fatalf("series = %+v, want week one approved and week two generating", series)
 	}
 }
 

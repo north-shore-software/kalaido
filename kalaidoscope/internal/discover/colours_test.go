@@ -46,8 +46,8 @@ func TestCreateColourWritesRowAndThingMembers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.GetString("origin_run_id") != run.Id || strings.Join(colour.ThingIDs(rec), ",") != "t_acme" {
-		t.Fatalf("row = origin %s things %v, want the canonical id", rec.GetString("origin_run_id"), colour.ThingIDs(rec))
+	if rec.GetString("created_by_discover_run_id") != run.Id || strings.Join(colour.ThingIDs(rec), ",") != "t_acme" {
+		t.Fatalf("row = origin %s things %v, want the canonical id", rec.GetString("created_by_discover_run_id"), colour.ThingIDs(rec))
 	}
 	members, _ := colour.MemberIDs(app, rec.Id)
 	if len(members) != 2 || !c.covered[ids[0]] || !c.covered[ids[1]] || c.covered[ids[2]] {

@@ -24,7 +24,7 @@ export function useWholeScopeFits(timeWindow?: TimeWindow): WholeScopeFit {
   useEffect(() => {
     let cancelled = false;
     setFit({ fits: undefined });
-    resolveContextTokens({ wholeScope: true }, timeWindow)
+    resolveContextTokens({ wholeScope: "full" }, timeWindow)
       .then((res) => {
         if (cancelled) return;
         setFit({

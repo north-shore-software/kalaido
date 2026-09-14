@@ -61,15 +61,13 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 	for _, w := range windows {
 		row := core.NewRecord(col)
 		row.Set("reflection_id", rec.Id)
-		row.Set("window_key", WindowKey(w))
-		row.Set("start", w.Start)
-		row.Set("end", w.End)
-		row.Set("window_spec_version_number", version.VersionNumber)
+		setSnapshotWindow(row, &w)
 		if err := app.Save(row); err != nil {
 			// Already materialized: the unique index says so.
+			start, end := WindowBounds(&w)
 			existing, _ := app.FindFirstRecordByFilter("reflection_window",
-				"reflection_id = {:id} && window_key = {:k}",
-				map[string]any{"id": rec.Id, "k": WindowKey(w)})
+				"reflection_id = {:id} && window_start = {:ws} && window_end = {:we}",
+				map[string]any{"id": rec.Id, "ws": start.String(), "we": end.String()})
 			if existing == nil {
 				return nil, fmt.Errorf("materialize window %s: %w", WindowKey(w), err)
 			}

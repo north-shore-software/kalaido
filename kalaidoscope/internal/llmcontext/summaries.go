@@ -51,7 +51,7 @@ func hydrateSummaries(ctx stdctx.Context, app core.App, fragmentIDs []string) (s
 // fragmentEventDate is the fragment's event day: its source time, else the day
 // it arrived — the same fallback resolution applies to windows.
 func fragmentEventDate(rec *core.Record) string {
-	if st := rec.GetDateTime("source_time"); !st.IsZero() {
+	if st := rec.GetDateTime("occurred_at"); !st.IsZero() {
 		return st.Time().Format("2006-01-02")
 	}
 	if c := rec.GetDateTime("created"); !c.IsZero() {
@@ -62,7 +62,7 @@ func fragmentEventDate(rec *core.Record) string {
 
 func sortFragmentsByEventTime(recs []*core.Record) {
 	key := func(r *core.Record) string {
-		if st := r.GetDateTime("source_time"); !st.IsZero() {
+		if st := r.GetDateTime("occurred_at"); !st.IsZero() {
 			return st.String()
 		}
 		return r.GetDateTime("created").String()

@@ -335,14 +335,7 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			return e.BadRequestError("id required", nil)
 		}
 
-		type reqBody struct {
-			Name       *string         `json:"name,omitempty"`
-			Pinned     *bool           `json:"pinned,omitempty"`
-			WindowSpec *api.WindowSpec `json:"windowSpec,omitempty"`
-			// Per-entity model override; "" clears back to the workspace default.
-			Model *string `json:"model,omitempty"`
-		}
-		var req reqBody
+		var req api.UpdateSynthesisRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
@@ -356,8 +349,8 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			rec.Set("name", *req.Name)
 		}
 
-		if req.Model != nil {
-			rec.Set("model", strings.TrimSpace(*req.Model))
+		if req.GenerateWithModel != nil {
+			rec.Set("generate_with_model", strings.TrimSpace(*req.GenerateWithModel))
 		}
 
 		if req.WindowSpec != nil {

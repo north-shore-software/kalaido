@@ -126,7 +126,7 @@ export default function ProjectionDetail() {
   // Drive the side-rail card off the server's freshness plan (GET /api/rotation)
   // so Refresh only appears when the live snapshot is actually out of date. A
   // pending candidate awaiting review takes precedence over staleness.
-  const pendingCandidate = snapshots.find((s) => s.status === "pending");
+  const pendingCandidate = snapshots.find((s) => s.status === "pending_review");
   const {
     byId: statusById,
     isLoading: rotLoading,
@@ -222,7 +222,7 @@ export default function ProjectionDetail() {
 
   const timeline: TimelineItem[] = history.map((snap, i) => {
     const version = history.length - i;
-    const pending = snap.status === "pending";
+    const pending = snap.status === "pending_review";
     const isLive = snap.id === liveId;
     return {
       id: snap.id,

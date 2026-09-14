@@ -30,6 +30,18 @@ func RegisterHooks(app core.App) {
 		return e.Next()
 	})
 
+	// The API key is write-only from the client's side: the app sets it and
+	// never reads it back, while every authenticated user can list the
+	// singleton. Hiding the field at the schema level would also strip it
+	// from the app's own update request (PocketBase drops hidden fields from
+	// non-superuser writes), so only the read side is narrowed, here.
+	app.OnRecordEnrich(CollectionName).BindFunc(func(e *core.RecordEnrichEvent) error {
+		if e.RequestInfo == nil || !e.RequestInfo.HasSuperuserAuth() {
+			e.Record.Hide("api_key")
+		}
+		return e.Next()
+	})
+
 	// Model-level, so it also covers programmatic saves rather than only the
 	// REST route. Runs after the submitted values are loaded but before the row
 	// is written, which is what makes rejection here mean "nothing persisted".

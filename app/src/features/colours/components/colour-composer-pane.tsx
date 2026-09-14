@@ -88,7 +88,7 @@ export function ColourComposerPane({
               <div key={f.id} className="w-[calc(50%-6px)]">
                 <FragmentCard
                   type={fragmentTypeLabel(f.type)}
-                  time={shortTime(f.source_time ?? f.created)}
+                  time={shortTime(f.occurred_at ?? f.created)}
                   preview={preview(f.content)}
                 />
               </div>

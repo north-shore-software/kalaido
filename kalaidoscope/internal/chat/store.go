@@ -54,14 +54,14 @@ func PersistMessage(ctx context.Context, app core.App, conversation *core.Record
 	switch conversation.Collection().Name {
 	case "chat_conversation":
 		rec.Set("chat_conversation_id", conversation.Id)
-	case "refine_proj_snapshot_conversation":
-		rec.Set("refine_proj_conversation_id", conversation.Id)
-	case "refine_refl_snapshot_conversation":
-		rec.Set("refine_refl_conversation_id", conversation.Id)
+	case "projection_refinement":
+		rec.Set("projection_refinement_id", conversation.Id)
+	case "reflection_refinement":
+		rec.Set("reflection_refinement_id", conversation.Id)
 	}
 
 	rec.Set("content", types.JSONRaw(b))
-	rec.Set("model", model)
+	rec.Set("generated_by_model", model)
 	if err := app.Save(rec); err != nil {
 		return nil, err
 	}
@@ -82,10 +82,10 @@ func LoadMessages(ctx context.Context, app core.App, conversation *core.Record) 
 	switch conversation.Collection().Name {
 	case "chat_conversation":
 		fieldName = "chat_conversation_id"
-	case "refine_proj_snapshot_conversation":
-		fieldName = "refine_proj_conversation_id"
-	case "refine_refl_snapshot_conversation":
-		fieldName = "refine_refl_conversation_id"
+	case "projection_refinement":
+		fieldName = "projection_refinement_id"
+	case "reflection_refinement":
+		fieldName = "reflection_refinement_id"
 	default:
 		return nil, nil
 	}

@@ -17,7 +17,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection } from "@/hooks/use-collection";
 import { useLiveCollectionWatching } from "@/hooks/use-live-collection";
-import { swatchIndex } from "@/lib/colors";
 import { formatShortDateTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
 import { ColourSwatch } from "./colour";
@@ -41,7 +40,7 @@ export function FragmentDrawer({
 
   const fragment = records[0];
   const Icon = fragment ? fragmentTypeIcon(fragment.type) : null;
-  const occurredStr = fragment?.source_time || fragment?.created;
+  const occurredStr = fragment?.occurred_at || fragment?.created;
 
   return (
     <Sheet open={!!id} onOpenChange={(open) => !open && onClose()}>
@@ -118,7 +117,7 @@ function FragmentColours({ fragmentId }: { fragmentId: string }) {
   );
   const colours = useCollection("colour", {
     sort: "-created",
-    fields: "id,name,colour_value",
+    fields: "id,name,swatch",
   });
   const [picking, setPicking] = useState(false);
 
@@ -163,11 +162,7 @@ function FragmentColours({ fragmentId }: { fragmentId: string }) {
               key={c.id}
               className="group flex items-center gap-1.5 border border-line px-1.5 py-0.5 text-body-sm text-fg-2"
             >
-              <ColourSwatch
-                c={swatchIndex(c.id)}
-                value={c.colour_value || undefined}
-                size={9}
-              />
+              <ColourSwatch c={c.swatch ?? 0} size={9} />
               {c.name || "Untitled colour"}
               {link && (
                 <Mono className="text-meta text-fg-4">
@@ -209,7 +204,7 @@ function FragmentColours({ fragmentId }: { fragmentId: string }) {
           options={colours.records.map((c) => ({
             id: c.id,
             label: c.name || "Untitled colour",
-            value: c.colour_value || undefined,
+            swatch: c.swatch,
           }))}
           selectedIds={memberIds}
           loading={colours.isLoading}

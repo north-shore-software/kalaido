@@ -10,7 +10,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -60,7 +59,7 @@ func TestGenerateSnapshotInFlightGuard(t *testing.T) {
 	}}
 	script.install(t)
 
-	claimID, err := claimGeneration(app, strat, proj.Id, "")
+	claimID, err := claimGeneration(app, strat, proj.Id, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +74,7 @@ func TestGenerateSnapshotInFlightGuard(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale, _ := types.ParseDateTime(time.Now().Add(-generationClaimTTL - time.Minute))
-	claim.Set("generation_timestamp", stale)
+	claim.SetRaw("created", stale)
 	if err := app.Save(claim); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +124,7 @@ func TestGenerateSnapshotSupersedesPriorPending(t *testing.T) {
 	old := testutil.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
 		strat.ForeignKeyCol(): proj.Id,
 		"lens_id":             proj.GetString("current_lens_id"),
-		"output":              pbutil.JSONString("OLD CANDIDATE"),
+		"output":              "OLD CANDIDATE",
 		"status":              StatusPending,
 	})
 	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
@@ -163,7 +162,7 @@ func TestApproveSnapshotGuards(t *testing.T) {
 	newPending := func(output string) *core.Record {
 		return testutil.NewRecord(t, app, strat.SnapshotCollectionName(), map[string]any{
 			strat.ForeignKeyCol(): proj.Id,
-			"output":              pbutil.JSONString(output),
+			"output":              output,
 			"status":              StatusPending,
 		})
 	}
