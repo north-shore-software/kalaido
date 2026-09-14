@@ -117,3 +117,24 @@ func TestChatSummariesPromptComposition(t *testing.T) {
 		t.Errorf("SummarySnippet did not collapse whitespace: %q", got)
 	}
 }
+
+// An edit fragment's authority rule must travel inside its block — snapshot
+// generation has no system prompt to carry it — and only inside edit blocks,
+// so ordinary fragments never pick up an instruction to be kept verbatim.
+func TestEditFragmentBlockCarriesGuidance(t *testing.T) {
+	edit := FragmentBlock(EditFragmentKind, "src", "id1", EditFragmentContent("old", "new"))
+	if !strings.Contains(edit, EditFragmentGuidance) {
+		t.Errorf("edit block lacks the guidance line:\n%s", edit)
+	}
+	for _, want := range []string{EditBeforeMarker, "old", EditAfterMarker, "new", "(ID: id1)"} {
+		if !strings.Contains(edit, want) {
+			t.Errorf("edit block lacks %q:\n%s", want, edit)
+		}
+	}
+	if strings.Contains(FragmentBlock("note", "src", "id2", "body"), EditFragmentGuidance) {
+		t.Error("a note block must not carry the edit guidance")
+	}
+	if !strings.Contains(ContextLegend, `"`+EditFragmentKind+`"`) {
+		t.Error("ContextLegend does not describe edit fragments")
+	}
+}

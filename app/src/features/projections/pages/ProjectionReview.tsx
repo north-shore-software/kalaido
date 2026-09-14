@@ -4,7 +4,10 @@ import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { parseContextSpec, specToItems } from "@/api/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
-import { approveProjectionCandidate } from "@/api/kalaidoscope/projections";
+import {
+  approveProjectionCandidate,
+  editProjectionCandidate,
+} from "@/api/kalaidoscope/projections";
 import {
   ContextBar,
   type ContextItem,
@@ -27,6 +30,7 @@ import { useResumeRefinement } from "@/hooks/use-resume-refinement";
 import { withContextItem } from "@/lib/mentions";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { EditCandidateModal } from "../components/edit-candidate-modal";
 import { SnapshotComparePane } from "../components/snapshot-compare-pane";
 import { projectionReviewTransitions } from "./ProjectionReview.transitions";
 
@@ -137,6 +141,42 @@ function ProjectionReviewPage() {
       : undefined;
 
   const title = projection?.name || "Projection";
+
+  // Hand edit of a block run in the candidate: the modal is open while
+  // editOld holds the selected raw markdown. The server answers with a new
+  // pending candidate carrying the edit; the live subscription then makes it
+  // the newest pending row, which this page always reviews.
+  const [editOld, setEditOld] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string>();
+  function closeEdit() {
+    setEditOld(null);
+    setEditError(undefined);
+  }
+  async function submitEdit(newText: string) {
+    if (!id || !pending || editOld === null || editSaving) return;
+    setEditSaving(true);
+    const res = await editProjectionCandidate(id, pending.id, {
+      oldText: editOld,
+      newText,
+    });
+    setEditSaving(false);
+    if (res.isErr()) {
+      console.error("review: edit failed", res.error);
+      setEditError(res.error.message);
+      return;
+    }
+    closeEdit();
+    go(projectionReviewTransitions.viewReview, {
+      params: { id, snapshotId: res.value.snapshotId },
+      replace: true,
+    });
+  }
+  // Editing is against the stored candidate only: a streaming refined draft
+  // is not a row on the server yet, and a refinement in progress would be
+  // reviewing a different text than the one being edited.
+  const editable =
+    !!pending && !showRefined && !session.started && !busy && !advancing;
 
   // A candidate with no content must never become the plan of record (the
   // server refuses it too — this just keeps the buttons honest). Old rows from
@@ -249,6 +289,7 @@ function ProjectionReviewPage() {
                 pendingEmpty ||
                 busy ||
                 advancing ||
+                editSaving ||
                 // A refined preview is showing but not terminal yet: approving
                 // now would silently promote the un-refined candidate instead.
                 (showRefined && !refining)
@@ -265,6 +306,7 @@ function ProjectionReviewPage() {
                 pendingEmpty ||
                 busy ||
                 advancing ||
+                editSaving ||
                 (showRefined && !refining)
               }
             >
@@ -282,6 +324,8 @@ function ProjectionReviewPage() {
                 currentContent={currentContent}
                 pendingContent={pendingContent}
                 refining={refining}
+                editable={editable}
+                onEdit={setEditOld}
               />
             ) : advancing ? (
               // The approval already landed, so there is deliberately no
@@ -341,6 +385,14 @@ function ProjectionReviewPage() {
           </div>
         </div>
       </PageCard>
+      <EditCandidateModal
+        open={editOld !== null}
+        oldText={editOld ?? ""}
+        saving={editSaving}
+        error={editError}
+        onClose={closeEdit}
+        onSubmit={(text) => void submitEdit(text)}
+      />
     </PageLayout>
   );
 }

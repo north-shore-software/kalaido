@@ -1,12 +1,80 @@
-import { Fragment, useDeferredValue, useMemo, useState } from "react";
+import { PencilLineIcon } from "lucide-react";
+import {
+  Fragment,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { MarkdownContent, Segmented, StatusPill } from "@/components/kalaido";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
-import { type DiffRow, diffMarkdown, segmentBlocks } from "@/lib/markdown-diff";
+import {
+  candidateBlockIndexByRow,
+  type DiffRow,
+  diffMarkdown,
+  segmentBlockRanges,
+  segmentBlocks,
+} from "@/lib/markdown-diff";
 
 export interface SnapshotComparePaneProps {
   currentContent?: string;
   pendingContent?: string;
   refining?: boolean;
+  /** Blocks of the pending side can be selected for a hand edit. */
+  editable?: boolean;
+  /** Called with the raw markdown of the selected block run, exactly as the candidate has it. */
+  onEdit?: (oldText: string) => void;
+}
+
+/** Inclusive range of candidate block indexes. */
+type BlockSelection = [number, number];
+
+/** Wrapper that makes a candidate block selectable; a no-op when it is not. */
+function SelectableCell({
+  index,
+  selection,
+  editable,
+  onSelect,
+  className,
+  children,
+}: {
+  index: number | null;
+  selection: BlockSelection | null;
+  editable: boolean;
+  onSelect: (index: number, extend: boolean) => void;
+  className: string;
+  children: React.ReactNode;
+}) {
+  const selectable = editable && index !== null;
+  const selected =
+    selectable &&
+    selection !== null &&
+    index >= selection[0] &&
+    index <= selection[1];
+  if (!selectable) return <div className={className}>{children}</div>;
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a button cannot wrap block markdown
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      className={cn(
+        className,
+        "cursor-pointer rounded-sm",
+        selected ? "bg-magenta-veil ring-1 ring-magenta" : "hover:bg-surface-2",
+      )}
+      onClick={(e) => onSelect(index, e.shiftKey)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(index, e.shiftKey);
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 const COMPARE_VIEWS = ["split", "unified"] as const;
@@ -53,12 +121,39 @@ export function SnapshotComparePane({
   currentContent,
   pendingContent,
   refining = false,
+  editable = false,
+  onEdit,
 }: SnapshotComparePaneProps) {
   const [view, setView] = useState<CompareView>("split");
   // Refinement drafts re-deliver the whole document on every stream tick;
   // deferring the pending side lets React coalesce bursts of re-diffs.
   const deferredPending = useDeferredValue(pendingContent ?? "");
   const current = currentContent ?? "";
+
+  // Block selection for a hand edit, as candidate block indexes. Any change
+  // to the candidate text invalidates it — the indexes would point elsewhere.
+  const [selection, setSelection] = useState<BlockSelection | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deferredPending is the reset trigger, not a read
+  useEffect(() => setSelection(null), [deferredPending]);
+  const ranges = useMemo(
+    () => segmentBlockRanges(deferredPending),
+    [deferredPending],
+  );
+  function select(index: number, extend: boolean) {
+    setSelection((prev) => {
+      if (extend && prev) {
+        const anchor = prev[0];
+        return [Math.min(anchor, index), Math.max(anchor, index)];
+      }
+      if (prev && prev[0] === index && prev[1] === index) return null;
+      return [index, index];
+    });
+  }
+  function editSelection() {
+    if (!selection || !onEdit) return;
+    const [a, b] = selection;
+    onEdit(deferredPending.slice(ranges[a].start, ranges[b].end));
+  }
 
   const rows = useMemo<DiffRow[]>(() => {
     // An empty candidate is "nothing yet", not "everything deleted" — show
@@ -71,12 +166,27 @@ export function SnapshotComparePane({
     }
     return diffMarkdown(current, deferredPending);
   }, [current, deferredPending]);
+  const rowIndex = useMemo(() => candidateBlockIndexByRow(rows), [rows]);
 
   const pill = (
     <StatusPill kind="magenta">{refining ? "refined" : "pending"}</StatusPill>
   );
   const toggle = (
-    <Segmented items={COMPARE_VIEWS} value={view} onChange={setView} />
+    <div className="flex items-center gap-2">
+      {editable && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!selection}
+          onClick={editSelection}
+          title="Select a block on the pending side (shift-click to extend), then edit it by hand"
+        >
+          <PencilLineIcon />
+          Edit selection
+        </Button>
+      )}
+      <Segmented items={COMPARE_VIEWS} value={view} onChange={setView} />
+    </div>
   );
 
   if (view === "unified") {
@@ -91,8 +201,15 @@ export function SnapshotComparePane({
             <span className="text-fg-4">(empty candidate)</span>
           )}
           {rows.map((row, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are a pure derivation of the two documents
-            <div key={i} className="py-1.5 first:pt-0">
+            <SelectableCell
+              // biome-ignore lint/suspicious/noArrayIndexKey: rows are a pure derivation of the two documents
+              key={i}
+              index={rowIndex[i]}
+              selection={selection}
+              editable={editable}
+              onSelect={select}
+              className="py-1.5 first:pt-0"
+            >
               <BlockMarkdown
                 row={row}
                 side={
@@ -103,7 +220,7 @@ export function SnapshotComparePane({
                       : "right"
                 }
               />
-            </div>
+            </SelectableCell>
           ))}
         </div>
       </div>
@@ -150,9 +267,15 @@ export function SnapshotComparePane({
               <div className="min-w-0 px-5 py-1.5 text-fg-2">
                 <BlockMarkdown row={row} side="left" />
               </div>
-              <div className="min-w-0 px-5 py-1.5 text-fg-1">
+              <SelectableCell
+                index={rowIndex[i]}
+                selection={selection}
+                editable={editable}
+                onSelect={select}
+                className="min-w-0 px-5 py-1.5 text-fg-1"
+              >
                 <BlockMarkdown row={row} side="right" />
-              </div>
+              </SelectableCell>
             </Fragment>
           ))}
         </div>

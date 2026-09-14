@@ -17,7 +17,8 @@ import (
 // contributing no delta for that number.
 //
 // Version 1 is the launch schema, frozen in baseline/v1.go.
-const Version = 1
+// Version 2 adds the "edit" fragment type (deltas/v0002_add_fragment_type_edit.go).
+const Version = 2
 
 // BuildRev identifies the build, for the failed-migration marker: the same
 // build never retries a migration it already failed, a different build does.

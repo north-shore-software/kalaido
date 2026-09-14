@@ -128,6 +128,7 @@ const ProductBrief = `Kalaido is a private desktop app where the user collects r
 const ContextLegend = `The conversation includes documents from the user's workspace, each wrapped in a "--- ... ---" header:
 - Fragments are the user's raw source material. The header gives the fragment's kind (such as email or note), its source, and an internal ID.
 - Projection and reflection snapshots are documents Kalaido generated earlier by synthesizing other documents. Treat them as derived views, not original sources.
+- A fragment of kind "edit" records a passage of a generated document that the user rewrote by hand, shown as "Before" and "After". The After text is authoritative: keep it verbatim wherever a document covers that passage, and let it override other sources where they conflict. It is a source document, not text to restate or to copy into a lens.
 Documents may be added or removed while the conversation is under way; a notice announces each change, and removed documents must no longer be relied on. IDs are internal — refer to documents by their source or name when talking to the user, and never echo a raw ID even when the user's message contains one.`
 
 // MentionLegend explains the inline @-references the user's messages may carry
@@ -252,9 +253,40 @@ func RemovedIDLine(kind, id string) string {
 	return "- " + kind + " ID: " + id + "\n"
 }
 
+// EditFragmentKind is the fragment type that records a hand edit of a
+// generated document. It is both the stored type value and the kind the
+// model sees in the block header.
+const EditFragmentKind = "edit"
+
+// EditBeforeMarker and EditAfterMarker label the two passages inside an edit
+// fragment's content.
+const (
+	EditBeforeMarker = "Before:"
+	EditAfterMarker  = "After:"
+)
+
+// EditFragmentContent is the immutable body of an "edit" fragment: the
+// passage as the generated document had it and as the user rewrote it, each
+// fenced with <<< / >>> lines so the two can never be confused whatever
+// markdown they contain.
+func EditFragmentContent(oldText, newText string) string {
+	return "The user rewrote a passage of a generated document by hand.\n\n" +
+		EditBeforeMarker + "\n<<<\n" + oldText + "\n>>>\n\n" +
+		EditAfterMarker + "\n<<<\n" + newText + "\n>>>\n"
+}
+
+// EditFragmentGuidance rides inside every edit fragment's block, so the rule
+// reaches each consumer of source documents — snapshot generation has no
+// system prompt in which to state it once.
+const EditFragmentGuidance = "[This is a hand edit by the user. Where the document covers this passage, reproduce the \"After\" text verbatim; where it conflicts with other sources, the edit wins.]\n"
+
 // FragmentBlock, ProjectionSnapshotBlock and ReflectionSnapshotBlock each
-// delimit one document inside the source material handed to the model.
+// delimit one document inside the source material handed to the model. An
+// edit fragment carries EditFragmentGuidance between its header and body.
 func FragmentBlock(kind, source, id, content string) string {
+	if kind == EditFragmentKind {
+		return fmt.Sprintf("--- %s from %s (ID: %s) ---\n%s%s\n\n", kind, source, id, EditFragmentGuidance, content)
+	}
 	return fmt.Sprintf("--- %s from %s (ID: %s) ---\n%s\n\n", kind, source, id, content)
 }
 

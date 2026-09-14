@@ -101,6 +101,32 @@ export async function approveProjectionCandidate(
   });
 }
 
+export interface EditProjectionCandidateResult {
+  snapshotId: string;
+  fragmentId: string;
+}
+
+/**
+ * Replace one exact passage of a pending candidate by hand. The server records
+ * the edit as an `edit` fragment pinned to the projection's context and adds a
+ * second pending candidate carrying the new text; the one edited stays pending.
+ * Mirrors `POST /api/projections/:id/candidates/:rid/edit`
+ * (`EditCandidateRequest`). `oldText` must be the raw markdown slice as it
+ * appears in the candidate, once.
+ */
+export async function editProjectionCandidate(
+  projectionId: string,
+  snapshotId: string,
+  edit: { oldText: string; newText: string },
+): Promise<Result<EditProjectionCandidateResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<EditProjectionCandidateResult>(
+      `/api/projections/${projectionId}/candidates/${snapshotId}/edit`,
+      { method: "POST", body: edit, requestKey: null },
+    ),
+  );
+}
+
 /** Delete a projection outright. Mirrors `DELETE /api/projections/:id`. */
 export async function deleteProjection(
   projectionId: string,

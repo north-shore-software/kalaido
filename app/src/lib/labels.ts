@@ -16,6 +16,7 @@ const FRAGMENT_TYPE_LABELS: Record<FragmentTypeOptions, string> = {
   email: "Email",
   note: "Note",
   chat: "Chat",
+  edit: "Edit",
 };
 
 export function fragmentTypeLabel(type: string): string {
