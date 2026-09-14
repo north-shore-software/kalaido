@@ -21,7 +21,7 @@ const DEBOUNCE_MS = 300;
 /** Text the assistant has streamed so far in the last message, if it is live. */
 function streamingChars(messages: UIMessage[]): number {
   const last = messages[messages.length - 1];
-  if (!last || last.role !== "assistant") return 0;
+  if (last?.role !== "assistant") return 0;
   return last.parts.reduce(
     (n, p) => n + (p.type === "text" ? (p.text?.length ?? 0) : 0),
     0,
@@ -53,13 +53,7 @@ export function usePromptEstimate(args: {
   /** Off = never asks; the panel calls this unconditionally. */
   enabled?: boolean;
 }): PromptEstimate {
-  const {
-    conversationId,
-    items,
-    messages,
-    streaming,
-    enabled = true,
-  } = args;
+  const { conversationId, items, messages, streaming, enabled = true } = args;
   const [est, setEst] = useState<PromptEstimate>({ loading: true });
 
   const spec = useMemo(() => itemsToSpec(items), [items]);

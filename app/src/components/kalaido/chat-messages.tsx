@@ -25,6 +25,11 @@ export interface MessageBubbleProps {
    * message is the caller's business, not the transcript's.
    */
   actions?: ReactNode;
+  /**
+   * Keep the actions row visible rather than hover-revealed — for a message
+   * whose state (bookmarked, saved) the reader should see at a glance.
+   */
+  actionsVisible?: boolean;
 }
 
 /**
@@ -69,7 +74,12 @@ const mentionTagComponents = {
 const mentionAllowedTags = { kmention: [] as string[] };
 const mentionLiteralTags = ["kmention"];
 
-export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
+export function MessageBubble({
+  role,
+  content,
+  actions,
+  actionsVisible,
+}: MessageBubbleProps) {
   return (
     <div
       className={cn(
@@ -101,7 +111,12 @@ export function MessageBubble({ role, content, actions }: MessageBubbleProps) {
         )}
       </div>
       {actions && (
-        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
+        <div
+          className={cn(
+            "flex items-center gap-1 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100",
+            !actionsVisible && "opacity-0",
+          )}
+        >
           {actions}
         </div>
       )}
@@ -346,25 +361,40 @@ function toolNoticeFor(msg: UIMessage): string | null {
   return null;
 }
 
+export interface MessageActionsArgs {
+  message: UIMessage;
+  content: string;
+  role: "user" | "assistant";
+  /**
+   * The turn is still in flight — the message has no persisted row yet (an
+   * answer mid-stream, or the user message that just went out with it), so
+   * anything that addresses it server-side has to wait.
+   */
+  pending: boolean;
+}
+
 export interface ChatMessagesProps {
   messages: UIMessage[];
   greeting?: string;
   pending?: boolean;
   /**
-   * Controls to attach under each assistant message that produced text — e.g.
-   * capturing the answer as a fragment. Omit to render a plain transcript.
+   * Controls to attach under each chat turn that carries text, either role —
+   * e.g. bookmarking it. Omit to render a plain transcript.
    */
-  assistantActions?: (args: {
-    message: UIMessage;
-    content: string;
-  }) => ReactNode;
+  messageActions?: (args: MessageActionsArgs) => ReactNode;
+  /**
+   * Which messages keep their actions visible rather than hover-revealed —
+   * those whose state the reader should see at a glance.
+   */
+  actionsVisibleFor?: (message: UIMessage) => boolean;
 }
 
 export function ChatMessages({
   messages,
   greeting = "Hello! How can I help you today?",
   pending,
-  assistantActions,
+  messageActions,
+  actionsVisibleFor,
 }: ChatMessagesProps) {
   // System messages carry no chat text. Those with a `context_spec` or
   // `window` part mark where the context / target window changed and render
@@ -372,6 +402,17 @@ export function ChatMessages({
   const chatMessageCount = messages.filter((m) => m.role !== "system").length;
   let prevSpec: ContextSpec | null = null;
   let prevWindow: TimeWindow | null = null;
+  // While a turn is in flight, everything from the user message that started
+  // it onward has no row on the server yet.
+  let inFlightFrom = -1;
+  if (pending) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        inFlightFrom = i;
+        break;
+      }
+    }
+  }
 
   return (
     <>
@@ -382,7 +423,7 @@ export function ChatMessages({
           </div>
         </div>
       )}
-      {messages.map((msg) => {
+      {messages.map((msg, index) => {
         if (msg.role === "system") {
           const spec = messageContextSpec(msg);
           const win = messageWindow(msg);
@@ -440,16 +481,22 @@ export function ChatMessages({
           .map((part) => (part.type === "text" ? part.text : ""))
           .join("\n\n");
 
+        const role = msg.role === "user" ? "user" : "assistant";
+        const actionArgs: MessageActionsArgs | null = messageActions
+          ? {
+              message: msg,
+              content,
+              role,
+              pending: inFlightFrom >= 0 && index >= inFlightFrom,
+            }
+          : null;
         return (
           <Fragment key={msg.id}>
             <MessageBubble
               role={msg.role}
               content={content}
-              actions={
-                msg.role === "assistant"
-                  ? assistantActions?.({ message: msg, content })
-                  : undefined
-              }
+              actions={actionArgs ? messageActions?.(actionArgs) : undefined}
+              actionsVisible={actionsVisibleFor?.(msg)}
             />
             {noticeRows}
           </Fragment>

@@ -40,3 +40,18 @@ func ExpandMentions(text string) string {
 		}
 	})
 }
+
+// StripMentions rewrites every mention token in text into a plain `@Label` —
+// the cosmetic form the client shows in previews — for text that is kept as
+// content rather than sent to the model (a chat turn saved as a fragment).
+// Mirrors lib/mentions.ts stripMentions.
+func StripMentions(text string) string {
+	return mentionRe.ReplaceAllStringFunc(text, func(tok string) string {
+		m := mentionRe.FindStringSubmatch(tok)
+		id, label := m[2], m[3]
+		if label == "" {
+			label = id
+		}
+		return "@" + label
+	})
+}

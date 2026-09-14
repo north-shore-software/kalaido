@@ -21,6 +21,7 @@ export function ColourComposerPane({
   onName,
   onPrompt,
   onTypeFilter,
+  seededCount = 0,
 }: {
   name: string;
   prompt: string;
@@ -30,6 +31,8 @@ export function ColourComposerPane({
   onName: (v: string) => void;
   onPrompt: (v: string) => void;
   onTypeFilter: (v: TypeFilter) => void;
+  /** Fragments this colour starts from — pinned as positive examples on create. */
+  seededCount?: number;
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-8 py-6">
@@ -52,6 +55,12 @@ export function ColourComposerPane({
           rows={3}
           placeholder="Incoming messages & emails about product pain points…"
         />
+        {seededCount > 0 && (
+          <Mono className="text-meta text-fg-4">
+            {seededCount} bookmarked fragment{seededCount === 1 ? "" : "s"} will
+            be pinned as positive examples
+          </Mono>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">

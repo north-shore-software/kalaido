@@ -79,11 +79,13 @@ interface ChatPanelProps {
   onMessagesChange?: (messages: UIMessage[]) => void;
   title?: ReactNode;
   /**
-   * Controls to attach under each assistant answer (see {@link ChatMessages}).
-   * Only the surfaces where an answer is worth keeping supply this — a refine
-   * chat's answers are drafts of a snapshot, not material in their own right.
+   * Controls to attach under each chat turn (see {@link ChatMessages}). Only
+   * the surfaces where a turn is worth keeping supply this — a refine chat's
+   * answers are drafts of a snapshot, not material in their own right.
    */
-  assistantActions?: ChatMessagesProps["assistantActions"];
+  messageActions?: ChatMessagesProps["messageActions"];
+  /** See {@link ChatMessages}: which turns keep their actions visible. */
+  actionsVisibleFor?: ChatMessagesProps["actionsVisibleFor"];
   /**
    * Show how full the context window is, beneath the composer. Only plain
    * chat opts in: a refinement's context is the document's, not a session
@@ -110,7 +112,8 @@ export function ChatPanel({
   onTurnComplete,
   onMessagesChange,
   title,
-  assistantActions,
+  messageActions,
+  actionsVisibleFor,
   meter,
   flat,
   className,
@@ -296,7 +299,8 @@ export function ChatPanel({
           messages={messages}
           greeting={greeting}
           pending={isLoading}
-          assistantActions={assistantActions}
+          messageActions={messageActions}
+          actionsVisibleFor={actionsVisibleFor}
         />
         <div ref={bottomRef} />
       </div>

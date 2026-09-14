@@ -92,3 +92,11 @@ func TestFlattenExpandsMentions(t *testing.T) {
 		t.Errorf("Flatten did not expand mention: %q", msgs[0].Content)
 	}
 }
+
+func TestStripMentions(t *testing.T) {
+	in := "see @[Fragment:abc123|standup notes] and @[Colour:c1|] and a@b.c"
+	want := "see @standup notes and @c1 and a@b.c"
+	if got := StripMentions(in); got != want {
+		t.Errorf("StripMentions = %q, want %q", got, want)
+	}
+}

@@ -29,8 +29,7 @@ export function ContextMeter({
   if (total === undefined) return null;
   const hasLimit = !!limit && limit > 0;
   const ratio = hasLimit ? total / limit : 0;
-  const tone =
-    ratio > 1 ? "critical" : ratio >= NEAR ? "drifting" : "section";
+  const tone = ratio > 1 ? "critical" : ratio >= NEAR ? "drifting" : "section";
 
   const fill = {
     section: "bg-section",
@@ -51,15 +50,7 @@ export function ContextMeter({
     : `About ${humanTokens(total)} tokens`;
 
   return (
-    <div
-      className={cn("flex items-center gap-2", className)}
-      title={title}
-      role="meter"
-      aria-label="Context window used"
-      aria-valuemin={0}
-      aria-valuemax={hasLimit ? limit : undefined}
-      aria-valuenow={total}
-    >
+    <div className={cn("flex items-center gap-2", className)} title={title}>
       <div className="h-0.5 flex-1 rounded-none bg-line">
         <div
           className={cn("h-full rounded-none", fill)}

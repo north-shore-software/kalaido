@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Kalaidoscope Database Schema — Generated Audit Snapshot
 
 > **Generated:** 2026-09-10, from source at commit `6acd107`.

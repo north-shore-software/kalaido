@@ -413,6 +413,13 @@ var Canonical = []TableDef{
 			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+			// A bookmark marks a message as material the session is
+			// gathering; it creates nothing by itself. Saving the bookmarks
+			// stamps fragment_id, which is what stops a message being saved
+			// twice and keeps it showing as saved after the mark is cleared.
+			// Plain chat only; refinement transcripts never carry either.
+			&core.BoolField{Name: "bookmarked"},
+			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", MaxSelect: 1},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_chat_message_chat_conv", Columns: "chat_conversation_id"},

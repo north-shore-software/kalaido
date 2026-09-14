@@ -300,6 +300,10 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 	return func(e *core.RequestEvent) error {
 		type reqBody struct {
 			Name string `json:"name"`
+			// What this entity is for, when the creator has one to give —
+			// a chat's brief. Discover writes its own; typed creates leave
+			// it empty.
+			Description string `json:"description,omitempty"`
 			// Reflections only: the schedule. A Start Time in the past is
 			// "summarize from then": the first version is effective from it,
 			// so every grid window since is pending (the backfill).
@@ -327,6 +331,9 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			rec := core.NewRecord(col)
 			rec.Set("name", req.Name)
 			rec.Set("status", engine.EntityActive)
+			if d := strings.TrimSpace(req.Description); d != "" {
+				rec.Set("description", d)
+			}
 			if strat.TargetType() == "reflection" {
 				spec := api.WindowSpec{}
 				if req.WindowSpec != nil {

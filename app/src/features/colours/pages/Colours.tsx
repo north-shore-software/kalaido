@@ -1,5 +1,6 @@
 import { PlusIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { createColour } from "@/api/kalaidoscope/colours";
 import { EmptyState } from "@/components/kalaido";
@@ -18,9 +19,28 @@ import { isMember, type MemberRow } from "../fragments";
 import { useColourPreview } from "../hooks/use-colour-preview";
 import { coloursTransitions } from "./Colours.transitions";
 
+/**
+ * A colour composed from fragments that already exist — a chat's saved
+ * bookmarks. Passed as router state; the composer opens with them as the
+ * positive examples the preview judges with and the colour pins on create.
+ */
+export interface ColourSeed {
+  positiveExamples: string[];
+}
+
+const NO_SEED: readonly string[] = [];
+
 export default function Colours() {
+  // Captured once: a seed is a one-shot handoff, not a mode of the page.
+  const location = useLocation();
+  const seedRef = useRef(
+    ((location.state ?? {}) as { seed?: ColourSeed }).seed,
+  );
+  // One identity for the page's life: the preview effect depends on it.
+  const seedExamples = seedRef.current?.positiveExamples ?? NO_SEED;
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [composing, setComposing] = useState(false);
+  const [composing, setComposing] = useState(seedExamples.length > 0);
 
   const colours = useCollection("colour", {
     sort: "-created",
@@ -56,7 +76,7 @@ export default function Colours() {
   const [draftName, setDraftName] = useState("");
   const [draftPrompt, setDraftPrompt] = useState("");
   const [saving, setSaving] = useState(false);
-  const preview = useColourPreview(draftPrompt, composing);
+  const preview = useColourPreview(draftPrompt, composing, seedExamples);
 
   function openComposer() {
     setComposing(true);
@@ -80,6 +100,9 @@ export default function Colours() {
       // Seed every match, not the type-filtered view — the colour matches on the
       // prompt regardless of type; the chip is only a preview convenience.
       fragmentIds: preview.matches.map((f) => f.id),
+      ...(seedExamples.length > 0
+        ? { positiveExamples: [...seedExamples] }
+        : {}),
     });
     setSaving(false);
     if (res.isErr()) {
@@ -138,6 +161,7 @@ export default function Colours() {
               onName={setDraftName}
               onPrompt={setDraftPrompt}
               onTypeFilter={preview.setTypeFilter}
+              seededCount={seedExamples.length}
             />
           ) : selected ? (
             <ColourDetailPane
