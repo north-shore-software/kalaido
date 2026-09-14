@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { diffMarkdown, segmentBlocks } from "./markdown-diff";
+import {
+  candidateBlockIndexByRow,
+  diffMarkdown,
+  segmentBlockRanges,
+  segmentBlocks,
+} from "./markdown-diff";
 
 const doc = [
   "# Product Roadmap Q3",
@@ -113,5 +118,53 @@ describe("diffMarkdown", () => {
   it("treats whitespace-only drift as same", () => {
     const rows = diffMarkdown("a  paragraph here", "a paragraph  here");
     expect(rows.map((r) => r.kind)).toEqual(["same"]);
+  });
+});
+
+describe("segmentBlockRanges", () => {
+  const cases: Record<string, string> = {
+    "multiple blank lines": "one\n\n\n\ntwo\nstill two\n\nthree",
+    "whitespace-only separator lines": "one\n  \n\t\ntwo",
+    "fence with internal blanks": "before\n\n```ts\na\n\nb\n```\n\nafter",
+    "no trailing newline": "a\n\nb",
+    "trailing newlines": "a\n\nb\n\n",
+    "leading blank lines": "\n\na\n\nb",
+    "single block": "just one line",
+    empty: "",
+  };
+  for (const [name, md] of Object.entries(cases)) {
+    it(`slices exactly: ${name}`, () => {
+      for (const b of segmentBlockRanges(md)) {
+        expect(md.slice(b.start, b.end)).toBe(b.text);
+      }
+    });
+    it(`agrees with segmentBlocks: ${name}`, () => {
+      expect(segmentBlockRanges(md).map((b) => b.text)).toEqual(
+        segmentBlocks(md),
+      );
+    });
+  }
+
+  it("slicing a run of blocks reproduces the source between them", () => {
+    const md = "# T\n\nalpha\n\n\ngamma\n\ndelta";
+    const r = segmentBlockRanges(md);
+    expect(md.slice(r[1].start, r[2].end)).toBe("alpha\n\n\ngamma");
+  });
+});
+
+describe("candidateBlockIndexByRow", () => {
+  it("maps rows with a right side onto candidate blocks, in order", () => {
+    const current = "keep\n\ndrop me\n\nchange me a lot\n\nend";
+    const candidate = "keep\n\nchange me a little\n\nnew block\n\nend";
+    const rows = diffMarkdown(current, candidate);
+    const index = candidateBlockIndexByRow(rows);
+    expect(index.length).toBe(rows.length);
+    const present = index.filter((i): i is number => i !== null);
+    expect(present).toEqual(
+      Array.from({ length: segmentBlocks(candidate).length }, (_, i) => i),
+    );
+    rows.forEach((row, i) => {
+      expect(index[i] === null).toBe(row.right === undefined);
+    });
   });
 });

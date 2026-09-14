@@ -35,7 +35,11 @@ var Canonical = []TableDef{
 				// from outside. It is an ordinary fragment in every other respect;
 				// the distinct type is what lets these be selected — or excluded —
 				// as a group once a workspace accumulates them.
-				Values: []string{"email", "note", "chat"},
+				// "edit" records a passage of a generated document the user
+				// rewrote by hand (the passage before and after), so later
+				// generations see the correction as a source. Ordinary in every
+				// other respect: in whole scope, on the map, pinnable.
+				Values: []string{"email", "note", "chat", "edit"},
 			},
 			// How the fragment entered: a file import batch, the app's
 			// add-fragment flow, or an external client on POST /api/ingest

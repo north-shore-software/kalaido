@@ -148,6 +148,7 @@ func RegisterRoutes(app core.App) {
 		se.Router.DELETE("/api/projections/{id}", handlers.HandleDeleteProjection(app))
 		se.Router.POST("/api/projections/{id}/candidates", handlers.HandleGenerateCandidate(app))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app))
+		se.Router.POST("/api/projections/{id}/candidates/{rid}/edit", handlers.HandleEditCandidate(app))
 		se.Router.POST("/api/projections/{id}/refinements", handlers.HandleCreateProjectionRefinement(app))
 		se.Router.POST("/api/projections/{id}/refinements/{rid}/commit", handlers.HandleCommitProjectionRefinement(app))
 

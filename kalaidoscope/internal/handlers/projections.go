@@ -18,6 +18,10 @@ func HandleApproveCandidate(app core.App) func(e *core.RequestEvent) error {
 	return handleApproveCandidate(app, engine.ProjectionStrategy{})
 }
 
+func HandleEditCandidate(app core.App) func(e *core.RequestEvent) error {
+	return handleEditCandidate(app, engine.ProjectionStrategy{})
+}
+
 func HandleUpdateProjection(app core.App) func(e *core.RequestEvent) error {
 	return handleUpdate(app, engine.ProjectionStrategy{})
 }

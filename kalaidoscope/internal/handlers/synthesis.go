@@ -262,6 +262,40 @@ func handleApproveCandidate(app core.App, strat engine.Strategy) func(e *core.Re
 	}
 }
 
+// handleEditCandidate applies a hand edit to a pending candidate (see
+// engine.ApplyEdit): 409 when the candidate is no longer pending, 422 when the
+// selected text cannot be replaced as asked.
+func handleEditCandidate(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		snapID, herr := resolveCandidate(e, app, strat)
+		if herr != nil {
+			return herr
+		}
+		var req api.EditCandidateRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		if req.OldText == "" {
+			return e.BadRequestError("oldText required", nil)
+		}
+		// Detached from the request: the write is one transaction and must
+		// not be torn by a client that navigates away mid-request.
+		res, err := engine.ApplyEdit(context.WithoutCancel(e.Request.Context()), app, strat,
+			e.Request.PathValue("id"), snapID, req.OldText, req.NewText)
+		if err != nil {
+			log.Printf("%s.edit: %v", strat.TargetType(), err)
+			switch {
+			case errors.Is(err, engine.ErrEditNotPending):
+				return e.Error(http.StatusConflict, err.Error(), err)
+			case errors.Is(err, engine.ErrEditRejected):
+				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
+			}
+			return e.InternalServerError("edit failed", err)
+		}
+		return e.JSON(http.StatusOK, api.EditCandidateResponse{SnapshotID: res.SnapshotID, FragmentID: res.FragmentID})
+	}
+}
+
 func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		type reqBody struct {

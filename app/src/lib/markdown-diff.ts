@@ -24,34 +24,71 @@ export interface DiffRow {
 
 const FENCE = /^\s{0,3}(```|~~~)/;
 
+/** One block of a document with its exact character span in the source. */
+export interface BlockRange {
+  text: string;
+  /** Offset of the block's first character in the source. */
+  start: number;
+  /** Offset just past the block's last character (`source.slice(start, end) === text`). */
+  end: number;
+}
+
 /**
  * Split markdown into blocks on blank lines, fence-aware: a code block with
- * internal blank lines stays one block.
+ * internal blank lines stays one block. Each block carries its span so a
+ * caller can slice the *exact* source text of a block run — the blank lines
+ * between blocks are dropped here, so re-joining blocks would not reproduce
+ * the source.
  */
-export function segmentBlocks(md: string): string[] {
-  const blocks: string[] = [];
+export function segmentBlockRanges(md: string): BlockRange[] {
+  const blocks: BlockRange[] = [];
   let current: string[] = [];
+  let currentStart = 0;
   let inFence = false;
-  const flush = () => {
+  let offset = 0;
+  const flush = (end: number) => {
     if (current.length > 0) {
-      blocks.push(current.join("\n"));
+      blocks.push({ text: current.join("\n"), start: currentStart, end });
       current = [];
     }
   };
   for (const line of md.split("\n")) {
+    const lineEnd = offset + line.length;
     if (FENCE.test(line)) {
+      if (current.length === 0) currentStart = offset;
       current.push(line);
       inFence = !inFence;
-      continue;
+    } else if (!inFence && line.trim() === "") {
+      flush(offset - 1);
+    } else {
+      if (current.length === 0) currentStart = offset;
+      current.push(line);
     }
-    if (!inFence && line.trim() === "") {
-      flush();
-      continue;
-    }
-    current.push(line);
+    offset = lineEnd + 1;
   }
-  flush();
+  // The last block ends at the last line's end, not after a "\n" that may
+  // not exist.
+  if (current.length > 0) {
+    flush(currentStart + current.join("\n").length);
+  }
   return blocks;
+}
+
+/** The blocks of `segmentBlockRanges`, text only. */
+export function segmentBlocks(md: string): string[] {
+  return segmentBlockRanges(md).map((b) => b.text);
+}
+
+/**
+ * For each diff row, the index of the candidate (right-side) block it shows,
+ * or null for a row with no right side. `diffMarkdown` emits right-side
+ * blocks in candidate order, so the k-th row with a right side is candidate
+ * block k. The row's own `right` text may carry <ins> tags — take the raw
+ * block from `segmentBlockRanges(candidate)[index]` instead.
+ */
+export function candidateBlockIndexByRow(rows: DiffRow[]): (number | null)[] {
+  let k = 0;
+  return rows.map((row) => (row.right === undefined ? null : k++));
 }
 
 function normalizeBlock(block: string): string {

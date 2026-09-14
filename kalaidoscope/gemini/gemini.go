@@ -17,7 +17,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-const geminiBase = "https://generativelanguage.googleapis.com/v1beta"
+// geminiBase is a variable so a test can point the provider at a fake server.
+var geminiBase = "https://generativelanguage.googleapis.com/v1beta"
 
 // Demo 2026-08-27: every request rides the Priority tier. Make this
 // configurable (kalaidoscope_config) when the demo hardcode is lifted.
@@ -111,30 +112,45 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		return nil, fmt.Errorf("gemini: no model set")
 	}
 
+	// Only the leading system message is the system instruction. Every
+	// caller puts its prompt there; any later system message is a context
+	// delta from the hydrator (documents added or removed at that point in
+	// the conversation) and rides as a user-turn part in its real position.
+	// Folding those into the instruction did two wrong things: it hoisted a
+	// mid-conversation notice to the top, and it grew the instruction to the
+	// size of the whole context, which Gemini rejects as INVALID_ARGUMENT
+	// once the workspace is large enough (~500k chars observed) — while the
+	// same text as a user turn is accepted, as snapshot generation shows.
+	// Consecutive same-role turns merge into one content with several parts.
 	contents := make([]geminiContent, 0, len(messages))
-	var systemText strings.Builder
-	for _, m := range messages {
-
-		if m.Role == "system" {
-			if systemText.Len() > 0 {
-				systemText.WriteString("\n\n")
-			}
-			systemText.WriteString(m.Content)
-			continue
+	var systemText string
+	parts := 0
+	appendPart := func(role, text string) {
+		parts++
+		if n := len(contents); n > 0 && contents[n-1].Role == role {
+			contents[n-1].Parts = append(contents[n-1].Parts, geminiPart{Text: text})
+			return
 		}
+		contents = append(contents, geminiContent{Role: role, Parts: []geminiPart{{Text: text}}})
+	}
+	for i, m := range messages {
 		role := m.Role
-		if role == "assistant" {
+		switch role {
+		case "system":
+			if i == 0 {
+				systemText = m.Content
+				continue
+			}
+			role = "user"
+		case "assistant":
 			role = "model"
 		}
-		contents = append(contents, geminiContent{
-			Role:  role,
-			Parts: []geminiPart{{Text: m.Content}},
-		})
+		appendPart(role, m.Content)
 	}
 
 	var systemInstruction *geminiContent
-	if systemText.Len() > 0 {
-		systemInstruction = &geminiContent{Parts: []geminiPart{{Text: systemText.String()}}}
+	if systemText != "" {
+		systemInstruction = &geminiContent{Parts: []geminiPart{{Text: systemText}}}
 	}
 
 	var gTools []geminiTool
@@ -166,7 +182,16 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		return nil, fmt.Errorf("gemini: marshal: %w", err)
 	}
 
+	// What the failure log reports besides the generic shape: the wire-level
+	// facts Gemini validates — the tier, the folded system instruction's
+	// size, and the turn count — since its 400s rarely say which one it
+	// objected to.
+	shape := llm.Shape(messages, tools, opts)
+	detail := fmt.Sprintf("tier=%s system_instruction=%dch contents=%d parts=%d body=%dB",
+		serviceTier, len(systemText), len(contents), parts, len(body))
+
 	url := fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse", geminiBase, p.model())
+	llm.LogRequest(llm.ProviderGemini, p.model(), url, body)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("gemini: new request: %w", err)
@@ -181,6 +206,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		llm.LogFailure(llm.ProviderGemini, p.model(), 0, shape, detail, err.Error())
 		return nil, &llm.ProviderError{
 			Provider: llm.ProviderGemini,
 			Kind:     llm.ErrKindTransient,
@@ -192,6 +218,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
+		llm.LogFailure(llm.ProviderGemini, p.model(), resp.StatusCode, shape, detail, string(body))
 		return nil, &llm.ProviderError{
 			Provider:   llm.ProviderGemini,
 			Kind:       classify(resp.StatusCode, body),

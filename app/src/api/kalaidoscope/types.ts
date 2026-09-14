@@ -193,6 +193,7 @@ export const FragmentTypeOptions = {
 	"email": "email",
 	"note": "note",
 	"chat": "chat",
+	"edit": "edit",
 } as const
 export type FragmentTypeOptions = typeof FragmentTypeOptions[keyof typeof FragmentTypeOptions]
 
@@ -474,6 +475,7 @@ export const ViewStreamTypeOptions = {
 	"email": "email",
 	"note": "note",
 	"chat": "chat",
+	"edit": "edit",
 } as const
 export type ViewStreamTypeOptions = typeof ViewStreamTypeOptions[keyof typeof ViewStreamTypeOptions]
 export type ViewStreamRecord<Tcolour_ids = unknown> = {
