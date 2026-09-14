@@ -9,11 +9,12 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
-	_ "github.com/north-shore-software/kalaido/kalaidoscope/migrations"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// NewApp boots a throwaway PocketBase against a temp data dir and applies the
-// schema migration, so tests run against the real collections.
+// NewApp boots a throwaway PocketBase against a temp data dir with the
+// canonical schema created at bootstrap, so tests run against the real
+// collections.
 func NewApp(t *testing.T) core.App {
 	t.Helper()
 
@@ -21,14 +22,11 @@ func NewApp(t *testing.T) core.App {
 		DefaultDataDir:  t.TempDir(),
 		HideStartBanner: true,
 	})
+	schema.Install(app, schema.Options{})
 	if err := app.Bootstrap(); err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
 	t.Cleanup(func() { _ = app.ResetBootstrapState() })
-
-	if err := app.RunAppMigrations(); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
 	return app
 }
 
