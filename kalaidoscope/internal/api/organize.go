@@ -1,11 +1,12 @@
 package api
 
 type OrganizeStatus struct {
-	Fragments int            `json:"fragments"`
-	Imports   ImportsStatus  `json:"imports"`
-	Map       MapStatus      `json:"map"`
-	Discover  DiscoverStatus `json:"discover"`
-	Policy    OrganizePolicy `json:"policy"`
+	Fragments int             `json:"fragments"`
+	Imports   ImportsStatus   `json:"imports"`
+	Map       MapStatus       `json:"map"`
+	Discover  DiscoverStatus  `json:"discover"`
+	Policy    OrganizePolicy  `json:"policy"`
+	Reconcile ReconcileStatus `json:"reconcile"`
 }
 
 type ImportsStatus struct {
@@ -39,6 +40,16 @@ type ProposalCounts struct {
 
 type OrganizePolicy struct {
 	Wave bool `json:"wave"`
+}
+
+// ReconcileStatus is the speculative wave's state: whether one is running,
+// what ended the last one, and when one last ran clean. A client preparing a
+// reconcile session reads it to tell "still generating" from "ready".
+type ReconcileStatus struct {
+	Running   bool   `json:"running"`
+	LastError string `json:"lastError,omitempty"`
+	// RFC3339; empty until a wave has completed without error.
+	LastCompleted string `json:"lastCompleted,omitempty"`
 }
 
 type RunInfo struct {

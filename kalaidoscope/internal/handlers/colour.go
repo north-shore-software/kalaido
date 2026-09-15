@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/pocketbase/dbx"
@@ -158,6 +159,8 @@ func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
 		if colourRec.GetString("prompt") != "" {
 			colour.Signal()
 		}
+		// Seeded members are in scope for any lens that names this colour.
+		reconcile.EnqueueWave()
 
 		return e.JSON(http.StatusOK, api.CreateColourResponse{ColourID: colourRec.Id})
 	}
@@ -194,6 +197,7 @@ func HandleUpdateColour(app core.App) func(e *core.RequestEvent) error {
 			if err := colour.Rematch(app, colourRec.Id); err != nil {
 				return e.InternalServerError("failed to restart matching", err)
 			}
+			reconcile.EnqueueWave()
 		}
 
 		return e.JSON(http.StatusOK, api.UpdateColourResponse{
@@ -215,6 +219,7 @@ func HandleRematchColour(app core.App) func(e *core.RequestEvent) error {
 		if err := colour.Rematch(app, colourRec.Id); err != nil {
 			return e.InternalServerError("failed to restart matching", err)
 		}
+		reconcile.EnqueueWave()
 		return e.NoContent(http.StatusAccepted)
 	}
 }
