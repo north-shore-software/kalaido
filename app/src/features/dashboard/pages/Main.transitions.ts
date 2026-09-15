@@ -23,6 +23,11 @@ export const mainTransitions = defineTransitions({
   },
   startPipeline: {
     to: "onboarding-organizing",
-    trigger: "Click 'Import' in the dashboard import modal",
+    trigger: "Click 'Import' in the dashboard import modal for the first time",
+  },
+  toApp: {
+    to: "main",
+    trigger:
+      "Click 'Import' in the dashboard import modal when user already has saved fragments",
   },
 });

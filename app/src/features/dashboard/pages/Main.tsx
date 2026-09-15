@@ -467,10 +467,15 @@ export default function Main() {
         onClose={() => setImportDialogOpen(false)}
         onImportSuccess={(ingestId) => {
           setImportDialogOpen(false);
-          go(mainTransitions.startPipeline, {
-            params: { ingestId },
-            replace: true,
-          });
+
+          if (hasFragments) {
+            go(mainTransitions.toApp);
+          } else {
+            go(mainTransitions.startPipeline, {
+              params: { ingestId },
+              replace: true,
+            });
+          }
         }}
       />
     </PageLayout>
