@@ -122,4 +122,22 @@ describe("findNextTarget", () => {
 
     expect(res._unsafeUnwrapErr().message).toBe("offline");
   });
+
+  test("walks projections only when asked", async () => {
+    getRotation.mockResolvedValue(
+      plan(
+        { id: "r", type: "reflection", newFragmentIds: ["f"] },
+        { id: "p", newFragmentIds: ["f"] },
+      ),
+    );
+    getPendingCandidate.mockResolvedValue(ok({ id: "cand" }));
+
+    const res = await findNextTarget({ projectionsOnly: true });
+
+    expect(res._unsafeUnwrap()).toEqual({
+      id: "p",
+      type: "projection",
+      snapshotId: "cand",
+    });
+  });
 });

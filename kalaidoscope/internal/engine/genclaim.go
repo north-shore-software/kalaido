@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"log"
 	"time"
@@ -35,11 +36,60 @@ var (
 	// ErrNotApprovable: the candidate must not become the plan of record
 	// (empty output, still generating, or already superseded).
 	ErrNotApprovable = errors.New("candidate cannot be approved")
+	// ErrGenerationAbandoned: the generation being awaited ended without
+	// output — its claim row was released (failure) or nothing was running.
+	ErrGenerationAbandoned = errors.New("generation ended without output")
 )
+
+// awaitPollInterval paces AwaitGeneration's reads of the claim row. A
+// variable so tests can shorten it.
+var awaitPollInterval = 500 * time.Millisecond
+
+// AwaitGeneration joins a generation another caller (typically the wave) is
+// running for the target: it waits for the live claim row to be filled and
+// returns the resulting snapshot id. The row is the same durable state the
+// UI reads, so this needs no in-process handshake. Returns
+// ErrGenerationAbandoned when there is no live claim or it is released
+// unfilled, and ctx's error when the wait is cancelled; a superseded row
+// (discarded while awaited) reads as abandoned too.
+func AwaitGeneration(ctx context.Context, app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
+	filter, params := statusSnapshotFilter(strat, parentID, window, StatusGenerating)
+	claims, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "-created", 1, 0, params)
+	if err != nil {
+		return "", err
+	}
+	if len(claims) == 0 {
+		return "", ErrGenerationAbandoned
+	}
+	claimID := claims[0].Id
+	ticker := time.NewTicker(awaitPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-ticker.C:
+		}
+		rec, err := app.FindRecordById(strat.SnapshotCollectionName(), claimID)
+		if err != nil {
+			// Released: the generation failed, or a settle-in-place found
+			// nothing to publish.
+			return "", ErrGenerationAbandoned
+		}
+		switch rec.GetString("status") {
+		case StatusGenerating:
+			continue
+		case StatusDiscarded:
+			return "", ErrGenerationAbandoned
+		default:
+			return rec.Id, nil
+		}
+	}
+}
 
 // A claim older than this belongs to a run that crashed or hung; a new
 // generation takes it over instead of blocking forever.
-const generationClaimTTL = 10 * time.Minute
+const GenerationClaimTTL = 10 * time.Minute
 
 // claimGeneration takes the per-target generation lock by inserting the
 // status='generating' claim row. PocketBase funnels writes through a single
@@ -54,7 +104,7 @@ func claimGeneration(app core.App, strat Strategy, parentID string, window *api.
 			return err
 		}
 		for _, c := range claims {
-			if time.Since(c.GetDateTime("created").Time()) < generationClaimTTL {
+			if time.Since(c.GetDateTime("created").Time()) < GenerationClaimTTL {
 				return ErrGenerationInFlight
 			}
 			if err := tx.Delete(c); err != nil {

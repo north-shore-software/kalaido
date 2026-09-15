@@ -6,6 +6,7 @@ export interface UseRotationStatusResult {
   /** All entity statuses, in the server's topological order (deps first). */
   statuses: EntityStatus[];
   byId: Map<string, EntityStatus>;
+  /** True until the first plan has arrived; refetches keep the old plan. */
   isLoading: boolean;
   error: Error | null;
   /** Re-fetch the plan (recomputed server-side) — call after an approve. */
@@ -29,7 +30,9 @@ export function useRotationStatus(): UseRotationStatusResult {
   // biome-ignore lint/correctness/useExhaustiveDependencies: nonce is a re-run trigger for refetch(), not read in the effect
   useEffect(() => {
     let active = true;
-    setIsLoading(true);
+    // Only the first fetch is "loading". A refetch keeps the previous plan on
+    // screen until the new one lands; anything gated on isLoading would
+    // otherwise unmount and remount on every revalidation.
     void (async () => {
       const res = await getRotation();
       if (!active) return;

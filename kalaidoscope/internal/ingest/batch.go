@@ -12,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 )
 
 func RegisterHooks(app core.App) {
@@ -157,6 +158,12 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		log.Printf("ingest: save status for %s: %v", recID, err)
 	}
 	log.Printf("ingest: completed record %s (ingested %d fragments across %d file(s))", recID, total, len(files))
+	// The batch is in: every lens over these fragments can now be
+	// regenerated ahead of the user. Colour and map follow-ups re-request
+	// the wave as they change membership; each re-run skips what is current.
+	if total > 0 {
+		reconcile.EnqueueWave()
+	}
 	if cfg.organizeAfter {
 		startPipeline()
 		return

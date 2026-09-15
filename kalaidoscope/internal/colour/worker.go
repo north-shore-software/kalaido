@@ -81,59 +81,83 @@ func Rematch(app core.App, colourID string) error {
 	return nil
 }
 
+// drainedHooks run after a drain that linked at least one fragment: prompt
+// membership just changed, so every lens naming a colour may resolve
+// differently. Registered by server wiring (the reconcile wave), so this
+// package does not know its consumers.
+var drainedHooks []func()
+
+// OnDrained registers a hook to run after each drain that wrote membership.
+func OnDrained(fn func()) {
+	drainedHooks = append(drainedHooks, fn)
+}
+
 func loop() {
 	for range signal {
-		if err := drain(workerApp); err != nil {
+		wrote, err := drain(workerApp)
+		if err != nil {
 			log.Printf("colour: drain: %v", err)
+		}
+		if wrote > 0 {
+			for _, fn := range drainedHooks {
+				fn()
+			}
 		}
 	}
 }
 
-func drain(app core.App) error {
+// drain judges every colour's unjudged fragments and reports how many links
+// it wrote, so the caller can tell a drain that changed membership from one
+// that only advanced watermarks.
+func drain(app core.App) (int, error) {
 	cols, err := app.FindRecordsByFilter("colour", "prompt != ''", "created", 0, 0, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if len(cols) == 0 {
-		return nil
+		return 0, nil
 	}
 	// Colour matching stays role-level on purpose: it is workspace utility
 	// work, not entity generation, so no per-entity override applies.
 	model, err := llm.ResolveRole(llm.RoleColour)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	ctx := context.Background()
 	var firstErr error
+	wrote := 0
 	for _, c := range cols {
-		err := drainColour(ctx, app, model, c)
+		n, err := drainColour(ctx, app, model, c)
+		wrote += n
 		if errors.Is(err, usage.ErrExhausted) {
-			return err
+			return wrote, err
 		}
 		if err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
-	return firstErr
+	return wrote, firstErr
 }
 
 // drainColour judges every fragment past the colour's watermark, oldest
 // first, and advances the watermark a page at a time. Pairs that already hold
 // a row (manual, thing, or an earlier prompt match) are not judged again.
-func drainColour(ctx context.Context, app core.App, model string, c *core.Record) error {
+// Returns how many links it wrote, whatever else happened.
+func drainColour(ctx context.Context, app core.App, model string, c *core.Record) (int, error) {
 	prompt := c.GetString("prompt")
 	positiveBlock, negativeBlock := exampleBlocks(ctx, app, c.Id)
+	wrote := 0
 	for {
 		frags, err := pastWatermark(app, c.GetString("prompt_match_completed_up_to_fragment_id"))
 		if err != nil {
-			return err
+			return wrote, err
 		}
 		if len(frags) == 0 {
-			return nil
+			return wrote, nil
 		}
 		linked, err := linkedFragmentIDs(app, c.Id, frags)
 		if err != nil {
-			return err
+			return wrote, err
 		}
 		for _, f := range frags {
 			if linked[f.Id] {
@@ -143,19 +167,20 @@ func drainColour(ctx context.Context, app core.App, model string, c *core.Record
 			reply, err := judge(ctx, app, model, prompts.ColourEvalPrompt(prompt, positiveBlock, negativeBlock, target))
 			if err != nil {
 				recordProviderErrorKind(app, c, err)
-				return err
+				return wrote, err
 			}
 			clearProviderErrorKind(app, c)
 			if !prompts.ParseYesNo(reply) {
 				continue
 			}
 			if err := insertLink(app, c.Id, f.Id, MatchPrompt); err != nil {
-				return err
+				return wrote, err
 			}
+			wrote++
 		}
 		c.Set("prompt_match_completed_up_to_fragment_id", frags[len(frags)-1].Id)
 		if err := app.Save(c); err != nil {
-			return err
+			return wrote, err
 		}
 	}
 }

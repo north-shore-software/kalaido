@@ -228,7 +228,7 @@ function ProjectionReviewPage() {
       setAdvancing(false);
       return;
     }
-    const next = await findNextTarget();
+    const next = await findNextTarget({ projectionsOnly: true });
     setAdvancing(false);
 
     if (next.isErr()) {
@@ -241,12 +241,6 @@ function ProjectionReviewPage() {
     }
     if (!next.value) {
       go(projectionReviewTransitions.caughtUp);
-      return;
-    }
-    if (next.value.type === "reflection") {
-      go(projectionReviewTransitions.openNextReflection, {
-        params: { id: next.value.id },
-      });
       return;
     }
     // A projection can be its own next step: its candidate was generated

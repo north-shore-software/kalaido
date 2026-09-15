@@ -121,3 +121,88 @@ func TestContextDeltasRideAsUserPartsNotSystemInstruction(t *testing.T) {
 		t.Errorf("contents = %v, want %v", seen, want)
 	}
 }
+
+// A stream that ends without a single content part is otherwise silent: the
+// caller sees an empty completion and the log shows only the traffic tier.
+// The finish reason is the one fact that explains it (a model reaching for a
+// tool that was not advertised finishes with MALFORMED_FUNCTION_CALL), so it
+// must be logged with what was emitted, what was spent, and the call's shape.
+func TestAbnormalFinishIsLoggedWithReasonAndShape(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"candidates\":[{\"content\":{\"parts\":[],\"role\":\"model\"},\"finishReason\":\"MALFORMED_FUNCTION_CALL\",\"index\":0}]," +
+			"\"usageMetadata\":{\"promptTokenCount\":100,\"candidatesTokenCount\":249,\"totalTokenCount\":349}}\n\n"))
+	}))
+	defer srv.Close()
+	prev := geminiBase
+	geminiBase = srv.URL
+	t.Cleanup(func() { geminiBase = prev })
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	p := &Provider{Model: "gemini-test", APIKey: "k"}
+	comp, err := p.Stream(context.Background(), []llm.Message{
+		{Role: "system", Content: "PROMPT"},
+		{Role: "user", Content: "hi"},
+	}, nil, llm.GenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var events int
+	for range comp.Events {
+		events++
+	}
+	usage := comp.Wait()
+	if events != 0 {
+		t.Errorf("got %d events from a part-less stream, want 0", events)
+	}
+	if usage == nil || usage.CompletionTokens != 249 {
+		t.Errorf("usage = %+v, want completion_tokens=249", usage)
+	}
+
+	out := buf.String()
+	for _, want := range []string{
+		"gemini: completion ended finish_reason=MALFORMED_FUNCTION_CALL",
+		"block_reason=none",
+		"text_parts=0 tool_calls=0 completion_tokens=249",
+		"model=gemini-test",
+		"tools=[]",
+		"contents=1 parts=1",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+// A normal turn must not add a line: STOP with text delivered is the common
+// case and the log should stay as quiet as before.
+func TestNormalFinishIsNotLogged(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}]," +
+			"\"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":1,\"totalTokenCount\":2}}\n\n"))
+	}))
+	defer srv.Close()
+	prev := geminiBase
+	geminiBase = srv.URL
+	t.Cleanup(func() { geminiBase = prev })
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	p := &Provider{Model: "gemini-test", APIKey: "k"}
+	comp, err := p.Stream(context.Background(), []llm.Message{{Role: "user", Content: "hi"}}, nil, llm.GenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range comp.Events {
+	}
+	comp.Wait()
+	if strings.Contains(buf.String(), "completion ended") {
+		t.Errorf("normal STOP finish was logged:\n%s", buf.String())
+	}
+}

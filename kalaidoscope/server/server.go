@@ -63,7 +63,11 @@ func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketb
 	colour.Register(app)
 	reconcile.Register(app)
 	mapping.Register(app)
+	// Order matters: colour recomputes thing-backed membership from the
+	// settled map, then the wave regenerates whatever that membership feeds.
 	mapping.OnSettle(colour.OnMapSettled)
+	mapping.OnSettle(reconcile.OnMapSettled)
+	colour.OnDrained(reconcile.EnqueueWave)
 	discover.Register(app)
 	registerQueueStatus(app)
 
@@ -96,6 +100,10 @@ func RegisterTriggers(app core.App) {
 		colour.Signal()
 		if e.Record.GetString("ingested_via") != "import" {
 			mapping.SignalAnnotate()
+			// A fragment written from the app (a note, a hand edit, a saved
+			// bookmark) is in scope the moment it lands. Imports signal once,
+			// when the whole batch is in (ingest.processIngestRecord).
+			reconcile.EnqueueWave()
 		}
 		return e.Next()
 	})

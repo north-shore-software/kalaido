@@ -1,6 +1,6 @@
 ---
 title: "A regeneration with no semantic change still produces a review candidate the user must approve"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-09-01"
 ---
@@ -38,3 +38,6 @@ The stored pending output is byte-identical to approved sequence 2 (same 2288 ch
 ## Related
 - `p1/2026-08-26-pending-candidates-not-superseded-by-new-fragments.md` — same pending-candidate lifecycle.
 - Approving a no-op still bumps `approval_sequence_number`, so the approval history gains an entry with no content change.
+
+## Update (2026-09-14)
+Resolved for wave (speculative) generations: `engine.GenerateSnapshot` now settles a no-change result in place — the approved snapshot's `resolved_context`, `context_spec`, `generated_by_model` and `generated_at` are updated, the claim row is released, no pending candidate is written and the approval sequence does not move, so dependents are not made stale by a no-op. An interactive regeneration (the user clicked Refresh) still parks an identical candidate for review, deliberately: the user asked to see the result. Covered by `internal/engine/snapshot_settle_test.go` and `internal/reconcile/settle_test.go`.

@@ -47,7 +47,7 @@ func HasLiveClaim(app core.App, strat Strategy, parentID string) (bool, error) {
 		return false, err
 	}
 	for _, c := range recs {
-		if time.Since(c.GetDateTime("created").Time()) < generationClaimTTL {
+		if time.Since(c.GetDateTime("created").Time()) < GenerationClaimTTL {
 			return true, nil
 		}
 	}

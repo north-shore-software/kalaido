@@ -13,6 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 )
@@ -177,6 +178,18 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 		}
 		for _, w := range windowsToGenerate {
 			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, strat, w)
+			if errors.Is(err, engine.ErrGenerationInFlight) {
+				// The wave (or another request) is already producing this
+				// entity's output. Join it rather than refuse: the caller
+				// wanted a snapshot, and one is on its way. Bounded by the
+				// request (the client can give up) and the claim TTL (a hung
+				// generation is reaped rather than waited on forever).
+				snapID, err = joinGeneration(e.Request.Context(), app, strat, id, w)
+				if errors.Is(err, engine.ErrGenerationAbandoned) {
+					// It ended without output; generate afresh.
+					snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, strat, w)
+				}
+			}
 			if err != nil {
 				firstErr = err
 			}
@@ -242,6 +255,15 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 	}
 }
 
+// joinGeneration waits for the generation already running for the target and
+// returns its snapshot. Interactive callers pay at most the claim TTL.
+func joinGeneration(ctx context.Context, app core.App, strat engine.Strategy, id string, w *api.Window) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, engine.GenerationClaimTTL)
+	defer cancel()
+	log.Printf("%s.generate: %s already generating; joining", strat.TargetType(), id)
+	return engine.AwaitGeneration(ctx, app, strat, id, w)
+}
+
 func handleApproveCandidate(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		snapID, herr := resolveCandidate(e, app, strat)
@@ -255,6 +277,11 @@ func handleApproveCandidate(app core.App, strat engine.Strategy) func(e *core.Re
 			}
 			return e.InternalServerError("approve failed", err)
 		}
+		// Dependents whose candidate consumed this very row (approved in
+		// place, same id) are already consistent and the wave skips them; a
+		// candidate that was edited or refined before approval has a new id,
+		// and their candidates regenerate against it.
+		reconcile.EnqueueWave()
 		if strat.TargetType() == "projection" {
 			return e.JSON(http.StatusOK, api.ProjectionSnapshotResponse{SnapshotID: snapID})
 		}
