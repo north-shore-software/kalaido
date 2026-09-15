@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/pocketbase/dbx"
@@ -158,6 +159,8 @@ func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
 		if colourRec.GetString("prompt") != "" {
 			colour.Signal()
 		}
+		// Seeded members are in scope for any lens that names this colour.
+		reconcile.EnqueueWave()
 
 		return e.JSON(http.StatusOK, api.CreateColourResponse{ColourID: colourRec.Id})
 	}
@@ -194,6 +197,7 @@ func HandleUpdateColour(app core.App) func(e *core.RequestEvent) error {
 			if err := colour.Rematch(app, colourRec.Id); err != nil {
 				return e.InternalServerError("failed to restart matching", err)
 			}
+			reconcile.EnqueueWave()
 		}
 
 		return e.JSON(http.StatusOK, api.UpdateColourResponse{
@@ -215,6 +219,7 @@ func HandleRematchColour(app core.App) func(e *core.RequestEvent) error {
 		if err := colour.Rematch(app, colourRec.Id); err != nil {
 			return e.InternalServerError("failed to restart matching", err)
 		}
+		reconcile.EnqueueWave()
 		return e.NoContent(http.StatusAccepted)
 	}
 }
@@ -230,7 +235,7 @@ func HandleDeleteColour(app core.App) func(e *core.RequestEvent) error {
 		}
 		err = app.RunInTransaction(func(tx core.App) error {
 			for _, collection := range []string{"projection", "reflection"} {
-				if err := scrubColourFromSpecs(tx, collection, colourRec.Id); err != nil {
+				if err := scrubIDFromSpecs(tx, collection, colourIDs, colourRec.Id); err != nil {
 					return err
 				}
 			}
@@ -277,8 +282,18 @@ func applyExamples(app core.App, colourID string, positive, negative, clear []st
 	return nil
 }
 
-func scrubColourFromSpecs(app core.App, collection, colourID string) error {
-	recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": colourID})
+// specIDs selects one id list of a context spec, for scrubbing.
+type specIDs func(spec *api.ContextSpec) *[]string
+
+func colourIDs(spec *api.ContextSpec) *[]string           { return &spec.ColourIDs }
+func sourceProjectionIDs(spec *api.ContextSpec) *[]string { return &spec.SourceProjectionIDs }
+func sourceReflectionIDs(spec *api.ContextSpec) *[]string { return &spec.SourceReflectionIDs }
+
+// scrubIDFromSpecs drops one id from the chosen list of every live
+// current_context_spec in the collection, so a deleted colour or a
+// soft-deleted upstream entity leaves no dangling reference behind.
+func scrubIDFromSpecs(app core.App, collection string, field specIDs, id string) error {
+	recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": id})
 	if err != nil {
 		return err
 	}
@@ -287,16 +302,17 @@ func scrubColourFromSpecs(app core.App, collection, colourID string) error {
 		if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
 			continue
 		}
-		kept := spec.ColourIDs[:0]
-		for _, id := range spec.ColourIDs {
-			if id != colourID {
-				kept = append(kept, id)
+		list := field(&spec)
+		kept := (*list)[:0]
+		for _, x := range *list {
+			if x != id {
+				kept = append(kept, x)
 			}
 		}
-		if len(kept) == len(spec.ColourIDs) {
+		if len(kept) == len(*list) {
 			continue
 		}
-		spec.ColourIDs = kept
+		*list = kept
 		rec.Set("current_context_spec", pbutil.JSONObject(spec))
 		if err := app.Save(rec); err != nil {
 			return err

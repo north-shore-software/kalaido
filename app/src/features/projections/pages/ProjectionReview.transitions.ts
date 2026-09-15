@@ -14,10 +14,6 @@ export const projectionReviewTransitions = defineTransitions({
     trigger: "Click ‘Approve & next’ to review the next snapshot in the plan",
     when: "When something else is actionable once this approval lands",
   },
-  openNextReflection: {
-    to: "reflections",
-    trigger: "Approve & next lands on a reflection, which has no review gate",
-  },
   caughtUp: {
     to: "main",
     trigger: "Approve & next with nothing left to do — back to the dashboard",

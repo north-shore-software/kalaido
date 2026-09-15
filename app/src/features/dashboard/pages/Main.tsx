@@ -1,17 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { parseContextSpec } from "@/api/kalaidoscope/chat";
 import {
   deleteProjection,
-  regenerateProjection,
   updateProjection,
 } from "@/api/kalaidoscope/projections";
-import { startReconcile } from "@/api/kalaidoscope/reconcile";
 import {
   deleteReflection,
   updateReflection,
 } from "@/api/kalaidoscope/reflections";
-import { hasDelta, isActionable } from "@/api/kalaidoscope/rotation";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types";
 import { FragmentDrawer } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
@@ -34,40 +31,26 @@ import {
   CaptureFragmentCard,
   ImportNotesCard,
 } from "../components/action-cards";
-import { CaughtUpBanner } from "../components/caught-up-banner";
 import { ImportNotesDialog } from "../components/import-notes-dialog";
-import { NeedsActionSection } from "../components/needs-action-section";
 import { PinnedSection } from "../components/pinned-section";
 import { ProposedSection } from "../components/proposed-section";
 import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
-import { describeDelta } from "../describe-delta";
-import type {
-  NeedAction,
-  NeedItem,
-  PinItem,
-  ProposedItem,
-  RecentFragment,
-} from "../types";
+import { ReconcileCard } from "../components/reconcile-card";
+import { summarizeReconcile } from "../reconcile-summary";
+import { useStartRitual } from "../use-start-ritual";
+import type { PinItem, ProposedItem, RecentFragment } from "../types";
 import { mainTransitions } from "./Main.transitions";
 import {
   resolveSwatches,
   useColourSwatches,
 } from "@/hooks/use-colour-swatches";
 
-type EntityKind = "projection" | "reflection";
-
-// Demo stability switch (2026-08-27): the speculative "generate all" wave is
-// disabled backend-side (reconcile.waveEnabled) so every generation traces to
-// an explicit user action; this hides its button. Flip both to restore.
-const GENERATE_ALL_ENABLED = false;
-
 export default function Main() {
   const { go } = useAppNavigate();
   const contextSources = useContextSources();
   const currentUserId = useCurrentUserId();
-  // Id of the row whose candidate is being generated, so the row can say so —
-  // generation is a model call, not an instant hop.
-  const [refreshing, setRefreshing] = useState<string | null>(null);
+  // Start was clicked: the first stop is being located (and, if the wave has
+  // not prepared it yet, generated) before the ritual opens on it.
   const [selectedFragmentId, setSelectedFragmentId] = useState<string | null>(
     null,
   );
@@ -79,16 +62,16 @@ export default function Main() {
     refetch: refetchRotation,
   } = useRotationStatus();
   const projections = useLiveCollection("projection", {
-    filter: 'name != ""',
+    filter: 'name != "" && deleted_at = ""',
     sort: "-updated",
   });
   const reflections = useLiveCollection("reflection", {
-    filter: 'name != ""',
+    filter: 'name != "" && deleted_at = ""',
     sort: "-updated",
   });
   // Latest pending candidate per projection — the snapshot to review.
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending_review"',
+    filter: 'status="pending_review" && projection_id.deleted_at = ""',
     sort: "-created",
     fields: "id,projection_id",
   });
@@ -97,13 +80,10 @@ export default function Main() {
     ["fragment", "colour_fragment", "fragment_annotation"],
     { sort: "-occurred_at,-created" },
   );
-  // The reconcile wave keeps no run state of its own; whether it is working
-  // shows in the scheduler mirror as background snapshot generation.
-  const queue = useLiveCollection("llm_queue_status");
   const swatches = useColourSwatches();
   // Projections and reflections discovery keep running after onboarding lets
   // the user in; the Proposed section says so until they finish.
-  const { status: organize } = useOrganizeStatus();
+  const { status: organize, refetch: refetchOrganize } = useOrganizeStatus();
   const laterKinds = ["projections", "reflections"] as const;
   const discovering = laterKinds.some(
     (k) =>
@@ -124,6 +104,11 @@ export default function Main() {
       m.set(r.id, r.name || "Untitled reflection");
     return m;
   }, [projections.records, reflections.records]);
+
+  const { mutate: mutatePending } = pending;
+  const refetchCandidates = useCallback(() => {
+    void mutatePending();
+  }, [mutatePending]);
 
   const candidateByProjection = useMemo(() => {
     const m = new Map<string, string>();
@@ -203,53 +188,12 @@ export default function Main() {
     return items;
   }, [projections.records, reflections.records, currentUserId]);
 
-  const needsAction = useMemo<NeedItem[]>(
-    () =>
-      statuses.filter(hasDelta).map((s) => {
-        const candidateId =
-          s.type === "projection" ? candidateByProjection.get(s.id) : undefined;
-        // Reflections publish without a review gate, so the dashboard never
-        // starts one from here — it opens them instead.
-        const action: NeedAction = candidateId
-          ? "review"
-          : s.type === "projection" && isActionable(s)
-            ? "refresh"
-            : "open";
-        return {
-          id: s.id,
-          kind: s.type as EntityKind,
-          name:
-            nameById.get(s.id) ??
-            (s.type === "reflection" ? "Reflection" : "Projection"),
-          meta: describeDelta(s, (dep) => nameById.get(dep) ?? "an upstream"),
-          action,
-          candidateId,
-        };
-      }),
-    [statuses, nameById, candidateByProjection],
+  const summary = useMemo(
+    () => summarizeReconcile(statuses, { candidateByProjection, nameById }),
+    [statuses, candidateByProjection, nameById],
   );
   const hasFragments = fragments.records.length > 0;
   const cardLayout = hasFragments ? "row" : "hero";
-  const caughtUp = !rotLoading && needsAction.length === 0;
-
-  // "Generate all" has work only while some row is still missing its
-  // candidate: a "review" row is already pre-generated, and reflections or
-  // blocked/refreshable projections are exactly what a wave produces.
-  const generateAllHasWork = needsAction.some((it) => it.action !== "review");
-  const waveGenerating = useMemo(() => {
-    const status = queue.records[0];
-    if (status?.state !== "active") return false;
-    const running = (status.running ?? []) as {
-      role?: string;
-      priority?: string;
-    }[];
-    const waiting = (status.waiting ?? {}) as Record<string, number>;
-    return (
-      running.some(
-        (t) => t.priority === "background" && t.role === "snapshot",
-      ) || (waiting.background ?? 0) > 0
-    );
-  }, [queue.records]);
 
   const recent = useMemo<RecentFragment[]>(
     () =>
@@ -282,73 +226,17 @@ export default function Main() {
     }
   }
 
-  /**
-   * Take up a row in "needs action". A projection with work to do goes straight
-   * into review — generating the candidate first if there isn't one — rather
-   * than stopping at its detail page, which is a step on the way to the same
-   * place. Blocked items have nothing to review yet, so they just open.
-   */
-  async function startWork(it: NeedItem) {
-    if (it.kind === "reflection") {
-      go(mainTransitions.openReflection, { params: { id: it.id } });
-      return;
-    }
-    if (it.candidateId) {
+  const { starting, start: startRitual } = useStartRitual({
+    statuses,
+    reconcile: organize?.reconcile,
+    refetchOrganize,
+    refetchRotation,
+    refetchCandidates,
+    onTarget: (t) =>
       go(mainTransitions.reviewProjection, {
-        params: { id: it.id, snapshotId: it.candidateId },
-      });
-      return;
-    }
-    if (it.action !== "refresh") {
-      go(mainTransitions.openProjection, { params: { id: it.id } });
-      return;
-    }
-    if (refreshing) return;
-
-    setRefreshing(it.id);
-    const res = await regenerateProjection(it.id);
-    setRefreshing(null);
-    if (res.isErr()) {
-      // 409s carry a specific reason (lens still preparing, generation
-      // already running) — surface the server's own message.
-      toast.error("Couldn't refresh", { description: res.error.message });
-      return;
-    }
-    go(mainTransitions.reviewProjection, {
-      params: { id: it.id, snapshotId: res.value.snapshotId },
-    });
-  }
-
-  // Bridges the gap between clicking Generate all and the queue mirror
-  // reporting the wave (its writes are debounced server-side), so the button
-  // responds immediately instead of staying pressable for a beat.
-  const [waveKicked, setWaveKicked] = useState(false);
-  useEffect(() => {
-    if (!waveKicked) return;
-    if (waveGenerating) {
-      setWaveKicked(false);
-      return;
-    }
-    const id = setTimeout(() => setWaveKicked(false), 3000);
-    return () => clearTimeout(id);
-  }, [waveKicked, waveGenerating]);
-
-  /**
-   * Kick off a backend generation wave over the whole stale set. Fire and
-   * forget: the dashboard has no run state to track — candidates arrive
-   * through the live subscriptions and rows flip to "Review" as they land,
-   * while the utility bar shows the queue working.
-   */
-  async function generateAll() {
-    setWaveKicked(true);
-    const res = await startReconcile();
-    if (res.isErr()) {
-      setWaveKicked(false);
-      toast.error("Failed to start generating", {
-        description: res.error.message,
-      });
-    }
-  }
+        params: { id: t.id, snapshotId: t.snapshotId },
+      }),
+  });
 
   function openProposal(it: ProposedItem) {
     if (it.kind === "reflection") {
@@ -400,7 +288,15 @@ export default function Main() {
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 pt-5 pb-6">
-            {hasFragments && caughtUp && <CaughtUpBanner />}
+            {hasFragments && !rotLoading && (
+              <ReconcileCard
+                summary={summary}
+                running={organize?.reconcile.running ?? false}
+                lastError={organize?.reconcile.lastError}
+                starting={starting}
+                onStart={startRitual}
+              />
+            )}
 
             <div
               className={
@@ -418,21 +314,6 @@ export default function Main() {
                 onClick={() => openAddFragmentModal()}
               />
             </div>
-
-            <NeedsActionSection
-              items={needsAction}
-              onAction={startWork}
-              busyId={refreshing}
-              onGenerateAll={
-                // Demo stability switch (2026-08-27): the backend wave is
-                // parked (reconcile.waveEnabled = false), so the button is
-                // hidden with it. Restore both together.
-                GENERATE_ALL_ENABLED && generateAllHasWork
-                  ? generateAll
-                  : undefined
-              }
-              generating={waveGenerating || waveKicked}
-            />
 
             <ProposedSection
               items={proposed}

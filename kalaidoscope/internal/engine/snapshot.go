@@ -10,10 +10,12 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -37,9 +39,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		status = StatusApproved
 	}
 
-	rec, err := app.FindRecordById(strat.CollectionName(), targetID)
+	rec, err := FindLive(app, strat, targetID)
 	if err != nil {
-		return "", fmt.Errorf("%s not found: %s", strat.TargetType(), targetID)
+		return "", fmt.Errorf("%s not found: %s: %w", strat.TargetType(), targetID, err)
 	}
 
 	lensPrompt, lensSpec := resolveActiveLens(app, strat, rec)
@@ -89,6 +91,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 	outputModel := model
 
+	// unchanged: the regeneration reproduced the approved output. The
+	// candidate would be a document identical to the one already approved.
+	unchanged := false
 	switch prev, otherLens := latestApprovedOutput(app, strat, rec.Id, window, lensID); {
 	case otherLens:
 		// The published output was produced by a different lens. Its wording
@@ -100,12 +105,14 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		// First generation for this target (and window): nothing to anchor to.
 	case outputStr == prev:
 		log.Printf("snapshot %s %s: candidate matches the approved output byte-for-byte; nothing to rewrite", strat.TargetType(), rec.Id)
+		unchanged = true
 	default:
 		merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, window, prev, outputStr)
 		switch {
 		case err == nil:
 			if merged == prev {
 				log.Printf("snapshot %s %s: delta reported no semantic change; republishing the approved output verbatim", strat.TargetType(), rec.Id)
+				unchanged = true
 			} else {
 				log.Printf("snapshot %s %s: stored minimal-diff rewrite of the candidate", strat.TargetType(), rec.Id)
 			}
@@ -128,6 +135,30 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 
 	if strings.TrimSpace(outputStr) == "" {
 		return "", fmt.Errorf("%s %s: model returned empty output", strat.TargetType(), rec.Id)
+	}
+
+	if unchanged && llmcontext.GenerationTriggerFromContext(ctx) != "" {
+		// A speculative regeneration that changed nothing is not something
+		// to review: the approved snapshot simply records that it now
+		// reflects this context too. No new row, so the approval sequence
+		// does not move and dependents are not made stale by a no-op. (An
+		// interactive regeneration keeps producing a candidate — the user
+		// asked to see the result.) The claim row is released by the defer.
+		settledID, err := settleApprovedInPlace(app, strat, rec.Id, window, lensID, SnapshotSpec{
+			ContextSpec:     lensSpec,
+			ResolvedContext: pinnedCtx,
+			Model:           outputModel,
+		})
+		if err != nil {
+			return "", fmt.Errorf("settle in place: %w", err)
+		}
+		if settledID != "" {
+			log.Printf("snapshot %s %s (%q): unchanged; approved snapshot %s now records the current context (%s)",
+				strat.TargetType(), rec.Id, rec.GetString("name"), settledID, time.Since(started).Round(time.Millisecond))
+			return settledID, nil
+		}
+		// The approved snapshot moved under us; fall through and store the
+		// candidate as usual.
 	}
 
 	if err := completeClaimedSnapshot(ctx, app, strat, claimID, SnapshotSpec{
@@ -154,6 +185,39 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		}
 	}
 	return claimID, nil
+}
+
+// settleApprovedInPlace updates the current approved snapshot (per window for
+// reflections) to record the context and model of a regeneration that
+// reproduced its output, and discards any pending candidate that regeneration
+// supersedes. Returns "" without writing when the newest approved snapshot is
+// no longer the one produced by lensID — the anchor the caller compared
+// against has moved, and a candidate is the safe answer.
+func settleApprovedInPlace(app core.App, strat Strategy, parentID string, window *api.Window, lensID string, s SnapshotSpec) (string, error) {
+	var settledID string
+	err := app.RunInTransaction(func(tx core.App) error {
+		filter, params := ApprovedSnapshotFilter(strat, parentID, window)
+		recs, err := tx.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "-approval_sequence_number", 1, 0, params)
+		if err != nil {
+			return err
+		}
+		if len(recs) == 0 || recs[0].GetString("lens_id") != lensID {
+			return nil
+		}
+		snap := recs[0]
+		snap.Set("context_spec", pbutil.JSONObject(s.ContextSpec))
+		snap.Set("resolved_context", pbutil.JSONObject(s.ResolvedContext))
+		// The model that just reproduced the output; without this a model
+		// change would read as perpetually stale (SnapshotIsCurrent).
+		snap.Set("generated_by_model", s.Model)
+		snap.Set("generated_at", types.NowDateTime())
+		if err := tx.Save(snap); err != nil {
+			return err
+		}
+		settledID = snap.Id
+		return discardOtherPending(tx, strat, parentID, window, snap.Id)
+	})
+	return settledID, err
 }
 
 // latestApprovedOutput returns the output of the entity's newest approved

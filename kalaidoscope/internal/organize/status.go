@@ -45,6 +45,17 @@ func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeSta
 	st.Policy = api.OrganizePolicy{
 		Wave: reconcile.WaveEnabled(),
 	}
+	wave := reconcile.Status()
+	st.Reconcile = api.ReconcileStatus{
+		Running:   wave.Running,
+		LastError: wave.LastError,
+	}
+	if !wave.LastStarted.IsZero() {
+		st.Reconcile.LastStarted = wave.LastStarted.UTC().Format(time.RFC3339)
+	}
+	if !wave.LastCompleted.IsZero() {
+		st.Reconcile.LastCompleted = wave.LastCompleted.UTC().Format(time.RFC3339)
+	}
 	return st, nil
 }
 
@@ -142,11 +153,11 @@ func evaluateDiscover(app core.App, version, things int, out *api.DiscoverStatus
 		}
 	}
 
-	projections, err := app.CountRecords("projection", dbx.HashExp{"status": "proposed"})
+	projections, err := app.CountRecords("projection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}
-	reflections, err := app.CountRecords("reflection", dbx.HashExp{"status": "proposed"})
+	reflections, err := app.CountRecords("reflection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}

@@ -1,11 +1,14 @@
-import { GitForkIcon } from "lucide-react";
+import { GitForkIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import type { ContextSpec } from "@/api/kalaidoscope/chat";
 import { parseContextSpec } from "@/api/kalaidoscope/chat";
 import {
+  deleteProjection,
+  GenerationInFlightError,
   regenerateProjection,
+  restoreProjection,
   updateProjection,
 } from "@/api/kalaidoscope/projections";
 import type { TimelineItem } from "@/components/kalaido";
@@ -14,11 +17,22 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProjectionDraftEditor } from "@/features/projections/components/projection-draft-editor";
@@ -46,8 +60,50 @@ export default function ProjectionDetail() {
   const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
   const [regenerating, setRegenerating] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const readOnly = !!snapshotId;
+
+  // The record is gone (deleted here, elsewhere, or never existed): there is
+  // nothing to show, so leave rather than render an empty shell — and never
+  // fall into the "no snapshots yet" authoring path below.
+  useEffect(() => {
+    if (state.status === "missing") {
+      go(projectionDetailTransitions.backToList, { replace: true });
+    }
+  }, [state.status, go]);
+
+  async function remove() {
+    if (!id) return;
+    const res = await deleteProjection(id);
+    if (res.isErr()) {
+      if (res.error instanceof GenerationInFlightError) {
+        toast.error("Can't delete while generating", {
+          description: res.error.message,
+        });
+      } else {
+        toast.error("Failed to delete projection", {
+          description: res.error.message,
+        });
+      }
+      return;
+    }
+    go(projectionDetailTransitions.backToList, { replace: true });
+    toast("Projection deleted", {
+      description: "Find it under Recently deleted to restore later.",
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void restoreProjection(id).then((r) => {
+            if (r.isErr()) {
+              toast.error("Failed to restore", {
+                description: r.error.message,
+              });
+            }
+          }),
+      },
+    });
+  }
   const title = projection?.name || "Projection";
 
   // In read-only mode, load the viewed snapshot by id independently of the
@@ -315,11 +371,36 @@ export default function ProjectionDetail() {
                     </span>
                   </div>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2Icon />
+                  Delete projection
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )
         }
       />
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this projection?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Anything that reads it as a source stops doing so. Its history is
+              kept, and you can restore it from the projections list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void remove()}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <PageCard>
         <div className="flex min-h-0 flex-1">
           <SnapshotPreview

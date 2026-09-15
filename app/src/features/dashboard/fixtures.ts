@@ -1,4 +1,4 @@
-import type { NeedItem, PinItem, RecentFragment } from "./types";
+import type { PinItem, RecentFragment } from "./types";
 
 export const mockPinItems: PinItem[] = [
   {
@@ -15,38 +15,6 @@ export const mockPinItems: PinItem[] = [
     id: "p2",
     kind: "projection",
     name: "Server CPU Analytics",
-  },
-];
-
-export const mockNeedItems: NeedItem[] = [
-  {
-    id: "p1",
-    kind: "projection",
-    name: "Revenue Forecast Q3",
-    meta: "3 new fragments · 1 window due",
-    action: "review",
-    candidateId: "cand1",
-  },
-  {
-    id: "r1",
-    kind: "reflection",
-    name: "Customer Feedback Log",
-    meta: "waiting on Revenue Forecast Q3",
-    action: "open",
-  },
-  {
-    id: "r2",
-    kind: "reflection",
-    name: "Security Audits",
-    meta: "needs refresh",
-    action: "open",
-  },
-  {
-    id: "p2",
-    kind: "projection",
-    name: "Server CPU Analytics",
-    meta: "Revenue Forecast Q3 updated",
-    action: "refresh",
   },
 ];
 

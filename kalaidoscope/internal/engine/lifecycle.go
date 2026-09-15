@@ -233,7 +233,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		}
 
 		// The parent is required now: the commit re-points its lens.
-		parentRec, err := tx.FindRecordById(targetCol, parentID)
+		parentRec, err := FindLive(tx, strat, parentID)
 		if err != nil {
 			return fmt.Errorf("parent %s %s: %w", targetCol, parentID, err)
 		}
@@ -295,10 +295,12 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		return "", err
 	}
 
-	// An edit to a chain-marked candidate has just superseded whatever its
-	// pre-generated dependents consumed. Re-run the wave so the downstream
-	// subtree regenerates; its dedup guard leaves untouched branches alone.
-	if generationTrigger != "" && RequestWave != nil {
+	// The commit has just moved the entity on: a projection published a new
+	// approved snapshot that its dependents have not consumed, a reflection
+	// installed a lens its windows were not generated under. Re-run the wave
+	// so the downstream subtree (or the windows) regenerates; its dedup guard
+	// leaves untouched branches alone.
+	if RequestWave != nil {
 		RequestWave()
 	}
 

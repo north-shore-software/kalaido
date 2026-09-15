@@ -16,6 +16,8 @@ export interface ProjectionOutput {
  * component can exhaustively switch instead of juggling loose booleans:
  *
  * - `loading`  — first fetch, nothing cached yet.
+ * - `missing`  — the fetch settled and there is no such live projection
+ *                (never existed, or soft-deleted). The page should leave.
  * - `empty`    — projection exists but has produced no snapshot.
  * - `ready`    — a live snapshot is available.
  * - `error`    — the snapshot or projection fetch failed.
@@ -25,6 +27,7 @@ export interface ProjectionOutput {
  */
 export type ProjectionSnapshotState =
   | { status: "loading" }
+  | { status: "missing" }
   | { status: "empty" }
   | {
       status: "ready";
@@ -102,6 +105,15 @@ export function useProjectionSnapshot(
       !projection
     ) {
       return { status: "loading" };
+    }
+
+    // Settled with no live record: gone, or soft-deleted under us. Checked
+    // before `empty` so a deleted projection never reads as "no snapshots".
+    if (
+      !projectionsQuery.isLoading &&
+      (!projection || !!projection.deleted_at)
+    ) {
+      return { status: "missing" };
     }
 
     if (snapshots.length === 0) return { status: "empty" };

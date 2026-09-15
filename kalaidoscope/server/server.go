@@ -63,7 +63,11 @@ func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketb
 	colour.Register(app)
 	reconcile.Register(app)
 	mapping.Register(app)
+	// Order matters: colour recomputes thing-backed membership from the
+	// settled map, then the wave regenerates whatever that membership feeds.
 	mapping.OnSettle(colour.OnMapSettled)
+	mapping.OnSettle(reconcile.OnMapSettled)
+	colour.OnDrained(reconcile.EnqueueWave)
 	discover.Register(app)
 	registerQueueStatus(app)
 
@@ -96,6 +100,10 @@ func RegisterTriggers(app core.App) {
 		colour.Signal()
 		if e.Record.GetString("ingested_via") != "import" {
 			mapping.SignalAnnotate()
+			// A fragment written from the app (a note, a hand edit, a saved
+			// bookmark) is in scope the moment it lands. Imports signal once,
+			// when the whole batch is in (ingest.processIngestRecord).
+			reconcile.EnqueueWave()
 		}
 		return e.Next()
 	})
@@ -151,6 +159,7 @@ func RegisterRoutes(app core.App) {
 		se.Router.POST("/api/projections", handlers.HandleCreateProjection(app))
 		se.Router.PATCH("/api/projections/{id}", handlers.HandleUpdateProjection(app))
 		se.Router.DELETE("/api/projections/{id}", handlers.HandleDeleteProjection(app))
+		se.Router.POST("/api/projections/{id}/restore", handlers.HandleRestoreProjection(app))
 		se.Router.POST("/api/projections/{id}/candidates", handlers.HandleGenerateCandidate(app))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/edit", handlers.HandleEditCandidate(app))
@@ -161,6 +170,7 @@ func RegisterRoutes(app core.App) {
 		se.Router.POST("/api/reflections", handlers.HandleCreateReflection(app))
 		se.Router.PATCH("/api/reflections/{id}", handlers.HandleUpdateReflection(app))
 		se.Router.DELETE("/api/reflections/{id}", handlers.HandleDeleteReflection(app))
+		se.Router.POST("/api/reflections/{id}/restore", handlers.HandleRestoreReflection(app))
 		se.Router.POST("/api/reflections/{id}/generate-snapshot", handlers.HandleGenerateReflectionSnapshot(app))
 		se.Router.GET("/api/reflections/{id}/windows", handlers.HandleListReflectionWindows(app))
 		se.Router.POST("/api/reflections/{id}/backfill", handlers.HandleBackfillReflection(app))

@@ -27,6 +27,7 @@ function status(over: {
       ...over.discover,
     },
     policy: { wave: false },
+    reconcile: { running: false },
   };
 }
 

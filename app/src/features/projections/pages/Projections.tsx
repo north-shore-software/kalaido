@@ -2,7 +2,10 @@ import { PlusIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { parseContextSpec } from "@/api/kalaidoscope/chat";
-import { updateProjection } from "@/api/kalaidoscope/projections";
+import {
+  restoreProjection,
+  updateProjection,
+} from "@/api/kalaidoscope/projections";
 import type { ProjectionResponse } from "@/api/kalaidoscope/types";
 import { EmptyState, Mono } from "@/components/kalaido";
 import {
@@ -22,6 +25,7 @@ import { useContextSources } from "@/hooks/use-context-sources";
 import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
+import { formatShortDateTime } from "@/lib/datetime";
 import { isPinned } from "@/lib/pins";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -32,6 +36,12 @@ const TIER_ORDER: { tier: ProjectionTier; label: string }[] = [
   { tier: "derived", label: "Derived" },
   { tier: "composite", label: "Composite" },
 ];
+
+async function restore(id: string) {
+  const res = await restoreProjection(id);
+  if (res.isErr())
+    toast.error("Failed to restore", { description: res.error.message });
+}
 
 async function togglePin(p: ProjectionResponse, currentUserId?: string | null) {
   if (!currentUserId) return;
@@ -47,13 +57,21 @@ export default function Projections() {
   const currentUserId = useCurrentUserId();
 
   const { records: projections, isLoading } = useLiveCollection("projection", {
-    filter: 'name != "" && status = "active"',
+    filter: 'name != "" && status = "active" && deleted_at = ""',
     sort: "-updated",
   });
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending_review" || status="generating"',
+    filter:
+      '(status="pending_review" || status="generating") && projection_id.deleted_at = ""',
     sort: "-created",
     fields: "id,projection_id,resolved_context,status",
+  });
+  // Soft-deleted projections, newest deletion first. Dismissed proposals are
+  // deleted the same way but are not worth restoring, so only real ones show.
+  const deleted = useLiveCollection("projection", {
+    filter: 'deleted_at != "" && status = "active"',
+    sort: "-deleted_at",
+    fields: "id,name,deleted_at",
   });
   const candidateByProjection = useMemo(() => {
     const map = new Map<string, { id: string; fragmentIds: Set<string> }>();
@@ -172,6 +190,38 @@ export default function Projections() {
               ),
             )}
           </div>
+        )}
+        {deleted.records.length > 0 && (
+          <details className="mt-8 flex flex-col gap-3">
+            <summary className="cursor-pointer">
+              <Mono className="inline-flex items-center gap-2 text-label font-semibold uppercase text-fg-4">
+                <span className="size-[5px] rounded-full bg-fg-3" />
+                Recently deleted · {deleted.records.length}
+              </Mono>
+            </summary>
+            <ul className="mt-3 flex flex-col divide-y divide-line border border-line">
+              {deleted.records.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-center gap-4 px-4 py-2 text-body-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate text-fg-1">
+                    {p.name || "Untitled projection"}
+                  </span>
+                  <Mono className="text-meta text-fg-4">
+                    {p.deleted_at ? formatShortDateTime(p.deleted_at) : ""}
+                  </Mono>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void restore(p.id)}
+                  >
+                    Restore
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </PageBody>
     </PageLayout>

@@ -7,13 +7,19 @@ import {
 import type { CollectionName } from "@/hooks/use-collection";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 
-/** Collections whose changes can move the organise status. */
+/**
+ * Collections whose changes can move the organise status. Snapshot rows are
+ * the reconcile wave's footprint (claims, candidates), so `reconcile.running`
+ * follows it.
+ */
 const WATCHED: CollectionName[] = [
   "ingest",
   "kalaidoscope_map",
   "map_run",
   "discover_run",
   "fragment_annotation",
+  "projection_snapshot",
+  "reflection_snapshot",
 ];
 
 /**

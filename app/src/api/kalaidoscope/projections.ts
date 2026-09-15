@@ -1,3 +1,4 @@
+import { ClientResponseError } from "pocketbase";
 import type { Result } from "neverthrow";
 import { withActiveClient } from "./_active";
 
@@ -133,11 +134,42 @@ export async function editProjectionCandidate(
   );
 }
 
-/** Delete a projection outright. Mirrors `DELETE /api/projections/:id`. */
+/** The server refused a delete because a generation is running for the entity. */
+export class GenerationInFlightError extends Error {
+  constructor() {
+    super("A generation is running. Try again in a moment.");
+    this.name = "GenerationInFlightError";
+  }
+}
+
+/**
+ * Soft-delete a projection. Mirrors `DELETE /api/projections/:id`: the row
+ * is stamped, its history stays, and `restoreProjection` brings it back.
+ * Refused with {@link GenerationInFlightError} while a generation runs.
+ */
 export async function deleteProjection(
   projectionId: string,
 ): Promise<Result<void, Error>> {
   return withActiveClient(async (client) => {
-    await client.send(`/api/projections/${projectionId}`, { method: "DELETE" });
+    try {
+      await client.send(`/api/projections/${projectionId}`, {
+        method: "DELETE",
+      });
+    } catch (e) {
+      if (e instanceof ClientResponseError && e.status === 409)
+        throw new GenerationInFlightError();
+      throw e;
+    }
+  });
+}
+
+/** Undo a soft delete. Mirrors `POST /api/projections/:id/restore`. */
+export async function restoreProjection(
+  projectionId: string,
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/projections/${projectionId}/restore`, {
+      method: "POST",
+    });
   });
 }

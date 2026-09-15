@@ -85,7 +85,18 @@ type geminiStreamChunk struct {
 		Content struct {
 			Parts []geminiPart `json:"parts"`
 		} `json:"content"`
+		// FinishReason arrives on the last chunk of a candidate. Anything but
+		// STOP (MALFORMED_FUNCTION_CALL, SAFETY, MAX_TOKENS, RECITATION, ...)
+		// is the only explanation an otherwise empty stream carries.
+		FinishReason  string `json:"finishReason"`
+		FinishMessage string `json:"finishMessage"`
 	} `json:"candidates"`
+	// PromptFeedback is set instead of candidates when the prompt itself was
+	// blocked; the stream then ends without a single content part.
+	PromptFeedback *struct {
+		BlockReason        string `json:"blockReason"`
+		BlockReasonMessage string `json:"blockReasonMessage"`
+	} `json:"promptFeedback"`
 	UsageMetadata *struct {
 		PromptTokenCount        int    `json:"promptTokenCount"`
 		CandidatesTokenCount    int    `json:"candidatesTokenCount"`
@@ -243,6 +254,12 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		activeCalls := make(map[string]string)
 		completedCalls := make(map[string]bool)
 
+		// Why the stream ended, and what it carried: written at the end when
+		// the finish was not a plain STOP or nothing reached the caller, so a
+		// silent completion is diagnosable from the log alone.
+		var finishReason, finishMessage, blockReason string
+		var textParts, toolParts int
+
 		scanner := bufio.NewScanner(resp.Body)
 		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		for scanner.Scan() {
@@ -269,11 +286,22 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 				}
 				sawUsage = true
 			}
+			if fb := chunk.PromptFeedback; fb != nil && fb.BlockReason != "" {
+				blockReason = fb.BlockReason
+				if fb.BlockReasonMessage != "" {
+					blockReason += " (" + fb.BlockReasonMessage + ")"
+				}
+			}
 			if len(chunk.Candidates) == 0 {
 				continue
 			}
+			if fr := chunk.Candidates[0].FinishReason; fr != "" {
+				finishReason = fr
+				finishMessage = chunk.Candidates[0].FinishMessage
+			}
 			for _, part := range chunk.Candidates[0].Content.Parts {
 				if part.Text != "" {
+					textParts++
 					select {
 					case ch <- llm.StreamEvent{Kind: llm.EventText, Text: part.Text}:
 					case <-ctx.Done():
@@ -286,6 +314,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 					if id == "" {
 						id = fmt.Sprintf("call-%d", time.Now().UnixNano())
 						activeCalls[name] = id
+						toolParts++
 						select {
 						case ch <- llm.StreamEvent{
 							Kind:       llm.EventToolStart,
@@ -318,6 +347,29 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 			// this line is the only place that shows which tier actually
 			// served the request (ON_DEMAND_PRIORITY vs ON_DEMAND).
 			log.Printf("gemini: traffic_type=%s model=%s", trafficType, p.model())
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		// A completion that ended abnormally, or delivered nothing, is
+		// otherwise indistinguishable from a model that had nothing to say:
+		// name the finish reason (MALFORMED_FUNCTION_CALL is the usual one
+		// when the model reaches for a tool that was not advertised), the
+		// block reason, what was emitted, what was spent, and the call's
+		// shape, so one log line explains an empty turn.
+		abnormal := finishReason != "" && finishReason != "STOP"
+		if abnormal || blockReason != "" || (textParts == 0 && toolParts == 0) {
+			if finishReason == "" {
+				finishReason = "none"
+			}
+			if finishMessage != "" {
+				finishReason += " (" + finishMessage + ")"
+			}
+			if blockReason == "" {
+				blockReason = "none"
+			}
+			log.Printf("gemini: completion ended finish_reason=%s block_reason=%s text_parts=%d tool_calls=%d completion_tokens=%d model=%s %s %s",
+				finishReason, blockReason, textParts, toolParts, usage.CompletionTokens, p.model(), shape, detail)
 		}
 	}()
 

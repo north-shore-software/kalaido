@@ -269,14 +269,14 @@ func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
 		t.Errorf("committed snapshot generation_trigger = %q, want carried forward", newSnap.GetString("generation_trigger"))
 	}
 
-	// Refining an already-approved snapshot — even a chain-marked one — is an
-	// ordinary edit and must not start background work.
+	// Refining an already-approved snapshot publishes a new one just the
+	// same: its dependents have not consumed it, so the wave runs again.
 	waves = 0
 	if _, err := engine.CommitRefinement(ctx, app, engine.ProjectionStrategy{},
 		g.p1.Id, newSnapID, "EDITED LENS AGAIN", "EDITED AGAIN", pinned, spec, nil, "", "projection"); err != nil {
 		t.Fatalf("commit second refinement: %v", err)
 	}
-	if waves != 0 {
-		t.Errorf("waves after refining an approved snapshot = %d, want 0", waves)
+	if waves != 1 {
+		t.Errorf("waves after refining an approved snapshot = %d, want 1", waves)
 	}
 }

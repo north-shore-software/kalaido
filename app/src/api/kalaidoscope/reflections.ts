@@ -1,3 +1,5 @@
+import { ClientResponseError } from "pocketbase";
+import { GenerationInFlightError } from "@/api/kalaidoscope/projections";
 import type { Result } from "neverthrow";
 import { withActiveClient } from "./_active";
 import type { TimeWindow, WindowSpec } from "./chat";
@@ -138,11 +140,34 @@ export async function regenerateReflection(
   );
 }
 
-/** Delete a reflection outright. Mirrors `DELETE /api/reflections/:id`. */
+/**
+ * Soft-delete a reflection. Mirrors `DELETE /api/reflections/:id`: the row
+ * is stamped, its history stays, and `restoreReflection` brings it back.
+ * Refused with {@link GenerationInFlightError} while a generation runs.
+ */
 export async function deleteReflection(
   reflectionId: string,
 ): Promise<Result<void, Error>> {
   return withActiveClient(async (client) => {
-    await client.send(`/api/reflections/${reflectionId}`, { method: "DELETE" });
+    try {
+      await client.send(`/api/reflections/${reflectionId}`, {
+        method: "DELETE",
+      });
+    } catch (e) {
+      if (e instanceof ClientResponseError && e.status === 409)
+        throw new GenerationInFlightError();
+      throw e;
+    }
+  });
+}
+
+/** Undo a soft delete. Mirrors `POST /api/reflections/:id/restore`. */
+export async function restoreReflection(
+  reflectionId: string,
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/reflections/${reflectionId}/restore`, {
+      method: "POST",
+    });
   });
 }
