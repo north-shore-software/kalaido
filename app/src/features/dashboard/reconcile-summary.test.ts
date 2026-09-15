@@ -7,9 +7,7 @@ const nameById = new Map([
   ["r1", "Month in review"],
 ]);
 
-function status(
-  partial: Partial<EntityStatus> & { id: string },
-): EntityStatus {
+function status(partial: Partial<EntityStatus> & { id: string }): EntityStatus {
   return { type: "projection", ...partial };
 }
 

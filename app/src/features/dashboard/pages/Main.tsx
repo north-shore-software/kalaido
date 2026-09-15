@@ -38,11 +38,7 @@ import { ProposedSection } from "../components/proposed-section";
 import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 import { ReconcileCard } from "../components/reconcile-card";
 import { summarizeReconcile } from "../reconcile-summary";
-import type {
-  PinItem,
-  ProposedItem,
-  RecentFragment,
-} from "../types";
+import type { PinItem, ProposedItem, RecentFragment } from "../types";
 import { mainTransitions } from "./Main.transitions";
 import {
   resolveSwatches,
