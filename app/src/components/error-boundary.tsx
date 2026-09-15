@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 import { RecoveryScreen } from "@/features/boot/components/recovery-screen";
 import { type StageError, stageError } from "@/hooks/use-app-state.ts";
+import { captureException } from "@/lib/posthog";
 
 interface RootErrorBoundaryProps {
   children: ReactNode;
@@ -22,6 +23,7 @@ export class RootErrorBoundary extends Component<
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
+    captureException(error, { source: "root_error_boundary" });
     console.error("Unhandled render error:", error, info.componentStack);
   }
 

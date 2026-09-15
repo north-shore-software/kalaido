@@ -50,6 +50,7 @@ import { useRefineSession } from "@/hooks/use-refine-session";
 import { useResumeRefinement } from "@/hooks/use-resume-refinement";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatShortDateTime } from "@/lib/datetime";
+import { captureEvent, captureException } from "@/lib/posthog";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { projectionDetailTransitions } from "./ProjectionDetail.transitions";
@@ -77,6 +78,7 @@ export default function ProjectionDetail() {
     if (!id) return;
     const res = await deleteProjection(id);
     if (res.isErr()) {
+      captureException(res.error, { operation: "projection_delete" });
       if (res.error instanceof GenerationInFlightError) {
         toast.error("Can't delete while generating", {
           description: res.error.message,
@@ -88,6 +90,7 @@ export default function ProjectionDetail() {
       }
       return;
     }
+    captureEvent("projection_deleted");
     go(projectionDetailTransitions.backToList, { replace: true });
     toast("Projection deleted", {
       description: "Find it under Recently deleted to restore later.",
@@ -171,9 +174,11 @@ export default function ProjectionDetail() {
     if (res.isErr()) {
       // 409s carry a specific reason (lens still preparing, generation
       // already running) — surface the server's own message.
+      captureException(res.error, { operation: "projection_refresh" });
       toast.error("Couldn't refresh", { description: res.error.message });
       return;
     }
+    captureEvent("projection_refreshed", { source: "projection_detail" });
     go(projectionDetailTransitions.reviewCandidate, {
       params: { id, snapshotId: res.value.snapshotId },
     });

@@ -4,6 +4,11 @@ import { type OptionCard, OptionCards } from "@/components/kalaido";
 import { AuthForm } from "@/features/settings/components/auth-form";
 import { OAuthButtons } from "@/features/settings/components/oauth-buttons";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
+import {
+  captureEvent,
+  captureException,
+  identifyUser,
+} from "@/lib/posthog";
 
 export interface AuthOutcome {
   /** True when this was a registration rather than a returning sign-in. */
@@ -38,7 +43,7 @@ export function CloudAuthPanel({
     setBusy(true);
     setError(null);
 
-    const { error: err } =
+    const { data, error: err } =
       mode === "signin"
         ? await authClient.signIn.email({
             email: input.email,
@@ -51,6 +56,7 @@ export function CloudAuthPanel({
           });
 
     if (err) {
+      captureException(err, { operation: `cloud_${mode}` });
       setBusy(false);
       setError(
         err.message ??
@@ -61,6 +67,16 @@ export function CloudAuthPanel({
 
     await syncCloudWorkspaces();
 
+    if (data?.user) {
+      identifyUser(data.user.id, {
+        email: data.user.email,
+        name: data.user.name,
+      });
+    }
+    captureEvent("cloud_auth_succeeded", {
+      auth_method: "email",
+      is_new_account: mode === "signup",
+    });
     setBusy(false);
     onAuthenticated?.({ isNewAccount: mode === "signup" });
   }
