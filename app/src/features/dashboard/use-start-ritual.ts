@@ -10,9 +10,10 @@ import {
 } from "@/features/rotation/next-target";
 
 /**
- * While a Start is waiting, both plans are re-asked on this cadence. Realtime
- * refetches cover most of the wave's footprint, but a reflection settled in
- * place writes no new row, and a wave with nothing to do writes nothing.
+ * While a Start is waiting, the plan, the wave status and the candidate list
+ * are re-asked on this cadence. Realtime refetches cover most of the wave's
+ * footprint, but a reflection settled in place writes no new row, a wave with
+ * nothing to do writes nothing, and a missed event must not stall the card.
  */
 const POLL_MS = 2000;
 
@@ -37,6 +38,8 @@ export interface UseStartRitualOptions {
   reconcile: ReconcileStatus | undefined;
   refetchOrganize: () => void;
   refetchRotation: () => void;
+  /** Revalidate the pending-candidate list the card counts "ready" from. */
+  refetchCandidates: () => void;
   /** The first stop is ready: open it. */
   onTarget: (target: NextTarget) => void;
 }
@@ -54,12 +57,27 @@ export function useStartRitual({
   reconcile,
   refetchOrganize,
   refetchRotation,
+  refetchCandidates,
   onTarget,
 }: UseStartRitualOptions): { starting: boolean; start: () => Promise<void> } {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const inFlight = useRef(false);
-  const latest = useRef({ reconcile, onTarget, refetchRotation });
-  latest.current = { reconcile, onTarget, refetchRotation };
+  // Callers' callbacks (SWR's mutate among them) can change identity every
+  // render; read them through a ref so the timers below never restart for it.
+  const latest = useRef({
+    reconcile,
+    onTarget,
+    refetchOrganize,
+    refetchRotation,
+    refetchCandidates,
+  });
+  latest.current = {
+    reconcile,
+    onTarget,
+    refetchOrganize,
+    refetchRotation,
+    refetchCandidates,
+  };
 
   async function start() {
     if (startedAt !== null) return;
@@ -75,11 +93,12 @@ export function useStartRitual({
   useEffect(() => {
     if (startedAt === null) return;
     const id = setInterval(() => {
-      refetchOrganize();
-      refetchRotation();
+      latest.current.refetchOrganize();
+      latest.current.refetchRotation();
+      latest.current.refetchCandidates();
     }, POLL_MS);
     return () => clearInterval(id);
-  }, [startedAt, refetchOrganize, refetchRotation]);
+  }, [startedAt]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: statuses and reconcile are re-run triggers — every plan update is another chance for the first stop to be ready
   useEffect(() => {

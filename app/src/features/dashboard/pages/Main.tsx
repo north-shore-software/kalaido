@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { parseContextSpec } from "@/api/kalaidoscope/chat";
 import {
@@ -104,6 +104,11 @@ export default function Main() {
       m.set(r.id, r.name || "Untitled reflection");
     return m;
   }, [projections.records, reflections.records]);
+
+  const { mutate: mutatePending } = pending;
+  const refetchCandidates = useCallback(() => {
+    void mutatePending();
+  }, [mutatePending]);
 
   const candidateByProjection = useMemo(() => {
     const m = new Map<string, string>();
@@ -226,6 +231,7 @@ export default function Main() {
     reconcile: organize?.reconcile,
     refetchOrganize,
     refetchRotation,
+    refetchCandidates,
     onTarget: (t) =>
       go(mainTransitions.reviewProjection, {
         params: { id: t.id, snapshotId: t.snapshotId },
