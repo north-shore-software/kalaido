@@ -28,14 +28,24 @@ export interface NextTarget {
  */
 export async function findNextTarget({
   skip = [],
+  projectionsOnly = false,
 }: {
   skip?: string[];
+  /**
+   * Walk projections only. The reconcile ritual sets this: reflections
+   * publish without a review gate and the wave keeps them fresh, so they are
+   * not stops.
+   */
+  projectionsOnly?: boolean;
 } = {}): Promise<Result<NextTarget | null, Error>> {
   const plan = await getRotation();
   if (plan.isErr()) return err(plan.error);
 
   const next = (plan.value.statuses ?? []).find(
-    (s) => isActionable(s) && !skip.includes(s.id),
+    (s) =>
+      isActionable(s) &&
+      !skip.includes(s.id) &&
+      (!projectionsOnly || s.type === "projection"),
   );
   if (!next) return ok(null);
 
