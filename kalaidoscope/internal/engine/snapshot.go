@@ -37,9 +37,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		status = StatusApproved
 	}
 
-	rec, err := app.FindRecordById(strat.CollectionName(), targetID)
+	rec, err := FindLive(app, strat, targetID)
 	if err != nil {
-		return "", fmt.Errorf("%s not found: %s", strat.TargetType(), targetID)
+		return "", fmt.Errorf("%s not found: %s: %w", strat.TargetType(), targetID, err)
 	}
 
 	lensPrompt, lensSpec := resolveActiveLens(app, strat, rec)

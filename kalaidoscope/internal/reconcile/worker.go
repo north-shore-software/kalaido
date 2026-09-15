@@ -116,9 +116,12 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 		genStatus = engine.StatusPending // projections get review candidates
 	}
 
-	rec, err := app.FindRecordById(strat.CollectionName(), s.ID)
+	rec, err := engine.FindLive(app, strat, s.ID)
 	if err != nil {
-		return err
+		// Deleted (or hard-removed) since the wave was evaluated: nothing to
+		// produce for it, and no reason to end the wave for the others.
+		log.Printf("reconcile wave: %s %s: %v; skipping", s.Type, s.ID, err)
+		return nil
 	}
 
 	var windows []*api.Window

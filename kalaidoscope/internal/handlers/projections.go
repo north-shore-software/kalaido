@@ -29,3 +29,7 @@ func HandleUpdateProjection(app core.App) func(e *core.RequestEvent) error {
 func HandleDeleteProjection(app core.App) func(e *core.RequestEvent) error {
 	return handleDelete(app, engine.ProjectionStrategy{})
 }
+
+func HandleRestoreProjection(app core.App) func(e *core.RequestEvent) error {
+	return handleRestore(app, engine.ProjectionStrategy{})
+}

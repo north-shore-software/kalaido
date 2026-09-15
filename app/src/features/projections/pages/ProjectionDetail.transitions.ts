@@ -15,7 +15,8 @@ export const projectionDetailTransitions = defineTransitions({
   },
   backToList: {
     to: "projections",
-    trigger: "Cancel the draft editor and go back to projections list",
+    trigger:
+      "Cancel the draft editor, delete the projection, or find it gone; back to the projections list",
   },
   openDetail: {
     to: "projection-detail",

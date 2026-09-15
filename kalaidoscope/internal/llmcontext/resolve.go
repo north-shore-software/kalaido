@@ -164,7 +164,8 @@ func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		ors = append(ors, "projection_id = {:"+key+"}")
 		params[key] = pid
 	}
-	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+")")
+	// A soft-deleted upstream contributes nothing until restored.
+	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+") && projection_id.deleted_at = ''")
 	if recs, err := app.FindRecordsByFilter("projection_snapshot", filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
@@ -190,7 +191,7 @@ func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		ors = append(ors, "reflection_id = {:"+key+"}")
 		params[key] = rid
 	}
-	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+")")
+	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+") && reflection_id.deleted_at = ''")
 	if recs, err := app.FindRecordsByFilter("reflection_snapshot", filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
@@ -243,7 +244,9 @@ func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 	}
 	for _, snap := range projSnaps {
 		pid := snap.GetString("projection_id")
-		if proj := projMap[pid]; proj != nil {
+		// A pinned snapshot of a soft-deleted projection drops out of the
+		// prompt, the same way a deleted fragment does.
+		if proj := projMap[pid]; proj != nil && proj.GetDateTime("deleted_at").IsZero() {
 			name := proj.GetString("name")
 			sb.WriteString(prompts.ProjectionSnapshotBlock(name, snap.Id, snap.GetString("output")))
 		}
@@ -268,7 +271,7 @@ func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 	}
 	for _, snap := range reflSnaps {
 		rid := snap.GetString("reflection_id")
-		if refl := reflMap[rid]; refl != nil {
+		if refl := reflMap[rid]; refl != nil && refl.GetDateTime("deleted_at").IsZero() {
 			name := refl.GetString("name")
 			sb.WriteString(prompts.ReflectionSnapshotBlock(name, snap.Id, snap.GetString("output")))
 		}

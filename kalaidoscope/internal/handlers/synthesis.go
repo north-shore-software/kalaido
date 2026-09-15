@@ -121,7 +121,7 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 			status = engine.StatusPending
 		}
 
-		rec, err := app.FindRecordById(strat.CollectionName(), id)
+		rec, err := engine.FindLive(app, strat, id)
 		if err != nil {
 			return e.NotFoundError(strat.TargetType()+" not found", err)
 		}
@@ -381,7 +381,7 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		rec, err := app.FindRecordById(strat.CollectionName(), id)
+		rec, err := engine.FindLive(app, strat, id)
 		if err != nil {
 			return e.NotFoundError(strat.TargetType()+" not found", err)
 		}
@@ -474,6 +474,11 @@ func validateWindowSpec(spec api.WindowSpec) error {
 	return nil
 }
 
+// handleDelete soft-deletes the entity: the row is stamped, its snapshots,
+// refinements and messages stay put, and every other live entity that named
+// it as an upstream source drops the reference. Frozen snapshot specs are
+// history and stay as they are. Refused while a generation is running for it
+// (its claim row would otherwise be orphaned under a live goroutine).
 func handleDelete(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
@@ -485,12 +490,56 @@ func handleDelete(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 		if err != nil {
 			return e.NotFoundError(strat.TargetType()+" not found", err)
 		}
+		if engine.IsDeleted(rec) {
+			return e.NoContent(http.StatusNoContent)
+		}
 
-		if err := app.Delete(rec); err != nil {
+		inFlight, err := engine.HasLiveClaim(app, strat, id)
+		if err != nil {
+			log.Printf("%s.delete: %v", strat.TargetType(), err)
+			return e.InternalServerError("delete "+strat.TargetType()+" failed", err)
+		}
+		if inFlight {
+			return e.Error(http.StatusConflict, "a generation is running for this "+strat.TargetType(), nil)
+		}
+
+		field := sourceProjectionIDs
+		if strat.TargetType() == "reflection" {
+			field = sourceReflectionIDs
+		}
+		err = app.RunInTransaction(func(tx core.App) error {
+			for _, collection := range []string{"projection", "reflection"} {
+				if err := scrubIDFromSpecs(tx, collection, field, id); err != nil {
+					return err
+				}
+			}
+			return engine.SoftDelete(tx, rec)
+		})
+		if err != nil {
 			log.Printf("%s.delete: %v", strat.TargetType(), err)
 			return e.InternalServerError("delete "+strat.TargetType()+" failed", err)
 		}
 
 		return e.NoContent(http.StatusNoContent)
+	}
+}
+
+// handleRestore clears the soft-delete stamp. References scrubbed from other
+// entities at delete time are not re-added.
+func handleRestore(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		rec, err := app.FindRecordById(strat.CollectionName(), id)
+		if err != nil {
+			return e.NotFoundError(strat.TargetType()+" not found", err)
+		}
+		if err := engine.Restore(app, rec); err != nil {
+			log.Printf("%s.restore: %v", strat.TargetType(), err)
+			return e.InternalServerError("restore "+strat.TargetType()+" failed", err)
+		}
+		return e.JSON(http.StatusOK, map[string]string{"id": id})
 	}
 }

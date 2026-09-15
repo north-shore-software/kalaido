@@ -51,7 +51,7 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 	}
 	var res EditResult
 	err := app.RunInTransaction(func(tx core.App) error {
-		parent, err := tx.FindRecordById(strat.CollectionName(), parentID)
+		parent, err := FindLive(tx, strat, parentID)
 		if err != nil {
 			return fmt.Errorf("edit: %s %s: %w", strat.TargetType(), parentID, err)
 		}

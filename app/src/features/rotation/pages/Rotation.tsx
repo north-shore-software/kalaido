@@ -30,8 +30,12 @@ export default function Rotation() {
   // doesn't re-fire while the pending candidate is in flight.
   const generatingFor = useRef<Set<string>>(new Set());
 
-  const projections = useLiveCollection("projection", { filter: 'name != ""' });
-  const reflections = useLiveCollection("reflection", { filter: 'name != ""' });
+  const projections = useLiveCollection("projection", {
+    filter: 'name != "" && deleted_at = ""',
+  });
+  const reflections = useLiveCollection("reflection", {
+    filter: 'name != "" && deleted_at = ""',
+  });
   const nameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const p of projections.records)
@@ -44,7 +48,7 @@ export default function Rotation() {
   // Latest pending candidate per projection (with its output for the card).
   // Reflections have no review gate, so only projections have candidates.
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending_review"',
+    filter: 'status="pending_review" && projection_id.deleted_at = ""',
     sort: "-created",
     fields: "id,projection_id,output",
   });
