@@ -43,11 +43,15 @@ type OrganizePolicy struct {
 }
 
 // ReconcileStatus is the speculative wave's state: whether one is running,
-// what ended the last one, and when one last ran clean. A client preparing a
-// reconcile session reads it to tell "still generating" from "ready".
+// when the latest one began, what ended the last one, and when one last ran
+// clean. The dashboard's Start reads it to tell "still generating" from
+// "the wave I started has ended" (LastStarted at or after the press, and not
+// Running).
 type ReconcileStatus struct {
-	Running   bool   `json:"running"`
-	LastError string `json:"lastError,omitempty"`
+	Running bool `json:"running"`
+	// RFC3339; empty until a wave has started.
+	LastStarted string `json:"lastStarted,omitempty"`
+	LastError   string `json:"lastError,omitempty"`
 	// RFC3339; empty until a wave has completed without error.
 	LastCompleted string `json:"lastCompleted,omitempty"`
 }

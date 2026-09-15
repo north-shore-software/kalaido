@@ -49,9 +49,9 @@ func signalled(t *testing.T, within time.Duration) bool {
 func TestEnqueueWaveCoalescesBursts(t *testing.T) {
 	drainSignal()
 	resetTimers()
-	old := waveDebounce
-	waveDebounce = 10 * time.Millisecond
-	t.Cleanup(func() { waveDebounce = old; resetTimers() })
+	old, oldAuto := waveDebounce, autoWave
+	waveDebounce, autoWave = 10*time.Millisecond, true
+	t.Cleanup(func() { waveDebounce, autoWave = old, oldAuto; resetTimers() })
 
 	for range 5 {
 		EnqueueWave()
@@ -62,6 +62,48 @@ func TestEnqueueWaveCoalescesBursts(t *testing.T) {
 	}
 	if signalled(t, 50*time.Millisecond) {
 		t.Error("a second wave was signalled for the same burst")
+	}
+}
+
+// Without KALAIDO_AUTO_WAVE the automatic triggers are inert: only Start
+// begins a wave, and it does so at once.
+func TestWaveIsOptInAndStartIsImmediate(t *testing.T) {
+	drainSignal()
+	resetTimers()
+	old, oldAuto := waveDebounce, autoWave
+	waveDebounce, autoWave = 10*time.Millisecond, false
+	t.Cleanup(func() { waveDebounce, autoWave = old, oldAuto; resetTimers() })
+
+	if WaveEnabled() {
+		t.Fatal("WaveEnabled should report the policy as off")
+	}
+	EnqueueWave()
+	if signalled(t, 50*time.Millisecond) {
+		t.Fatal("an automatic trigger started a wave with auto off")
+	}
+
+	StartWave()
+	if !signalled(t, 5*time.Millisecond) {
+		t.Fatal("Start did not signal a wave immediately")
+	}
+}
+
+// Start absorbs an automatic request still waiting on its debounce: one wave,
+// now, not one now and another when the timer fires.
+func TestStartWaveCancelsPendingDebounce(t *testing.T) {
+	drainSignal()
+	resetTimers()
+	old, oldAuto := waveDebounce, autoWave
+	waveDebounce, autoWave = 20*time.Millisecond, true
+	t.Cleanup(func() { waveDebounce, autoWave = old, oldAuto; resetTimers() })
+
+	EnqueueWave()
+	StartWave()
+	if !signalled(t, 5*time.Millisecond) {
+		t.Fatal("Start did not signal a wave immediately")
+	}
+	if signalled(t, 60*time.Millisecond) {
+		t.Error("the cancelled debounce still fired a second wave")
 	}
 }
 

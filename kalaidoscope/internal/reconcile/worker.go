@@ -8,13 +8,15 @@
 // consumed; the commit re-requests a wave and the downstream subtree
 // regenerates.
 //
-// The wave is not a button. It runs whenever the inputs to a lens can have
-// moved — an import finished, a fragment was written from the app, colour
-// membership changed, the map settled, something was approved or refined —
-// so that by the time the user sits down to reconcile, the work is waiting
-// for them. Every wave re-derives the stale set from scratch and skips
-// entities whose newest snapshot is already current, so an extra trigger
-// costs a status evaluation, not model calls.
+// By default the wave is a button: the user starts the reconcile ritual from
+// the dashboard (POST /api/reconcile → StartWave) and the wave prepares every
+// stop of the walk. With KALAIDO_AUTO_WAVE set, it also runs whenever the
+// inputs to a lens can have moved — an import finished, a fragment was written
+// from the app, colour membership changed, the map settled, something was
+// approved or refined — so the work is waiting before the user sits down
+// (EnqueueWave, a no-op otherwise). Every wave re-derives the stale set from
+// scratch and skips entities whose newest snapshot is already current, so an
+// extra trigger costs a status evaluation, not model calls.
 //
 // It sits above engine (it needs the status evaluator, which imports engine),
 // so engine reaches it back through the engine.RequestWave hook.
@@ -25,8 +27,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -46,8 +48,14 @@ var waveSignal = make(chan struct{}, 1)
 
 var workerApp core.App
 
-// waveDebounce is the quiet period between the last trigger and the wave it
-// starts. The triggers arrive in bursts (an import completes, then the colour
+// autoWave switches on the automatic triggers (EnqueueWave). Off by default:
+// the only wave is the one the user starts. Any non-empty value enables it,
+// as with KALAIDO_LLM_TRACE, so KALAIDO_AUTO_WAVE=0 is "on" too. A variable
+// so tests can flip it.
+var autoWave = os.Getenv("KALAIDO_AUTO_WAVE") != ""
+
+// waveDebounce is the quiet period between the last automatic trigger and the
+// wave it starts. The triggers arrive in bursts (an import completes, then the colour
 // worker drains, then the map settles) and one wave covers all of them.
 // A variable so tests can shorten it.
 var waveDebounce = 3 * time.Second
@@ -63,16 +71,21 @@ var (
 	retryTimer *time.Timer
 	retries    int
 
-	running       atomic.Bool
-	lastError     atomic.Value // string
-	lastCompleted atomic.Value // time.Time
+	// One lock for the whole status so a reader never sees a wave's
+	// lastStarted without its running flag (the client tells "the wave I
+	// started has ended" from exactly that pair).
+	stateMu       sync.Mutex
+	running       bool
+	lastStarted   time.Time
+	lastError     string
+	lastCompleted time.Time
 )
 
 // Register wires the wave worker to the app and starts it. Also hands
 // engine.RequestWave its implementation, letting refinement commits re-trigger
-// a wave without engine importing this package. Once the server is up a wave
-// is requested so a run interrupted by a restart resumes from a fresh
-// evaluation (the boot sweep has already removed its claim rows).
+// a wave without engine importing this package. Once the server is up an
+// automatic wave is requested so a run interrupted by a restart resumes from
+// a fresh evaluation (the boot sweep has already removed its claim rows).
 func Register(app core.App) {
 	workerApp = app
 	engine.RequestWave = EnqueueWave
@@ -81,39 +94,65 @@ func Register(app core.App) {
 		if err := se.Next(); err != nil {
 			return err
 		}
+		if autoWave {
+			log.Printf("reconcile: automatic waves on (KALAIDO_AUTO_WAVE)")
+		} else {
+			log.Printf("reconcile: automatic waves off (KALAIDO_AUTO_WAVE=1 enables them); the dashboard starts the wave")
+		}
 		EnqueueWave()
 		return nil
 	})
 }
 
-// WaveEnabled reports whether speculative waves run. Always true now; kept so
-// the organize status keeps reporting the policy to clients.
-func WaveEnabled() bool { return true }
+// WaveEnabled reports whether waves start on their own (KALAIDO_AUTO_WAVE).
+// Surfaced to clients as the organize status policy.
+func WaveEnabled() bool { return autoWave }
+
+// State is a consistent snapshot of the worker's status.
+type State struct {
+	// Running reports whether a wave is in progress.
+	Running bool
+	// LastStarted is when the most recent wave began; zero when none has.
+	LastStarted time.Time
+	// LastError is the error that ended the most recent wave, or "" when it
+	// ran clean (or none has run yet).
+	LastError string
+	// LastCompleted is when the most recent wave finished without error;
+	// zero when none has.
+	LastCompleted time.Time
+}
+
+// Status returns the worker's state as of now.
+func Status() State {
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	return State{
+		Running:       running,
+		LastStarted:   lastStarted,
+		LastError:     lastError,
+		LastCompleted: lastCompleted,
+	}
+}
 
 // Running reports whether a wave is in progress.
-func Running() bool { return running.Load() }
+func Running() bool { return Status().Running }
 
 // LastError is the error that ended the most recent wave, or "" when it ran
 // clean (or none has run yet).
-func LastError() string {
-	if v, ok := lastError.Load().(string); ok {
-		return v
-	}
-	return ""
-}
+func LastError() string { return Status().LastError }
 
 // LastCompleted is when the most recent wave finished without error; zero
 // when none has.
-func LastCompleted() time.Time {
-	if v, ok := lastCompleted.Load().(time.Time); ok {
-		return v
-	}
-	return time.Time{}
-}
+func LastCompleted() time.Time { return Status().LastCompleted }
 
-// EnqueueWave requests a speculative generation wave and returns immediately.
-// The wave starts once no further request has arrived for waveDebounce.
+// EnqueueWave is the automatic trigger: it requests a speculative generation
+// wave and returns immediately. The wave starts once no further request has
+// arrived for waveDebounce. Without KALAIDO_AUTO_WAVE it does nothing — the
+// user starts the wave (StartWave).
 func EnqueueWave() {
+	if !autoWave {
+		return
+	}
 	timerMu.Lock()
 	defer timerMu.Unlock()
 	if debounce == nil {
@@ -121,6 +160,19 @@ func EnqueueWave() {
 		return
 	}
 	debounce.Reset(waveDebounce)
+}
+
+// StartWave is the explicit trigger — the user pressed Start. It signals the
+// worker at once, with no quiet period, and cancels any automatic request
+// still waiting to fire (the wave it would have started is this one).
+func StartWave() {
+	timerMu.Lock()
+	if debounce != nil {
+		debounce.Stop()
+		debounce = nil
+	}
+	timerMu.Unlock()
+	signalWave()
 }
 
 // OnMapSettled is registered with mapping as a settle hook, after colour's:
@@ -137,20 +189,28 @@ func signalWave() {
 
 func workerLoop() {
 	for range waveSignal {
-		running.Store(true)
+		stateMu.Lock()
+		running, lastStarted = true, time.Now()
+		stateMu.Unlock()
 		err := runWave(workerApp)
-		running.Store(false)
 		afterWave(err)
 	}
 }
 
 // afterWave records the outcome and decides whether to try again on its own.
 func afterWave(err error) {
+	stateMu.Lock()
+	running = false
+	if err == nil {
+		lastError, lastCompleted = "", time.Now()
+	} else {
+		lastError = err.Error()
+	}
+	stateMu.Unlock()
+
 	timerMu.Lock()
 	defer timerMu.Unlock()
 	if err == nil {
-		lastError.Store("")
-		lastCompleted.Store(time.Now())
 		retries = 0
 		if retryTimer != nil {
 			retryTimer.Stop()
@@ -158,7 +218,6 @@ func afterWave(err error) {
 		}
 		return
 	}
-	lastError.Store(err.Error())
 	if errors.Is(err, usage.ErrExhausted) {
 		log.Printf("reconcile wave: quota exhausted; not retrying")
 		return

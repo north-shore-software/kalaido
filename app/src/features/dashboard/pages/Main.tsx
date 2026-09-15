@@ -13,7 +13,6 @@ import type { FragmentTypeOptions } from "@/api/kalaidoscope/types";
 import { FragmentDrawer } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { resolveSources } from "@/features/projections/sources";
-import { findNextTarget } from "@/features/rotation/next-target";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { useContextSources } from "@/hooks/use-context-sources";
 import { useCurrentUserId } from "@/hooks/use-current-user-id";
@@ -38,6 +37,7 @@ import { ProposedSection } from "../components/proposed-section";
 import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 import { ReconcileCard } from "../components/reconcile-card";
 import { summarizeReconcile } from "../reconcile-summary";
+import { useStartRitual } from "../use-start-ritual";
 import type { PinItem, ProposedItem, RecentFragment } from "../types";
 import { mainTransitions } from "./Main.transitions";
 import {
@@ -51,7 +51,6 @@ export default function Main() {
   const currentUserId = useCurrentUserId();
   // Start was clicked: the first stop is being located (and, if the wave has
   // not prepared it yet, generated) before the ritual opens on it.
-  const [starting, setStarting] = useState(false);
   const [selectedFragmentId, setSelectedFragmentId] = useState<string | null>(
     null,
   );
@@ -84,7 +83,7 @@ export default function Main() {
   const swatches = useColourSwatches();
   // Projections and reflections discovery keep running after onboarding lets
   // the user in; the Proposed section says so until they finish.
-  const { status: organize } = useOrganizeStatus();
+  const { status: organize, refetch: refetchOrganize } = useOrganizeStatus();
   const laterKinds = ["projections", "reflections"] as const;
   const discovering = laterKinds.some(
     (k) =>
@@ -222,30 +221,16 @@ export default function Main() {
     }
   }
 
-  /**
-   * Begin the ritual: open the first projection with a candidate to judge.
-   * The wave has normally prepared it already; when it has not, the server
-   * joins the running generation (or starts one), so this can take a model
-   * call's worth of time — the card says "Starting…" meanwhile.
-   */
-  async function startRitual() {
-    if (starting) return;
-    setStarting(true);
-    const next = await findNextTarget({ projectionsOnly: true });
-    setStarting(false);
-    if (next.isErr()) {
-      toast.error("Couldn’t start", { description: next.error.message });
-      return;
-    }
-    if (!next.value) {
-      // The plan moved under us (approved elsewhere); show the current truth.
-      refetchRotation();
-      return;
-    }
-    go(mainTransitions.reviewProjection, {
-      params: { id: next.value.id, snapshotId: next.value.snapshotId },
-    });
-  }
+  const { starting, start: startRitual } = useStartRitual({
+    statuses,
+    reconcile: organize?.reconcile,
+    refetchOrganize,
+    refetchRotation,
+    onTarget: (t) =>
+      go(mainTransitions.reviewProjection, {
+        params: { id: t.id, snapshotId: t.snapshotId },
+      }),
+  });
 
   function openProposal(it: ProposedItem) {
     if (it.kind === "reflection") {
@@ -300,6 +285,8 @@ export default function Main() {
             {hasFragments && !rotLoading && (
               <ReconcileCard
                 summary={summary}
+                running={organize?.reconcile.running ?? false}
+                lastError={organize?.reconcile.lastError}
                 starting={starting}
                 onStart={startRitual}
               />

@@ -45,12 +45,16 @@ func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeSta
 	st.Policy = api.OrganizePolicy{
 		Wave: reconcile.WaveEnabled(),
 	}
+	wave := reconcile.Status()
 	st.Reconcile = api.ReconcileStatus{
-		Running:   reconcile.Running(),
-		LastError: reconcile.LastError(),
+		Running:   wave.Running,
+		LastError: wave.LastError,
 	}
-	if t := reconcile.LastCompleted(); !t.IsZero() {
-		st.Reconcile.LastCompleted = t.UTC().Format(time.RFC3339)
+	if !wave.LastStarted.IsZero() {
+		st.Reconcile.LastStarted = wave.LastStarted.UTC().Format(time.RFC3339)
+	}
+	if !wave.LastCompleted.IsZero() {
+		st.Reconcile.LastCompleted = wave.LastCompleted.UTC().Format(time.RFC3339)
 	}
 	return st, nil
 }
