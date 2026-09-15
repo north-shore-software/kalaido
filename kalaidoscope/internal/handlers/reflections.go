@@ -30,7 +30,7 @@ func HandleBackfillReflection(app core.App) func(e *core.RequestEvent) error {
 		if err != nil {
 			return e.BadRequestError("from must be RFC3339", err)
 		}
-		rec, err := app.FindRecordById("reflection", id)
+		rec, err := engine.FindLive(app, engine.ReflectionStrategy{}, id)
 		if err != nil {
 			return e.NotFoundError("reflection not found", err)
 		}
@@ -57,7 +57,7 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 		if id == "" {
 			return e.BadRequestError("reflection id required", nil)
 		}
-		rec, err := app.FindRecordById("reflection", id)
+		rec, err := engine.FindLive(app, engine.ReflectionStrategy{}, id)
 		if err != nil {
 			return e.NotFoundError("reflection not found", err)
 		}
@@ -102,4 +102,8 @@ func HandleUpdateReflection(app core.App) func(e *core.RequestEvent) error {
 
 func HandleDeleteReflection(app core.App) func(e *core.RequestEvent) error {
 	return handleDelete(app, engine.ReflectionStrategy{})
+}
+
+func HandleRestoreReflection(app core.App) func(e *core.RequestEvent) error {
+	return handleRestore(app, engine.ReflectionStrategy{})
 }

@@ -142,11 +142,11 @@ func evaluateDiscover(app core.App, version, things int, out *api.DiscoverStatus
 		}
 	}
 
-	projections, err := app.CountRecords("projection", dbx.HashExp{"status": "proposed"})
+	projections, err := app.CountRecords("projection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}
-	reflections, err := app.CountRecords("reflection", dbx.HashExp{"status": "proposed"})
+	reflections, err := app.CountRecords("reflection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}

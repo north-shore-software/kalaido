@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useCollection } from "@/hooks/use-collection";
+import { useLiveCollection } from "@/hooks/use-live-collection";
 import { FRAGMENT_TYPE_OPTIONS, type FragmentTypeOption } from "@/lib/labels";
 
 /** A pickable item identified by record id (projections, colours). */
@@ -30,13 +31,15 @@ export function useContextSources(): ContextSources {
   // Deliberately unfiltered on name: an unnamed projection is still a thing you
   // can pin, and a context_spec that already references one has to be able to
   // resolve it back to a label — otherwise the summary falls through to the id.
-  const projections = useCollection("projection", {
-    filter: 'status = "active"',
+  // Live, so a projection deleted (or restored) while a picker is open leaves
+  // (or rejoins) the offered sources without a remount.
+  const projections = useLiveCollection("projection", {
+    filter: 'status = "active" && deleted_at = ""',
     sort: "-updated",
     fields: "id,name",
   });
-  const reflections = useCollection("reflection", {
-    filter: 'status = "active"',
+  const reflections = useLiveCollection("reflection", {
+    filter: 'status = "active" && deleted_at = ""',
     sort: "-updated",
     fields: "id,name",
   });

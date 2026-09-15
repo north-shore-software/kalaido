@@ -334,6 +334,7 @@ export type ProjectionRecord<Tcurrent_context_spec = unknown> = {
 	created_by_discover_run_id?: RecordIdString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	deleted_at?: IsoDateString
 	description?: string
 	generate_with_model?: string
 	id: string
@@ -391,6 +392,7 @@ export type ReflectionRecord<Tcurrent_context_spec = unknown, Twindow_spec_versi
 	created_by_discover_run_id?: RecordIdString
 	current_context_spec?: null | Tcurrent_context_spec
 	current_lens_id?: RecordIdString
+	deleted_at?: IsoDateString
 	description?: string
 	generate_with_model?: string
 	id: string

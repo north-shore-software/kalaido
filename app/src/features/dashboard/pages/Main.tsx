@@ -79,16 +79,16 @@ export default function Main() {
     refetch: refetchRotation,
   } = useRotationStatus();
   const projections = useLiveCollection("projection", {
-    filter: 'name != ""',
+    filter: 'name != "" && deleted_at = ""',
     sort: "-updated",
   });
   const reflections = useLiveCollection("reflection", {
-    filter: 'name != ""',
+    filter: 'name != "" && deleted_at = ""',
     sort: "-updated",
   });
   // Latest pending candidate per projection — the snapshot to review.
   const pending = useLiveCollection("projection_snapshot", {
-    filter: 'status="pending_review"',
+    filter: 'status="pending_review" && projection_id.deleted_at = ""',
     sort: "-created",
     fields: "id,projection_id",
   });

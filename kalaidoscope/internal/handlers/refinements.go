@@ -57,6 +57,9 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			var snap *core.Record
 			var parent *core.Record
 			if targetCol == "projection" {
+				if _, err := engine.FindLive(txApp, engine.ProjectionStrategy{}, targetID); err != nil {
+					return err
+				}
 				rec.Set("projection_id", targetID)
 				if req.SnapshotID != "" {
 					rec.Set("projection_snapshot_id", req.SnapshotID)
@@ -67,7 +70,7 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				}
 			} else {
 				rec.Set("reflection_id", targetID)
-				parent, err = txApp.FindRecordById(targetCol, targetID)
+				parent, err = engine.FindLive(txApp, engine.ReflectionStrategy{}, targetID)
 				if err != nil {
 					return err
 				}
@@ -317,7 +320,7 @@ func refinementParent(app core.App, refRec *core.Record) *core.Record {
 		return nil
 	}
 	rec, err := app.FindRecordById(targetCol, parentID)
-	if err != nil {
+	if err != nil || engine.IsDeleted(rec) {
 		return nil
 	}
 	return rec

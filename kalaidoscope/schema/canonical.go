@@ -173,9 +173,15 @@ var Canonical = []TableDef{
 			&core.TextField{Name: "description"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+			// Soft delete (v4). Set by DELETE /api/projections/{id}, cleared by
+			// restore. Children (snapshots, refinements, messages) stay put so
+			// a restore brings everything back; every reader of live entities
+			// filters deleted_at = ''.
+			&core.DateField{Name: "deleted_at"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_projection_status", Columns: "status"},
+			{Name: "idx_projection_deleted_at", Columns: "deleted_at"},
 		},
 	},
 
@@ -208,9 +214,15 @@ var Canonical = []TableDef{
 			&core.TextField{Name: "description"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+			// Soft delete (v4). Set by DELETE /api/reflections/{id}, cleared by
+			// restore. Children (snapshots, refinements, messages) stay put so
+			// a restore brings everything back; every reader of live entities
+			// filters deleted_at = ''.
+			&core.DateField{Name: "deleted_at"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_reflection_status", Columns: "status"},
+			{Name: "idx_reflection_deleted_at", Columns: "deleted_at"},
 		},
 	},
 

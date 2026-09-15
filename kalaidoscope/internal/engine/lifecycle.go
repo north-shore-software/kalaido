@@ -233,7 +233,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		}
 
 		// The parent is required now: the commit re-points its lens.
-		parentRec, err := tx.FindRecordById(targetCol, parentID)
+		parentRec, err := FindLive(tx, strat, parentID)
 		if err != nil {
 			return fmt.Errorf("parent %s %s: %w", targetCol, parentID, err)
 		}

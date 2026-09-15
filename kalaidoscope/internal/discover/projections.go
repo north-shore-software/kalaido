@@ -90,7 +90,7 @@ func existingEntities(c *Context) ([]Existing, error) {
 		})
 	}
 	for _, col := range []string{"projection", "reflection"} {
-		recs, err := c.App.FindRecordsByFilter(col, "1=1", "created", 0, 0, nil)
+		recs, err := c.App.FindRecordsByFilter(col, engine.LiveFilter, "created", 0, 0, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +150,7 @@ func (f projectionsFlow) Dispatch(ctx context.Context, c *Context, call llm.Tool
 	}
 	sourceIDs := union(nil, args.SourceProjectionIDs)
 	for _, id := range sourceIDs {
-		if _, err := c.App.FindRecordById("projection", id); err != nil {
+		if _, err := engine.FindLive(c.App, engine.ProjectionStrategy{}, id); err != nil {
 			return prompts.DiscoverRejected(prompts.DiscoverNoRecord("projection", id)), nil, nil
 		}
 	}
