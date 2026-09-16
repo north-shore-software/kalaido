@@ -2,6 +2,7 @@ import { generateId, type UIMessage } from "ai";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import type { ContextSpec, TimeWindow } from "@/api/kalaidoscope/chat";
+import { captureEvent, captureException } from "@/lib/posthog";
 import {
   commitRefinement,
   createRefinement,
@@ -146,6 +147,10 @@ export function useRefineSession({
       });
       setCreating(false);
       if (res.isErr()) {
+        captureException(res.error, {
+          operation: "refinement_open",
+          target_type: target,
+        });
         toast.error("Failed to open refinement", {
           description: res.error.message,
         });
@@ -192,9 +197,14 @@ export function useRefineSession({
       const res = await commitRefinement({ target, parentId, refinementId });
       setCommitting(false);
       if (res.isErr()) {
+        captureException(res.error, {
+          operation: "refinement_commit",
+          target_type: target,
+        });
         toast.error("Failed to commit", { description: res.error.message });
         return false;
       }
+      captureEvent("refinement_committed", { target_type: target });
       onCommitted?.(res.value.snapshotId);
       return true;
     },

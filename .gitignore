@@ -6,6 +6,7 @@
 /.schema/
 /kalaidoscope/.claude/
 /app/.env.local
+/app/.env
 /app/src-tauri/gen/
 /app/src-tauri/binaries/pocketbase-aarch64-apple-darwin
 /kalaidoscope/pb_data/

@@ -25,6 +25,7 @@ import {
 import { appState, type StageEntry } from "@/hooks/use-app-state.ts";
 import { setActiveKalaidoscopeClient } from "@/lib/active-kalaidoscope-client.ts";
 import { toError } from "@/lib/errors.ts";
+import { captureEvent, captureException } from "@/lib/posthog";
 
 export interface CreateKalaidoscopeInput {
   name: string;
@@ -195,8 +196,14 @@ export async function createKalaidoscope(
       });
     }
 
+    captureEvent("workspace_created", {
+      workspace_type: type,
+      has_custom_location: input.locationInput.trim().length > 0,
+      llm_provider: input.llmConfig?.provider ?? "cloud_managed",
+    });
     return ok(newKalaidoscope);
   } catch (e) {
+    captureException(e, { operation: "workspace_create" });
     return err(toError(e));
   }
 }
