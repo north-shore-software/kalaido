@@ -25,6 +25,7 @@ import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels";
 import { isPinned } from "@/lib/pins";
+import { captureEvent, captureException } from "@/lib/posthog";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import {
@@ -268,8 +269,12 @@ export default function Main() {
       it.kind === "projection"
         ? await deleteProjection(it.id)
         : await deleteReflection(it.id);
-    if (res.isErr())
+    if (res.isErr()) {
+      captureException(res.error, { operation: "proposal_dismiss" });
       toast.error("Failed to dismiss", { description: res.error.message });
+      return;
+    }
+    captureEvent("proposal_dismissed", { proposal_type: it.kind });
   }
 
   async function unpin(it: PinItem) {

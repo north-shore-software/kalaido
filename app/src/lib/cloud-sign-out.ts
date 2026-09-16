@@ -3,6 +3,7 @@ import { deleteSetting, getSetting, setSetting } from "@/api/app/settings.ts";
 import { authClient } from "@/api/cloud/auth.ts";
 import { setAvailableKalaidoscopes } from "@/hooks/app-state-actions.ts";
 import { appState } from "@/hooks/use-app-state.ts";
+import { captureEvent, resetPostHog } from "@/lib/posthog";
 
 /**
  * Signs out of Kalaido Cloud and returns the app to a genuinely signed-out
@@ -18,6 +19,8 @@ import { appState } from "@/hooks/use-app-state.ts";
  * account.
  */
 export async function signOutOfCloud(): Promise<void> {
+  captureEvent("cloud_user_signed_out");
+  resetPostHog();
   await authClient.signOut();
 
   const cloudIds = new Set(
