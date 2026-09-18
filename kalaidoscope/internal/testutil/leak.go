@@ -19,7 +19,13 @@ func LeakOptions() []goleak.Option {
 	}
 }
 
-// VerifyNoLeaks asserts that no unexpected goroutines are running at the end of t.
+// VerifyNoLeaks asserts that no unexpected goroutines are running at the end
+// of t. The check is process-wide: it sees every goroutine, not only those t
+// started. That is safe while no test that boots an app calls t.Parallel()
+// (Go holds parallel tests until the serial ones finish), and it catches a
+// goroutine that outlives its app but not a pending timer, which has no
+// goroutine until it fires. A parallel test that needs an app must snapshot
+// first with goleak.IgnoreCurrent() and accept the weaker check.
 func VerifyNoLeaks(t *testing.T, extraOpts ...goleak.Option) {
 	t.Helper()
 	opts := append(LeakOptions(), extraOpts...)
