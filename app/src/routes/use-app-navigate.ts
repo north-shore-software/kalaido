@@ -26,9 +26,10 @@ export type GoOptions<Id extends RouteId> = {
 type NoRequiredKeys = Record<string, never>;
 
 /** The options tuple is optional as a whole only when nothing in it is required. */
-type GoArgs<Id extends RouteId> = NoRequiredKeys extends GoOptions<Id>
-  ? [opts?: GoOptions<Id>]
-  : [opts: GoOptions<Id>];
+type GoArgs<Id extends RouteId> =
+  NoRequiredKeys extends GoOptions<Id>
+    ? [opts?: GoOptions<Id>]
+    : [opts: GoOptions<Id>];
 
 /** The only sanctioned way to navigate. Every call names a declared transition. */
 export function useAppNavigate() {
