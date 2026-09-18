@@ -22,10 +22,13 @@ export type GoOptions<Id extends RouteId> = {
 } & ParamsArg<Id> &
   StateArg<Id>;
 
+/** An object with no required keys — the probe for "may this be omitted?". */
+type NoRequiredKeys = Record<string, never>;
+
 /** The options tuple is optional as a whole only when nothing in it is required. */
-// biome-ignore lint/complexity/noBannedTypes: `{}` is the "no required keys" probe
-type GoArgs<Id extends RouteId> =
-  {} extends GoOptions<Id> ? [opts?: GoOptions<Id>] : [opts: GoOptions<Id>];
+type GoArgs<Id extends RouteId> = NoRequiredKeys extends GoOptions<Id>
+  ? [opts?: GoOptions<Id>]
+  : [opts: GoOptions<Id>];
 
 /** The only sanctioned way to navigate. Every call names a declared transition. */
 export function useAppNavigate() {

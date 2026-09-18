@@ -80,7 +80,7 @@ export type PatternParams<P extends string> = {
   [K in RequiredNames<P>]: string;
 } & { [K in OptionalNames<P>]?: string };
 
-// biome-ignore lint/complexity/noBannedTypes: `& {}` forces the mapped type to display flat
+/** `& {}` forces the mapped type to display flat in hover text and errors. */
 type Simplify<T> = { [K in keyof T]: T[K] } & {};
 
 /** Alias params are optional by definition: `selectPattern` picks by presence. */

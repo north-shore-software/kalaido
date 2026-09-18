@@ -5,6 +5,8 @@ import { Default } from "./appearance-section.stories";
 describe("AppearanceSection", () => {
   test("renders the section with its theme toggle", () => {
     renderStory(<Default />);
-    expect(screen.getByText("Appearance")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Appearance" }),
+    ).toBeInTheDocument();
   });
 });

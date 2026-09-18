@@ -6,12 +6,12 @@ describe("ImportFields", () => {
   test("starts with only the file picker", () => {
     renderStory(<Empty />);
     expect(screen.getByLabelText("Choose file")).toBeInTheDocument();
-    expect(screen.queryByText("notes/intro.txt")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("notes/intro.txt")).not.toBeInTheDocument();
   });
 
   test("previews the chosen file's entries", () => {
     renderStory(<WithFile />);
-    expect(screen.getByText("notes/intro.txt")).toBeInTheDocument();
+    expect(screen.getByTitle("notes/intro.txt")).toBeInTheDocument();
   });
 
   test("shows the preview error", () => {
