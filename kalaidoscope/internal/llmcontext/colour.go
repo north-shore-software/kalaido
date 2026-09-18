@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -23,7 +24,7 @@ func FragmentIDsForColours(ctx stdctx.Context, app core.App, colourIDs []string)
 		params[key] = id
 	}
 	params["neg"] = "manual_negative"
-	recs, err := app.FindRecordsByFilter("colour_fragment", "("+strings.Join(ors, " || ")+") && match_type != {:neg}", "", 0, 0, params)
+	recs, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "("+strings.Join(ors, " || ")+") && match_type != {:neg}", "", 0, 0, params)
 	if err != nil {
 		logger().Error("colour fragment lookup failed", "error", err)
 		return nil

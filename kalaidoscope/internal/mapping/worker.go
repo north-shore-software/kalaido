@@ -13,6 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 const (
@@ -131,7 +132,7 @@ func (w *Worker) annotateLoop(ctx context.Context) error {
 }
 
 func annotatedIDs(app core.App) (map[string]bool, error) {
-	recs, err := app.FindRecordsByFilter("fragment_annotation", "1=1", "", 0, 0, nil)
+	recs, err := app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "1=1", "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func pendingFragments(app core.App) ([]*core.Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "", 0, 0, nil)
+	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

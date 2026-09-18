@@ -12,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/quota"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/north-shore-software/kalaido/kalaidoscope/timeutil"
 )
 
@@ -27,7 +28,7 @@ func Setup(app core.App) {
 }
 
 func requireUsagePeriodIndex(app core.App) error {
-	c, err := app.FindCollectionByNameOrId("usage")
+	c, err := app.FindCollectionByNameOrId(schema.ColUsage.String())
 	if err != nil {
 		return fmt.Errorf("usage collection missing: %w", err)
 	}
@@ -38,7 +39,7 @@ func requireUsagePeriodIndex(app core.App) error {
 }
 
 func currentPeriodUsed(app core.App) int64 {
-	rec, err := app.FindFirstRecordByData("usage", "period", timeutil.PeriodKey(time.Now()))
+	rec, err := app.FindFirstRecordByData(schema.ColUsage.String(), "period", timeutil.PeriodKey(time.Now()))
 	if err != nil {
 		return 0
 	}
@@ -64,9 +65,9 @@ func Record(ctx context.Context, app core.App, u *llm.Usage) {
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
 		lastErr = app.RunInTransaction(func(txApp core.App) error {
-			rec, err := txApp.FindFirstRecordByData("usage", "period", period)
+			rec, err := txApp.FindFirstRecordByData(schema.ColUsage.String(), "period", period)
 			if err != nil {
-				col, e := txApp.FindCollectionByNameOrId("usage")
+				col, e := txApp.FindCollectionByNameOrId(schema.ColUsage.String())
 				if e != nil {
 					return e
 				}

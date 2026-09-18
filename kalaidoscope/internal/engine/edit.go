@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 var (
@@ -71,7 +72,7 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 			return fmt.Errorf("%w: %w", ErrEditRejected, err)
 		}
 
-		fragCol, err := tx.FindCollectionByNameOrId("fragment")
+		fragCol, err := tx.FindCollectionByNameOrId(schema.ColFragment.String())
 		if err != nil {
 			return err
 		}

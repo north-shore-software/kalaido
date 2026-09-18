@@ -12,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // ResolveSpecToIDs evaluates a spec into the concrete set of fragments and
@@ -81,7 +82,7 @@ func windowClause(win *api.Window) (string, dbx.Params) {
 // resolveWholeScope is every live fragment, windowed.
 func resolveWholeScope(app core.App, win *api.Window) ([]string, error) {
 	winClause, winParams := windowClause(win)
-	recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''"+winClause, "", 0, 0, winParams)
+	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''"+winClause, "", 0, 0, winParams)
 	if err != nil {
 		return nil, fmt.Errorf("resolve WholeScope fragments: %w", err)
 	}
@@ -125,7 +126,7 @@ func resolvePinnedFragments(ctx stdctx.Context, app core.App, spec api.ContextSp
 		for k, v := range winParams {
 			params[k] = v
 		}
-		recs, err := app.FindRecordsByFilter("fragment", "("+strings.Join(ors, " || ")+") && deleted_at = ''"+winClause, "", 0, 0, params)
+		recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "("+strings.Join(ors, " || ")+") && deleted_at = ''"+winClause, "", 0, 0, params)
 		if err != nil {
 			return nil, fmt.Errorf("resolve specific fragments: %w", err)
 		}
@@ -166,7 +167,7 @@ func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 	}
 	// A soft-deleted upstream contributes nothing until restored.
 	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+") && projection_id.deleted_at = ''")
-	if recs, err := app.FindRecordsByFilter("projection_snapshot", filter, sort, 0, 0, params); err == nil {
+	if recs, err := app.FindRecordsByFilter(schema.ColProjectionSnapshot.String(), filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
 			pid := r.GetString("projection_id")
@@ -192,7 +193,7 @@ func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		params[key] = rid
 	}
 	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+") && reflection_id.deleted_at = ''")
-	if recs, err := app.FindRecordsByFilter("reflection_snapshot", filter, sort, 0, 0, params); err == nil {
+	if recs, err := app.FindRecordsByFilter(schema.ColReflectionSnapshot.String(), filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
 			rid := r.GetString("reflection_id")
@@ -227,7 +228,7 @@ func hydrateFlat(ctx stdctx.Context, app core.App, pinned PinnedIDs) string {
 }
 
 func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, sb *strings.Builder) {
-	projSnaps, _ := app.FindRecordsByIds("projection_snapshot", ids)
+	projSnaps, _ := app.FindRecordsByIds(schema.ColProjectionSnapshot.String(), ids)
 	var pids []string
 	for _, snap := range projSnaps {
 		if pid := snap.GetString("projection_id"); pid != "" {
@@ -237,7 +238,7 @@ func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 	if len(pids) == 0 {
 		return
 	}
-	projs, _ := app.FindRecordsByIds("projection", pids)
+	projs, _ := app.FindRecordsByIds(schema.ColProjection.String(), pids)
 	projMap := make(map[string]*core.Record)
 	for _, p := range projs {
 		projMap[p.Id] = p
@@ -254,7 +255,7 @@ func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 }
 
 func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, sb *strings.Builder) {
-	reflSnaps, _ := app.FindRecordsByIds("reflection_snapshot", ids)
+	reflSnaps, _ := app.FindRecordsByIds(schema.ColReflectionSnapshot.String(), ids)
 	var rids []string
 	for _, snap := range reflSnaps {
 		if rid := snap.GetString("reflection_id"); rid != "" {
@@ -264,7 +265,7 @@ func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 	if len(rids) == 0 {
 		return
 	}
-	refls, _ := app.FindRecordsByIds("reflection", rids)
+	refls, _ := app.FindRecordsByIds(schema.ColReflection.String(), rids)
 	reflMap := make(map[string]*core.Record)
 	for _, r := range refls {
 		reflMap[r.Id] = r

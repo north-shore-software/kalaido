@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -37,7 +38,7 @@ func (w *Worker) aggregateLoop(ctx context.Context) error {
 }
 
 func consolidateDue(app core.App, now time.Time) (bool, error) {
-	rows, err := app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "-created", 0, 0, nil)
+	rows, err := app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "consolidated_at = ''", "-created", 0, 0, nil)
 	if err != nil || len(rows) == 0 {
 		return false, err
 	}

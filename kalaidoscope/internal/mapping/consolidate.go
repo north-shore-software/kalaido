@@ -11,10 +11,11 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func unintegratedRows(app core.App) ([]*core.Record, error) {
-	return app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "created", 0, 0, nil)
+	return app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "consolidated_at = ''", "created", 0, 0, nil)
 }
 
 func consolidate(ctx context.Context, app core.App) error {
@@ -42,7 +43,7 @@ func consolidate(ctx context.Context, app core.App) error {
 	if err != nil {
 		return err
 	}
-	runCol, err := app.FindCollectionByNameOrId("map_run")
+	runCol, err := app.FindCollectionByNameOrId(schema.ColMapRun.String())
 	if err != nil {
 		return err
 	}
@@ -182,7 +183,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 }
 
 func fragmentDates(app core.App) (map[string]string, error) {
-	recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "", 0, 0, nil)
+	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

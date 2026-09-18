@@ -4,10 +4,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func newRun(app core.App, kind string, version int, model string) (*core.Record, error) {
-	col, err := app.FindCollectionByNameOrId("discover_run")
+	col, err := app.FindCollectionByNameOrId(schema.ColDiscoverRun.String())
 	if err != nil {
 		return nil, err
 	}

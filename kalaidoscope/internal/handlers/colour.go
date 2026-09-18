@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/sync/errgroup"
@@ -37,7 +38,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		positiveBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.PositiveExamples))
 		negativeBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.NegativeExamples))
 
-		recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "-created", 20, 0, dbx.Params{})
+		recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "-created", 20, 0, dbx.Params{})
 		if err != nil {
 			logger().Error("colour preview: find fragments failed", "error", err)
 			return e.InternalServerError("failed to fetch fragments", err)
@@ -130,7 +131,7 @@ func HandleCreateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 			return e.BadRequestError("name is required", nil)
 		}
 
-		collection, err := app.FindCollectionByNameOrId("colour")
+		collection, err := app.FindCollectionByNameOrId(schema.ColColour.String())
 		if err != nil {
 			return e.InternalServerError("colour collection", err)
 		}
@@ -254,7 +255,7 @@ func findColour(app core.App, e *core.RequestEvent) (*core.Record, error) {
 	if id == "" {
 		return nil, e.BadRequestError("missing id", nil)
 	}
-	rec, err := app.FindRecordById("colour", id)
+	rec, err := app.FindRecordById(schema.ColColour.String(), id)
 	if err != nil {
 		return nil, e.NotFoundError("colour not found", err)
 	}

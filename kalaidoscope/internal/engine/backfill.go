@@ -11,6 +11,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // ErrBackfillOutOfRange rejects a backfill that starts at or after the point
@@ -53,7 +54,7 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 		return nil, nil
 	}
 
-	col, err := app.FindCollectionByNameOrId("reflection_window")
+	col, err := app.FindCollectionByNameOrId(schema.ColReflectionWindow.String())
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,7 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 		if err := app.Save(row); err != nil {
 			// Already materialized: the unique index says so.
 			start, end := WindowBounds(&w)
-			existing, _ := app.FindFirstRecordByFilter("reflection_window",
+			existing, _ := app.FindFirstRecordByFilter(schema.ColReflectionWindow.String(),
 				"reflection_id = {:id} && window_start = {:ws} && window_end = {:we}",
 				map[string]any{"id": rec.Id, "ws": start.String(), "we": end.String()})
 			if existing == nil {
@@ -94,7 +95,7 @@ func RunPendingWindows(r Runner, app core.App, reflectionID string) {
 // GeneratePendingWindows is RunPendingWindows's body, run to completion on
 // the calling goroutine.
 func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID string) {
-	rec, err := app.FindRecordById("reflection", reflectionID)
+	rec, err := app.FindRecordById(schema.ColReflection.String(), reflectionID)
 	if err != nil {
 		logger().Error("backfill: load reflection failed", "reflection_id", reflectionID, "error", err)
 		return

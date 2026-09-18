@@ -1,6 +1,10 @@
 package colour
 
-import "github.com/pocketbase/pocketbase/core"
+import (
+	"github.com/pocketbase/pocketbase/core"
+
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
+)
 
 // SwatchCount is the size of the app's colour palette; colour.swatch is an
 // index into it.
@@ -11,7 +15,7 @@ const SwatchCount = 8
 // distinct and a colour keeps its slot for life whatever is created or
 // deleted around it.
 func NextSwatch(app core.App) (int, error) {
-	n, err := app.CountRecords("colour")
+	n, err := app.CountRecords(schema.ColColour.String())
 	if err != nil {
 		return 0, err
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatRequest, refRec *core.Record) func(e *core.RequestEvent) error) func(e *core.RequestEvent) error {
@@ -25,11 +26,11 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 
 		ctx := e.Request.Context()
 
-		if refRec, err := app.FindFirstRecordByFilter("projection_refinement", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+		if refRec, err := app.FindFirstRecordByFilter(schema.ColProjectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
 			if refinementHandler != nil {
 				return refinementHandler(app, req, refRec)(e)
 			}
-		} else if refRec, err := app.FindFirstRecordByFilter("reflection_refinement", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+		} else if refRec, err := app.FindFirstRecordByFilter(schema.ColReflectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
 			if refinementHandler != nil {
 				return refinementHandler(app, req, refRec)(e)
 			}

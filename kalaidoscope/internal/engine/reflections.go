@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 var ErrReflectionNotFound = errors.New("reflection not found")
@@ -66,7 +67,7 @@ func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState 
 		add(w, false)
 	}
 
-	backfills, _ := app.FindRecordsByFilter("reflection_window",
+	backfills, _ := app.FindRecordsByFilter(schema.ColReflectionWindow.String(),
 		"reflection_id = {:id}", "window_start", 0, 0, dbx.Params{"id": rec.Id})
 	for _, b := range backfills {
 		if w := SnapshotWindow(b); w != nil {
@@ -76,7 +77,7 @@ func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState 
 
 	// Claim rows carry their bounds from the moment they are inserted, so a
 	// window with a generation in flight is marked here too.
-	snaps, _ := app.FindRecordsByFilter("reflection_snapshot",
+	snaps, _ := app.FindRecordsByFilter(schema.ColReflectionSnapshot.String(),
 		"reflection_id = {:id} && window_start != '' && (status = 'approved' || status = 'generating')",
 		"", 0, 0, dbx.Params{"id": rec.Id})
 	for _, s := range snaps {

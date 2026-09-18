@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // FindConversation is the plain chat with this client id, or an error. Only
@@ -71,7 +72,7 @@ func FindOrCreateConversation(ctx context.Context, app core.App, clientID string
 		return rec, nil
 	}
 
-	col, err := app.FindCollectionByNameOrId("chat_conversation")
+	col, err := app.FindCollectionByNameOrId(schema.ColChatConversation.String())
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func FindOrCreateConversation(ctx context.Context, app core.App, clientID string
 }
 
 func PersistMessage(ctx context.Context, app core.App, conversation *core.Record, msg api.UIMessage, model string) (*core.Record, error) {
-	col, err := app.FindCollectionByNameOrId("chat_message")
+	col, err := app.FindCollectionByNameOrId(schema.ColChatMessage.String())
 	if err != nil {
 		return nil, err
 	}

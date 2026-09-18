@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 const maxExemplars = 5
@@ -21,7 +22,7 @@ type document struct {
 }
 
 func loadDocument(app core.App) (*document, error) {
-	recs, err := app.FindRecordsByFilter("kalaidoscope_map", "1=1", "", 1, 0, nil)
+	recs, err := app.FindRecordsByFilter(schema.ColKalaidoscopeMap.String(), "1=1", "", 1, 0, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +30,7 @@ func loadDocument(app core.App) (*document, error) {
 	if len(recs) > 0 {
 		rec = recs[0]
 	} else {
-		col, err := app.FindCollectionByNameOrId("kalaidoscope_map")
+		col, err := app.FindCollectionByNameOrId(schema.ColKalaidoscopeMap.String())
 		if err != nil {
 			return nil, err
 		}

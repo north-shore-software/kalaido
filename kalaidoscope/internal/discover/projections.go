@@ -16,6 +16,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 const worklistFloor = 5
@@ -66,7 +67,7 @@ func (projectionsFlow) Coverage(c *Context, existing []Existing) string {
 // proposal must not restate what is there, and projections scope by colour id.
 func existingEntities(c *Context) ([]Existing, error) {
 	var out []Existing
-	colours, err := c.App.FindRecordsByFilter("colour", "1=1", "created", 0, 0, nil)
+	colours, err := c.App.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

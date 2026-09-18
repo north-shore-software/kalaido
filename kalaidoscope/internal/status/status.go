@@ -11,6 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 type Evaluator struct {
@@ -22,11 +23,11 @@ func NewEvaluator(app core.App, now time.Time) *Evaluator {
 	return &Evaluator{app: app, now: now}
 }
 func (e *Evaluator) EvaluateAll(ctx stdctx.Context) ([]api.EntityStatus, error) {
-	projections, err := e.app.FindRecordsByFilter("projection", "status = 'active' && "+engine.LiveFilter, "", 0, 0, nil)
+	projections, err := e.app.FindRecordsByFilter(schema.ColProjection.String(), "status = 'active' && "+engine.LiveFilter, "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}
-	reflections, err := e.app.FindRecordsByFilter("reflection", "status = 'active' && "+engine.LiveFilter, "", 0, 0, nil)
+	reflections, err := e.app.FindRecordsByFilter(schema.ColReflection.String(), "status = 'active' && "+engine.LiveFilter, "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +127,7 @@ func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, statu
 			continue
 		}
 		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, n.record.Id, &st.Window)
-		snaps, err := e.app.FindRecordsByFilter("reflection_snapshot", filter,
+		snaps, err := e.app.FindRecordsByFilter(schema.ColReflectionSnapshot.String(), filter,
 			"-approval_sequence_number", 1, 0, params)
 		if err != nil || len(snaps) == 0 {
 			continue
@@ -251,9 +252,9 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	staleDeps := make(map[string]bool)
 	for _, sID := range diff.SnapshotIDs {
 		// Try projection snapshot
-		if sr, err := e.app.FindRecordById("projection_snapshot", sID); err == nil {
+		if sr, err := e.app.FindRecordById(schema.ColProjectionSnapshot.String(), sID); err == nil {
 			staleDeps[sr.GetString("projection_id")] = true
-		} else if sr, err := e.app.FindRecordById("reflection_snapshot", sID); err == nil {
+		} else if sr, err := e.app.FindRecordById(schema.ColReflectionSnapshot.String(), sID); err == nil {
 			staleDeps[sr.GetString("reflection_id")] = true
 		}
 	}

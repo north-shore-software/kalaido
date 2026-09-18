@@ -11,6 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // Workers are the live workers whose in-memory state the status reads
@@ -24,7 +25,7 @@ type Workers struct {
 func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.OrganizeStatus, error) {
 	var st api.OrganizeStatus
 
-	fragments, err := app.CountRecords("fragment", dbx.NewExp("deleted_at = ''"))
+	fragments, err := app.CountRecords(schema.ColFragment.String(), dbx.NewExp("deleted_at = ''"))
 	if err != nil {
 		return st, err
 	}
@@ -68,12 +69,12 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 }
 
 func evaluateImports(app core.App, out *api.ImportsStatus) error {
-	pending, err := app.CountRecords("ingest", dbx.HashExp{"status": "pending"})
+	pending, err := app.CountRecords(schema.ColIngest.String(), dbx.HashExp{"status": "pending"})
 	if err != nil {
 		return err
 	}
 	out.Pending = int(pending)
-	errored, err := app.FindRecordsByFilter("ingest", "status = 'error'", "-created", 1, 0)
+	errored, err := app.FindRecordsByFilter(schema.ColIngest.String(), "status = 'error'", "-created", 1, 0)
 	if err != nil {
 		return err
 	}
@@ -84,11 +85,11 @@ func evaluateImports(app core.App, out *api.ImportsStatus) error {
 }
 
 func evaluateMap(app core.App, maps *mapping.Worker, version, fragments int, out *api.MapStatus) error {
-	annotated, err := app.CountRecords("fragment_annotation")
+	annotated, err := app.CountRecords(schema.ColFragmentAnnotation.String())
 	if err != nil {
 		return err
 	}
-	unconsolidated, err := app.CountRecords("fragment_annotation", dbx.HashExp{"consolidated_at": ""})
+	unconsolidated, err := app.CountRecords(schema.ColFragmentAnnotation.String(), dbx.HashExp{"consolidated_at": ""})
 	if err != nil {
 		return err
 	}
@@ -96,7 +97,7 @@ func evaluateMap(app core.App, maps *mapping.Worker, version, fragments int, out
 	if err != nil {
 		return err
 	}
-	runs, err := app.FindRecordsByFilter("map_run", "1=1", "-created", 1, 0)
+	runs, err := app.FindRecordsByFilter(schema.ColMapRun.String(), "1=1", "-created", 1, 0)
 	if err != nil {
 		return err
 	}
@@ -139,7 +140,7 @@ func evaluateDiscover(app core.App, disc *discover.Worker, version, things int, 
 
 	anyRun := false
 	for _, kind := range discover.KindOrder() {
-		newest, err := app.FindRecordsByFilter("discover_run", "kind = {:kind}", "-created", 1, 0, dbx.Params{"kind": kind})
+		newest, err := app.FindRecordsByFilter(schema.ColDiscoverRun.String(), "kind = {:kind}", "-created", 1, 0, dbx.Params{"kind": kind})
 		if err != nil {
 			return err
 		}
@@ -152,7 +153,7 @@ func evaluateDiscover(app core.App, disc *discover.Worker, version, things int, 
 		if things == 0 {
 			continue
 		}
-		done, err := app.FindRecordsByFilter("discover_run", "kind = {:kind} && status = 'done'", "-created", 1, 0, dbx.Params{"kind": kind})
+		done, err := app.FindRecordsByFilter(schema.ColDiscoverRun.String(), "kind = {:kind} && status = 'done'", "-created", 1, 0, dbx.Params{"kind": kind})
 		if err != nil {
 			return err
 		}
@@ -161,11 +162,11 @@ func evaluateDiscover(app core.App, disc *discover.Worker, version, things int, 
 		}
 	}
 
-	projections, err := app.CountRecords("projection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
+	projections, err := app.CountRecords(schema.ColProjection.String(), dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}
-	reflections, err := app.CountRecords("reflection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
+	reflections, err := app.CountRecords(schema.ColReflection.String(), dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // colour_fragment.match_type values. One row per (colour, fragment); when a
@@ -55,7 +56,7 @@ func (w *Worker) OnMapSettled(app core.App) {
 		logger().Error("load map version failed", "error", err)
 		return
 	}
-	annotated, err := app.CountRecords("fragment_annotation")
+	annotated, err := app.CountRecords(schema.ColFragmentAnnotation.String())
 	if err != nil {
 		logger().Error("annotation count failed", "error", err)
 		return
@@ -75,7 +76,7 @@ func (w *Worker) OnMapSettled(app core.App) {
 // RematchThings recomputes the "thing" rows of every colour from the current
 // map and annotations.
 func RematchThings(app core.App) error {
-	cols, err := app.FindRecordsByFilter("colour", "1=1", "created", 0, 0, nil)
+	cols, err := app.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
 	if err != nil {
 		return err
 	}
@@ -84,7 +85,7 @@ func RematchThings(app core.App) error {
 
 // RematchThingsFor recomputes one colour's "thing" rows.
 func RematchThingsFor(app core.App, colourID string) error {
-	rec, err := app.FindRecordById("colour", colourID)
+	rec, err := app.FindRecordById(schema.ColColour.String(), colourID)
 	if err != nil {
 		return err
 	}
@@ -141,7 +142,7 @@ func loadIndex(app core.App) (*mapdoc.Document, []mapping.Row, map[string][]int,
 // things cite: stale "thing" rows go, missing pairs get a "thing" row, and
 // rows of any other type are left alone (they outrank a thing match).
 func applyThingRows(app core.App, colourID string, want map[string]bool) error {
-	existing, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:c}", "", 0, 0, dbx.Params{"c": colourID})
+	existing, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "colour_id = {:c}", "", 0, 0, dbx.Params{"c": colourID})
 	if err != nil {
 		return err
 	}
@@ -173,7 +174,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 	rematchMu.Lock()
 	defer rematchMu.Unlock()
 
-	col, err := app.FindRecordById("colour", colourID)
+	col, err := app.FindRecordById(schema.ColColour.String(), colourID)
 	if err != nil {
 		return err
 	}
@@ -181,7 +182,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	anns, err := app.FindRecordsByFilter("fragment_annotation", "fragment_id = {:f}", "", 1, 0, dbx.Params{"f": fragmentID})
+	anns, err := app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "fragment_id = {:f}", "", 1, 0, dbx.Params{"f": fragmentID})
 	if err != nil || len(anns) == 0 {
 		return err
 	}
@@ -221,7 +222,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 // MemberIDs returns the fragments a colour currently holds: every row except
 // the exclusions.
 func MemberIDs(app core.App, colourID string) ([]string, error) {
-	recs, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:c} && match_type != {:neg}", "", 0, 0, dbx.Params{"c": colourID, "neg": MatchManualNegative})
+	recs, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "colour_id = {:c} && match_type != {:neg}", "", 0, 0, dbx.Params{"c": colourID, "neg": MatchManualNegative})
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +234,7 @@ func MemberIDs(app core.App, colourID string) ([]string, error) {
 }
 
 func findLink(app core.App, colourID, fragmentID string) (*core.Record, error) {
-	recs, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:c} && fragment_id = {:f}", "", 1, 0, dbx.Params{"c": colourID, "f": fragmentID})
+	recs, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "colour_id = {:c} && fragment_id = {:f}", "", 1, 0, dbx.Params{"c": colourID, "f": fragmentID})
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +245,7 @@ func findLink(app core.App, colourID, fragmentID string) (*core.Record, error) {
 }
 
 func insertLink(app core.App, colourID, fragmentID, matchType string) error {
-	col, err := app.FindCollectionByNameOrId("colour_fragment")
+	col, err := app.FindCollectionByNameOrId(schema.ColColourFragment.String())
 	if err != nil {
 		return err
 	}

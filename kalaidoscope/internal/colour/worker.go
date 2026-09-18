@@ -18,6 +18,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 const (
@@ -79,11 +80,11 @@ func (w *Worker) Run(ctx context.Context) error {
 // prompt changes or the user asks for it.
 func (w *Worker) Rematch(colourID string) error {
 	app := w.app
-	rec, err := app.FindRecordById("colour", colourID)
+	rec, err := app.FindRecordById(schema.ColColour.String(), colourID)
 	if err != nil {
 		return err
 	}
-	rows, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:c} && match_type = {:t}", "", 0, 0, dbx.Params{"c": colourID, "t": MatchPrompt})
+	rows, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "colour_id = {:c} && match_type = {:t}", "", 0, 0, dbx.Params{"c": colourID, "t": MatchPrompt})
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ func (w *Worker) Rematch(colourID string) error {
 // differently. Registered by server wiring (the reconcile wave), so this
 // package does not know its consumers.
 func drain(ctx context.Context, app core.App) (int, error) {
-	cols, err := app.FindRecordsByFilter("colour", "prompt != ''", "created", 0, 0, nil)
+	cols, err := app.FindRecordsByFilter(schema.ColColour.String(), "prompt != ''", "created", 0, 0, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -192,14 +193,14 @@ func pastWatermark(app core.App, watermark string) ([]*core.Record, error) {
 	filter := "deleted_at = ''"
 	params := dbx.Params{}
 	if watermark != "" {
-		wm, err := app.FindRecordById("fragment", watermark)
+		wm, err := app.FindRecordById(schema.ColFragment.String(), watermark)
 		if err == nil {
 			filter += " && (created > {:c} || (created = {:c} && id > {:id}))"
 			params["c"] = wm.GetDateTime("created")
 			params["id"] = wm.Id
 		}
 	}
-	return app.FindRecordsByFilter("fragment", filter, "created,id", pageSize, 0, params)
+	return app.FindRecordsByFilter(schema.ColFragment.String(), filter, "created,id", pageSize, 0, params)
 }
 
 func linkedFragmentIDs(app core.App, colourID string, frags []*core.Record) (map[string]bool, error) {
@@ -213,7 +214,7 @@ func linkedFragmentIDs(app core.App, colourID string, frags []*core.Record) (map
 	var rows []struct {
 		FragmentID string `db:"fragment_id"`
 	}
-	err := app.DB().Select("fragment_id").From("colour_fragment").
+	err := app.DB().Select("fragment_id").From(schema.ColColourFragment.String()).
 		Where(dbx.HashExp{"colour_id": colourID}).
 		AndWhere(dbx.In("fragment_id", ids...)).
 		All(&rows)
@@ -230,7 +231,7 @@ func linkedFragmentIDs(app core.App, colourID string, frags []*core.Record) (map
 // exampleBlocks renders the colour's manual examples as the few-shot block.
 func exampleBlocks(ctx context.Context, app core.App, colourID string) (positive, negative string) {
 	ids := func(matchType string) []string {
-		links, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:c} && match_type = {:t}", "-created", exampleLimit, 0, dbx.Params{"c": colourID, "t": matchType})
+		links, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "colour_id = {:c} && match_type = {:t}", "-created", exampleLimit, 0, dbx.Params{"c": colourID, "t": matchType})
 		if err != nil {
 			return nil
 		}

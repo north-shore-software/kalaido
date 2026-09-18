@@ -127,14 +127,14 @@ func printBanner(port int) {
 // (a future route), not an env toggle.
 func resolveModelSet(a *pocketbase.PocketBase, env config.Env) {
 	a.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		col, err := a.FindCollectionByNameOrId("kalaidoscope_config")
+		col, err := a.FindCollectionByNameOrId(schema.ColKalaidoscopeConfig.String())
 		if err != nil {
 			logger().Warn("model set: config collection unavailable; using default", "error", err, "model_set", llm.ActiveModelSet())
 			return se.Next()
 		}
 
 		var rec *core.Record
-		if existing, err := a.FindAllRecords("kalaidoscope_config"); err == nil && len(existing) > 0 {
+		if existing, err := a.FindAllRecords(schema.ColKalaidoscopeConfig.String()); err == nil && len(existing) > 0 {
 			rec = existing[0]
 		} else {
 			rec = core.NewRecord(col)

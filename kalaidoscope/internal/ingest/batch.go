@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // Deps are the workers an import hands off to once its fragments are in.
@@ -164,7 +165,7 @@ func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID str
 		}
 	}
 
-	rec, err := app.FindRecordById("ingest", recID)
+	rec, err := app.FindRecordById(schema.ColIngest.String(), recID)
 	if err != nil {
 		logger().Error("reload record failed", "record_id", recID, "error", err)
 		return

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
@@ -31,14 +32,14 @@ type writer struct {
 }
 
 func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
-	col, err := app.FindCollectionByNameOrId("fragment")
+	col, err := app.FindCollectionByNameOrId(schema.ColFragment.String())
 	if err != nil {
 		return nil, fmt.Errorf("fragment collection missing: %w", err)
 	}
 	w := &writer{app: app, col: col, limit: limit, batch: 1}
 	if skipDuplicates {
 		w.seen = map[[32]byte]struct{}{}
-		if records, err := app.FindAllRecords("fragment"); err == nil {
+		if records, err := app.FindAllRecords(schema.ColFragment.String()); err == nil {
 			for _, r := range records {
 				w.seen[sha256.Sum256([]byte(r.GetString("content")))] = struct{}{}
 			}
