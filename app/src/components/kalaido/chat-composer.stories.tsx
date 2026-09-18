@@ -9,7 +9,7 @@ export default { title: "Kalaido / ChatComposer" };
 export const Default: Story = () => {
   const [value, setValue] = useState("");
   return (
-    <div className="max-w-md bg-background border border-line rounded-lg">
+    <div className="max-w-md bg-background border border-line rounded-none">
       <ChatComposer
         value={value}
         onChange={setValue}
@@ -23,7 +23,7 @@ export const Default: Story = () => {
 };
 
 export const Disabled: Story = () => (
-  <div className="max-w-md bg-background border border-line rounded-lg">
+  <div className="max-w-md bg-background border border-line rounded-none">
     <ChatComposer
       value=""
       onChange={noop}
@@ -34,7 +34,7 @@ export const Disabled: Story = () => (
 );
 
 export const QuotaExceeded: Story = () => (
-  <div className="max-w-md bg-background border border-line rounded-lg">
+  <div className="max-w-md bg-background border border-line rounded-none">
     <ChatComposer
       value=""
       onChange={noop}

@@ -1,9 +1,9 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { defineRoute } from "@/routes/route-kit";
 import { RouteLink } from "@/routes/route-link";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppParams } from "@/routes/use-app-params";
 import { cn } from "../../../lib/css-utils";
 import { AppearanceSection } from "../components/appearance-section";
 import { CloudAccountSection } from "../components/cloud-account-section";
@@ -22,7 +22,7 @@ const sections = [
 
 export default function Settings() {
   const { go } = useAppNavigate();
-  const { section = "kalaidoscopes" } = useParams<{ section: string }>();
+  const { section = "kalaidoscopes" } = useAppParams<"settings">();
 
   return (
     <div

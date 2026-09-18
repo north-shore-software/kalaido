@@ -23,6 +23,7 @@ import {
 import { reflectionsRoute } from "@/features/reflections/pages/Reflections";
 import { rotationRoute } from "@/features/rotation/pages/Rotation";
 import { settingsRoute } from "@/features/settings/pages/Settings";
+import type { AnyParams, ParamsArg } from "./route-contracts";
 import { ROUTE_IDS, type RouteId } from "./route-ids";
 import { buildRoutePath, type RouteDef } from "./route-kit";
 
@@ -60,8 +61,20 @@ export function routeById(id: RouteId): RouteDef {
   return def;
 }
 
-export function pathFor(id: RouteId, params?: Record<string, string>): string {
-  return buildRoutePath(routeById(id), params);
+/** The params argument of `pathFor`: omitted, optional or required per route. */
+type PathForArgs<Id extends RouteId> =
+  ParamsArg<Id> extends {
+    params: infer P;
+  }
+    ? [params: P]
+    : [params?: ParamsArg<Id>["params"]];
+
+/** The URL of a screen, with the params `RouteContracts` says it takes. */
+export function pathFor<Id extends RouteId>(
+  id: Id,
+  ...[params]: PathForArgs<Id>
+): string {
+  return buildRoutePath(routeById(id), params as AnyParams | undefined);
 }
 
 export type SectionId =

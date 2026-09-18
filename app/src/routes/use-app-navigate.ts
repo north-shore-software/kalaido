@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { type AppStage, appState } from "@/hooks/use-app-state.ts";
 import { pathFor, routeById } from "./registry";
+import type { AnyParams, ParamsArg, StateArg } from "./route-contracts";
+import type { RouteId } from "./route-ids";
 import {
   buildRoutePath,
   currentScope,
@@ -10,19 +12,34 @@ import {
   type TransitionDef,
 } from "./route-kit";
 
-export type GoOptions = {
-  params?: Record<string, string | undefined>;
+/**
+ * Options of a `go(...)` call, typed by the destination: `params` is required
+ * when the destination has a required URL param, `state` is only offered when
+ * the destination declares a state contract (see `RouteContracts`).
+ */
+export type GoOptions<Id extends RouteId> = {
   replace?: boolean;
-  /** Router state passed to the destination (e.g. chat seed prompt). */
-  state?: unknown;
-};
+} & ParamsArg<Id> &
+  StateArg<Id>;
+
+/** An object with no required keys — the probe for "may this be omitted?". */
+type NoRequiredKeys = Record<string, never>;
+
+/** The options tuple is optional as a whole only when nothing in it is required. */
+type GoArgs<Id extends RouteId> =
+  NoRequiredKeys extends GoOptions<Id>
+    ? [opts?: GoOptions<Id>]
+    : [opts: GoOptions<Id>];
 
 /** The only sanctioned way to navigate. Every call names a declared transition. */
 export function useAppNavigate() {
   const navigate = useNavigate();
 
   const go = useCallback(
-    (transition: TransitionDef, opts: GoOptions = {}) => {
+    <Id extends RouteId>(
+      transition: TransitionDef<Id>,
+      ...[opts]: GoArgs<Id>
+    ) => {
       const target = routeById(transition.to);
       const missing = missingScope(
         target,
@@ -37,9 +54,9 @@ export function useAppNavigate() {
         });
         return;
       }
-      navigate(buildRoutePath(target, opts.params), {
-        replace: opts.replace,
-        state: opts.state,
+      navigate(buildRoutePath(target, opts?.params as AnyParams | undefined), {
+        replace: opts?.replace,
+        state: opts?.state,
       });
     },
     [navigate],

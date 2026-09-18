@@ -32,7 +32,7 @@ export function KalaidoscopeList({
         <ListRow
           key={kalaidoscope.id}
           leading={
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-md border">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-none border">
               <span className="text-meta font-medium">
                 {kalaidoscope.displayName.charAt(0).toUpperCase()}
               </span>

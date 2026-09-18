@@ -20,7 +20,7 @@ export const SidecarStatusDotStory: Story = () => {
   ];
 
   return (
-    <div className="p-4 bg-background border border-line rounded-lg flex flex-col gap-4">
+    <div className="p-4 bg-background border border-line rounded-none flex flex-col gap-4">
       <h3 className="text-sm font-semibold mb-2">Sidecar Status Dot Phases</h3>
       <div className="grid grid-cols-2 gap-2 max-w-xs">
         {phases.map((phase) => (
@@ -39,7 +39,7 @@ SidecarStatusDotStory.storyName = "SidecarStatusDot";
 export const ThemeToggleStory: Story = () => {
   const [theme, setTheme] = useState<Theme>("system");
   return (
-    <div className="p-4 bg-background border border-line rounded-lg flex flex-col gap-4">
+    <div className="p-4 bg-background border border-line rounded-none flex flex-col gap-4">
       <h3 className="text-sm font-semibold mb-2">
         Appearance control (Settings › Appearance)
       </h3>
@@ -57,7 +57,7 @@ ThemeToggleStory.storyName = "ThemeToggle";
 
 export const LocationLabelStory: Story = () => {
   return (
-    <div className="p-4 bg-background border border-line rounded-lg flex flex-col gap-4 max-w-md">
+    <div className="p-4 bg-background border border-line rounded-none flex flex-col gap-4 max-w-md">
       <h3 className="text-sm font-semibold mb-2">Location Label Truncation</h3>
       <div className="flex flex-col gap-3">
         <div>

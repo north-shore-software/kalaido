@@ -32,7 +32,7 @@ export function ColourSwatch({
   return (
     <span
       className={cn(
-        "inline-block shrink-0 rounded-sm",
+        "inline-block shrink-0 rounded-none",
         contentColour(c),
         className,
       )}

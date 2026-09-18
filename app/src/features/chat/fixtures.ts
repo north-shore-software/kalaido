@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import type { Conversation } from "@/api/kalaidoscope/chat";
+import type { BookmarkRow } from "./components/bookmarks-tray";
 
 export const fixtureConversations: Conversation[] = [
   {
@@ -62,5 +63,20 @@ export const fixtureMessages: UIMessage[] = [
         text: "That sounds awesome! Can you help me organize my thoughts?",
       },
     ],
+  },
+];
+
+export const fixtureBookmarkRows: BookmarkRow[] = [
+  {
+    messageId: "msg_1",
+    role: "user",
+    content: "What did I decide about the migration order last week?",
+  },
+  {
+    messageId: "msg_2",
+    role: "assistant",
+    content:
+      "You settled on shipping the schema migration first so the rollout stays reversible, then the API change behind a flag.",
+    fragmentId: "frag_9",
   },
 ];

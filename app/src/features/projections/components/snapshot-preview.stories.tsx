@@ -5,7 +5,7 @@ import { SnapshotPreview } from "./snapshot-preview";
 export default { title: "Projections / SnapshotPreview" };
 
 export const Ready: Story = () => (
-  <div className="p-4 bg-bg border border-line rounded-lg h-[400px] flex">
+  <div className="p-4 bg-bg border border-line rounded-none h-[400px] flex">
     <SnapshotPreview
       state={{
         status: "ready",
@@ -23,7 +23,7 @@ export const Ready: Story = () => (
 );
 
 export const Loading: Story = () => (
-  <div className="p-4 bg-bg border border-line rounded-lg h-[400px] flex">
+  <div className="p-4 bg-bg border border-line rounded-none h-[400px] flex">
     <SnapshotPreview
       state={{
         status: "loading",
@@ -39,7 +39,7 @@ export const Loading: Story = () => (
 );
 
 export const Empty: Story = () => (
-  <div className="p-4 bg-bg border border-line rounded-lg h-[400px] flex">
+  <div className="p-4 bg-bg border border-line rounded-none h-[400px] flex">
     <SnapshotPreview
       state={{
         status: "empty",
@@ -55,7 +55,7 @@ export const Empty: Story = () => (
 );
 
 export const ErrorState: Story = () => (
-  <div className="p-4 bg-bg border border-line rounded-lg h-[400px] flex">
+  <div className="p-4 bg-bg border border-line rounded-none h-[400px] flex">
     <SnapshotPreview
       state={{
         status: "error",
@@ -72,7 +72,7 @@ export const ErrorState: Story = () => (
 );
 
 export const ReadOnlyPastSnapshot: Story = () => (
-  <div className="p-4 bg-bg border border-line rounded-lg h-[400px] flex">
+  <div className="p-4 bg-bg border border-line rounded-none h-[400px] flex">
     <SnapshotPreview
       state={{
         status: "ready",

@@ -4,13 +4,13 @@ import { Metric } from "./metric.tsx";
 export default { title: "Kalaido / Metric" };
 
 export const SingleMetric: Story = () => (
-  <div className="max-w-xs border rounded-lg bg-card p-4">
+  <div className="max-w-xs border rounded-none bg-card p-4">
     <Metric label="Total Active Pins" value="142" sub="+12% vs last month" />
   </div>
 );
 
 export const MetricWithProgressBar: Story = () => (
-  <div className="flex flex-col gap-4 max-w-sm border rounded-lg bg-card p-4">
+  <div className="flex flex-col gap-4 max-w-sm border rounded-none bg-card p-4">
     <Metric
       label="Model Drifting Confidence"
       value="42.8%"

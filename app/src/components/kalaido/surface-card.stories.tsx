@@ -13,13 +13,13 @@ export const Default: Story = () => (
       <div className="flex gap-2">
         <button
           type="button"
-          className="px-3 py-1.5 bg-foreground text-background text-xs font-semibold rounded-md"
+          className="px-3 py-1.5 bg-foreground text-background text-xs font-semibold rounded-none"
         >
           Save Settings
         </button>
         <button
           type="button"
-          className="px-3 py-1.5 border hover:bg-surface-2 text-xs font-semibold rounded-md"
+          className="px-3 py-1.5 border hover:bg-surface-2 text-xs font-semibold rounded-none"
         >
           Reset to Default
         </button>

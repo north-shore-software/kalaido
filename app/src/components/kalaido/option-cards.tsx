@@ -46,7 +46,7 @@ export function OptionCards<T extends string>({
             key={option.value}
             value={option.value}
             className={cn(
-              "group flex min-h-[104px] cursor-pointer flex-col justify-center gap-1.5 rounded-lg border p-5 text-left transition-all duration-150",
+              "group flex min-h-[104px] cursor-pointer flex-col justify-center gap-1.5 rounded-none border p-5 text-left transition-all duration-150",
               isSelected
                 ? "border-cyan-edge bg-cyan-veil shadow-[0_0_12px_rgba(34,211,238,0.2)]"
                 : "border-dashed hover:border-foreground/30 hover:bg-surface-2",

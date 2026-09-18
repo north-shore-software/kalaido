@@ -15,7 +15,7 @@ export const Default: Story = () => {
   ]);
 
   return (
-    <div className="border border-line rounded-lg overflow-hidden h-[400px] bg-background flex">
+    <div className="border border-line rounded-none overflow-hidden h-[400px] bg-background flex">
       <ColourList
         colours={mockColours}
         isLoading={false}
@@ -29,7 +29,7 @@ export const Default: Story = () => {
 
 export const Loading: Story = () => {
   return (
-    <div className="border border-line rounded-lg overflow-hidden h-[400px] bg-background flex">
+    <div className="border border-line rounded-none overflow-hidden h-[400px] bg-background flex">
       <ColourList
         colours={[]}
         isLoading={true}
@@ -43,7 +43,7 @@ export const Loading: Story = () => {
 
 export const Empty: Story = () => {
   return (
-    <div className="border border-line rounded-lg overflow-hidden h-[400px] bg-background flex">
+    <div className="border border-line rounded-none overflow-hidden h-[400px] bg-background flex">
       <ColourList
         colours={[]}
         isLoading={false}

@@ -7,7 +7,7 @@ import { PageBody, PageCard, PageHeader, PaneHeader } from "./page-chrome.tsx";
 export default { title: "Layout / Page Chrome" };
 
 export const HeaderDefault: Story = () => (
-  <div className="border border-line rounded-lg bg-background overflow-hidden">
+  <div className="border border-line rounded-none bg-background overflow-hidden">
     <PageHeader
       title="Color Palette Configurations"
       crumb={["Design System", "Colors", "Overview"]}
@@ -16,13 +16,13 @@ export const HeaderDefault: Story = () => (
         <div className="flex gap-2">
           <button
             type="button"
-            className="px-3 py-1.5 border hover:bg-surface-2 text-xs font-semibold rounded-md"
+            className="px-3 py-1.5 border hover:bg-surface-2 text-xs font-semibold rounded-none"
           >
             Export JSON
           </button>
           <button
             type="button"
-            className="px-3 py-1.5 bg-foreground text-background text-xs font-semibold rounded-md"
+            className="px-3 py-1.5 bg-foreground text-background text-xs font-semibold rounded-none"
           >
             New Palette
           </button>
@@ -33,7 +33,7 @@ export const HeaderDefault: Story = () => (
 );
 
 export const HeaderWithTabs: Story = () => (
-  <div className="border border-line rounded-lg bg-background overflow-hidden">
+  <div className="border border-line rounded-none bg-background overflow-hidden">
     <PageHeader
       title="Billing & Invoicing"
       crumb={["Settings", "Billing"]}
@@ -58,7 +58,7 @@ export const HeaderWithTabs: Story = () => (
 );
 
 export const BodyDefault: Story = () => (
-  <div className="border border-line rounded-lg bg-background overflow-hidden h-[300px] flex flex-col">
+  <div className="border border-line rounded-none bg-background overflow-hidden h-[300px] flex flex-col">
     <PageHeader title="Scrolling Document Workspace" />
     <PageBody>
       <DocBody title={false} paragraphs={4} />
@@ -67,10 +67,10 @@ export const BodyDefault: Story = () => (
 );
 
 export const CardWorkspace: Story = () => (
-  <div className="border border-line rounded-lg bg-background overflow-hidden h-[300px] flex flex-col">
+  <div className="border border-line rounded-none bg-background overflow-hidden h-[300px] flex flex-col">
     <PageHeader title="Split-Pane Dashboard Workspace" />
     <PageCard className="bg-surface-1 p-4">
-      <div className="flex-1 border border-dashed rounded-lg flex items-center justify-center text-xs text-fg-3">
+      <div className="flex-1 border border-dashed rounded-none flex items-center justify-center text-xs text-fg-3">
         Full-bleed non-scrolling card area (useful for split views or editors)
       </div>
     </PageCard>
@@ -78,7 +78,7 @@ export const CardWorkspace: Story = () => (
 );
 
 export const PaneHeaderDefault: Story = () => (
-  <div className="max-w-md border border-line rounded-lg bg-background overflow-hidden">
+  <div className="max-w-md border border-line rounded-none bg-background overflow-hidden">
     <PaneHeader
       label="Source Snapshot Code"
       status={

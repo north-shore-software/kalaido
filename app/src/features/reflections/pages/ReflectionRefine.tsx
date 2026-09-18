@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   parseActiveWindow,
@@ -49,17 +48,9 @@ import { withContextItem } from "@/lib/mentions";
 import { deriveName } from "@/lib/naming";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppParams } from "@/routes/use-app-params";
+import { useAppRouteState } from "@/routes/use-app-route-state";
 import { reflectionRefineTransitions } from "./ReflectionRefine.transitions";
-
-/**
- * A proposed reflection being taken up from the dashboard. Passed as router
- * state by the Proposed group: the row already exists with its scope and
- * schedule, so all that is seeded is the opening message, sent verbatim as
- * the first turn (it is already the user's own instruction).
- */
-export interface ReflectionSeed {
-  message: string;
-}
 
 /**
  * The one screen where a reflection's lens is written: creating a reflection
@@ -71,13 +62,12 @@ export interface ReflectionSeed {
  */
 export default function ReflectionRefine() {
   const { go } = useAppNavigate();
-  const { id } = useParams<{ id?: string }>();
+  // One component, two routes: `new-reflection` carries no params.
+  const params = useAppParams<"new-reflection" | "refine-reflection">();
+  const id = params?.id;
   const isNew = !id;
-  const location = useLocation();
   // Captured once: navigating away and back must not re-send the message.
-  const seedRef = useRef(
-    ((location.state ?? {}) as { seed?: ReflectionSeed }).seed,
-  );
+  const seedRef = useRef(useAppRouteState<"refine-reflection">().seed);
 
   const existingQuery = useLiveCollection("reflection", {
     filter: id ? `id="${id}"` : undefined,

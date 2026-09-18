@@ -34,7 +34,7 @@ export function CloudIdentityPanel({
 }: CloudIdentityPanelProps) {
   return (
     <SurfaceCard className="flex min-h-[96px] items-center gap-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-cyan-wash text-meta font-semibold text-cyan">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-none bg-cyan-wash text-meta font-semibold text-cyan">
         {initialsOf(name ?? "", email)}
       </div>
 
@@ -76,7 +76,7 @@ export interface CloudSignInNoticeProps {
 export function CloudSignInNotice({ onSignIn }: CloudSignInNoticeProps) {
   return (
     <SurfaceCard className="flex min-h-[96px] items-center gap-3 border-dashed">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-none bg-muted text-muted-foreground">
         <CloudIcon className="size-4" />
       </div>
 

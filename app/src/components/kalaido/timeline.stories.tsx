@@ -8,7 +8,7 @@ import { Timeline } from "./timeline.tsx";
 export default { title: "Kalaido / Timeline" };
 
 export const TruthTone: Story = () => (
-  <div className="max-w-md p-6 bg-card border rounded-lg">
+  <div className="max-w-md p-6 bg-card border rounded-none">
     <h3 className="text-xs font-semibold uppercase mb-4 text-fg-3">
       Snapshot History
     </h3>
@@ -17,7 +17,7 @@ export const TruthTone: Story = () => (
 );
 
 export const StableTone: Story = () => (
-  <div className="max-w-md p-6 bg-card border rounded-lg">
+  <div className="max-w-md p-6 bg-card border rounded-none">
     <h3 className="text-xs font-semibold uppercase mb-4 text-fg-3">
       Approved Reflection Runs
     </h3>
@@ -33,7 +33,7 @@ export const ClickableTimeline: Story = () => {
   }));
 
   return (
-    <div className="max-w-md p-6 bg-card border rounded-lg">
+    <div className="max-w-md p-6 bg-card border rounded-none">
       <h3 className="text-xs font-semibold uppercase mb-4 text-fg-3">
         Interactive Log
       </h3>

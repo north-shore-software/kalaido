@@ -46,6 +46,10 @@ export {
   OptionCards,
   type OptionCardsProps,
 } from "./option-cards";
+export {
+  PanelErrorBoundary,
+  PanelErrorFallback,
+} from "./panel-error-boundary";
 export { Pill } from "./pill";
 export { PinToggle } from "./pin-toggle";
 export { RefineChatPanel } from "./refine-chat-panel";

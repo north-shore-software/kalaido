@@ -1,6 +1,5 @@
 import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { parseContextSpec, specToItems } from "@/api/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
@@ -19,6 +18,7 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
+import { PanelErrorBoundary } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { findNextTarget } from "@/features/rotation/next-target";
 import {
@@ -30,6 +30,7 @@ import { useResumeRefinement } from "@/hooks/use-resume-refinement";
 import { withContextItem } from "@/lib/mentions";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppParams } from "@/routes/use-app-params";
 import { EditCandidateModal } from "../components/edit-candidate-modal";
 import { SnapshotComparePane } from "../components/snapshot-compare-pane";
 import { projectionReviewTransitions } from "./ProjectionReview.transitions";
@@ -43,12 +44,12 @@ import { projectionReviewTransitions } from "./ProjectionReview.transitions";
  * the projection to force a clean mount.
  */
 export default function ProjectionReview() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useAppParams<"projection-review">();
   return <ProjectionReviewPage key={id} />;
 }
 
 function ProjectionReviewPage() {
-  const { id, snapshotId } = useParams<{ id: string; snapshotId: string }>();
+  const { id, snapshotId } = useAppParams<"projection-review">();
   const { go } = useAppNavigate();
   const [busy, setBusy] = useState(false);
   // An "approve & next" is in flight: approving, then working out and preparing
@@ -252,6 +253,8 @@ function ProjectionReviewPage() {
           "New context landed after this candidate was generated, so a fresh one is ready to review.",
       });
     }
+    // Projection stops always carry the candidate to review.
+    if (!next.value.snapshotId) return;
     go(projectionReviewTransitions.reviewNext, {
       params: { id: next.value.id, snapshotId: next.value.snapshotId },
     });
@@ -314,13 +317,15 @@ function ProjectionReviewPage() {
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             {pending ? (
-              <SnapshotComparePane
-                currentContent={currentContent}
-                pendingContent={pendingContent}
-                refining={refining}
-                editable={editable}
-                onEdit={setEditOld}
-              />
+              <PanelErrorBoundary label="the comparison" resetKey={snapshotId}>
+                <SnapshotComparePane
+                  currentContent={currentContent}
+                  pendingContent={pendingContent}
+                  refining={refining}
+                  editable={editable}
+                  onEdit={setEditOld}
+                />
+              </PanelErrorBoundary>
             ) : advancing ? (
               // The approval already landed, so there is deliberately no
               // candidate here any more. Preparing the next one runs a model,

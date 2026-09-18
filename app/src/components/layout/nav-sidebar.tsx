@@ -13,7 +13,6 @@ import {
   WavesIcon,
 } from "lucide-react";
 import type { ComponentProps } from "react";
-import { useLocation } from "react-router-dom";
 import {
   NEUTRAL_DEST_CLASS,
   RAIL_ICON_CLASS,
@@ -37,7 +36,9 @@ import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { resolveTheme } from "@/lib/theme";
 import { useTheme } from "@/providers/theme-provider";
+import { pathFor } from "@/routes/registry";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useCurrentPathname } from "@/routes/use-current-pathname";
 import { navSidebarTransitions } from "./nav-sidebar.transitions";
 
 /** Where you start: the two destinations you return to, not places you browse. */
@@ -111,7 +112,7 @@ function NavCapture() {
  * is unreachable too, so there is nothing to link to.
  */
 function NavConnections() {
-  const { pathname } = useLocation();
+  const pathname = useCurrentPathname();
   const { go } = useAppNavigate();
   return (
     <>
@@ -121,7 +122,7 @@ function NavConnections() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Connections"
-              isActive={pathname.startsWith("/connections")}
+              isActive={pathname.startsWith(pathFor("connections"))}
               className={NEUTRAL_DEST_CLASS}
               onClick={() =>
                 go(navSidebarTransitions.transitions.openConnections)
@@ -138,13 +139,13 @@ function NavConnections() {
 }
 
 function SettingsButton() {
-  const { pathname } = useLocation();
+  const pathname = useCurrentPathname();
   const { go } = useAppNavigate();
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         tooltip="Settings"
-        isActive={pathname.startsWith("/settings")}
+        isActive={pathname.startsWith(pathFor("settings"))}
         className={NEUTRAL_DEST_CLASS}
         onClick={() => go(navSidebarTransitions.transitions.openSettings)}
       >

@@ -35,7 +35,7 @@ export function Metric({
         {sub && <span className="text-xs text-fg-3">{sub}</span>}
       </div>
       {bar != null && (
-        <div className="h-[5px] overflow-hidden rounded-sm bg-surface-3">
+        <div className="h-[5px] overflow-hidden rounded-none bg-surface-3">
           <div
             className={cn("h-full", barClassName ?? "bg-fg-3")}
             style={{ width: bar }}

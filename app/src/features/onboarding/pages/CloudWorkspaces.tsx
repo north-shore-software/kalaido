@@ -99,7 +99,7 @@ export default function CloudWorkspaces() {
         </header>
 
         {banner && (
-          <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+          <div className="flex items-start gap-3 rounded-none border border-destructive/40 bg-destructive/5 p-3">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
             <p className="flex-1 text-meta text-destructive">{banner}</p>
             {listError && (
@@ -118,11 +118,11 @@ export default function CloudWorkspaces() {
         {loading ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-28 w-full rounded-lg" />
+              <Skeleton key={i} className="h-28 w-full rounded-none" />
             ))}
           </div>
         ) : isEmpty ? (
-          <Empty className="rounded-lg border">
+          <Empty className="rounded-none border">
             <EmptyHeader>
               <EmptyMedia>
                 <Mark className="size-10" />
@@ -165,9 +165,9 @@ export default function CloudWorkspaces() {
                 type="button"
                 onClick={() => void handleOpen(workspace.id)}
                 disabled={openingId !== null}
-                className="flex h-28 flex-col items-start gap-3 rounded-lg border bg-card p-4 text-left ring-1 ring-foreground/5 transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
+                className="flex h-28 flex-col items-start gap-3 rounded-none border bg-card p-4 text-left ring-1 ring-foreground/5 transition-colors hover:border-foreground/30 hover:bg-surface-2 disabled:opacity-60"
               >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-md border">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-none border">
                   <span className="text-item font-medium">
                     {workspace.displayName.charAt(0).toUpperCase()}
                   </span>

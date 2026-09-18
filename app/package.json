@@ -17,6 +17,7 @@
     "ladle:build": "ladle build",
     "check:nav": "node scripts/check-navigation-discipline.mjs",
     "check:routes": "vite-node -c vite.config.scripts.ts scripts/validate-routes.ts",
+    "check:design": "node scripts/check-design-classes.mjs",
     "test": "vitest"
   },
   "dependencies": {

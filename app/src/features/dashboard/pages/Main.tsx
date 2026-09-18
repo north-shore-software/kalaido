@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { parseContextSpec } from "@/api/kalaidoscope/chat";
 import {
@@ -38,12 +46,22 @@ import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 import { ReconcileCard } from "../components/reconcile-card";
 import { summarizeReconcile } from "../reconcile-summary";
 import { useStartRitual } from "../use-start-ritual";
-import type { PinItem, ProposedItem, RecentFragment } from "../types";
+import type {
+  EntityKind,
+  PinItem,
+  ProposedItem,
+  RecentFragment,
+} from "../types";
 import { mainTransitions } from "./Main.transitions";
 import {
   resolveSwatches,
   useColourSwatches,
 } from "@/hooks/use-colour-swatches";
+
+/** Projections and reflections share an id space only by accident; key on both. */
+function itemKey(it: { kind: EntityKind; id: string }): string {
+  return `${it.kind}:${it.id}`;
+}
 
 export default function Main() {
   const { go } = useAppNavigate();
@@ -188,6 +206,20 @@ export default function Main() {
     return items;
   }, [projections.records, reflections.records, currentUserId]);
 
+  // A row leaves the screen the moment it is acted on. The live collections
+  // catch up behind it — or, if the call failed, React drops the optimistic
+  // value and the row is back, with a toast saying why.
+  const [visibleProposed, hideProposed] = useOptimistic(
+    proposed,
+    (items: ProposedItem[], key: string) =>
+      items.filter((it) => itemKey(it) !== key),
+  );
+  const [visiblePinned, hidePinned] = useOptimistic(
+    pinned,
+    (items: PinItem[], key: string) =>
+      items.filter((it) => itemKey(it) !== key),
+  );
+
   const summary = useMemo(
     () => summarizeReconcile(statuses, { candidateByProjection, nameById }),
     [statuses, candidateByProjection, nameById],
@@ -232,10 +264,14 @@ export default function Main() {
     refetchOrganize,
     refetchRotation,
     refetchCandidates,
-    onTarget: (t) =>
+    onTarget: (t) => {
+      // The ritual walks projections only, and a projection stop always
+      // carries the candidate to review.
+      if (!t.snapshotId) return;
       go(mainTransitions.reviewProjection, {
         params: { id: t.id, snapshotId: t.snapshotId },
-      }),
+      });
+    },
   });
 
   function openProposal(it: ProposedItem) {
@@ -263,23 +299,40 @@ export default function Main() {
     });
   }
 
-  async function dismissProposal(it: ProposedItem) {
-    const res =
-      it.kind === "projection"
-        ? await deleteProjection(it.id)
-        : await deleteReflection(it.id);
-    if (res.isErr())
-      toast.error("Failed to dismiss", { description: res.error.message });
+  function dismissProposal(it: ProposedItem) {
+    startTransition(async () => {
+      hideProposed(itemKey(it));
+      const res =
+        it.kind === "projection"
+          ? await deleteProjection(it.id)
+          : await deleteReflection(it.id);
+      if (res.isErr()) {
+        toast.error("Failed to dismiss", { description: res.error.message });
+        return;
+      }
+      // Hold the optimistic row-less list until the live list agrees, so the
+      // row never flashes back between the call and the realtime revalidation.
+      await revalidate(it.kind);
+    });
   }
 
-  async function unpin(it: PinItem) {
-    const res =
-      it.kind === "projection"
-        ? await updateProjection(it.id, { pinned: false })
-        : await updateReflection(it.id, { pinned: false });
-    if (res.isErr())
-      toast.error("Failed to unpin", { description: res.error.message });
-    // useLiveCollection revalidates on the resulting update.
+  function unpin(it: PinItem) {
+    startTransition(async () => {
+      hidePinned(itemKey(it));
+      const res =
+        it.kind === "projection"
+          ? await updateProjection(it.id, { pinned: false })
+          : await updateReflection(it.id, { pinned: false });
+      if (res.isErr()) {
+        toast.error("Failed to unpin", { description: res.error.message });
+        return;
+      }
+      await revalidate(it.kind);
+    });
+  }
+
+  function revalidate(kind: EntityKind) {
+    return kind === "projection" ? projections.mutate() : reflections.mutate();
   }
 
   return (
@@ -316,7 +369,7 @@ export default function Main() {
             </div>
 
             <ProposedSection
-              items={proposed}
+              items={visibleProposed}
               discovering={discovering}
               error={discoverError}
               onOpen={openProposal}
@@ -325,7 +378,7 @@ export default function Main() {
 
             {hasFragments && (
               <PinnedSection
-                items={pinned}
+                items={visiblePinned}
                 onOpen={openEntity}
                 onUnpin={unpin}
               />

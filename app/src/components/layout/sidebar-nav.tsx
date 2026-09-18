@@ -1,5 +1,4 @@
 import type { LucideIcon } from "lucide-react";
-import { useLocation } from "react-router-dom";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -9,6 +8,7 @@ import {
 import { pathFor, type SectionId, sectionForRoute } from "@/routes/registry";
 import type { TransitionDef } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useCurrentPathname } from "@/routes/use-current-pathname";
 
 export interface SidebarNavItem {
   title: string;
@@ -47,7 +47,7 @@ const DEST_ACTIVE_CLASS: Record<SectionId, string> = {
  * rest match their subtree so detail pages keep their nav item lit.
  */
 export function SidebarNav({ items }: { items: readonly SidebarNavItem[] }) {
-  const { pathname } = useLocation();
+  const pathname = useCurrentPathname();
   const { go } = useAppNavigate();
   const isActive = (transition: TransitionDef) => {
     const path = pathFor(transition.to);
