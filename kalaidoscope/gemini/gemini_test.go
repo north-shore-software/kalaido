@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -121,8 +123,8 @@ func TestContextDeltasRideAsUserPartsNotSystemInstruction(t *testing.T) {
 		seen = append(seen, c.Role+":"+strings.Join(texts, "|"))
 	}
 	want := []string{"user:DOCS ADDED|hi", "model:hello", "user:DOCS REMOVED|again"}
-	if strings.Join(seen, " ") != strings.Join(want, " ") {
-		t.Errorf("contents = %v, want %v", seen, want)
+	if diff := cmp.Diff(want, seen); diff != "" {
+		t.Errorf("contents (-want +got):\n%s", diff)
 	}
 }
 

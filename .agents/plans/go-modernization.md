@@ -1,6 +1,6 @@
 # Go Sidecar Modernization Plan
 
-**Status:** Phases 1–3 implemented on `louis/go-tidy` (2026-09-17; 1+2 committed as `c009c7c`, 3 uncommitted); fact-checked against `55a8458`. Phase 4 not started.
+**Status:** All four phases implemented on `louis/go-tidy` (2026-09-17); fact-checked against `55a8458`. Owed: `docs/` regeneration, `-race` run on the Mac.
 **Scope:** Go backend only. Retire package-level globals, add a shutdown lifecycle, structured logging, typed config, and fix the handful of API-shape deviations. Keep the codebase's "standard library first" posture.
 
 ---
@@ -102,7 +102,7 @@ Notes from the build: `engine.RequestWave` was removed outright rather than repl
 - [x] Tests: `testutil` gains a `NewWorkers(app)` helper; add `t.Parallel()` where package state no longer blocks it; verify with `go test -race ./...`.
 
 ### Phase 4: Test diffs
-- [ ] `cmp.Diff` in `schema/parity_test.go` and in any handler/engine test comparing structs or slices by hand.
+- [x] `cmp.Diff` in `schema/parity_test.go` and in any handler/engine test comparing structs or slices by hand. Only two sites existed: the parity snapshot (`reflect.DeepEqual` + two JSON dumps) and a joined-string compare in `gemini_test.go`. Handler and engine tests already assert field by field.
 
 ## 6. Gates
 

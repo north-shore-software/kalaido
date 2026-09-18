@@ -1,10 +1,9 @@
 package schema_test
 
 import (
-	"encoding/json"
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/pocketbase/pocketbase"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -52,10 +51,8 @@ func TestFreshMatchesMigrated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(freshSnap, oldSnap) {
-		a, _ := json.MarshalIndent(freshSnap, "", "  ")
-		b, _ := json.MarshalIndent(oldSnap, "", "  ")
-		t.Fatalf("fresh (Canonical) and migrated (baseline v1 + deltas) schemas differ.\n\nfresh:\n%s\n\nmigrated:\n%s", a, b)
+	if diff := cmp.Diff(freshSnap, oldSnap); diff != "" {
+		t.Fatalf("fresh (Canonical) and migrated (baseline v1 + deltas) schemas differ (-fresh +migrated):\n%s", diff)
 	}
 
 	for name, app := range map[string]*pocketbase.PocketBase{"fresh": fresh, "migrated": old} {
