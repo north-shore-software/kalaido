@@ -31,7 +31,7 @@ func (w *Worker) aggregateLoop(ctx context.Context) error {
 			continue
 		}
 		if due {
-			w.cycle()
+			w.cycle(ctx)
 		}
 	}
 }
@@ -48,23 +48,23 @@ func consolidateDue(app core.App, now time.Time) (bool, error) {
 	return now.Sub(newest) > consolidateStaleAge, nil
 }
 
-func (w *Worker) settle() {
-	w.cycle()
+func (w *Worker) settle(ctx context.Context) {
+	w.cycle(ctx)
 }
 
-func (w *Worker) cycle() {
-	w.integrate()
+func (w *Worker) cycle(ctx context.Context) {
+	w.integrate(ctx)
 	for _, fn := range w.settleHooks {
 		fn(w.app)
 	}
 }
 
-func (w *Worker) integrate() {
+func (w *Worker) integrate(ctx context.Context) {
 	w.aggregateMu.Lock()
 	defer w.aggregateMu.Unlock()
 	w.consolidating.Store(true)
 	defer w.consolidating.Store(false)
-	if err := consolidate(w.app); err != nil {
+	if err := consolidate(ctx, w.app); err != nil {
 		logger().Error("consolidate failed", "error", err)
 	}
 }

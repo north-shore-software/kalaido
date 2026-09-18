@@ -235,7 +235,7 @@ func (w *Worker) drain(ctx context.Context, full bool) error {
 		}
 	}
 	if full && ctx.Err() == nil {
-		w.settle()
+		w.settle(ctx)
 	}
 	return firstErr
 }

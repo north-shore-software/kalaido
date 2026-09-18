@@ -17,7 +17,7 @@ func unintegratedRows(app core.App) ([]*core.Record, error) {
 	return app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "created", 0, 0, nil)
 }
 
-func consolidate(app core.App) error {
+func consolidate(ctx context.Context, app core.App) error {
 	pending, err := unintegratedRows(app)
 	if err != nil {
 		return err
@@ -63,7 +63,6 @@ func consolidate(app core.App) error {
 		return err
 	}
 
-	ctx := context.Background()
 	msgs := []llm.Message{{Role: "user", Content: prompts.ConsolidatePrompt(d.doc, input)}}
 	reply, err := generate(ctx, app, llm.RoleMap, model, msgs)
 	if err != nil {

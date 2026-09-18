@@ -108,7 +108,9 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 	if ferr := w.flush(); ferr != nil {
 		return w.count, ferr
 	}
-	if err != nil && !errors.Is(err, errBudget) && !errors.Is(err, context.Canceled) {
+	// A cancelled parse is an incomplete import: report it so the record is
+	// marked failed rather than done with a partial count.
+	if err != nil && !errors.Is(err, errBudget) {
 		return w.count, err
 	}
 	return w.count, nil

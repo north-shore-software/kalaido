@@ -20,9 +20,14 @@ func RegisterRoutes(app core.App) {
 }
 
 func RegisterPreload(app core.App) {
+	ctx, cancel := context.WithCancel(context.Background())
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		go preloadDefaultModel(context.Background())
+		go preloadDefaultModel(ctx)
 		return se.Next()
+	})
+	app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {
+		cancel()
+		return te.Next()
 	})
 }
 
