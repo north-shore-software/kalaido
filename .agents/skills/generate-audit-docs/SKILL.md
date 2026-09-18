@@ -26,7 +26,7 @@ The series describes the Go backend binary (`kalaidoscope/`) only: the sidecar's
 | Doc | Covers | Primary source roots |
 |---|---|---|
 | `api.md` | Every custom HTTP route and hook-modified collection endpoint, auth posture, wire/error conventions. A route index: the behaviour column points at the owning domain doc rather than re-explaining mechanics | Route-registration sites; `internal/handlers/`; `internal/api/`; hook registrations |
-| `schema.md` | Collections, fields, indexes, access rules, stored-JSON shapes, cascades, migration mechanics | `migrations/`; boot-time schema assertions |
+| `schema.md` | Collections, fields, indexes, access rules, stored-JSON shapes, cascades, migration mechanics | `schema/` (canonical, baseline, deltas); boot-time schema assertions |
 | `boot-and-workers.md` | The asynchronous index: boot order, every background goroutine with its trigger (signal, hook, interval, settle callback), drain/retry semantics, startup sweeps, deferred follow-up queue. Domain behaviour of each worker stays in its own doc | `cmd/`; `server/`; every `Register`/`OnServe` site; `internal/followup/` |
 
 **Entity lifecycle docs**
@@ -53,7 +53,7 @@ The series describes the Go backend binary (`kalaidoscope/`) only: the sidecar's
 | Doc | Covers | Primary source roots |
 |---|---|---|
 | `ingestion.md` | How content becomes fragments: entry paths, parsers, writer, birth hooks and what they signal, soft delete. The post-import handoff is only named here and described in `organize.md` | `internal/ingest/` (+ parsers); fragment hook registrations |
-| `map.md` | The map flow: per-fragment annotation worker and pending set, aggregate/settle loop and consolidate-due rule, whole-scope consolidation of the things document, document shape and version/run records, auto-map flag, kick route, settle callbacks | `internal/mapping/`; `internal/mapdoc/` |
+| `map.md` | The map flow: per-fragment annotation worker and pending set, aggregate/settle loop and consolidate-due rule, whole-scope consolidation of the things document, document shape and version/run records, kick route, settle callbacks | `internal/mapping/`; `internal/mapdoc/` |
 | `colours.md` | Colours: colour rows and prompt, the materialised membership join and its match-type precedence, preview and create-time seeding, the judging worker and its watermark and examples, thing rematch on settle and on demand, per-colour provider-error recording, delete-time scrubbing from specs | `internal/colour/`; colour handlers |
 | `discover.md` | The discover flows: run record and states, the reusable tool loop, the flow kinds and their order, what each proposes vs creates, rhythm detection for reflections, kick/retry behaviour, handoff to refine | `internal/discover/` |
 | `chat.md` | The general chat conversation: persistence, routing to the refinement handler, mention expansion, per-turn model resolution, stream shape, token guard; the summaries mode (selection by spec, seeding rows and map digest, read tools, read persistence and replay) | `internal/chat/`; chat handlers; `internal/llmcontext/` summaries code |
