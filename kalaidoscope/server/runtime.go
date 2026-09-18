@@ -11,8 +11,11 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 // shutdownGrace bounds how long terminate waits for the workers and the
@@ -28,6 +31,7 @@ type runtime struct {
 	reconcile *reconcile.Worker
 	discover  *discover.Worker
 	runner    *engine.TrackedRunner
+	scheduler *llmq.Scheduler
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -41,8 +45,10 @@ func newRuntime(app core.App, opts Options) *runtime {
 		mapping:   mapping.NewWorker(app),
 		reconcile: reconcile.NewWorker(app, reconcile.Options{AutoWave: opts.AutoWave}),
 		runner:    engine.NewTrackedRunner(ctx),
+		scheduler: llmq.New(llmq.ConfigForProvider(llm.ActiveProviderID())),
 		cancel:    cancel,
 	}
+	app.Store().Set(usage.SchedulerStoreKey, rt.scheduler)
 	rt.discover = discover.NewWorker(app, rt.mapping)
 	rt.group, ctx = errgroup.WithContext(ctx)
 
@@ -54,6 +60,10 @@ func newRuntime(app core.App, opts Options) *runtime {
 
 	rt.ctx = ctx
 	return rt
+}
+
+func (rt *runtime) Scheduler() *llmq.Scheduler {
+	return rt.scheduler
 }
 
 func (rt *runtime) deps() handlers.Deps {

@@ -75,7 +75,7 @@ func NewWithOptions(config pocketbase.Config, schemaOpts schema.Options, opts Op
 	RegisterRoutes(app, rt.deps())
 	usage.Setup(app)
 	rt.bind(app)
-	registerQueueStatus(app)
+	registerQueueStatus(app, rt.Scheduler())
 
 	// After se.Next() so it runs once the rest of the boot chain — model set
 	// resolution and workspace config load are registered later, by the
@@ -84,7 +84,7 @@ func NewWithOptions(config pocketbase.Config, schemaOpts schema.Options, opts Op
 		if err := se.Next(); err != nil {
 			return err
 		}
-		llmq.Reconfigure(llmq.ConfigForProvider(llm.ActiveProviderID()))
+		rt.Scheduler().Reconfigure(llmq.ConfigForProvider(llm.ActiveProviderID()))
 		return nil
 	})
 

@@ -49,6 +49,7 @@ func NewTestServer(t *testing.T, app core.App) *TestServer {
 		// stop the workers the serve hooks started, before the app's
 		// bootstrap state (registered earlier, so cleaned up later) goes.
 		_ = app.OnTerminate().Trigger(&core.TerminateEvent{App: app}, func(*core.TerminateEvent) error { return nil })
+		VerifyNoLeaks(t)
 	})
 
 	return &TestServer{

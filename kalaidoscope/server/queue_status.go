@@ -18,16 +18,19 @@ const queueStatusCollection = "llm_queue_status"
 // arrive in bursts (enqueue + admit + release), and every write fans out an
 // SSE event. The mirror starts when the app serves and stops when it
 // terminates, so no timer outlives the database it writes to.
-func registerQueueStatus(app core.App) {
+func registerQueueStatus(app core.App, sched *llmq.Scheduler) {
+	if sched == nil {
+		sched = llmq.Default()
+	}
 	m := &queueMirror{app: app}
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		// A previous process's state is meaningless to this one.
 		writeQueueStatus(app, llmq.Status{})
-		llmq.SetOnChange(m.onChange)
+		sched.SetOnChange(m.onChange)
 		return se.Next()
 	})
 	app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {
-		llmq.SetOnChange(nil)
+		sched.SetOnChange(nil)
 		m.stop()
 		return te.Next()
 	})

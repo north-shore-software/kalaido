@@ -9,6 +9,7 @@ require (
 	github.com/pocketbase/dbx v1.11.0
 	github.com/pocketbase/pocketbase v0.27.0
 	github.com/spf13/cobra v1.9.1
+	go.uber.org/goleak v1.3.0
 	golang.org/x/sync v0.18.0
 )
 

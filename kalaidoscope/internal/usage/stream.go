@@ -12,6 +12,21 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
+const SchedulerStoreKey = "kalaido.llmq.scheduler"
+
+// SchedulerForApp returns the llmq.Scheduler bound to app, falling back to
+// llmq.Default() when unattached or when app is nil (e.g. isolated unit tests).
+func SchedulerForApp(app core.App) *llmq.Scheduler {
+	if app != nil {
+		if v := app.Store().Get(SchedulerStoreKey); v != nil {
+			if s, ok := v.(*llmq.Scheduler); ok && s != nil {
+				return s
+			}
+		}
+	}
+	return llmq.Default()
+}
+
 func Stream(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
 	comp, _, err := stream(ctx, app, role, model, msgs, tools)
 	return comp, err
@@ -32,8 +47,9 @@ func stream(ctx context.Context, app core.App, role llm.Role, model string, msgs
 		return nil, nil, fmt.Errorf("usage: no model resolved for role %q", role)
 	}
 
+	sched := SchedulerForApp(app)
 	prio := llmq.PriorityFromContext(ctx, llmq.DefaultPriorityForRole(role))
-	runCtx, release, err := llmq.Acquire(ctx, llmq.Request{Priority: prio, Role: role, Model: model})
+	runCtx, release, err := sched.Acquire(ctx, llmq.Request{Priority: prio, Role: role, Model: model})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -43,7 +59,7 @@ func stream(ctx context.Context, app core.App, role llm.Role, model string, msgs
 		release()
 		var perr *llm.ProviderError
 		if errors.As(err, &perr) && (perr.Kind == llm.ErrKindQuota || perr.Kind == llm.ErrKindTransient) {
-			llmq.ReportThrottled()
+			sched.ReportThrottled()
 		}
 		return nil, nil, err
 	}
@@ -60,7 +76,7 @@ func stream(ctx context.Context, app core.App, role llm.Role, model string, msgs
 		for c := range comp.Events {
 			chars += len(c.Text) + len(c.Args)
 			if est := chars / 4; est > reported {
-				llmq.AddProgress(runCtx, est-reported)
+				sched.AddProgress(runCtx, est-reported)
 				reported = est
 			}
 			wrapped <- c

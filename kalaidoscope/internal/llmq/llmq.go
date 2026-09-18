@@ -597,6 +597,10 @@ func earliest(a, b time.Time) time.Time {
 // use.
 var std = New(ConfigForProvider(llm.ProviderOllama))
 
+// Default returns the process-level fallback scheduler. Isolated unit tests
+// that do not construct a full server runtime fall back to this instance.
+func Default() *Scheduler { return std }
+
 func Acquire(ctx context.Context, req Request) (context.Context, func(), error) {
 	return std.Acquire(ctx, req)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -119,8 +120,8 @@ func TestGenerateWindowsRunsInParallel(t *testing.T) {
 		"window_spec_versions": pbutil.JSONObject(versions),
 	})
 
-	llmq.Reconfigure(llmq.Config{MaxConcurrent: 2, IdleAfter: time.Minute})
-	t.Cleanup(func() { llmq.Reconfigure(llmq.ConfigForProvider(llm.ProviderOllama)) })
+	sched := llmq.New(llmq.Config{MaxConcurrent: 2, IdleAfter: time.Minute})
+	app.Store().Set(usage.SchedulerStoreKey, sched)
 
 	// Each call waits until both are in flight before answering; a serial
 	// runner would deadlock here, so the timeout is the failure signal.
