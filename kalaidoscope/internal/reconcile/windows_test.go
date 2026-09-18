@@ -65,7 +65,7 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 
 	report("before wave")
-	runWave(app)
+	runWave(context.Background(), app)
 	snaps := snapshotsFor(t, app, "reflection_snapshot", "reflection_id", refl.Id)
 	t.Logf("after wave: %d snapshots", len(snaps))
 	for _, s := range snaps {
@@ -79,7 +79,7 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 	// A second wave must not regenerate anything.
 	before := countAllSnapshots(t, app)
 	time.Sleep(2 * time.Millisecond)
-	runWave(app)
+	runWave(context.Background(), app)
 	if got := countAllSnapshots(t, app); got != before {
 		t.Errorf("second wave grew snapshots %d -> %d", before, got)
 	}

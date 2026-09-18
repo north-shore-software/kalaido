@@ -14,8 +14,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/gemini"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ollama"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/north-shore-software/kalaido/kalaidoscope/server"
 )
 
@@ -34,9 +34,8 @@ func main() {
 	// KALAIDO_USER_TOKEN, and must carry nothing else it has to parse around.
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: env.LogLevel})))
 	llm.Trace = env.LLMTrace
-	reconcile.SetAutoWave(env.AutoWave)
 
-	a := server.New(true)
+	a := server.NewWithOptions(pocketbase.Config{HideStartBanner: true}, schema.Options{}, server.Options{AutoWave: env.AutoWave})
 
 	resolveModelSet(a, env)
 	config.LoadAtBoot(a)
@@ -99,7 +98,7 @@ func reportPort(a *pocketbase.PocketBase) {
 }
 
 // printBanner mirrors PocketBase's own ServeConfig.ShowStartBanner output,
-// which we disable (server.New(true)) because the library prints it before
+// which we disable (HideStartBanner) because the library prints it before
 // the listener is bound — with the sidecar's OS-assigned port (addr ":0")
 // that would always show port 0.
 func printBanner(port int) {

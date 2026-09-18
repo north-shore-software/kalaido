@@ -9,15 +9,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -25,6 +21,13 @@ import (
 	// The core upgrade deltas register themselves on import.
 	_ "github.com/north-shore-software/kalaido/kalaidoscope/schema/deltas"
 )
+
+// Options tune the server's own components; the zero value is the default.
+type Options struct {
+	// AutoWave turns on the reconcile worker's automatic triggers
+	// (KALAIDO_AUTO_WAVE). Off, only the dashboard's Start runs a wave.
+	AutoWave bool
+}
 
 func New(hideStartBanner bool) *pocketbase.PocketBase {
 	return NewWithConfig(pocketbase.Config{HideStartBanner: hideStartBanner})
@@ -37,6 +40,13 @@ func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
 // NewWithSchema is NewWithConfig with the schema runner tuned for a flavour
 // (the cloud binary hands it a hook to close Litestream before a restore).
 func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketbase.PocketBase {
+	return NewWithOptions(config, schemaOpts, Options{})
+}
+
+// NewWithOptions builds the PocketBase app with every kalaidoscope component
+// wired: schema lifecycle, routes, triggers, and the background workers,
+// which start when the app serves and drain when it terminates.
+func NewWithOptions(config pocketbase.Config, schemaOpts schema.Options, opts Options) *pocketbase.PocketBase {
 	app := pocketbase.NewWithConfig(config)
 
 	// Creates a new database from the canonical schema, or upgrades an old
@@ -60,18 +70,11 @@ func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketb
 	})
 
 	registerWriteEcho(app)
-	RegisterTriggers(app)
-	RegisterRoutes(app)
+	rt := newRuntime(app, opts)
+	RegisterTriggers(app, rt)
+	RegisterRoutes(app, rt.deps())
 	usage.Setup(app)
-	colour.Register(app)
-	reconcile.Register(app)
-	mapping.Register(app)
-	// Order matters: colour recomputes thing-backed membership from the
-	// settled map, then the wave regenerates whatever that membership feeds.
-	mapping.OnSettle(colour.OnMapSettled)
-	mapping.OnSettle(reconcile.OnMapSettled)
-	colour.OnDrained(reconcile.EnqueueWave)
-	discover.Register(app)
+	rt.bind(app)
 	registerQueueStatus(app)
 
 	// After se.Next() so it runs once the rest of the boot chain — model set
@@ -88,7 +91,7 @@ func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketb
 	return app
 }
 
-func RegisterTriggers(app core.App) {
+func RegisterTriggers(app core.App, rt *runtime) {
 	app.OnRecordCreate("fragment").BindFunc(func(e *core.RecordEvent) error {
 		if e.Record.GetDateTime("occurred_at").IsZero() {
 			e.Record.Set("occurred_at", types.NowDateTime())
@@ -100,13 +103,13 @@ func RegisterTriggers(app core.App) {
 	})
 
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
-		colour.Signal()
+		rt.colour.Signal()
 		if e.Record.GetString("ingested_via") != "import" {
-			mapping.SignalAnnotate()
+			rt.mapping.SignalAnnotate()
 			// A fragment written from the app (a note, a hand edit, a saved
 			// bookmark) is in scope the moment it lands. Imports signal once,
 			// when the whole batch is in (ingest.processIngestRecord).
-			reconcile.EnqueueWave()
+			rt.reconcile.EnqueueWave()
 		}
 		return e.Next()
 	})
@@ -121,11 +124,13 @@ func RegisterTriggers(app core.App) {
 		return e.NoContent(http.StatusNoContent)
 	})
 
-	ingest.RegisterHooks(app)
+	ingest.RegisterHooks(app, ingest.Deps{
+		Mapping: rt.mapping, Reconcile: rt.reconcile, Discover: rt.discover, Runner: rt.runner,
+	})
 	config.RegisterHooks(app)
 }
 
-func RegisterRoutes(app core.App) {
+func RegisterRoutes(app core.App, deps handlers.Deps) {
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		// Every response names the schema this server speaks, and one route
 		// reports the database's state, so a client (or the cloud proxy) can
@@ -164,10 +169,10 @@ func RegisterRoutes(app core.App) {
 		se.Router.DELETE("/api/projections/{id}", handlers.HandleDeleteProjection(app))
 		se.Router.POST("/api/projections/{id}/restore", handlers.HandleRestoreProjection(app))
 		se.Router.POST("/api/projections/{id}/candidates", handlers.HandleGenerateCandidate(app))
-		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app))
+		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app, deps))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/edit", handlers.HandleEditCandidate(app))
 		se.Router.POST("/api/projections/{id}/refinements", handlers.HandleCreateProjectionRefinement(app))
-		se.Router.POST("/api/projections/{id}/refinements/{rid}/commit", handlers.HandleCommitProjectionRefinement(app))
+		se.Router.POST("/api/projections/{id}/refinements/{rid}/commit", handlers.HandleCommitProjectionRefinement(app, deps))
 
 		// Reflections
 		se.Router.POST("/api/reflections", handlers.HandleCreateReflection(app))
@@ -176,28 +181,28 @@ func RegisterRoutes(app core.App) {
 		se.Router.POST("/api/reflections/{id}/restore", handlers.HandleRestoreReflection(app))
 		se.Router.POST("/api/reflections/{id}/generate-snapshot", handlers.HandleGenerateReflectionSnapshot(app))
 		se.Router.GET("/api/reflections/{id}/windows", handlers.HandleListReflectionWindows(app))
-		se.Router.POST("/api/reflections/{id}/backfill", handlers.HandleBackfillReflection(app))
+		se.Router.POST("/api/reflections/{id}/backfill", handlers.HandleBackfillReflection(app, deps.Runner))
 		se.Router.POST("/api/reflections/{id}/refinements", handlers.HandleCreateReflectionRefinement(app))
-		se.Router.POST("/api/reflections/{id}/refinements/{rid}/commit", handlers.HandleCommitReflectionRefinement(app))
+		se.Router.POST("/api/reflections/{id}/refinements/{rid}/commit", handlers.HandleCommitReflectionRefinement(app, deps))
 
 		// Colour endpoints
 		se.Router.POST("/api/colours/preview", handlers.HandlePreviewColour(app))
-		se.Router.POST("/api/colours", handlers.HandleCreateColour(app))
-		se.Router.PATCH("/api/colours/{id}", handlers.HandleUpdateColour(app))
+		se.Router.POST("/api/colours", handlers.HandleCreateColour(app, deps))
+		se.Router.PATCH("/api/colours/{id}", handlers.HandleUpdateColour(app, deps))
 		se.Router.DELETE("/api/colours/{id}", handlers.HandleDeleteColour(app))
-		se.Router.POST("/api/colours/{id}/rematch", handlers.HandleRematchColour(app))
+		se.Router.POST("/api/colours/{id}/rematch", handlers.HandleRematchColour(app, deps))
 
 		// Rotation / Staleness endpoint
 		se.Router.GET("/api/rotation", handlers.HandleGetRotation(app))
 
-		se.Router.GET("/api/organize", handlers.HandleGetOrganize(app))
+		se.Router.GET("/api/organize", handlers.HandleGetOrganize(app, deps))
 
 		// Speculative "generate all" wave over the stale set
-		se.Router.POST("/api/reconcile", handlers.HandleReconcile(app))
+		se.Router.POST("/api/reconcile", handlers.HandleReconcile(deps.Reconcile))
 
-		se.Router.POST("/api/map", handlers.HandleMapKick(app))
+		se.Router.POST("/api/map", handlers.HandleMapKick(deps.Mapping))
 
-		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(app))
+		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(deps.Discover))
 
 		return se.Next()
 	})

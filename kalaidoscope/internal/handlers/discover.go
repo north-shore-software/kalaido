@@ -9,7 +9,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 )
 
-func HandleDiscoverKick(app core.App) func(e *core.RequestEvent) error {
+func HandleDiscoverKick(disc *discover.Worker) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		var req api.DiscoverKickRequest
 		if err := e.BindBody(&req); err != nil {
@@ -24,7 +24,7 @@ func HandleDiscoverKick(app core.App) func(e *core.RequestEvent) error {
 		if !known {
 			return e.BadRequestError("unknown discover kind", nil)
 		}
-		discover.Signal(req.Kind)
+		disc.Signal(req.Kind)
 		return e.NoContent(http.StatusAccepted)
 	}
 }

@@ -25,13 +25,17 @@ const (
 // handlers both diff-and-write the same rows.
 var rematchMu sync.Mutex
 
-// Watermark for the map-settle hook: rematching is a whole-scope pass, so it
-// only runs when the map or the annotations changed since the last one.
-var (
-	settledMu        sync.Mutex
-	settledVersion   = -1
-	settledAnnotated = -1
-)
+// settledMark is the map-settle hook's watermark: rematching is a
+// whole-scope pass, so it only runs when the map or the annotations changed
+// since the last one.
+type settledMark struct {
+	mu        sync.Mutex
+	version   int
+	annotated int
+}
+
+// NewSettledMark is the watermark's starting state, before any settle.
+func newSettledMark() *settledMark { return &settledMark{version: -1, annotated: -1} }
 
 // ThingIDs returns a colour's thing_ids.
 func ThingIDs(rec *core.Record) []string {
@@ -45,7 +49,7 @@ func ThingIDs(rec *core.Record) []string {
 // OnMapSettled is registered with mapping as a settle hook: after every
 // annotate drain and consolidate, thing-backed membership is recomputed from
 // the citations, unless nothing changed.
-func OnMapSettled(app core.App) {
+func (w *Worker) OnMapSettled(app core.App) {
 	_, version, err := mapping.LoadDocument(app)
 	if err != nil {
 		logger().Error("load map version failed", "error", err)
@@ -56,10 +60,10 @@ func OnMapSettled(app core.App) {
 		logger().Error("annotation count failed", "error", err)
 		return
 	}
-	settledMu.Lock()
-	same := version == settledVersion && int(annotated) == settledAnnotated
-	settledVersion, settledAnnotated = version, int(annotated)
-	settledMu.Unlock()
+	w.settled.mu.Lock()
+	same := version == w.settled.version && int(annotated) == w.settled.annotated
+	w.settled.version, w.settled.annotated = version, int(annotated)
+	w.settled.mu.Unlock()
 	if same {
 		return
 	}

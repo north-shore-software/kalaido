@@ -12,9 +12,9 @@ import (
 // wave over the stale set and returns immediately. Candidates land through
 // the ordinary realtime channel, and the wave's state (running, last error,
 // last completion) is reported by GET /api/organize.
-func HandleReconcile(app core.App) func(e *core.RequestEvent) error {
+func HandleReconcile(waves *reconcile.Worker) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		reconcile.StartWave()
+		waves.StartWave()
 		return e.NoContent(http.StatusAccepted)
 	}
 }

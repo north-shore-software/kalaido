@@ -131,7 +131,7 @@ func TestBackfillEndpointMaterializes(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
 	from := time.Now().Add(-20 * day).UTC().Format(time.RFC3339)
-	rec, err = callJSON(t, app, HandleBackfillReflection(app), "POST", "/api/reflections/x/backfill",
+	rec, err = callJSON(t, app, HandleBackfillReflection(app, engine.DiscardRunner{}), "POST", "/api/reflections/x/backfill",
 		`{"from":"`+from+`"}`, map[string]string{"id": created.ReflectionID})
 	if err != nil {
 		t.Fatalf("backfill: %v", err)
@@ -154,7 +154,7 @@ func TestBackfillEndpointMaterializes(t *testing.T) {
 		}
 	}
 
-	if _, err := callJSON(t, app, HandleBackfillReflection(app), "POST", "/api/reflections/x/backfill",
+	if _, err := callJSON(t, app, HandleBackfillReflection(app, engine.DiscardRunner{}), "POST", "/api/reflections/x/backfill",
 		`{"from":"`+time.Now().Add(time.Hour).UTC().Format(time.RFC3339)+`"}`, map[string]string{"id": created.ReflectionID}); err == nil {
 		t.Error("a backfill starting in the covered range was accepted")
 	}

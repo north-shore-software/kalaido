@@ -18,8 +18,8 @@
 // scratch and skips entities whose newest snapshot is already current, so an
 // extra trigger costs a status evaluation, not model calls.
 //
-// It sits above engine (it needs the status evaluator, which imports engine),
-// so engine reaches it back through the engine.RequestWave hook.
+// It sits above engine (it needs the status evaluator, which imports engine);
+// the handler that commits a refinement asks it for the follow-up wave.
 package reconcile
 
 import (
@@ -39,34 +39,39 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 )
 
-// Buffered by one: a wave requested while one is running coalesces into a
-// single follow-up wave, which is sound because every wave re-derives the
-// stale set from scratch.
-var waveSignal = make(chan struct{}, 1)
+// Options tune a Worker.
+type Options struct {
+	// AutoWave turns on the automatic triggers (EnqueueWave). Off, the only
+	// wave is the one the user starts (StartWave).
+	AutoWave bool
+	// Debounce is the quiet period between the last automatic trigger and
+	// the wave it starts; zero means the default. The triggers arrive in
+	// bursts (an import completes, then the colour worker drains, then the
+	// map settles) and one wave covers all of them.
+	Debounce time.Duration
+}
 
-var workerApp core.App
+const defaultDebounce = 3 * time.Second
 
-// autoWave switches on the automatic triggers (EnqueueWave). Off by default:
-// the only wave is the one the user starts. The binary sets it from
-// KALAIDO_AUTO_WAVE at boot via SetAutoWave; tests flip it directly.
-var autoWave bool
+// defaultRetryBackoff schedules the waves that follow a failed one. A
+// transient provider error must not leave the chain half-generated until
+// the next real trigger. Quota exhaustion is not retried: the next real
+// trigger re-enters.
+var defaultRetryBackoff = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute}
 
-// SetAutoWave turns the automatic triggers on or off. Call before the server
-// starts serving; EnqueueWave reads it on every trigger.
-func SetAutoWave(on bool) { autoWave = on }
+// Worker runs speculative generation waves. One per process, owned by the
+// server; Run drives it.
+type Worker struct {
+	app core.App
+	// Buffered by one: a wave requested while one is running coalesces into
+	// a single follow-up wave, which is sound because every wave re-derives
+	// the stale set from scratch.
+	signal chan struct{}
 
-// waveDebounce is the quiet period between the last automatic trigger and the
-// wave it starts. The triggers arrive in bursts (an import completes, then the colour
-// worker drains, then the map settles) and one wave covers all of them.
-// A variable so tests can shorten it.
-var waveDebounce = 3 * time.Second
+	autoWave     bool
+	debounceFor  time.Duration
+	retryBackoff []time.Duration
 
-// retryBackoff schedules the waves that follow a failed one. A transient
-// provider error must not leave the chain half-generated until the next real
-// trigger. Quota exhaustion is not retried: the next real trigger re-enters.
-var retryBackoff = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute}
-
-var (
 	timerMu    sync.Mutex
 	debounce   *time.Timer
 	retryTimer *time.Timer
@@ -80,34 +85,34 @@ var (
 	lastStarted   time.Time
 	lastError     string
 	lastCompleted time.Time
-)
+}
 
-// Register wires the wave worker to the app and starts it. Also hands
-// engine.RequestWave its implementation, letting refinement commits re-trigger
-// a wave without engine importing this package. Once the server is up an
-// automatic wave is requested so a run interrupted by a restart resumes from
-// a fresh evaluation (the boot sweep has already removed its claim rows).
-func Register(app core.App) {
-	workerApp = app
-	engine.RequestWave = EnqueueWave
-	go workerLoop()
-	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		if err := se.Next(); err != nil {
-			return err
-		}
-		if autoWave {
-			logger().Info("automatic waves on", "env", "KALAIDO_AUTO_WAVE")
-		} else {
-			logger().Info("automatic waves off; KALAIDO_AUTO_WAVE=1 enables them; the dashboard starts the wave", "env", "KALAIDO_AUTO_WAVE")
-		}
-		EnqueueWave()
-		return nil
-	})
+// NewWorker builds the worker over app. Nothing runs until Run.
+func NewWorker(app core.App, opts Options) *Worker {
+	if opts.Debounce == 0 {
+		opts.Debounce = defaultDebounce
+	}
+	return &Worker{
+		app:          app,
+		signal:       make(chan struct{}, 1),
+		autoWave:     opts.AutoWave,
+		debounceFor:  opts.Debounce,
+		retryBackoff: defaultRetryBackoff,
+	}
+}
+
+// LogPolicy writes the boot line saying whether waves start on their own.
+func (w *Worker) LogPolicy() {
+	if w.autoWave {
+		logger().Info("automatic waves on", "env", "KALAIDO_AUTO_WAVE")
+	} else {
+		logger().Info("automatic waves off; KALAIDO_AUTO_WAVE=1 enables them; the dashboard starts the wave", "env", "KALAIDO_AUTO_WAVE")
+	}
 }
 
 // WaveEnabled reports whether waves start on their own (KALAIDO_AUTO_WAVE).
 // Surfaced to clients as the organize status policy.
-func WaveEnabled() bool { return autoWave }
+func (w *Worker) WaveEnabled() bool { return w.autoWave }
 
 // State is a consistent snapshot of the worker's status.
 type State struct {
@@ -124,98 +129,110 @@ type State struct {
 }
 
 // Status returns the worker's state as of now.
-func Status() State {
-	stateMu.Lock()
-	defer stateMu.Unlock()
+func (w *Worker) Status() State {
+	w.stateMu.Lock()
+	defer w.stateMu.Unlock()
 	return State{
-		Running:       running,
-		LastStarted:   lastStarted,
-		LastError:     lastError,
-		LastCompleted: lastCompleted,
+		Running:       w.running,
+		LastStarted:   w.lastStarted,
+		LastError:     w.lastError,
+		LastCompleted: w.lastCompleted,
 	}
 }
 
-// Running reports whether a wave is in progress.
-func Running() bool { return Status().Running }
-
-// LastError is the error that ended the most recent wave, or "" when it ran
-// clean (or none has run yet).
-func LastError() string { return Status().LastError }
-
-// LastCompleted is when the most recent wave finished without error; zero
-// when none has.
-func LastCompleted() time.Time { return Status().LastCompleted }
-
 // EnqueueWave is the automatic trigger: it requests a speculative generation
 // wave and returns immediately. The wave starts once no further request has
-// arrived for waveDebounce. Without KALAIDO_AUTO_WAVE it does nothing — the
+// arrived for the debounce period. Without AutoWave it does nothing — the
 // user starts the wave (StartWave).
-func EnqueueWave() {
-	if !autoWave {
+func (w *Worker) EnqueueWave() {
+	if !w.autoWave {
 		return
 	}
-	timerMu.Lock()
-	defer timerMu.Unlock()
-	if debounce == nil {
-		debounce = time.AfterFunc(waveDebounce, signalWave)
+	w.timerMu.Lock()
+	defer w.timerMu.Unlock()
+	if w.debounce == nil {
+		w.debounce = time.AfterFunc(w.debounceFor, w.signalWave)
 		return
 	}
-	debounce.Reset(waveDebounce)
+	w.debounce.Reset(w.debounceFor)
 }
 
 // StartWave is the explicit trigger — the user pressed Start. It signals the
 // worker at once, with no quiet period, and cancels any automatic request
 // still waiting to fire (the wave it would have started is this one).
-func StartWave() {
-	timerMu.Lock()
-	if debounce != nil {
-		debounce.Stop()
-		debounce = nil
+func (w *Worker) StartWave() {
+	w.timerMu.Lock()
+	if w.debounce != nil {
+		w.debounce.Stop()
+		w.debounce = nil
 	}
-	timerMu.Unlock()
-	signalWave()
+	w.timerMu.Unlock()
+	w.signalWave()
 }
 
 // OnMapSettled is registered with mapping as a settle hook, after colour's:
 // once thing-backed membership has been recomputed from the fresh map, every
 // lens that names a colour may resolve differently.
-func OnMapSettled(core.App) { EnqueueWave() }
+func (w *Worker) OnMapSettled(core.App) { w.EnqueueWave() }
 
-func signalWave() {
+func (w *Worker) signalWave() {
 	select {
-	case waveSignal <- struct{}{}:
+	case w.signal <- struct{}{}:
 	default:
 	}
 }
 
-func workerLoop() {
-	for range waveSignal {
-		stateMu.Lock()
-		running, lastStarted = true, time.Now()
-		stateMu.Unlock()
-		err := runWave(workerApp)
-		afterWave(err)
+// Run runs a wave on every signal until ctx is cancelled, then stops the
+// timers and returns ctx.Err(). A wave in progress finishes its current
+// entity first.
+func (w *Worker) Run(ctx context.Context) error {
+	defer w.stopTimers()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-w.signal:
+		}
+		w.stateMu.Lock()
+		w.running, w.lastStarted = true, time.Now()
+		w.stateMu.Unlock()
+		err := runWave(ctx, w.app)
+		w.afterWave(err)
 	}
 }
 
-// afterWave records the outcome and decides whether to try again on its own.
-func afterWave(err error) {
-	stateMu.Lock()
-	running = false
-	if err == nil {
-		lastError, lastCompleted = "", time.Now()
-	} else {
-		lastError = err.Error()
+func (w *Worker) stopTimers() {
+	w.timerMu.Lock()
+	defer w.timerMu.Unlock()
+	if w.debounce != nil {
+		w.debounce.Stop()
+		w.debounce = nil
 	}
-	stateMu.Unlock()
+	if w.retryTimer != nil {
+		w.retryTimer.Stop()
+		w.retryTimer = nil
+	}
+	w.retries = 0
+}
 
-	timerMu.Lock()
-	defer timerMu.Unlock()
+// afterWave records the outcome and decides whether to try again on its own.
+func (w *Worker) afterWave(err error) {
+	w.stateMu.Lock()
+	w.running = false
 	if err == nil {
-		retries = 0
-		if retryTimer != nil {
-			retryTimer.Stop()
-			retryTimer = nil
+		w.lastError, w.lastCompleted = "", time.Now()
+	} else {
+		w.lastError = err.Error()
+	}
+	w.stateMu.Unlock()
+
+	w.timerMu.Lock()
+	defer w.timerMu.Unlock()
+	if err == nil {
+		w.retries = 0
+		if w.retryTimer != nil {
+			w.retryTimer.Stop()
+			w.retryTimer = nil
 		}
 		return
 	}
@@ -223,22 +240,25 @@ func afterWave(err error) {
 		logger().Warn("wave quota exhausted; not retrying")
 		return
 	}
-	delay := retryBackoff[min(retries, len(retryBackoff)-1)]
-	retries++
-	if retryTimer != nil {
-		retryTimer.Stop()
+	if errors.Is(err, context.Canceled) {
+		return
 	}
-	retryTimer = time.AfterFunc(delay, signalWave)
+	delay := w.retryBackoff[min(w.retries, len(w.retryBackoff)-1)]
+	w.retries++
+	if w.retryTimer != nil {
+		w.retryTimer.Stop()
+	}
+	w.retryTimer = time.AfterFunc(delay, w.signalWave)
 	logger().Warn("wave retrying", "delay", delay)
 }
 
 // runWave generates the whole stale set once. The returned error is the one
 // that ended the wave early; nil means every entity that needed work was
 // generated or deliberately skipped.
-func runWave(app core.App) error {
+func runWave(ctx context.Context, app core.App) error {
 	// Staleness is evaluated with ordinary approved-only resolution: the
 	// wave's worklist is exactly the dashboard's "needs action" set.
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(context.Background())
+	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
 		logger().Error("wave evaluate failed", "error", err)
 		return fmt.Errorf("evaluate: %w", err)
@@ -249,7 +269,7 @@ func runWave(app core.App) error {
 	// it. Not a request context — the request that started the wave has
 	// already returned.
 	genCtx := llmq.WithPriority(
-		llmcontext.WithGenerationTrigger(context.Background(), llmcontext.TriggerGenerateAll),
+		llmcontext.WithGenerationTrigger(ctx, llmcontext.TriggerGenerateAll),
 		llmq.Background)
 
 	for _, s := range statuses { // EvaluateAll returns dependencies before dependents

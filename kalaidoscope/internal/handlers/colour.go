@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
@@ -13,12 +12,16 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"golang.org/x/sync/errgroup"
 )
+
+// previewWorkers bounds how many fragments a preview judges at once; the
+// scheduler still gates the actual model calls.
+const previewWorkers = 20
 
 func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
@@ -64,13 +67,11 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		flusher.Flush()
 
 		results := make(chan *core.Record, len(recs))
-		var wg sync.WaitGroup
+		g := new(errgroup.Group)
+		g.SetLimit(previewWorkers)
 
-		for _, r := range recs {
-			wg.Add(1)
-			go func(rec *core.Record) {
-				defer wg.Done()
-
+		for _, rec := range recs {
+			g.Go(func() error {
 				targetDoc := llmcontext.RenderFragmentRecords([]*core.Record{rec})
 				prompt := prompts.ColourEvalPrompt(req.Prompt, positiveBlock, negativeBlock, targetDoc)
 
@@ -85,17 +86,18 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 					if ctx.Err() == nil {
 						logger().Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
 					}
-					return
+					return nil
 				}
 
 				if prompts.ParseYesNo(out) {
 					results <- rec
 				}
-			}(r)
+				return nil
+			})
 		}
 
 		go func() {
-			wg.Wait()
+			_ = g.Wait()
 			close(results)
 		}()
 
@@ -118,7 +120,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
+func HandleCreateColour(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		var req api.CreateColourRequest
 		if err := e.BindBody(&req); err != nil {
@@ -156,16 +158,16 @@ func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
 			return e.InternalServerError("failed to save examples", err)
 		}
 		if colourRec.GetString("prompt") != "" {
-			colour.Signal()
+			deps.Colour.Signal()
 		}
 		// Seeded members are in scope for any lens that names this colour.
-		reconcile.EnqueueWave()
+		deps.Reconcile.EnqueueWave()
 
 		return e.JSON(http.StatusOK, api.CreateColourResponse{ColourID: colourRec.Id})
 	}
 }
 
-func HandleUpdateColour(app core.App) func(e *core.RequestEvent) error {
+func HandleUpdateColour(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		colourRec, err := findColour(app, e)
 		if err != nil {
@@ -193,10 +195,10 @@ func HandleUpdateColour(app core.App) func(e *core.RequestEvent) error {
 			return e.InternalServerError("failed to save colour", err)
 		}
 		if promptChanged {
-			if err := colour.Rematch(app, colourRec.Id); err != nil {
+			if err := deps.Colour.Rematch(colourRec.Id); err != nil {
 				return e.InternalServerError("failed to restart matching", err)
 			}
-			reconcile.EnqueueWave()
+			deps.Reconcile.EnqueueWave()
 		}
 
 		return e.JSON(http.StatusOK, api.UpdateColourResponse{
@@ -209,16 +211,16 @@ func HandleUpdateColour(app core.App) func(e *core.RequestEvent) error {
 
 // HandleRematchColour starts the colour over: prompt rows and the watermark
 // go, thing rows are recomputed, and the worker re-judges everything.
-func HandleRematchColour(app core.App) func(e *core.RequestEvent) error {
+func HandleRematchColour(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		colourRec, err := findColour(app, e)
 		if err != nil {
 			return err
 		}
-		if err := colour.Rematch(app, colourRec.Id); err != nil {
+		if err := deps.Colour.Rematch(colourRec.Id); err != nil {
 			return e.InternalServerError("failed to restart matching", err)
 		}
-		reconcile.EnqueueWave()
+		deps.Reconcile.EnqueueWave()
 		return e.NoContent(http.StatusAccepted)
 	}
 }

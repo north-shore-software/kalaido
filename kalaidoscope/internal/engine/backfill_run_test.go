@@ -47,7 +47,7 @@ func TestGeneratePendingWindowsFillsTheSeries(t *testing.T) {
 	}}
 	script.install(t)
 
-	GeneratePendingWindows(app, refl.Id)
+	GeneratePendingWindows(context.Background(), app, refl.Id)
 
 	grid := CurrentGridWindows(refl, time.Now())
 	if len(grid) != 2 {
@@ -76,7 +76,7 @@ func TestGeneratePendingWindowsFillsTheSeries(t *testing.T) {
 		t.Errorf("pending after run = %d, want 0", len(got))
 	}
 
-	GeneratePendingWindows(app, refl.Id)
+	GeneratePendingWindows(context.Background(), app, refl.Id)
 	if len(order) != 2 {
 		t.Errorf("second run made %d more calls, want none", len(order)-2)
 	}
@@ -91,7 +91,7 @@ func TestGeneratePendingWindowsWaitsForLens(t *testing.T) {
 		"name": "weekly", "status": EntityActive,
 		"window_spec_versions": pbutil.JSONObject(versions),
 	})
-	GeneratePendingWindows(app, refl.Id)
+	GeneratePendingWindows(context.Background(), app, refl.Id)
 	snaps, _ := app.FindRecordsByFilter("reflection_snapshot", "reflection_id = {:id}", "", 0, 0, map[string]any{"id": refl.Id})
 	if len(snaps) != 0 {
 		t.Fatalf("persisted %d snapshots without a lens", len(snaps))

@@ -8,6 +8,7 @@ import (
 )
 
 func TestParseEnvDefaults(t *testing.T) {
+	t.Parallel()
 	env, err := parseEnv(func(string) string { return "" })
 	if err != nil {
 		t.Fatal(err)
@@ -21,6 +22,7 @@ func TestParseEnvDefaults(t *testing.T) {
 }
 
 func TestParseEnvValues(t *testing.T) {
+	t.Parallel()
 	vars := map[string]string{
 		"KALAIDO_MODEL_SET":     "cloud",
 		"KALAIDO_USER_PASSWORD": "pw",
@@ -44,6 +46,7 @@ func TestParseEnvValues(t *testing.T) {
 }
 
 func TestParseEnvRejectsBadValues(t *testing.T) {
+	t.Parallel()
 	for name, vars := range map[string]map[string]string{
 		"model set": {"KALAIDO_MODEL_SET": "nope"},
 		"log level": {"KALAIDO_LOG_LEVEL": "loud"},

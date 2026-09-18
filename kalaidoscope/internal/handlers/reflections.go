@@ -15,7 +15,7 @@ import (
 // the point the schedule already covers, then generates them in the
 // background. Progress arrives as reflection_snapshot rows over the live
 // subscription; the response only says which windows were materialized.
-func HandleBackfillReflection(app core.App) func(e *core.RequestEvent) error {
+func HandleBackfillReflection(app core.App, runner engine.Runner) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 		if id == "" {
@@ -41,7 +41,7 @@ func HandleBackfillReflection(app core.App) func(e *core.RequestEvent) error {
 			logger().Error("reflection backfill failed", "reflection_id", id, "error", err)
 			return e.InternalServerError("backfill failed", err)
 		}
-		engine.RunPendingWindows(app, id)
+		engine.RunPendingWindows(runner, app, id)
 		return e.JSON(http.StatusOK, api.BackfillResponse{Windows: windows})
 	}
 }

@@ -23,12 +23,6 @@ const (
 	EntityActive   = "active"
 )
 
-// RequestWave, when set, asks the reconcile worker for a speculative
-// generation wave over the stale set. It is a hook variable rather than an
-// import because the worker's package sits above engine (it needs the status
-// evaluator, which itself imports engine). Wired by reconcile.Register.
-var RequestWave func()
-
 type SnapshotSpec struct {
 	SourceID        string
 	LensID          string
@@ -97,7 +91,7 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName st
 // output, in the same transaction discarding any pending siblings so at most
 // one reviewable candidate exists per target (and window).
 func completeClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, claimID string, s SnapshotSpec) error {
-	return app.RunInTransaction(func(tx core.App) error {
+	err := app.RunInTransaction(func(tx core.App) error {
 		snap, err := tx.FindRecordById(strat.SnapshotCollectionName(), claimID)
 		if err != nil {
 			return err
@@ -108,6 +102,11 @@ func completeClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, 
 		}
 		return discardOtherPending(tx, strat, s.SourceID, s.Window, snap.Id)
 	})
+	if err == nil {
+		// After the commit, so a woken waiter reads the filled row.
+		claims.settle(claimID)
+	}
+	return err
 }
 
 func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshotID string) error {
@@ -296,12 +295,9 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 
 	// The commit has just moved the entity on: a projection published a new
 	// approved snapshot that its dependents have not consumed, a reflection
-	// installed a lens its windows were not generated under. Re-run the wave
-	// so the downstream subtree (or the windows) regenerates; its dedup guard
-	// leaves untouched branches alone.
-	if RequestWave != nil {
-		RequestWave()
-	}
-
+	// installed a lens its windows were not generated under. The committing
+	// handler asks the reconcile worker for a wave so the downstream subtree
+	// (or the windows) regenerates; the wave's dedup guard leaves untouched
+	// branches alone.
 	return newSnapID, nil
 }

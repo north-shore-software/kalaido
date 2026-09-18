@@ -5,6 +5,7 @@ import "testing"
 // Every typed collection constant must name a canonical table, and every
 // canonical table (views aside) must have a constant.
 func TestCollectionConstantsMatchCanonical(t *testing.T) {
+	t.Parallel()
 	consts := []Collection{
 		ColFragment, ColIngest, ColColour, ColColourFragment, ColProjection,
 		ColReflection, ColLens, ColProjectionSnapshot, ColReflectionSnapshot,

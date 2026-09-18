@@ -144,7 +144,7 @@ func TestWaveSpeculativelyGeneratesWholeChain(t *testing.T) {
 	app := testutil.NewApp(t)
 	g := buildChain(t, app)
 
-	runWave(app)
+	runWave(context.Background(), app)
 
 	// R published a fresh approved snapshot consuming both fragments.
 	rSnaps := snapshotsFor(t, app, "reflection_snapshot", "reflection_id", g.refl.Id)
@@ -193,11 +193,11 @@ func TestRepeatWaveGeneratesNothing(t *testing.T) {
 	app := testutil.NewApp(t)
 	buildChain(t, app)
 
-	runWave(app)
+	runWave(context.Background(), app)
 	before := countAllSnapshots(t, app)
 
 	time.Sleep(2 * time.Millisecond)
-	runWave(app)
+	runWave(context.Background(), app)
 	if after := countAllSnapshots(t, app); after != before {
 		t.Errorf("second wave grew snapshots %d -> %d, want unchanged", before, after)
 	}
@@ -207,7 +207,7 @@ func TestApprovingAsIsSettlesChainWithoutRegeneration(t *testing.T) {
 	app := testutil.NewApp(t)
 	g := buildChain(t, app)
 
-	runWave(app)
+	runWave(context.Background(), app)
 
 	ctx := context.Background()
 	p1Cand := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p1.Id)[0]
@@ -231,22 +231,21 @@ func TestApprovingAsIsSettlesChainWithoutRegeneration(t *testing.T) {
 
 	before := countAllSnapshots(t, app)
 	time.Sleep(2 * time.Millisecond)
-	runWave(app)
+	runWave(context.Background(), app)
 	if after := countAllSnapshots(t, app); after != before {
 		t.Errorf("wave after settling grew snapshots %d -> %d, want unchanged", before, after)
 	}
 }
 
-func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
+func TestRefiningChainCandidateCarriesTriggerForward(t *testing.T) {
 	app := testutil.NewApp(t)
 	g := buildChain(t, app)
 
-	runWave(app)
+	runWave(context.Background(), app)
 
-	waves := 0
-	engine.RequestWave = func() { waves++ }
-	defer func() { engine.RequestWave = nil }()
-
+	// The follow-up wave itself is the committing handler's job now
+	// (handlers.handleCommitRefinementGeneric asks the worker); this test
+	// covers what the commit leaves for that wave to pick up.
 	ctx := context.Background()
 	p1Cand := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p1.Id)[0]
 	pinned := resolvedContext(t, p1Cand)
@@ -258,9 +257,6 @@ func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("commit refinement: %v", err)
 	}
-	if waves != 1 {
-		t.Errorf("waves after refining a pending chain candidate = %d, want 1", waves)
-	}
 	newSnap, err := app.FindRecordById("projection_snapshot", newSnapID)
 	if err != nil {
 		t.Fatalf("find committed snapshot: %v", err)
@@ -270,13 +266,9 @@ func TestRefiningChainCandidateRetriggersWave(t *testing.T) {
 	}
 
 	// Refining an already-approved snapshot publishes a new one just the
-	// same: its dependents have not consumed it, so the wave runs again.
-	waves = 0
+	// same: its dependents have not consumed it.
 	if _, err := engine.CommitRefinement(ctx, app, engine.ProjectionStrategy{},
 		g.p1.Id, newSnapID, "EDITED LENS AGAIN", "EDITED AGAIN", pinned, spec, nil, "", "projection"); err != nil {
 		t.Fatalf("commit second refinement: %v", err)
-	}
-	if waves != 1 {
-		t.Errorf("waves after refining an approved snapshot = %d, want 1", waves)
 	}
 }

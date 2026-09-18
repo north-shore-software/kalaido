@@ -9,9 +9,9 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/organize"
 )
 
-func HandleGetOrganize(app core.App) func(e *core.RequestEvent) error {
+func HandleGetOrganize(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		st, err := organize.Evaluate(e.Request.Context(), app, time.Now())
+		st, err := organize.Evaluate(e.Request.Context(), app, time.Now(), deps.organizeWorkers())
 		if err != nil {
 			logger().Error("organize status evaluation failed", "error", err)
 			return e.InternalServerError("failed to evaluate organize status", err)

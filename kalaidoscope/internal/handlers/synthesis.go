@@ -263,7 +263,7 @@ func joinGeneration(ctx context.Context, app core.App, strat engine.Strategy, id
 	return engine.AwaitGeneration(ctx, app, strat, id, w)
 }
 
-func handleApproveCandidate(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
+func handleApproveCandidate(app core.App, strat engine.Strategy, waves *reconcile.Worker) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		snapID, herr := resolveCandidate(e, app, strat)
 		if herr != nil {
@@ -280,7 +280,7 @@ func handleApproveCandidate(app core.App, strat engine.Strategy) func(e *core.Re
 		// place, same id) are already consistent and the wave skips them; a
 		// candidate that was edited or refined before approval has a new id,
 		// and their candidates regenerate against it.
-		reconcile.EnqueueWave()
+		waves.EnqueueWave()
 		if strat.TargetType() == "projection" {
 			return e.JSON(http.StatusOK, api.ProjectionSnapshotResponse{SnapshotID: snapID})
 		}

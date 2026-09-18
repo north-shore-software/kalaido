@@ -41,7 +41,7 @@ func TestWaveNoChangeSettlesInPlaceWithoutStalingDependents(t *testing.T) {
 	})
 
 	before := countAllSnapshots(t, app)
-	if err := runWave(app); err != nil {
+	if err := runWave(context.Background(), app); err != nil {
 		t.Fatalf("wave: %v", err)
 	}
 	if after := countAllSnapshots(t, app); after != before {

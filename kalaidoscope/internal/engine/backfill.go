@@ -75,23 +75,25 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 	return windows, nil
 }
 
-// Background runs f off the caller's goroutine. A hook so tests can run it
-// inline or not at all: a goroutine outliving a test's app would touch a
-// closed database.
-var Background = func(f func()) { go f() }
+// A Runner runs work off the caller's goroutine under a lifetime it owns:
+// the server's runner is cancelled and awaited at shutdown, and a test's can
+// run inline or drop the work, so no goroutine outlives its app.
+type Runner interface {
+	Go(f func(ctx context.Context))
+}
 
 // RunPendingWindows generates, in the background and at background priority,
 // every window the reflection currently owes (PendingWindows). One pass: a
 // window whose generation fails stays pending for the next run rather than
 // being retried in a loop. The DB is the state — a restart mid-run loses
 // nothing but the goroutines.
-func RunPendingWindows(app core.App, reflectionID string) {
-	Background(func() { GeneratePendingWindows(app, reflectionID) })
+func RunPendingWindows(r Runner, app core.App, reflectionID string) {
+	r.Go(func(ctx context.Context) { GeneratePendingWindows(ctx, app, reflectionID) })
 }
 
 // GeneratePendingWindows is RunPendingWindows's body, run to completion on
 // the calling goroutine.
-func GeneratePendingWindows(app core.App, reflectionID string) {
+func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID string) {
 	rec, err := app.FindRecordById("reflection", reflectionID)
 	if err != nil {
 		logger().Error("backfill: load reflection failed", "reflection_id", reflectionID, "error", err)
@@ -103,7 +105,7 @@ func GeneratePendingWindows(app core.App, reflectionID string) {
 	}
 	logger().Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
 
-	ctx := llmq.WithPriority(context.Background(), llmq.Background)
+	ctx = llmq.WithPriority(ctx, llmq.Background)
 	results := GenerateWindows(ctx, app, reflectionID, StatusApproved, ReflectionStrategy{}, pending)
 	generated := 0
 	for i, r := range results {

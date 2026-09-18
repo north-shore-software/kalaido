@@ -6,6 +6,7 @@ import (
 )
 
 func TestIngestMessageAcceptsBothSpellings(t *testing.T) {
+	t.Parallel()
 	for name, body := range map[string]string{
 		"camel": `{"content":"c","ingestedVia":"app","occurredAt":"2026-01-02T03:04:05Z","fragmentLimit":3,"skipDuplicates":true}`,
 		"snake": `{"content":"c","ingested_via":"app","occurred_at":"2026-01-02T03:04:05Z","fragment_limit":3,"skip_duplicates":true}`,
@@ -21,6 +22,7 @@ func TestIngestMessageAcceptsBothSpellings(t *testing.T) {
 }
 
 func TestIngestMessageCamelWinsOverSnake(t *testing.T) {
+	t.Parallel()
 	var m IngestMessage
 	if err := json.Unmarshal([]byte(`{"ingestedVia":"new","ingested_via":"old"}`), &m); err != nil {
 		t.Fatal(err)
@@ -31,6 +33,7 @@ func TestIngestMessageCamelWinsOverSnake(t *testing.T) {
 }
 
 func TestIngestMessageMarshalsCamel(t *testing.T) {
+	t.Parallel()
 	out, err := json.Marshal(IngestMessage{IngestedVia: "app", SkipDuplicates: true})
 	if err != nil {
 		t.Fatal(err)

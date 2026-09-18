@@ -25,37 +25,60 @@ const (
 	exampleLimit = 20
 )
 
-var (
-	signal    = make(chan struct{}, 1)
-	workerApp core.App
-)
+// Worker is the prompt-matching worker: one per process, owned by the
+// server, woken by Signal and drained on its own goroutine (Run).
+type Worker struct {
+	app     core.App
+	signal  chan struct{} // buffered by one: wakes coalesce
+	drained []func()
+	settled *settledMark
+}
 
-// Register starts the prompt worker and kicks it once the server is up, so a
-// watermark left behind by a crash or an offline provider resumes.
-func Register(app core.App) {
-	workerApp = app
-	go loop()
-	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		if err := se.Next(); err != nil {
-			return err
-		}
-		Signal()
-		return nil
-	})
+// NewWorker builds the worker over app. Nothing runs until Run.
+func NewWorker(app core.App) *Worker {
+	return &Worker{app: app, signal: make(chan struct{}, 1), settled: newSettledMark()}
 }
 
 // Signal asks the worker to drain. Coalesces.
-func Signal() {
+func (w *Worker) Signal() {
 	select {
-	case signal <- struct{}{}:
+	case w.signal <- struct{}{}:
 	default:
+	}
+}
+
+// OnDrained registers fn to run after any drain that wrote links. Register
+// before Run; the slice is not guarded.
+func (w *Worker) OnDrained(fn func()) {
+	w.drained = append(w.drained, fn)
+}
+
+// Run drains on every signal until ctx is cancelled, then returns ctx.Err().
+// A drain in progress finishes its current colour page first.
+func (w *Worker) Run(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-w.signal:
+		}
+		wrote, err := drain(ctx, w.app)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			logger().Error("drain failed", "error", err)
+		}
+		if wrote > 0 {
+			for _, fn := range w.drained {
+				fn()
+			}
+		}
 	}
 }
 
 // Rematch restarts a colour from scratch: prompt rows go, the watermark
 // resets, thing rows are recomputed, and the worker is kicked. Used when the
 // prompt changes or the user asks for it.
-func Rematch(app core.App, colourID string) error {
+func (w *Worker) Rematch(colourID string) error {
+	app := w.app
 	rec, err := app.FindRecordById("colour", colourID)
 	if err != nil {
 		return err
@@ -76,7 +99,7 @@ func Rematch(app core.App, colourID string) error {
 	if err := RematchThingsFor(app, colourID); err != nil {
 		return err
 	}
-	Signal()
+	w.Signal()
 	return nil
 }
 
@@ -84,31 +107,7 @@ func Rematch(app core.App, colourID string) error {
 // membership just changed, so every lens naming a colour may resolve
 // differently. Registered by server wiring (the reconcile wave), so this
 // package does not know its consumers.
-var drainedHooks []func()
-
-// OnDrained registers a hook to run after each drain that wrote membership.
-func OnDrained(fn func()) {
-	drainedHooks = append(drainedHooks, fn)
-}
-
-func loop() {
-	for range signal {
-		wrote, err := drain(workerApp)
-		if err != nil {
-			logger().Error("drain failed", "error", err)
-		}
-		if wrote > 0 {
-			for _, fn := range drainedHooks {
-				fn()
-			}
-		}
-	}
-}
-
-// drain judges every colour's unjudged fragments and reports how many links
-// it wrote, so the caller can tell a drain that changed membership from one
-// that only advanced watermarks.
-func drain(app core.App) (int, error) {
+func drain(ctx context.Context, app core.App) (int, error) {
 	cols, err := app.FindRecordsByFilter("colour", "prompt != ''", "created", 0, 0, nil)
 	if err != nil {
 		return 0, err
@@ -122,10 +121,12 @@ func drain(app core.App) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	ctx := context.Background()
 	var firstErr error
 	wrote := 0
 	for _, c := range cols {
+		if ctx.Err() != nil {
+			return wrote, ctx.Err()
+		}
 		n, err := drainColour(ctx, app, model, c)
 		wrote += n
 		if errors.Is(err, usage.ErrExhausted) {

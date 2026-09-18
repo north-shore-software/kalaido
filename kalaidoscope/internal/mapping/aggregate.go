@@ -1,8 +1,7 @@
 package mapping
 
 import (
-	"sync"
-	"sync/atomic"
+	"context"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -14,31 +13,25 @@ const (
 	aggregateTick           = 10 * time.Second
 )
 
-var aggregateMu sync.Mutex
+// Consolidating reports whether a consolidation is in progress.
+func (w *Worker) Consolidating() bool { return w.consolidating.Load() }
 
-var consolidating atomic.Bool
-
-func Consolidating() bool { return consolidating.Load() }
-
-// settleHooks run after every cycle, outside the aggregate lock, so readers
-// that derive from the map (colour membership) follow it without the map
-// package knowing them.
-var settleHooks []func(core.App)
-
-// OnSettle registers a hook to run after each map cycle.
-func OnSettle(fn func(core.App)) {
-	settleHooks = append(settleHooks, fn)
-}
-
-func aggregateLoop() {
-	for range time.Tick(aggregateTick) {
-		due, err := consolidateDue(workerApp, time.Now())
+func (w *Worker) aggregateLoop(ctx context.Context) error {
+	ticker := time.NewTicker(aggregateTick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+		due, err := consolidateDue(w.app, time.Now())
 		if err != nil {
 			logger().Error("consolidate check failed", "error", err)
 			continue
 		}
 		if due {
-			cycle(workerApp)
+			w.cycle()
 		}
 	}
 }
@@ -55,23 +48,23 @@ func consolidateDue(app core.App, now time.Time) (bool, error) {
 	return now.Sub(newest) > consolidateStaleAge, nil
 }
 
-func settle(app core.App) {
-	cycle(app)
+func (w *Worker) settle() {
+	w.cycle()
 }
 
-func cycle(app core.App) {
-	integrate(app)
-	for _, fn := range settleHooks {
-		fn(app)
+func (w *Worker) cycle() {
+	w.integrate()
+	for _, fn := range w.settleHooks {
+		fn(w.app)
 	}
 }
 
-func integrate(app core.App) {
-	aggregateMu.Lock()
-	defer aggregateMu.Unlock()
-	consolidating.Store(true)
-	defer consolidating.Store(false)
-	if err := consolidate(app); err != nil {
+func (w *Worker) integrate() {
+	w.aggregateMu.Lock()
+	defer w.aggregateMu.Unlock()
+	w.consolidating.Store(true)
+	defer w.consolidating.Store(false)
+	if err := consolidate(w.app); err != nil {
 		logger().Error("consolidate failed", "error", err)
 	}
 }
@@ -80,8 +73,8 @@ func integrate(app core.App) {
 // map is quiescent. Readers that reason over the whole map (discover) call it
 // first, so a run kicked mid-consolidation reads the version about to land
 // rather than the one about to be superseded.
-func WaitSettled() {
-	aggregateMu.Lock()
+func (w *Worker) WaitSettled() {
+	w.aggregateMu.Lock()
 	//nolint:staticcheck // the lock is the wait; nothing to protect
-	aggregateMu.Unlock()
+	w.aggregateMu.Unlock()
 }

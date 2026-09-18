@@ -291,12 +291,12 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 	return "", "", pinned, spec, win, nil
 }
 
-func HandleCommitProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
-	return handleCommitRefinementGeneric(app, "projection", "projection_refinement", "projection_snapshot_id")
+func HandleCommitProjectionRefinement(app core.App, deps Deps) func(e *core.RequestEvent) error {
+	return handleCommitRefinementGeneric(app, deps, "projection", "projection_refinement", "projection_snapshot_id")
 }
 
-func HandleCommitReflectionRefinement(app core.App) func(e *core.RequestEvent) error {
-	return handleCommitRefinementGeneric(app, "reflection", "reflection_refinement", "reflection_snapshot_id")
+func HandleCommitReflectionRefinement(app core.App, deps Deps) func(e *core.RequestEvent) error {
+	return handleCommitRefinementGeneric(app, deps, "reflection", "reflection_refinement", "reflection_snapshot_id")
 }
 
 // refinementParent resolves the projection/reflection a refinement
@@ -325,7 +325,7 @@ func refinementParent(app core.App, refRec *core.Record) *core.Record {
 	return rec
 }
 
-func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, snapshotField string) func(e *core.RequestEvent) error {
+func handleCommitRefinementGeneric(app core.App, deps Deps, targetCol, refinementColName, snapshotField string) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		rid := e.Request.PathValue("rid")
 		if rid == "" {
@@ -391,6 +391,12 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 			logger().Error("refinement commit failed", "error", err)
 			return e.InternalServerError("failed to commit refinement", err)
 		}
+		// The commit moved the entity on: a projection published a snapshot
+		// its dependents have not consumed, a reflection installed a lens its
+		// windows were not generated under. Ask for a wave so the downstream
+		// subtree (or the windows) regenerates; its dedup guard leaves
+		// untouched branches alone.
+		deps.Reconcile.EnqueueWave()
 		if targetCol == "reflection" {
 			logger().Info("refinement installed a new lens", "target_type", "reflection", "reflection_id", parentID, "refinement_id", refRec.Id)
 			// The lens exists (or changed), so the windows the series owes
@@ -398,7 +404,7 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 			// grid. Windows that already have a snapshot keep it, marked as
 			// produced by an older lens, until Refresh or a per-window
 			// regenerate brings them forward.
-			engine.RunPendingWindows(app, parentID)
+			engine.RunPendingWindows(deps.Runner, app, parentID)
 		} else {
 			logger().Info("refinement committed", "target_type", targetCol, "id", parentID, "refinement_id", refRec.Id, "snapshot_id", newSnapID)
 		}

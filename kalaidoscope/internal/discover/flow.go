@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pocketbase/pocketbase/core"
-
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -47,7 +44,8 @@ var (
 	errNoColours = errors.New("discover: no colours exist yet")
 )
 
-func Run(app core.App, flow Flow) error {
+func (w *Worker) run(ctx context.Context, flow Flow) error {
+	app := w.app
 	model, err := llm.ResolveRole(llm.RoleMap)
 	if err != nil {
 		return err
@@ -55,7 +53,7 @@ func Run(app core.App, flow Flow) error {
 	// A kick that lands while the map is still consolidating must not read the
 	// half-integrated version: the things the last batch introduced would be
 	// missing and every row citing them would resolve to nothing.
-	mapping.WaitSettled()
+	w.maps.WaitSettled()
 	c, err := newContext(app, nil)
 	if err != nil {
 		return err
@@ -71,7 +69,7 @@ func Run(app core.App, flow Flow) error {
 		return err
 	}
 	c.Run = run
-	ctx := llmq.WithPriority(context.Background(), llmq.Background)
+	ctx = llmq.WithPriority(ctx, llmq.Background)
 	err = runLoop(ctx, c, flow, model)
 	finishRun(c, err)
 	return err

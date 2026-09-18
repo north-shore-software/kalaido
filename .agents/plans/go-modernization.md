@@ -1,6 +1,6 @@
 # Go Sidecar Modernization Plan
 
-**Status:** Phases 1 and 2 implemented on `louis/go-tidy` (2026-09-17, uncommitted); fact-checked against `55a8458`. Phases 3 and 4 not started.
+**Status:** Phases 1–3 implemented on `louis/go-tidy` (2026-09-17; 1+2 committed as `c009c7c`, 3 uncommitted); fact-checked against `55a8458`. Phase 4 not started.
 **Scope:** Go backend only. Retire package-level globals, add a shutdown lifecycle, structured logging, typed config, and fix the handful of API-shape deviations. Keep the codebase's "standard library first" posture.
 
 ---
@@ -92,12 +92,14 @@ Notes from the build: the shared retry lives in `usage.RetryThrottled` (both cal
 - [x] `ingest/writer.go`: wrap the per-upload fragment writes in one `RunInTransaction` (no LLM calls in that loop). Confirm the birth hooks still fire per record.
 
 ### Phase 3: Workers as structs, lifecycle under errgroup
-- [ ] `engine.ClaimHub` (std lib): `Await(ctx, claimID)` and `Settle(claimID)`. `AwaitGeneration` waits on the hub and reads the row once on wake; the 500ms poll stays only as the fallback for a claim not registered in this process (TTL takeover).
-- [ ] Convert `colour`, `mapping`, `reconcile`, `discover` to `Worker` structs per §4. The reconcile debounce and retry timers become fields. `followup.Queue` becomes a field.
-- [ ] Replace `engine.RequestWave` with a `WaveRequester` interface passed into the engine; replace `engine.Background` with a `Runner` that the server owns and that is `errgroup`-tracked.
-- [ ] `server.New` builds the graph explicitly, starts each `Run(ctx)` in an `errgroup`, and binds `OnTerminate` to cancel and wait (bounded, e.g. 10s, then log and exit).
-- [ ] `mapping.drain` fan-out: `errgroup` with `SetLimit(annotateWorkers)`. `HandlePreviewColour`: same, keeping the streaming result channel.
-- [ ] Tests: `testutil` gains a `NewWorkers(app)` helper; add `t.Parallel()` where package state no longer blocks it; verify with `go test -race ./...`.
+
+Notes from the build: `engine.RequestWave` was removed outright rather than replaced by an interface — the only caller of `CommitRefinement` is the commit handler, which now asks `Deps.Reconcile` for the wave itself. `engine.Background` became the `engine.Runner` interface (`TrackedRunner` in the server, `InlineRunner`/`DiscardRunner` for tests); ingest processing runs on it too. Workers start on `OnServe` and stop on `OnTerminate` (`server/runtime.go`), which also fixed the server-package test flake: `testutil.NewTestServer` now triggers terminate in its cleanup. The claim hub is a package-level map keyed by claim id, not an injected type, because engine has no instance to hang it on. `handlers.Deps` carries the workers into the eleven routes that wake or read them; the rest keep their `(app)` signature. `server.NewWithSchema` is unchanged for the cloud binary; `server.NewWithOptions` adds `AutoWave`.
+- [x] `engine.ClaimHub` (std lib): `Await(ctx, claimID)` and `Settle(claimID)`. `AwaitGeneration` waits on the hub and reads the row once on wake; the 500ms poll stays only as the fallback for a claim not registered in this process (TTL takeover).
+- [x] Convert `colour`, `mapping`, `reconcile`, `discover` to `Worker` structs per §4. The reconcile debounce and retry timers become fields. `followup.Queue` becomes a field.
+- [x] Replace `engine.RequestWave` with a `WaveRequester` interface passed into the engine; replace `engine.Background` with a `Runner` that the server owns and that is `errgroup`-tracked.
+- [x] `server.New` builds the graph explicitly, starts each `Run(ctx)` in an `errgroup`, and binds `OnTerminate` to cancel and wait (bounded, e.g. 10s, then log and exit).
+- [x] `mapping.drain` fan-out: `errgroup` with `SetLimit(annotateWorkers)`. `HandlePreviewColour`: same, keeping the streaming result channel.
+- [x] Tests: `testutil` gains a `NewWorkers(app)` helper; add `t.Parallel()` where package state no longer blocks it; verify with `go test -race ./...`.
 
 ### Phase 4: Test diffs
 - [ ] `cmp.Diff` in `schema/parity_test.go` and in any handler/engine test comparing structs or slices by hand.

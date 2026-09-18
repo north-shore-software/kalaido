@@ -13,7 +13,15 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 )
 
-func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeStatus, error) {
+// Workers are the live workers whose in-memory state the status reads
+// alongside the database.
+type Workers struct {
+	Mapping   *mapping.Worker
+	Reconcile *reconcile.Worker
+	Discover  *discover.Worker
+}
+
+func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.OrganizeStatus, error) {
 	var st api.OrganizeStatus
 
 	fragments, err := app.CountRecords("fragment", dbx.NewExp("deleted_at = ''"))
@@ -35,17 +43,17 @@ func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeSta
 		things = len(doc.Things)
 	}
 
-	if err := evaluateMap(app, version, int(fragments), &st.Map); err != nil {
+	if err := evaluateMap(app, w.Mapping, version, int(fragments), &st.Map); err != nil {
 		return st, err
 	}
-	if err := evaluateDiscover(app, version, things, &st.Discover); err != nil {
+	if err := evaluateDiscover(app, w.Discover, version, things, &st.Discover); err != nil {
 		return st, err
 	}
 
 	st.Policy = api.OrganizePolicy{
-		Wave: reconcile.WaveEnabled(),
+		Wave: w.Reconcile.WaveEnabled(),
 	}
-	wave := reconcile.Status()
+	wave := w.Reconcile.Status()
 	st.Reconcile = api.ReconcileStatus{
 		Running:   wave.Running,
 		LastError: wave.LastError,
@@ -75,7 +83,7 @@ func evaluateImports(app core.App, out *api.ImportsStatus) error {
 	return nil
 }
 
-func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error {
+func evaluateMap(app core.App, maps *mapping.Worker, version, fragments int, out *api.MapStatus) error {
 	annotated, err := app.CountRecords("fragment_annotation")
 	if err != nil {
 		return err
@@ -97,9 +105,9 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 	out.Annotated = int(annotated)
 	out.Unconsolidated = int(unconsolidated)
 	out.PendingAnnotation = pending
-	out.LastDrainError = mapping.LastDrainError()
+	out.LastDrainError = maps.LastDrainError()
 
-	consolidating := mapping.Consolidating()
+	consolidating := maps.Consolidating()
 	if len(runs) > 0 {
 		info := runInfo(runs[0])
 		info.Interrupted = info.Status == "running" && !consolidating
@@ -111,7 +119,7 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 		out.State = api.MapStateEmpty
 	case consolidating:
 		out.State = api.MapStateConsolidating
-	case pending > 0 && mapping.Annotating():
+	case pending > 0 && maps.Annotating():
 		out.State = api.MapStateAnnotating
 	case pending > 0:
 		out.State = api.MapStateUnannotated
@@ -123,9 +131,9 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 	return nil
 }
 
-func evaluateDiscover(app core.App, version, things int, out *api.DiscoverStatus) error {
-	out.Running = discover.Running()
-	out.Pending = discover.Pending()
+func evaluateDiscover(app core.App, disc *discover.Worker, version, things int, out *api.DiscoverStatus) error {
+	out.Running = disc.Running()
+	out.Pending = disc.Pending()
 	out.Due = []string{}
 	out.Runs = map[string]api.RunInfo{}
 

@@ -9,12 +9,27 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 )
 
-func RegisterHooks(app core.App) {
+// Deps are the workers an import hands off to once its fragments are in.
+type Deps struct {
+	Mapping   *mapping.Worker
+	Reconcile *reconcile.Worker
+	Discover  *discover.Worker
+	// Runner owns the processing goroutine, so shutdown can cancel and
+	// await an import in progress.
+	Runner engine.Runner
+}
+
+// RegisterHooks processes every new `ingest` record off the request
+// goroutine: the row is forced to pending, the uploads are parsed, and the
+// row ends done or error.
+func RegisterHooks(app core.App, deps Deps) {
 	app.OnRecordCreate("ingest").BindFunc(func(e *core.RecordEvent) error {
 		files, err := readUnsavedFiles(e.Record)
 		if err != nil {
@@ -27,7 +42,10 @@ func RegisterHooks(app core.App) {
 			return err
 		}
 
-		go processIngestRecord(app, e.Record.Id, cfg, files)
+		recID := e.Record.Id
+		deps.Runner.Go(func(ctx context.Context) {
+			processIngestRecord(ctx, app, deps, recID, cfg, files)
+		})
 		return nil
 	})
 }
@@ -124,9 +142,7 @@ func readUnsavedFiles(rec *core.Record) ([]uploadedFile, error) {
 	return out, nil
 }
 
-func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []uploadedFile) {
-	ctx := context.Background()
-
+func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID string, cfg ingestConfig, files []uploadedFile) {
 	total := 0
 	var ingestErr error
 	for _, uf := range files {
@@ -166,13 +182,13 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 	// regenerated ahead of the user. Colour and map follow-ups re-request
 	// the wave as they change membership; each re-run skips what is current.
 	if total > 0 {
-		reconcile.EnqueueWave()
+		deps.Reconcile.EnqueueWave()
 	}
 	if cfg.organizeAfter {
-		startPipeline()
+		startPipeline(deps)
 		return
 	}
-	mapping.SignalAnnotate()
+	deps.Mapping.SignalAnnotate()
 }
 
 func normalizeExtensions(s string) []string {
