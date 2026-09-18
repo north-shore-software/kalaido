@@ -1,6 +1,6 @@
 ---
 title: "TestApplyEditCreatesFragmentPinsAndSecondPendingRow is flaky: same-millisecond `created` tie picks the wrong candidate"
-status: "open"
+status: "resolved"
 author: "agent"
 created: "2026-09-14"
 ---
@@ -29,3 +29,6 @@ The test passes deterministically.
 - `internal/engine/snapshot.go` `SnapshotIsCurrent` — the `-created,-approval_sequence_number` sort; the comment already notes the millisecond tie for approved rows, but two pending rows have no tie-breaker.
 - `internal/engine/edit.go` `ApplyEdit` — the source candidate stays pending alongside the edited row (documented as deliberate), which is what creates the tie.
 - Either give `SnapshotIsCurrent` a deterministic tie-breaker for pending rows (e.g. `-created,-approval_sequence_number,-id` is not meaningful; `generated_at` or a small sleep in the test fixture), or have the test space the two rows apart as `internal/reconcile/worker_test.go` does with a 2ms sleep.
+
+## Resolution (2026-09-17)
+Fixed in the code, not the test. `SnapshotIsCurrent` now selects the latest snapshot through `app.RecordQuery` ordered by `created DESC, approval_sequence_number DESC, rowid DESC`: insertion order is the final tiebreaker, and a hand edit inserts its row after the candidate it edited (same transaction), so a same-millisecond pair resolves to the edit. Backdating the fixture's `created` was tried first and does nothing — PocketBase's autodate overrides an explicit `created` on create. Passed 10/10 in isolation afterwards. Supersedes `2026-09-14-engine-edit-test-flaky-snapshot-is-current.md` (same flake, earlier and vaguer report) and a duplicate filed 2026-09-17, both removed.

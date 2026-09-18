@@ -287,11 +287,17 @@ func minimizeAgainstPrevious(ctx context.Context, app core.App, model, lensPromp
 // fresh instead of burning a model call to reproduce it.
 func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *core.Record) bool {
 	// Claim rows and superseded candidates are not output; only pending and
-	// approved snapshots count. -approval_sequence_number breaks same-millisecond
-	// `created` ties deterministically (see .agents/bugs/engine-2026-08-20…).
-	recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(),
-		strat.ForeignKeyCol()+" = {:id} && (status = 'pending_review' || status = 'approved')",
-		"-created,-approval_sequence_number", 1, 0, dbx.Params{"id": rec.Id})
+	// approved snapshots count. `created` has millisecond precision, so two
+	// rows can tie: -approval_sequence_number settles it between approved
+	// rows, and insertion order (rowid) between pending ones — a hand edit
+	// lands its row after the candidate it edited, in the same transaction.
+	var recs []*core.Record
+	err := app.RecordQuery(strat.SnapshotCollectionName()).
+		AndWhere(dbx.HashExp{strat.ForeignKeyCol(): rec.Id}).
+		AndWhere(dbx.In("status", StatusPending, StatusApproved)).
+		OrderBy("created DESC", "approval_sequence_number DESC", "rowid DESC").
+		Limit(1).
+		All(&recs)
 	if err != nil || len(recs) == 0 {
 		return false
 	}

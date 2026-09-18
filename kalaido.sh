@@ -204,7 +204,8 @@ cmd_check_go() {
 
 cmd_test_go() {
   say "go test"
-  (cd "$KS" && go test ./...)
+  # Extra flags pass straight to go test: ./kalaido.sh test:go -race -count=1
+  (cd "$KS" && go test "$@" ./...)
 }
 
 cmd_check_rust() {
@@ -452,7 +453,7 @@ usage: ./kalaido.sh <command> [args...]
   check:schema-freshness     types.ts matches the canonical schema
   schema:freeze              copy canonical.go into schema/baseline/v1.go (launch only)
 
-  test:go                    go test
+  test:go [flags]            go test (flags forwarded, e.g. -race -count=1)
   test:rust                  cargo test
   test:ts                    pnpm test run
 
