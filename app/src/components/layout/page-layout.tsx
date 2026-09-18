@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useSnapshot } from "valtio/react";
+import { PanelErrorBoundary } from "@/components/kalaido/panel-error-boundary";
 import { NavSidebar } from "@/components/layout/nav-sidebar";
 import { UtilityBar } from "@/components/layout/utility-bar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -21,7 +22,11 @@ export function PageLayout({ children }: { children: ReactNode }) {
       <SidebarProvider defaultOpen={false}>
         <NavSidebar />
         <SidebarInset className="min-w-0">
-          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <PanelErrorBoundary label="this screen">
+              {children}
+            </PanelErrorBoundary>
+          </div>
         </SidebarInset>
       </SidebarProvider>
       <UtilityBar />

@@ -1,6 +1,5 @@
 import { PlusIcon } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { createColour } from "@/api/kalaidoscope/colours";
 import { EmptyState } from "@/components/kalaido";
@@ -12,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useCollection } from "@/hooks/use-collection";
 import { defineRoute } from "@/routes/route-kit";
+import { useAppRouteState } from "@/routes/use-app-route-state";
 import { ColourComposerPane } from "../components/colour-composer-pane";
 import { ColourDetailPane } from "../components/colour-detail-pane";
 import { ColourList } from "../components/colour-list";
@@ -19,23 +19,11 @@ import { isMember, type MemberRow } from "../fragments";
 import { useColourPreview } from "../hooks/use-colour-preview";
 import { coloursTransitions } from "./Colours.transitions";
 
-/**
- * A colour composed from fragments that already exist — a chat's saved
- * bookmarks. Passed as router state; the composer opens with them as the
- * positive examples the preview judges with and the colour pins on create.
- */
-export interface ColourSeed {
-  positiveExamples: string[];
-}
-
 const NO_SEED: readonly string[] = [];
 
 export default function Colours() {
   // Captured once: a seed is a one-shot handoff, not a mode of the page.
-  const location = useLocation();
-  const seedRef = useRef(
-    ((location.state ?? {}) as { seed?: ColourSeed }).seed,
-  );
+  const seedRef = useRef(useAppRouteState<"colours">().seed);
   // One identity for the page's life: the preview effect depends on it.
   const seedExamples = seedRef.current?.positiveExamples ?? NO_SEED;
 

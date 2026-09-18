@@ -176,6 +176,8 @@ cmd_check_ts() {
   (cd "$APP" && pnpm exec biome lint --error-on-warnings .)
   say "navigation discipline"
   (cd "$APP" && pnpm check:nav)
+  say "design classes"
+  (cd "$APP" && pnpm check:design)
   say "routes"
   (cd "$APP" && pnpm check:routes)
   say "build"

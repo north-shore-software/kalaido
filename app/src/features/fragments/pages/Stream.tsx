@@ -1,6 +1,5 @@
 import { PlusIcon } from "lucide-react";
 import { Fragment as F, useMemo } from "react";
-import { useParams } from "react-router-dom";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types.ts";
 import { FragmentDrawer, Mono, Pill } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
@@ -17,6 +16,7 @@ import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppParams } from "@/routes/use-app-params";
 import { streamTransitions } from "./Stream.transitions";
 import {
   resolveSwatches,
@@ -29,7 +29,7 @@ const formatType = (type: string) => {
 
 export default function Stream() {
   const { go } = useAppNavigate();
-  const { id: selectedId } = useParams<{ id?: string }>();
+  const { id: selectedId } = useAppParams<"stream">();
   const { records, isLoading } = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment", "fragment_annotation"],

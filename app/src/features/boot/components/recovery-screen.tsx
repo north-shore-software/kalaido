@@ -152,7 +152,7 @@ function ErrorDetails({ error }: { error: StageError }) {
         Error details
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col items-start gap-2">
-        <pre className="max-h-48 w-full overflow-auto rounded-md border bg-surface-2 p-3 text-mono-sm leading-relaxed whitespace-pre-wrap">
+        <pre className="max-h-48 w-full overflow-auto rounded-none border bg-surface-2 p-3 text-mono-sm leading-relaxed whitespace-pre-wrap">
           {text}
         </pre>
         <Button size="sm" variant="ghost" onClick={() => void handleCopy()}>

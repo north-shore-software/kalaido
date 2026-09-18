@@ -6,6 +6,7 @@ import {
   type EntityKind,
 } from "@/components/kalaido";
 import type { RefineSession } from "@/hooks/use-refine-session";
+import { PanelErrorBoundary } from "./panel-error-boundary";
 
 /**
  * A {@link ChatPanel} bound to a {@link RefineSession}. Every "refine via chat"
@@ -47,20 +48,22 @@ export function RefineChatPanel({
   flat?: boolean;
 }) {
   return (
-    <ChatPanel
-      flat={flat}
-      key={session.clientId}
-      chatId={session.clientId}
-      initialMessages={session.initialMessages}
-      initialPrompt={session.firstPrompt ?? undefined}
-      context={context}
-      onMention={onMention}
-      onContextChange={onContextChange}
-      entity={entity}
-      timeWindow={timeWindow}
-      onMessagesChange={session.onMessagesChange}
-      title={title}
-      placeholder={placeholder}
-    />
+    <PanelErrorBoundary label="the chat" resetKey={session.clientId}>
+      <ChatPanel
+        flat={flat}
+        key={session.clientId}
+        chatId={session.clientId}
+        initialMessages={session.initialMessages}
+        initialPrompt={session.firstPrompt ?? undefined}
+        context={context}
+        onMention={onMention}
+        onContextChange={onContextChange}
+        entity={entity}
+        timeWindow={timeWindow}
+        onMessagesChange={session.onMessagesChange}
+        title={title}
+        placeholder={placeholder}
+      />
+    </PanelErrorBoundary>
   );
 }

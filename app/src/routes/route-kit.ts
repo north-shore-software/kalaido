@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { AppStage } from "@/hooks/use-app-state.ts";
 import type { FeatureFlag } from "@/lib/feature-flags";
+import type { ParamsOf } from "./route-contracts";
 import type { RouteId } from "./route-ids";
 
 /**
@@ -17,9 +18,13 @@ export type ScopeKey = "kalaidoscope";
  * `trigger`/`when`/`animation` are canvas-facing descriptions attached to the
  * functional object; `to` is functional (resolves the destination).
  */
-export type TransitionDef = {
-  /** Destination route id. Typo-safe via the RouteId union. */
-  to: RouteId;
+export type TransitionDef<To extends RouteId = RouteId> = {
+  /**
+   * Destination route id. Typo-safe via the RouteId union; kept as a literal
+   * by `defineTransitions` so `go(...)` can type the params and state the
+   * destination takes.
+   */
+  to: To;
   /** Human trigger, e.g. "Click a stream card". Shown on canvas edges. */
   trigger: string;
   /** Optional constraint note, e.g. "Only when a draft exists". */
@@ -33,7 +38,7 @@ export type RouteDef = {
   /** react-router v7 path pattern. Optional params use `:name?`. */
   path: string;
   /** Extra patterns that resolve to the same screen (e.g. "/" for splash). */
-  aliases?: string[];
+  aliases?: readonly string[];
   /** Canvas swimlane, e.g. "Projections". Use the feature directory name, title-cased. */
   feature: string;
   requiredScope: ScopeKey[];
@@ -48,26 +53,138 @@ export type RouteDef = {
   Component: ComponentType;
 };
 
-export const defineRoute = (def: RouteDef): RouteDef => def;
+// ---------------------------------------------------------------------------
+// Params derived from path patterns — the compile-time half of `RouteContracts`.
+// `PatternParams<"/a/:id/:x?">` is `{ id: string; x?: string }`.
 
-export const defineTransitions = <T extends Record<string, TransitionDef>>(
+type Segments<P extends string> = P extends `${infer Head}/${infer Rest}`
+  ? Head | Segments<Rest>
+  : P;
+
+type ParamSeg<S extends string> = S extends `:${infer Name}?`
+  ? { kind: "optional"; name: Name }
+  : S extends `:${infer Name}`
+    ? { kind: "required"; name: Name }
+    : never;
+
+type RequiredNames<P extends string> = Extract<
+  ParamSeg<Segments<P>>,
+  { kind: "required" }
+>["name"];
+type OptionalNames<P extends string> = Extract<
+  ParamSeg<Segments<P>>,
+  { kind: "optional" }
+>["name"];
+
+export type PatternParams<P extends string> = {
+  [K in RequiredNames<P>]: string;
+} & { [K in OptionalNames<P>]?: string };
+
+// biome-ignore lint/complexity/noBannedTypes: `& {}` forces the mapped type to display flat
+type Simplify<T> = { [K in keyof T]: T[K] } & {};
+
+/** Alias params are optional by definition: `selectPattern` picks by presence. */
+type AliasParams<A extends readonly string[]> = [A[number]] extends [never]
+  ? // biome-ignore lint/complexity/noBannedTypes: no aliases → no extra params
+    {}
+  : Partial<PatternParams<A[number]>>;
+
+type DerivedParams<
+  Path extends string,
+  Aliases extends readonly string[],
+> = Simplify<PatternParams<Path> & AliasParams<Aliases>>;
+
+type DeclaredParams<Id extends RouteId> = [ParamsOf<Id>] extends [undefined]
+  ? // biome-ignore lint/complexity/noBannedTypes: no contract → no params
+    {}
+  : ParamsOf<Id>;
+
+type SameKeys<A, B> = [keyof A] extends [keyof B]
+  ? [keyof B] extends [keyof A]
+    ? true
+    : false
+  : false;
+type SameShape<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : false
+  : false;
+
+/**
+ * Resolves to `unknown` (a no-op in an intersection) when the route's
+ * patterns agree with its `RouteContracts` entry; otherwise to an object
+ * demanding an impossible `params` member, so the `defineRoute` literal fails
+ * to compile with both shapes spelled out in the error.
+ */
+type ParamsCheck<
+  Id extends RouteId,
+  Path extends string,
+  Aliases extends readonly string[],
+> =
+  SameKeys<DerivedParams<Path, Aliases>, DeclaredParams<Id>> extends true
+    ? SameShape<DerivedParams<Path, Aliases>, DeclaredParams<Id>> extends true
+      ? unknown
+      : {
+          params: [
+            "route contract mismatch — patterns give",
+            DerivedParams<Path, Aliases>,
+            "but RouteContracts declares",
+            DeclaredParams<Id>,
+          ];
+        }
+    : {
+        params: [
+          "route contract mismatch — patterns give",
+          DerivedParams<Path, Aliases>,
+          "but RouteContracts declares",
+          DeclaredParams<Id>,
+        ];
+      };
+
+/**
+ * Register a screen. Generic only to read the literal `id`, `path` and
+ * `aliases`, which lets `ParamsCheck` prove the route's `RouteContracts`
+ * entry matches its URL shapes; the returned value is a plain `RouteDef`.
+ */
+export function defineRoute<
+  Id extends RouteId,
+  const Path extends string,
+  const Aliases extends readonly string[] = readonly [],
+>(
+  def: Omit<RouteDef, "id" | "path" | "aliases"> & {
+    id: Id;
+    path: Path;
+    aliases?: Aliases;
+  } & ParamsCheck<Id, Path, Aliases>,
+): RouteDef {
+  return def;
+}
+
+/** `const` so each transition keeps its literal `to` (see `TransitionDef`). */
+export const defineTransitions = <
+  const T extends Record<string, TransitionDef>,
+>(
   t: T,
 ): T => t;
 
 /** Transitions owned by chrome (sidebar, switcher, …) rather than a page. */
-export type ChromeTransitions = {
+export type ChromeTransitions<
+  T extends Record<string, TransitionDef> = Record<string, TransitionDef>,
+> = {
   /** Stable source id for the canvas, e.g. "chrome:nav-sidebar". */
   source: `chrome:${string}`;
   /** Human label for the canvas node. */
   label: string;
-  transitions: Record<string, TransitionDef>;
+  transitions: T;
 };
 
-export const defineChromeTransitions = (
+export const defineChromeTransitions = <
+  const T extends Record<string, TransitionDef>,
+>(
   source: `chrome:${string}`,
   label: string,
-  transitions: Record<string, TransitionDef>,
-): ChromeTransitions => ({ source, label, transitions });
+  transitions: T,
+): ChromeTransitions<T> => ({ source, label, transitions });
 
 export function currentScope(state: { appStage: AppStage }): Set<ScopeKey> {
   const scope = new Set<ScopeKey>();

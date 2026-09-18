@@ -13,13 +13,13 @@ export function DiffLine({
     <div className={cn("flex items-center gap-2", className)}>
       <span
         className={cn(
-          "h-3.5 w-[3px] shrink-0 rounded-sm",
+          "h-3.5 w-[3px] shrink-0 rounded-none",
           kind === "add" ? "bg-stable" : "bg-critical",
         )}
       />
       <span
         className={cn(
-          "h-[7px] rounded-sm",
+          "h-[7px] rounded-none",
           kind === "add" ? "bg-stable-wash" : "bg-critical-wash",
         )}
         style={{ width }}

@@ -1,5 +1,9 @@
-import { useState } from "react";
-import { authClient } from "@/api/cloud/auth";
+import { startTransition, useActionState, useState } from "react";
+import {
+  type EmailCredentials,
+  signInWithEmail,
+  signUpWithEmail,
+} from "@/api/cloud/auth";
 import { type OptionCard, OptionCards } from "@/components/kalaido";
 import { AuthForm } from "@/features/settings/components/auth-form";
 import { OAuthButtons } from "@/features/settings/components/oauth-buttons";
@@ -10,13 +14,18 @@ export interface AuthOutcome {
   isNewAccount: boolean;
 }
 
+type AuthMode = "signin" | "signup";
+
 interface CloudAuthPanelProps {
   onAuthenticated?: (outcome: AuthOutcome) => void;
-  mode?: "signin" | "signup";
-  onModeChange?: (mode: "signin" | "signup") => void;
+  mode?: AuthMode;
+  onModeChange?: (mode: AuthMode) => void;
 }
 
-const AUTH_MODES: OptionCard<"signin" | "signup">[] = [
+/** A failed attempt, remembered with the mode it happened in. */
+type AuthFailure = { mode: AuthMode; message: string } | null;
+
+const AUTH_MODES: OptionCard<AuthMode>[] = [
   { value: "signin", label: "Sign in", lines: ["Access existing workspaces"] },
   { value: "signup", label: "Sign up", lines: ["Create a new account"] },
 ];
@@ -26,54 +35,46 @@ export function CloudAuthPanel({
   mode: controlledMode,
   onModeChange,
 }: CloudAuthPanelProps) {
-  const [internalMode, setInternalMode] = useState<"signin" | "signup">(
-    "signin",
-  );
+  const [internalMode, setInternalMode] = useState<AuthMode>("signin");
   const mode = controlledMode ?? internalMode;
   const setMode = onModeChange ?? setInternalMode;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function handleEmailAuth(input: { email: string; password: string }) {
-    setBusy(true);
-    setError(null);
+  // React owns the pending flag: it is on for exactly the life of the action,
+  // whether that returns, throws or is superseded.
+  const [failure, submit, busy] = useActionState(
+    async (
+      _prev: AuthFailure,
+      input: EmailCredentials,
+    ): Promise<AuthFailure> => {
+      const res =
+        mode === "signin"
+          ? await signInWithEmail(input)
+          : await signUpWithEmail(input);
+      if (res.isErr()) return { mode, message: res.error.message };
 
-    const { error: err } =
-      mode === "signin"
-        ? await authClient.signIn.email({
-            email: input.email,
-            password: input.password,
-          })
-        : await authClient.signUp.email({
-            email: input.email,
-            password: input.password,
-            name: "",
-          });
+      // The account is in; a stale workspace list is not worth blocking on.
+      const synced = await syncCloudWorkspaces();
+      if (synced.isErr()) {
+        console.error(
+          "Cloud workspace sync after sign-in failed:",
+          synced.error,
+        );
+      }
 
-    if (err) {
-      setBusy(false);
-      setError(
-        err.message ??
-          (mode === "signin" ? "Sign in failed" : "Sign up failed"),
-      );
-      return;
-    }
-
-    await syncCloudWorkspaces();
-
-    setBusy(false);
-    onAuthenticated?.({ isNewAccount: mode === "signup" });
-  }
+      onAuthenticated?.({ isNewAccount: mode === "signup" });
+      return null;
+    },
+    null,
+  );
+  // A failure belongs to the tab it happened on; switching tabs puts it away.
+  const error = failure?.mode === mode ? failure.message : null;
 
   return (
     <div className="flex w-full max-w-lg flex-col gap-6">
       <OptionCards
         options={AUTH_MODES}
         value={mode}
-        onChange={(next) => {
-          setMode(next);
-          setError(null);
-        }}
+        onChange={setMode}
         disabled={busy}
       />
 
@@ -81,7 +82,9 @@ export function CloudAuthPanel({
         mode={mode}
         error={error}
         busy={busy}
-        onSubmit={(input) => void handleEmailAuth(input)}
+        // Outside a <form action>, an action only counts as pending when it is
+        // dispatched inside a transition.
+        onSubmit={(input) => startTransition(() => submit(input))}
       />
 
       <div className="flex items-center gap-3">

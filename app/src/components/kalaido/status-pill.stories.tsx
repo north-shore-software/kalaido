@@ -14,7 +14,7 @@ const KINDS: StatusKind[] = [
 ];
 
 export const AllKinds: Story = () => (
-  <div className="flex flex-col gap-3 p-4 bg-background max-w-sm border rounded-lg">
+  <div className="flex flex-col gap-3 p-4 bg-background max-w-sm border rounded-none">
     {KINDS.map((kind) => (
       <div key={kind} className="flex items-center justify-between">
         <span className="text-xs text-fg-3 font-mono">{kind}</span>
@@ -25,7 +25,7 @@ export const AllKinds: Story = () => (
 );
 
 export const AllKindsWithDot: Story = () => (
-  <div className="flex flex-col gap-3 p-4 bg-background max-w-sm border rounded-lg">
+  <div className="flex flex-col gap-3 p-4 bg-background max-w-sm border rounded-none">
     {KINDS.map((kind) => (
       <div key={kind} className="flex items-center justify-between">
         <span className="text-xs text-fg-3 font-mono">{kind} (dot)</span>

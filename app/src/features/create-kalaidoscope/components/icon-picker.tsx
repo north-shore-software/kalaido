@@ -91,7 +91,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
         }}
         onBlur={() => setActiveHighlight(false)}
         className={cn(
-          "flex size-11 shrink-0 items-center justify-center rounded-lg border transition-all duration-150 outline-none",
+          "flex size-11 shrink-0 items-center justify-center rounded-none border transition-all duration-150 outline-none",
           activeHighlight
             ? "border-cyan-edge bg-cyan-wash text-fg-1 shadow-[0_0_10px_rgba(34,211,238,0.25)] dark:text-white"
             : "border-line bg-muted/30 text-fg-1 hover:border-foreground/30 hover:bg-muted",
@@ -123,7 +123,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
         <DialogContent className="flex h-[520px] max-w-lg flex-col gap-0 p-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
             <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-line bg-muted/30 transition-all">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-none border border-line bg-muted/30 transition-all">
                 {SelectedIcon ? (
                   <SelectedIcon className="size-6 text-fg-1 dark:text-white" />
                 ) : (
@@ -156,7 +156,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
                     title={name}
                     onClick={() => pick(name)}
                     className={cn(
-                      "flex aspect-square items-center justify-center rounded-md border border-transparent transition-all duration-150",
+                      "flex aspect-square items-center justify-center rounded-none border border-transparent transition-all duration-150",
                       "text-muted-foreground hover:border-cyan-edge hover:bg-cyan-wash hover:text-fg-1 dark:hover:text-white",
                       value === name &&
                         "border-cyan-edge bg-cyan-wash text-cyan",

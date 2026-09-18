@@ -19,7 +19,7 @@ import { onboardingLandingTransitions as transitions } from "./OnboardingLanding
 
 export default function OnboardingLanding() {
   const { go } = useAppNavigate();
-  const { user, signedIn } = useCloudSession();
+  const { user, signedIn, isPending: sessionPending } = useCloudSession();
   const { availableKalaidoscopes } = useSnapshot(appState);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
@@ -80,7 +80,7 @@ export default function OnboardingLanding() {
         description="Choose how you'd like to set up a workspace."
       >
         {restoreError && (
-          <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+          <div className="flex items-start gap-3 rounded-none border border-destructive/40 bg-destructive/5 p-3">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
             <p className="flex-1 text-meta text-destructive">{restoreError}</p>
             <Button
@@ -112,6 +112,9 @@ export default function OnboardingLanding() {
                   ? (user?.email ?? "View cloud workspaces.")
                   : "Access cloud workspaces and sync across devices."
               }
+              // Until the session resolves, `signedIn` is a guess; a signed-in
+              // user routed to the login form would have nowhere sensible to go.
+              disabled={sessionPending}
               onClick={() =>
                 go(
                   signedIn

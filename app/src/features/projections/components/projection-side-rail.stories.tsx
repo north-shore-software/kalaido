@@ -6,7 +6,7 @@ import { ProjectionSideRail } from "./projection-side-rail";
 export default { title: "Projections / ProjectionSideRail" };
 
 export const UpToDate: Story = () => (
-  <div className="flex h-[600px] border border-line bg-bg rounded-lg max-w-sm">
+  <div className="flex h-[600px] border border-line bg-bg rounded-none max-w-sm">
     <ProjectionSideRail
       readOnly={false}
       rotLoading={false}
@@ -21,7 +21,7 @@ export const UpToDate: Story = () => (
 );
 
 export const Stale: Story = () => (
-  <div className="flex h-[600px] border border-line bg-bg rounded-lg max-w-sm">
+  <div className="flex h-[600px] border border-line bg-bg rounded-none max-w-sm">
     <ProjectionSideRail
       readOnly={false}
       rotLoading={false}
@@ -36,7 +36,7 @@ export const Stale: Story = () => (
 );
 
 export const PendingReviewCandidate: Story = () => (
-  <div className="flex h-[600px] border border-line bg-bg rounded-lg max-w-sm">
+  <div className="flex h-[600px] border border-line bg-bg rounded-none max-w-sm">
     <ProjectionSideRail
       readOnly={false}
       rotLoading={false}
@@ -51,7 +51,7 @@ export const PendingReviewCandidate: Story = () => (
 );
 
 export const Blocked: Story = () => (
-  <div className="flex h-[600px] border border-line bg-bg rounded-lg max-w-sm">
+  <div className="flex h-[600px] border border-line bg-bg rounded-none max-w-sm">
     <ProjectionSideRail
       readOnly={false}
       rotLoading={false}
@@ -67,7 +67,7 @@ export const Blocked: Story = () => (
 );
 
 export const ReadOnlyPastSnapshot: Story = () => (
-  <div className="flex h-[600px] border border-line bg-bg rounded-lg max-w-sm">
+  <div className="flex h-[600px] border border-line bg-bg rounded-none max-w-sm">
     <ProjectionSideRail
       readOnly={true}
       rotLoading={false}

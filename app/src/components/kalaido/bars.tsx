@@ -19,7 +19,7 @@ export function Bar({
 }) {
   return (
     <div
-      className={cn("rounded-sm bg-surface-3", className)}
+      className={cn("rounded-none bg-surface-3", className)}
       style={{ width: w, height: h, ...style }}
     />
   );

@@ -9,7 +9,7 @@ import { StatusPill } from "./status-pill.tsx";
 export default { title: "Kalaido / ListRow" };
 
 export const FlatList: Story = () => (
-  <div className="flex flex-col gap-1 max-w-md p-4 bg-background border border-line rounded-lg">
+  <div className="flex flex-col gap-1 max-w-md p-4 bg-background border border-line rounded-none">
     {LIST_ROW_FIXTURES.map((item) => (
       <ListRow
         key={item.title}
@@ -24,7 +24,7 @@ export const FlatList: Story = () => (
 );
 
 export const SelectedRow: Story = () => (
-  <div className="max-w-md p-4 bg-background border border-line rounded-lg">
+  <div className="max-w-md p-4 bg-background border border-line rounded-none">
     <ListRow
       title={LIST_ROW_FIXTURES[0].title}
       subtitle={LIST_ROW_FIXTURES[0].subtitle}

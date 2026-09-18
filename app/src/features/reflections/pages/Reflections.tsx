@@ -1,5 +1,4 @@
 import { ClockIcon, PlusIcon } from "lucide-react";
-import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { updateReflection } from "@/api/kalaidoscope/reflections";
 import type { ReflectionResponse } from "@/api/kalaidoscope/types";
@@ -19,6 +18,7 @@ import { useLiveCollection } from "@/hooks/use-live-collection";
 import { isPinned } from "@/lib/pins";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppParams } from "@/routes/use-app-params";
 import { ReflectionSeriesPanel } from "../components/reflection-series-panel";
 import { reflectionsTransitions } from "./Reflections.transitions";
 
@@ -34,7 +34,7 @@ async function togglePin(r: ReflectionResponse, currentUserId?: string | null) {
 export default function Reflections() {
   const { go } = useAppNavigate();
   const currentUserId = useCurrentUserId();
-  const { id, windowId } = useParams<{ id?: string; windowId?: string }>();
+  const { id, windowId } = useAppParams<"reflections">();
 
   const { records: reflections, isLoading } = useLiveCollection("reflection", {
     filter: 'name != "" && status = "active"',

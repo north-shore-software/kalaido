@@ -289,7 +289,7 @@ export function ChatPanel({
     <div
       className={cn(
         "flex flex-col flex-1 overflow-hidden",
-        !flat && "rounded-lg border border-line bg-card",
+        !flat && "rounded-none border border-line bg-card",
         className,
       )}
     >

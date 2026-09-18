@@ -15,7 +15,7 @@ export const InlineWithAction: Story = () => (
       action={
         <button
           type="button"
-          className="px-3 py-1 bg-surface-2 hover:bg-surface-3 text-xs font-semibold rounded-md border"
+          className="px-3 py-1 bg-surface-2 hover:bg-surface-3 text-xs font-semibold rounded-none border"
         >
           Ingest Sample
         </button>
@@ -27,13 +27,13 @@ export const InlineWithAction: Story = () => (
 );
 
 export const CenteredFallback: Story = () => (
-  <div className="h-[200px] border border-dashed rounded-lg bg-card p-4">
+  <div className="h-[200px] border border-dashed rounded-none bg-card p-4">
     <EmptyState
       centered
       action={
         <button
           type="button"
-          className="px-3 py-1.5 bg-foreground text-background text-xs font-semibold rounded-md"
+          className="px-3 py-1.5 bg-foreground text-background text-xs font-semibold rounded-none"
         >
           Create New Document
         </button>

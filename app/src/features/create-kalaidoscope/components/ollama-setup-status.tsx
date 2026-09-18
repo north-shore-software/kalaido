@@ -38,7 +38,7 @@ export function OllamaSetupStatus() {
   }, [check]);
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-dashed p-3.5">
+    <div className="flex items-center gap-3 rounded-none border border-dashed p-3.5">
       <StatusDot status={status} />
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

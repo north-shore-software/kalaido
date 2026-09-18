@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import type { ContextSpec } from "@/api/kalaidoscope/chat";
 import { specToItems } from "@/api/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import { createProjection } from "@/api/kalaidoscope/projections";
@@ -24,40 +22,10 @@ import { withContextItem } from "@/lib/mentions";
 import { deriveName } from "@/lib/naming";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppRouteState } from "@/routes/use-app-route-state";
+import type { ProjectionSeed } from "../types";
 import { PlaceholderPreviewPane } from "../components/placeholder-preview-pane";
 import { newProjectionTransitions } from "./NewProjection.transitions";
-
-/**
- * A projection that starts from something that already exists — a fragment being
- * graduated, or a projection being forked — rather than from a typed prompt.
- * Passed as router state; see {@link ProjectionSeed} consumers for who sends it.
- */
-export interface ProjectionSeed {
-  /**
-   * An existing proposed projection to take up, instead of creating a new
-   * row. Set by the dashboard's Proposed group; committing the refinement
-   * makes it active.
-   */
-  id?: string;
-  name: string;
-  /**
-   * The material this projection starts from. Sent as the session's first user
-   * message (framed by {@link seedPrompt}) so the model's first turn derives a
-   * lens from it — the document only exists once a lens produces it, so there
-   * is no zero-turn draft any more. Empty for flows that let the user type
-   * their own first message.
-   */
-  draft: string;
-  /**
-   * A ready-made first user message, sent verbatim. A proposal's opening
-   * message is already the user's own instruction, so it takes no framing.
-   */
-  message?: string;
-  /** Inputs the new projection reads. Seeds both the picker and the chat. */
-  contextSpec?: ContextSpec;
-  /** Kept on the projection as what it is for — a chat's brief. */
-  description?: string;
-}
 
 /**
  * Frames seed material as the session's first user message. Written from the
@@ -75,11 +43,8 @@ function seedPrompt(draft: string): string {
 export default function NewProjection() {
   const { go } = useAppNavigate();
 
-  const location = useLocation();
   // Captured once: navigating away and back must not re-run the seeding.
-  const seedRef = useRef(
-    ((location.state ?? {}) as { seed?: ProjectionSeed }).seed,
-  );
+  const seedRef = useRef(useAppRouteState<"new-projection">().seed);
 
   const [context, setContext] = useState<ContextItem[]>(
     seedRef.current?.contextSpec

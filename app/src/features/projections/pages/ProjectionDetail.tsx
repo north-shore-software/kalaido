@@ -1,6 +1,5 @@
 import { GitForkIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import type { ContextSpec } from "@/api/kalaidoscope/chat";
 import { parseContextSpec } from "@/api/kalaidoscope/chat";
@@ -11,7 +10,7 @@ import {
   restoreProjection,
   updateProjection,
 } from "@/api/kalaidoscope/projections";
-import type { TimelineItem } from "@/components/kalaido";
+import { PanelErrorBoundary, type TimelineItem } from "@/components/kalaido";
 import {
   PageCard,
   PageHeader,
@@ -52,10 +51,11 @@ import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatShortDateTime } from "@/lib/datetime";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppParams } from "@/routes/use-app-params";
 import { projectionDetailTransitions } from "./ProjectionDetail.transitions";
 
 export default function ProjectionDetail() {
-  const { id, snapshotId } = useParams<{ id: string; snapshotId?: string }>();
+  const { id, snapshotId } = useAppParams<"projection-detail">();
   const { go } = useAppNavigate();
   const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
@@ -259,7 +259,7 @@ export default function ProjectionDetail() {
         : {
             name: `${title} (fork)`,
             draft: liveSnapshot
-              ? parseProjectionOutput(liveSnapshot.output).content
+              ? (parseProjectionOutput(liveSnapshot.output).content ?? "")
               : "",
             contextSpec: (parseContextSpec(parentSpec) ?? undefined) as
               | ContextSpec
@@ -403,15 +403,17 @@ export default function ProjectionDetail() {
       </AlertDialog>
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <SnapshotPreview
-            state={state}
-            awaitingDraftResume={!!openRefinement}
-            readOnly={readOnly}
-            historical={historical}
-            historicalContent={historicalContent}
-            historicalLoading={historicalQuery.isLoading}
-            historicalVersion={historicalVersion}
-          />
+          <PanelErrorBoundary label="the preview" resetKey={snapshotId ?? id}>
+            <SnapshotPreview
+              state={state}
+              awaitingDraftResume={!!openRefinement}
+              readOnly={readOnly}
+              historical={historical}
+              historicalContent={historicalContent}
+              historicalLoading={historicalQuery.isLoading}
+              historicalVersion={historicalVersion}
+            />
+          </PanelErrorBoundary>
           <ProjectionSideRail
             readOnly={readOnly}
             rotLoading={rotLoading}

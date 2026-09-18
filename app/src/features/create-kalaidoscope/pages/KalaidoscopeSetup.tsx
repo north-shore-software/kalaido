@@ -1,6 +1,4 @@
-import { useEffect, useId, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { proxy, useSnapshot } from "valtio";
+import { startTransition, useId, useState, useTransition } from "react";
 import {
   validateWorkspaceLlmConfig,
   validationMessage,
@@ -20,16 +18,14 @@ import {
 import { PageBackButton } from "@/components/layout/page-back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  createKalaidoscope,
-  parseLocation,
-} from "@/features/create-kalaidoscope/actions.ts";
+import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
 import { CloudAuthPanel } from "@/features/onboarding/components/cloud-auth-panel";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { cn } from "@/lib/css-utils";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppRouteState } from "@/routes/use-app-route-state";
 import {
   CloudIdentityPanel,
   CloudSignInNotice,
@@ -40,7 +36,6 @@ import {
   StorageOptionCards,
   type StorageType,
 } from "../components/storage-option-cards";
-import type { KalaidoscopeSetupState } from "../types";
 import { kalaidoscopeSetupTransitions } from "./KalaidoscopeSetup.transitions";
 
 function deriveCloudId(name: string): string {
@@ -50,39 +45,52 @@ function deriveCloudId(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/** What the user has typed and picked. Everything else on the page derives. */
+interface SetupFields {
+  name: string;
+  icon?: string;
+  /**
+   * The storage card the user chose themselves, or `null` while they have not:
+   * until then storage follows the route's default and the cloud session, so
+   * a session that lands after first paint still flips a fresh form to Cloud —
+   * and never fights a deliberate choice.
+   */
+  storageChoice: StorageType | null;
+  llmProvider: LlmProvider;
+  apiKey: string;
+  defaultModel: string;
+  roleModels: Partial<Record<LlmRole, string>>;
+}
+
+const INITIAL_FIELDS: SetupFields = {
+  name: "",
+  storageChoice: null,
+  llmProvider: "ollama",
+  apiKey: "",
+  defaultModel: "",
+  roleModels: {},
+};
+
 export default function KalaidoscopeSetup() {
   const { goBack } = useAppNavigate();
-  const routeState = (useLocation().state ?? {}) as KalaidoscopeSetupState;
+  const routeState = useAppRouteState<"kalaidoscope-setup">();
   const { user, signedIn } = useCloudSession();
 
-  const [state] = useState(() =>
-    proxy({
-      name: "",
-      icon: undefined as string | undefined,
-      storage: (routeState.defaultStorage ??
-        (signedIn ? "cloud" : "local_file")) as StorageType,
-      /** Once the user picks a card themselves, a late session must not move it. */
-      storageTouched: routeState.defaultStorage !== undefined,
-      locationInput: "",
-      cloudId: "",
-      cloudIdEdited: false,
-      error: null as string | null,
-      isPending: false,
-      gateOpen: false,
-      llmProvider: "ollama" as LlmProvider,
-      apiKey: "",
-      defaultModel: "",
-      roleModels: {} as Partial<Record<LlmRole, string>>,
-    }),
-  );
+  const [fields, setFields] = useState<SetupFields>(INITIAL_FIELDS);
+  const patch = (next: Partial<SetupFields>) =>
+    setFields((prev) => ({ ...prev, ...next }));
 
-  const snap = useSnapshot(state);
+  const [error, setError] = useState<string | null>(null);
+  const [gateOpen, setGateOpen] = useState(false);
+  const [gateMode, setGateMode] = useState<"signin" | "signup">("signin");
+  // Creation runs as a transition: React holds `isPending` for exactly as long
+  // as the async work lasts, with nothing to reset by hand on any exit path.
+  const [isPending, startCreate] = useTransition();
 
   const nameFieldId = useId();
   const storageLabelId = useId();
   const apiKeyFieldId = useId();
   const modelFieldId = useId();
-  const [gateMode, setGateMode] = useState<"signin" | "signup">("signin");
   const { highlighted: highlightedFields, trigger: triggerHighlights } =
     useRequiredHighlights({
       name: nameFieldId,
@@ -90,42 +98,24 @@ export default function KalaidoscopeSetup() {
       model: modelFieldId,
     });
 
-  // `useCloudSession` resolves asynchronously, and the proxy above is built
-  // once, so a session that lands after first paint would otherwise leave a
-  // signed-in user looking at "Local". Only applies while the storage cards are
-  // still untouched — never fights a deliberate choice.
-  useEffect(() => {
-    if (signedIn && !state.storageTouched) state.storage = "cloud";
-  }, [signedIn, state]);
-
-  function handleStorageChange(value: StorageType) {
-    state.storage = value;
-    state.storageTouched = true;
-  }
-
-  function handleNameChange(value: string) {
-    state.name = value;
-    if (!state.cloudIdEdited) {
-      state.cloudId = deriveCloudId(value);
-    }
-  }
-
-  const parsedLocation = parseLocation(snap.locationInput);
-  const locationIsInvalid = parsedLocation.kind === "invalid";
+  const storage: StorageType =
+    fields.storageChoice ??
+    routeState.defaultStorage ??
+    (signedIn ? "cloud" : "local_file");
+  const cloudId = deriveCloudId(fields.name);
 
   const byokSelected =
-    snap.storage === "local_file" && snap.llmProvider === "gemini";
+    storage === "local_file" && fields.llmProvider === "gemini";
 
   // Submitting this path opens the sign-in gate before anything is created, so
   // promising "Create Kalaidoscope" would misdescribe what the button does.
-  const needsSignIn = snap.storage === "cloud" && !signedIn;
+  const needsSignIn = storage === "cloud" && !signedIn;
   const submitLabel = needsSignIn ? "Sign in & create" : "Create Kalaidoscope";
 
   const canCreate =
-    !!snap.name.trim() &&
-    !locationIsInvalid &&
-    (snap.storage === "local_file" || !!snap.cloudId.trim()) &&
-    (!byokSelected || (!!snap.apiKey.trim() && !!snap.defaultModel.trim()));
+    !!fields.name.trim() &&
+    (storage === "local_file" || !!cloudId.trim()) &&
+    (!byokSelected || (!!fields.apiKey.trim() && !!fields.defaultModel.trim()));
 
   /**
    * The provider config to write into the new workspace.
@@ -139,9 +129,9 @@ export default function KalaidoscopeSetup() {
    * local model set already resolves to.
    */
   function llmConfig(): WorkspaceLlmConfig | undefined {
-    if (state.storage !== "local_file") return undefined;
+    if (storage !== "local_file") return undefined;
 
-    if (state.llmProvider === "ollama") {
+    if (fields.llmProvider === "ollama") {
       return {
         provider: "ollama",
         defaultModel: RECOMMENDED_MODEL,
@@ -153,72 +143,70 @@ export default function KalaidoscopeSetup() {
 
     return {
       provider: "gemini",
-      apiKey: state.apiKey.trim(),
-      defaultModel: state.defaultModel.trim(),
-      roleModels: { ...state.roleModels },
+      apiKey: fields.apiKey.trim(),
+      defaultModel: fields.defaultModel.trim(),
+      roleModels: { ...fields.roleModels },
     };
   }
 
-  async function runCreate() {
-    state.isPending = true;
-    state.error = null;
-
+  /**
+   * Validate, then create. Resolves to the message to show, or `null` — on
+   * success the app stage changes and this page is unmounted underneath us.
+   */
+  async function runCreate(): Promise<string | null> {
     const config = llmConfig();
 
     if (config) {
       const validated = await validateWorkspaceLlmConfig(config);
-      if (validated.isErr()) {
-        state.error = validated.error.message;
-        state.isPending = false;
-        return;
-      }
-      if (!validated.value.ok) {
-        state.error = validationMessage(validated.value);
-        state.isPending = false;
-        return;
-      }
+      if (validated.isErr()) return validated.error.message;
+      if (!validated.value.ok) return validationMessage(validated.value);
     }
 
     const result = await createKalaidoscope({
-      name: state.name,
-      icon: state.icon,
-      storage: state.storage,
-      cloudId: state.cloudId,
-      locationInput: state.locationInput,
+      name: fields.name,
+      icon: fields.icon,
+      storage,
+      cloudId,
+      // No location input is offered on this form: the default location.
+      locationInput: "",
       llmConfig: config,
     });
 
     if (result.isErr()) {
       console.error("Failed to create kalaidoscope:", result.error);
-      state.error = result.error.message;
-      state.isPending = false;
+      return result.error.message;
     }
+    return null;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function create() {
+    startCreate(async () => {
+      setError(null);
+      const message = await runCreate();
+      startTransition(() => setError(message));
+    });
+  }
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (state.isPending) return;
+    if (isPending) return;
 
     const missing: ("name" | "apiKey" | "model")[] = [];
-    if (!state.name.trim()) missing.push("name");
-    if (byokSelected && !state.apiKey.trim()) missing.push("apiKey");
-    if (byokSelected && !state.defaultModel.trim()) missing.push("model");
+    if (!fields.name.trim()) missing.push("name");
+    if (byokSelected && !fields.apiKey.trim()) missing.push("apiKey");
+    if (byokSelected && !fields.defaultModel.trim()) missing.push("model");
 
     if (missing.length > 0) {
       triggerHighlights(missing);
       return;
     }
 
-    if (locationIsInvalid) {
-      return;
-    }
-
     if (needsSignIn) {
-      state.gateOpen = true;
+      setGateOpen(true);
       return;
     }
 
-    await runCreate();
+    create();
   }
 
   return (
@@ -229,15 +217,15 @@ export default function KalaidoscopeSetup() {
       <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
         <PageBackButton
           onClick={() => {
-            if (snap.gateOpen) {
-              state.gateOpen = false;
+            if (gateOpen) {
+              setGateOpen(false);
             } else {
               goBack();
             }
           }}
         />
 
-        {snap.gateOpen ? (
+        {gateOpen ? (
           <div className="my-auto flex w-full max-w-lg flex-col gap-6">
             <div className="flex flex-col gap-1">
               <span className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -257,8 +245,8 @@ export default function KalaidoscopeSetup() {
               mode={gateMode}
               onModeChange={setGateMode}
               onAuthenticated={() => {
-                state.gateOpen = false;
-                void runCreate();
+                setGateOpen(false);
+                create();
               }}
             />
           </div>
@@ -287,16 +275,16 @@ export default function KalaidoscopeSetup() {
               </label>
               <div className="flex items-center gap-3">
                 <IconPicker
-                  value={snap.icon}
-                  onChange={(icon) => (state.icon = icon)}
+                  value={fields.icon}
+                  onChange={(icon) => patch({ icon })}
                 />
                 <div className="relative flex flex-1 items-center">
                   <Input
                     id={nameFieldId}
                     autoFocus
                     type="text"
-                    value={snap.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
+                    value={fields.name}
+                    onChange={(e) => patch({ name: e.target.value })}
                     placeholder="My kalaidoscope"
                     className={cn(
                       "h-12 w-full text-[20px] font-semibold tracking-wide transition-all duration-150 placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/80",
@@ -321,12 +309,12 @@ export default function KalaidoscopeSetup() {
                 Storage
               </span>
               <StorageOptionCards
-                value={snap.storage}
-                onChange={handleStorageChange}
+                value={storage}
+                onChange={(storageChoice) => patch({ storageChoice })}
                 aria-labelledby={storageLabelId}
               />
 
-              {snap.storage === "cloud" &&
+              {storage === "cloud" &&
                 (signedIn && user ? (
                   <CloudIdentityPanel
                     name={user.name ?? undefined}
@@ -334,45 +322,43 @@ export default function KalaidoscopeSetup() {
                     onSignOut={() => void signOutOfCloud()}
                   />
                 ) : (
-                  <CloudSignInNotice onSignIn={() => (state.gateOpen = true)} />
+                  <CloudSignInNotice onSignIn={() => setGateOpen(true)} />
                 ))}
             </div>
 
-            {snap.storage === "local_file" && (
+            {storage === "local_file" && (
               <ProviderFields
-                provider={snap.llmProvider}
-                apiKey={snap.apiKey}
-                defaultModel={snap.defaultModel}
-                roleModels={snap.roleModels}
-                disabled={snap.isPending}
+                provider={fields.llmProvider}
+                apiKey={fields.apiKey}
+                defaultModel={fields.defaultModel}
+                roleModels={fields.roleModels}
+                disabled={isPending}
                 highlightedFields={highlightedFields}
                 apiKeyFieldId={apiKeyFieldId}
                 modelFieldId={modelFieldId}
-                onProviderChange={(provider) => {
-                  state.llmProvider = provider;
-                  state.error = null;
+                onProviderChange={(llmProvider) => {
+                  patch({ llmProvider });
+                  setError(null);
                 }}
-                onApiKeyChange={(apiKey) => (state.apiKey = apiKey)}
-                onDefaultModelChange={(model) => (state.defaultModel = model)}
-                onRoleModelChange={(role, model) => {
-                  state.roleModels[role] = model;
-                }}
+                onApiKeyChange={(apiKey) => patch({ apiKey })}
+                onDefaultModelChange={(defaultModel) => patch({ defaultModel })}
+                onRoleModelChange={(role, model) =>
+                  patch({ roleModels: { ...fields.roleModels, [role]: model } })
+                }
               />
             )}
 
-            {snap.error && (
-              <p className="text-meta text-destructive">{snap.error}</p>
-            )}
+            {error && <p className="text-meta text-destructive">{error}</p>}
 
             <div className="flex justify-end pt-2">
               <Button
                 variant="commit"
                 size="default"
                 type="submit"
-                disabled={snap.isPending}
+                disabled={isPending}
                 className={cn(!canCreate && "opacity-50 hover:opacity-50")}
               >
-                {snap.isPending ? "Creating…" : submitLabel}
+                {isPending ? "Creating…" : submitLabel}
               </Button>
             </div>
           </form>

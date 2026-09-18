@@ -61,7 +61,7 @@ function SelectableCell({
       aria-pressed={selected}
       className={cn(
         className,
-        "cursor-pointer rounded-sm",
+        "cursor-pointer rounded-none",
         selected ? "bg-magenta-veil ring-1 ring-magenta" : "hover:bg-surface-2",
       )}
       onClick={(e) => onSelect(index, e.shiftKey)}

@@ -131,3 +131,44 @@ export async function getCloudRequestAuthHeaders(): Promise<
     Authorization: `Bearer ${jwt}`,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Email sign-in / sign-up, as Results. better-auth reports failure through a
+// `{ data, error }` envelope rather than by throwing; these adapters fold both
+// that and a thrown transport error into the one shape the UI handles.
+
+export interface EmailCredentials {
+  email: string;
+  password: string;
+}
+
+export type CloudUser = typeof authClient.$Infer.Session.user;
+
+export async function signInWithEmail(
+  credentials: EmailCredentials,
+): Promise<Result<CloudUser, Error>> {
+  try {
+    const res = await authClient.signIn.email(credentials);
+    if (res.error) {
+      return err(new Error(res.error.message ?? "Sign in failed"));
+    }
+    return ok(res.data.user);
+  } catch (e) {
+    return err(toError(e));
+  }
+}
+
+export async function signUpWithEmail(
+  credentials: EmailCredentials,
+): Promise<Result<CloudUser, Error>> {
+  try {
+    // No display name is collected: where one would show, the email is.
+    const res = await authClient.signUp.email({ ...credentials, name: "" });
+    if (res.error) {
+      return err(new Error(res.error.message ?? "Sign up failed"));
+    }
+    return ok(res.data.user);
+  } catch (e) {
+    return err(toError(e));
+  }
+}

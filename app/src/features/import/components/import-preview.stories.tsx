@@ -13,19 +13,19 @@ const mockEntries: FileEntry[] = [
 ];
 
 export const Scanning: Story = () => (
-  <div className="p-4 max-w-xl border rounded-lg bg-background">
+  <div className="p-4 max-w-xl border rounded-none bg-background">
     <ImportPreview entries={[]} scanning={true} />
   </div>
 );
 
 export const Empty: Story = () => (
-  <div className="p-4 max-w-xl border rounded-lg bg-background">
+  <div className="p-4 max-w-xl border rounded-none bg-background">
     <ImportPreview entries={[]} scanning={false} />
   </div>
 );
 
 export const WithEntries: Story = () => (
-  <div className="p-4 max-w-xl border rounded-lg bg-background">
+  <div className="p-4 max-w-xl border rounded-none bg-background">
     <ImportPreview entries={mockEntries} scanning={false} />
   </div>
 );

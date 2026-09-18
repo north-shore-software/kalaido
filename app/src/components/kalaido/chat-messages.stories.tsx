@@ -8,19 +8,19 @@ import { ChatMessages } from "./chat-messages";
 export default { title: "Kalaido / ChatMessages" };
 
 export const Empty: Story = () => (
-  <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
+  <div className="max-w-md p-4 bg-background border border-line rounded-none space-y-3">
     <ChatMessages messages={[]} greeting="Hello! How can I help you today?" />
   </div>
 );
 
 export const Conversation: Story = () => (
-  <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
+  <div className="max-w-md p-4 bg-background border border-line rounded-none space-y-3">
     <ChatMessages messages={fixtureMessages} />
   </div>
 );
 
 export const Streaming: Story = () => (
-  <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
+  <div className="max-w-md p-4 bg-background border border-line rounded-none space-y-3">
     <ChatMessages messages={fixtureMessages} pending />
   </div>
 );
@@ -28,7 +28,7 @@ export const Streaming: Story = () => (
 // Either turn can carry actions — bookmarking it for the session is the
 // first. They sit under the bubble and reveal on hover.
 export const WithMessageActions: Story = () => (
-  <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
+  <div className="max-w-md p-4 bg-background border border-line rounded-none space-y-3">
     <ChatMessages
       messages={fixtureMessages}
       messageActions={({ pending }) => (
@@ -83,7 +83,7 @@ const markdownMessages: UIMessage[] = [
 ];
 
 export const MarkdownWithMentions: Story = () => (
-  <div className="max-w-md p-4 bg-background border border-line rounded-lg space-y-3">
+  <div className="max-w-md p-4 bg-background border border-line rounded-none space-y-3">
     <ChatMessages messages={markdownMessages} />
   </div>
 );

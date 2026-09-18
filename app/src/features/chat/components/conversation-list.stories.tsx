@@ -10,7 +10,7 @@ export default { title: "Chat / ConversationList" };
 export const Default: Story = () => {
   const [selected, setSelected] = useState<string | undefined>("client-1");
   return (
-    <div className="max-w-xs h-[300px] border border-line bg-background rounded-lg p-2">
+    <div className="max-w-xs h-[300px] border border-line bg-background rounded-none p-2">
       <ConversationList
         conversations={fixtureConversations}
         selectedClientId={selected}
@@ -22,7 +22,7 @@ export const Default: Story = () => {
 };
 
 export const Empty: Story = () => (
-  <div className="max-w-xs h-[300px] border border-line bg-background rounded-lg p-2">
+  <div className="max-w-xs h-[300px] border border-line bg-background rounded-none p-2">
     <ConversationList
       conversations={[]}
       loading={false}
@@ -32,7 +32,7 @@ export const Empty: Story = () => (
 );
 
 export const Loading: Story = () => (
-  <div className="max-w-xs h-[300px] border border-line bg-background rounded-lg p-2">
+  <div className="max-w-xs h-[300px] border border-line bg-background rounded-none p-2">
     <ConversationList
       conversations={[]}
       loading={true}

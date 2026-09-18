@@ -1,14 +1,17 @@
 import { generateId, type UIMessage } from "ai";
 import { BookmarkIcon, HistoryIcon, SquarePenIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import {
   type Conversation,
   getConversationMessages,
   itemsToSpec,
 } from "@/api/kalaidoscope/chat.ts";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
-import { ChatPanel, type ContextItem } from "@/components/kalaido";
+import {
+  ChatPanel,
+  type ContextItem,
+  PanelErrorBoundary,
+} from "@/components/kalaido";
 import {
   PageCard,
   PageHeader,
@@ -39,6 +42,7 @@ import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { withContextItem } from "@/lib/mentions";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppRouteState } from "@/routes/use-app-route-state";
 import { chatTransitions } from "./Chat.transitions";
 
 /** The text a turn shows — what a bookmark of it keeps. */
@@ -55,8 +59,7 @@ export default function Chat() {
 
   // A conversation can be seeded from another page (e.g. Home's composer):
   // `initialPrompt` is auto-sent on mount.
-  const location = useLocation();
-  const seed = (location.state ?? {}) as { initialPrompt?: string };
+  const seed = useAppRouteState<"chat">();
   // The active context selection, owned here and mirrored to the backend by
   // ChatPanel as `context_spec` stream messages. Starts as the whole scope in
   // full; the bar downgrades to summaries itself if that does not fit.
@@ -219,43 +222,45 @@ export default function Chat() {
       />
       <PageCard>
         <div className="flex flex-1 overflow-hidden">
-          <ChatPanel
-            flat
-            key={activeChatKey}
-            chatId={activeClientId}
-            initialMessages={selected?.messages ?? []}
-            initialPrompt={
-              selected == null && activeClientId === firstChatIdRef.current
-                ? initialPromptRef.current
-                : undefined
-            }
-            context={context}
-            onContextChange={setContext}
-            entity="chat"
-            meter={{ conversationId: activeClientId }}
-            onMention={(item) =>
-              setContext((prev) => withContextItem(prev, item))
-            }
-            messageActions={({ message, pending }) => {
-              const mark = bookmarks.marks.get(message.id);
-              return (
-                <ChatMessageActions
-                  bookmarked={!!mark?.bookmarked}
-                  fragmentId={mark?.fragmentId}
-                  pending={pending}
-                  onToggle={(on) => void bookmarks.toggle(message.id, on)}
-                />
-              );
-            }}
-            actionsVisibleFor={(message) => {
-              const mark = bookmarks.marks.get(message.id);
-              return !!mark?.bookmarked || !!mark?.fragmentId;
-            }}
-            onMessagesChange={setLiveMessages}
-            onTurnComplete={() => {
-              refresh();
-            }}
-          />
+          <PanelErrorBoundary label="the chat" resetKey={activeChatKey}>
+            <ChatPanel
+              flat
+              key={activeChatKey}
+              chatId={activeClientId}
+              initialMessages={selected?.messages ?? []}
+              initialPrompt={
+                selected == null && activeClientId === firstChatIdRef.current
+                  ? initialPromptRef.current
+                  : undefined
+              }
+              context={context}
+              onContextChange={setContext}
+              entity="chat"
+              meter={{ conversationId: activeClientId }}
+              onMention={(item) =>
+                setContext((prev) => withContextItem(prev, item))
+              }
+              messageActions={({ message, pending }) => {
+                const mark = bookmarks.marks.get(message.id);
+                return (
+                  <ChatMessageActions
+                    bookmarked={!!mark?.bookmarked}
+                    fragmentId={mark?.fragmentId}
+                    pending={pending}
+                    onToggle={(on) => void bookmarks.toggle(message.id, on)}
+                  />
+                );
+              }}
+              actionsVisibleFor={(message) => {
+                const mark = bookmarks.marks.get(message.id);
+                return !!mark?.bookmarked || !!mark?.fragmentId;
+              }}
+              onMessagesChange={setLiveMessages}
+              onTurnComplete={() => {
+                refresh();
+              }}
+            />
+          </PanelErrorBoundary>
         </div>
       </PageCard>
 

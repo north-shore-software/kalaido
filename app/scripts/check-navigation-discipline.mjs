@@ -6,6 +6,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(__dirname, "../src");
 
 const BANNED_IMPORTS = [
+  "useParams",
+  "useLocation",
+  "useSearchParams",
   "useNavigate",
   "Link",
   "NavLink",

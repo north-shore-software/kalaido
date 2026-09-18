@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { PageBackButton } from "@/components/layout/page-back-button";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
-import { useCloudSession } from "@/hooks/use-cloud-session.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { CloudAuthPanel } from "../components/cloud-auth-panel";
@@ -9,23 +8,12 @@ import { onboardingLoginTransitions as transitions } from "./OnboardingLogin.tra
 
 export default function OnboardingLogin() {
   const { go } = useAppNavigate();
-  const { signedIn } = useCloudSession();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  // A successful sign-up navigates from its own callback. `signedIn` flips true
-  // in the same beat, so without this the effect below would race it and win,
-  // dumping a brand-new account on a list it cannot have anything in.
-  const handledHere = useRef(false);
-
-  useEffect(() => {
-    if (signedIn && !handledHere.current) {
-      go(transitions.signedIn, { replace: true });
-    }
-  }, [signedIn, go]);
-
+  // The only way off this screen is the auth panel's own callback. A user who
+  // is already signed in never gets sent here: the landing page routes them
+  // straight to their workspaces (and waits for the session to resolve first).
   function handleAuthenticated({ isNewAccount }: { isNewAccount: boolean }) {
-    handledHere.current = true;
-
     if (!isNewAccount) {
       go(transitions.signedIn, { replace: true });
       return;

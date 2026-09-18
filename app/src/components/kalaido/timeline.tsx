@@ -93,7 +93,7 @@ function TimelineEntry({ item }: { item: TimelineItem }) {
       onClick={item.onClick}
       className={cn(
         shell,
-        "cursor-pointer rounded-sm text-left transition-colors hover:text-foreground",
+        "cursor-pointer rounded-none text-left transition-colors hover:text-foreground",
       )}
     >
       {body}

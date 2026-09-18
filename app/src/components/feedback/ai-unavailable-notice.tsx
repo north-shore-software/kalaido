@@ -7,7 +7,7 @@ export function AiUnavailableNotice({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-muted-foreground",
+        "flex items-center gap-2 rounded-none border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-muted-foreground",
         className,
       )}
     >
