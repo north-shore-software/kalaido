@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -62,8 +61,8 @@ func echoWrite(_ context.Context, _ time.Duration, sqlStr string, _ sql.Result, 
 		line = string(r[:writeEchoMaxRunes]) + fmt.Sprintf("… (+%d chars)", len(r)-writeEchoMaxRunes)
 	}
 	if err != nil {
-		log.Printf("db: %s — FAILED: %v", line, err)
+		logger().Error("db write failed", "sql", line, "error", err)
 		return
 	}
-	log.Printf("db: %s", line)
+	logger().Debug("db write", "sql", line)
 }

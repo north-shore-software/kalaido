@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -75,9 +74,7 @@ func latestLensArg(toolCalls []llm.ToolCall) string {
 		if toolCalls[i].Name != prompts.UpdateLensToolName {
 			continue
 		}
-		var args struct {
-			Lens string `json:"lens"`
-		}
+		var args prompts.UpdateLensArgs
 		if err := json.Unmarshal(toolCalls[i].Args, &args); err == nil && args.Lens != "" {
 			return args.Lens
 		}
@@ -103,7 +100,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 
 		for _, m := range newMsgs {
 			if _, err := chat.PersistMessage(ctx, app, refRec, m, ""); err != nil {
-				log.Printf("refinement persist: message %s: %v", m.ID, err)
+				logger().Error("refinement persist message failed", "message_id", m.ID, "error", err)
 			}
 		}
 
@@ -140,7 +137,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		// Refuse before the call, with a message the user can act on, rather
 		// than let the provider reject an oversized prompt as a bare 400.
 		if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
-			log.Printf("refinement chat %s: %v", refRec.Id, err)
+			logger().Warn("refinement chat prompt too large", "refinement_id", refRec.Id, "error", err)
 			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 		}
 
@@ -191,7 +188,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 				parts = append(parts, api.UIMessagePart{Type: "text", Text: text})
 				turnWriter.write(parts)
 			} else {
-				log.Printf("refinement chat %s: name-only turn produced no text on continuation", refRec.Id)
+				logger().Warn("refinement chat: name-only turn produced no text on continuation", "refinement_id", refRec.Id)
 			}
 		}
 
@@ -213,7 +210,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		if match := engine.LensCountPin(lens); match != "" {
 			// Surfaced, not auto-redrafted: the user sees that the lens pinned
 			// a count; the apply still runs so they can judge the result.
-			log.Printf("refinement chat %s: drafted lens pins a count: %q", refRec.Id, match)
+			logger().Warn("refinement chat: drafted lens pins a count", "refinement_id", refRec.Id, "match", match)
 			if data, err := json.Marshal(map[string]string{"match": match}); err == nil {
 				sse.DataPart("refine_lint", json.RawMessage(data), false)
 				parts = append(parts, api.UIMessagePart{Type: "data-refine_lint", Data: data})
@@ -241,12 +238,12 @@ func streamNameOnlyContinuation(ctx context.Context, app core.App, sse *chat.SSE
 		llm.Message{Role: "assistant", Content: strings.TrimSpace(prompts.DiscoverEchoToolCalls(names))},
 		llm.Message{Role: "user", Content: prompts.NameRecordedContinue})
 	if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
-		log.Printf("refinement continuation: %v", err)
+		logger().Warn("refinement continuation prompt too large", "error", err)
 		return ""
 	}
 	comp, err := usage.Stream(ctx, app, llm.RoleRefinement, model, msgs, nil)
 	if err != nil {
-		log.Printf("refinement continuation: %v", err)
+		logger().Error("refinement continuation failed", "error", err)
 		return ""
 	}
 	return sse.StreamTurn(comp, textID+"-c1", nil).Text
@@ -286,13 +283,13 @@ func latestLensPart(msgs []api.UIMessage) (api.UIMessagePart, string) {
 			if p.Type != "tool-"+prompts.UpdateLensToolName {
 				continue
 			}
-			var data struct {
-				Input struct {
-					Lens string `json:"lens"`
-				} `json:"input"`
+			var data api.ToolPartData
+			if err := json.Unmarshal(p.Data, &data); err != nil {
+				continue
 			}
-			if err := json.Unmarshal(p.Data, &data); err == nil && strings.TrimSpace(data.Input.Lens) != "" {
-				return p, strings.TrimSpace(data.Input.Lens)
+			var args prompts.UpdateLensArgs
+			if err := json.Unmarshal(data.Input, &args); err == nil && strings.TrimSpace(args.Lens) != "" {
+				return p, strings.TrimSpace(args.Lens)
 			}
 		}
 	}
@@ -319,10 +316,7 @@ func streamWindowReapply(e *core.RequestEvent, app core.App, refRec *core.Record
 	marker, _ := json.Marshal(map[string]string{"start": win.Start, "end": win.End})
 	sse.DataPart(strings.TrimPrefix(llmcontext.WindowReapplyPartType, "data-"), json.RawMessage(marker), false)
 	// Replay the lens tool events so the live message mirrors what persists.
-	var lensCall struct {
-		ToolCallID string          `json:"toolCallId"`
-		Input      json.RawMessage `json:"input"`
-	}
+	var lensCall api.ToolPartData
 	_ = json.Unmarshal(lensPart.Data, &lensCall)
 	replayID := fmt.Sprintf("%s-reapply", lensCall.ToolCallID)
 	sse.ToolInputStart(replayID, prompts.UpdateLensToolName)
@@ -362,13 +356,13 @@ func (w *turnWriter) write(parts []api.UIMessagePart) {
 	msg := api.UIMessage{ID: w.id, Role: "assistant", Parts: parts}
 	if w.rec != nil {
 		if err := chat.RewriteMessage(w.app, w.rec, msg); err != nil {
-			log.Printf("refinement persist: assistant message: %v", err)
+			logger().Error("refinement persist assistant message failed", "message_id", w.id, "error", err)
 		}
 		return
 	}
 	rec, err := chat.PersistMessage(w.ctx, w.app, w.conv, msg, w.model)
 	if err != nil {
-		log.Printf("refinement persist: assistant message: %v", err)
+		logger().Error("refinement persist assistant message failed", "message_id", w.id, "error", err)
 		return
 	}
 	w.rec = rec
@@ -413,7 +407,7 @@ func streamApplyLeg(ctx context.Context, app core.App, sse *chat.SSE, refRec *co
 		sse.ToolInputDelta(applyID, jsonStringChunk(chunk))
 	})
 	if err != nil {
-		log.Printf("refinement chat %s: apply failed: %v", refRec.Id, err)
+		logger().Error("refinement chat apply failed", "refinement_id", refRec.Id, "error", err)
 		kind := "apply_failed"
 		message := "generating the preview failed — send another message to retry"
 		var tooLarge *engine.ContextTooLargeError

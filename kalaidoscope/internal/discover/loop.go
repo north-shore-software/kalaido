@@ -86,7 +86,7 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 	for c.rounds < maxRounds {
 		var reply string
 		var calls []llm.ToolCall
-		err := retryPreempted(func() error {
+		err := usage.RetryThrottled(ctx, func() error {
 			var genErr error
 			reply, calls, genErr = usage.GenerateWithToolCalls(ctx, c.App, msgs, llm.RoleMap, model, tools)
 			return genErr

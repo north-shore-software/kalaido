@@ -5,21 +5,36 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-func RegisterHooks(app core.App) {
+// Deps are the workers an import hands off to once its fragments are in.
+type Deps struct {
+	Mapping   *mapping.Worker
+	Reconcile *reconcile.Worker
+	Discover  *discover.Worker
+	// Runner owns the processing goroutine, so shutdown can cancel and
+	// await an import in progress.
+	Runner engine.Runner
+}
+
+// RegisterHooks processes every new `ingest` record off the request
+// goroutine: the row is forced to pending, the uploads are parsed, and the
+// row ends done or error.
+func RegisterHooks(app core.App, deps Deps) {
 	app.OnRecordCreate("ingest").BindFunc(func(e *core.RecordEvent) error {
 		files, err := readUnsavedFiles(e.Record)
 		if err != nil {
-			log.Printf("ingest: read uploads: %v", err)
+			logger().Error("read uploads failed", "error", err)
 		}
 		cfg := readConfig(e.Record)
 
@@ -28,7 +43,10 @@ func RegisterHooks(app core.App) {
 			return err
 		}
 
-		go processIngestRecord(app, e.Record.Id, cfg, files)
+		recID := e.Record.Id
+		deps.Runner.Go(func(ctx context.Context) {
+			processIngestRecord(ctx, app, deps, recID, cfg, files)
+		})
 		return nil
 	})
 }
@@ -65,6 +83,7 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 		return 0, err
 	}
 	w.origin = "import"
+	w.batch = importBatch
 
 	exts := opts.Extensions
 	if len(exts) == 0 {
@@ -86,7 +105,13 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 
 	src := parsers.Source{Name: opts.SourceName, Format: opts.Format, Data: opts.Data}
 	err = parsers.Parse(ctx, src, exts, sink)
-	if err != nil && !errors.Is(err, errBudget) && !errors.Is(err, context.Canceled) {
+	// Whatever ended the parse, the fragments it did yield are good.
+	if ferr := w.flush(); ferr != nil {
+		return w.count, ferr
+	}
+	// A cancelled parse is an incomplete import: report it so the record is
+	// marked failed rather than done with a partial count.
+	if err != nil && !errors.Is(err, errBudget) {
 		return w.count, err
 	}
 	return w.count, nil
@@ -120,9 +145,7 @@ func readUnsavedFiles(rec *core.Record) ([]uploadedFile, error) {
 	return out, nil
 }
 
-func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []uploadedFile) {
-	ctx := context.Background()
-
+func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID string, cfg ingestConfig, files []uploadedFile) {
 	total := 0
 	var ingestErr error
 	for _, uf := range files {
@@ -137,14 +160,14 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		total += n
 		if err != nil {
 			ingestErr = err
-			log.Printf("ingest: processing %q: %v", uf.name, err)
+			logger().Error("processing file failed", "file", uf.name, "error", err)
 			break
 		}
 	}
 
-	rec, err := app.FindRecordById("ingest", recID)
+	rec, err := app.FindRecordById(schema.ColIngest.String(), recID)
 	if err != nil {
-		log.Printf("ingest: reload record %s: %v", recID, err)
+		logger().Error("reload record failed", "record_id", recID, "error", err)
 		return
 	}
 	rec.Set("ingested", total)
@@ -155,20 +178,20 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		rec.Set("status", "done")
 	}
 	if err := app.Save(rec); err != nil {
-		log.Printf("ingest: save status for %s: %v", recID, err)
+		logger().Error("save status failed", "record_id", recID, "error", err)
 	}
-	log.Printf("ingest: completed record %s (ingested %d fragments across %d file(s))", recID, total, len(files))
+	logger().Info("completed record", "record_id", recID, "fragments", total, "files", len(files))
 	// The batch is in: every lens over these fragments can now be
 	// regenerated ahead of the user. Colour and map follow-ups re-request
 	// the wave as they change membership; each re-run skips what is current.
 	if total > 0 {
-		reconcile.EnqueueWave()
+		deps.Reconcile.EnqueueWave()
 	}
 	if cfg.organizeAfter {
-		startPipeline()
+		startPipeline(deps)
 		return
 	}
-	mapping.SignalAnnotate()
+	deps.Mapping.SignalAnnotate()
 }
 
 func normalizeExtensions(s string) []string {

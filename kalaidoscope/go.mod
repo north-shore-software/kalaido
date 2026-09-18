@@ -3,10 +3,14 @@ module github.com/north-shore-software/kalaido/kalaidoscope
 go 1.24.1
 
 require (
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
+	github.com/google/go-cmp v0.7.0
 	github.com/pocketbase/dbx v1.11.0
 	github.com/pocketbase/pocketbase v0.27.0
 	github.com/spf13/cobra v1.9.1
+	go.uber.org/goleak v1.3.0
+	golang.org/x/sync v0.18.0
 )
 
 require (
@@ -33,7 +37,6 @@ require (
 	golang.org/x/image v0.26.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.29.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

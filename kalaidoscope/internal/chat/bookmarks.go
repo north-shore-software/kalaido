@@ -10,6 +10,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // FragmentKind is the fragment type a saved chat turn gets.
@@ -64,7 +65,7 @@ func SaveBookmarks(ctx context.Context, app core.App, conv *core.Record) ([]api.
 		if err != nil {
 			return err
 		}
-		fragCol, err := tx.FindCollectionByNameOrId("fragment")
+		fragCol, err := tx.FindCollectionByNameOrId(schema.ColFragment.String())
 		if err != nil {
 			return err
 		}
@@ -79,7 +80,7 @@ func SaveBookmarks(ctx context.Context, app core.App, conv *core.Record) ([]api.
 			}
 
 			if existing := row.GetString("fragment_id"); existing != "" {
-				if frag, err := tx.FindRecordById("fragment", existing); err == nil && frag.GetString("deleted_at") == "" {
+				if frag, err := tx.FindRecordById(schema.ColFragment.String(), existing); err == nil && frag.GetString("deleted_at") == "" {
 					saved = append(saved, api.SavedBookmark{MessageID: msg.ID, FragmentID: existing})
 					continue
 				}

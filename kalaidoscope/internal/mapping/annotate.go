@@ -10,6 +10,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func annotateOne(ctx context.Context, app core.App, model string, frag *core.Record) error {
@@ -36,7 +37,7 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 			return fmt.Errorf("unparseable annotate reply")
 		}
 	}
-	col, err := app.FindCollectionByNameOrId("fragment_annotation")
+	col, err := app.FindCollectionByNameOrId(schema.ColFragmentAnnotation.String())
 	if err != nil {
 		return err
 	}
@@ -63,7 +64,7 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 
 func generate(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message) (string, error) {
 	var reply string
-	err := retryPreempted(func() error {
+	err := usage.RetryThrottled(ctx, func() error {
 		var err error
 		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, role, model, nil)
 		return err

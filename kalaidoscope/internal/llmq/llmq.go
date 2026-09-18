@@ -592,21 +592,12 @@ func earliest(a, b time.Time) time.Time {
 	return a
 }
 
-// std serves the process. The Ollama config — the strictest shape — is the
-// boot default until server wiring reconfigures for the provider actually in
-// use.
+// std is the process-level fallback scheduler, in the Ollama config — the
+// strictest shape. The server runtime builds its own scheduler per app
+// (server/runtime.go) and the usage gateway resolves that one; std only
+// serves callers with no runtime, which is isolated unit tests.
 var std = New(ConfigForProvider(llm.ProviderOllama))
 
-func Acquire(ctx context.Context, req Request) (context.Context, func(), error) {
-	return std.Acquire(ctx, req)
-}
-
-func AddProgress(runCtx context.Context, tokens int) { std.AddProgress(runCtx, tokens) }
-
-func ReportThrottled() { std.ReportThrottled() }
-
-func Reconfigure(cfg Config) { std.Reconfigure(cfg) }
-
-func SetOnChange(f func(Status)) { std.SetOnChange(f) }
-
-func Snapshot() Status { return std.Snapshot() }
+// Default returns the process-level fallback scheduler. Isolated unit tests
+// that do not construct a full server runtime fall back to this instance.
+func Default() *Scheduler { return std }

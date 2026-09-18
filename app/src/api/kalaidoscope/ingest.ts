@@ -43,7 +43,7 @@ export async function ingestNote(
       body: JSON.stringify({
         content,
         type,
-        skip_duplicates: skipDuplicates,
+        skipDuplicates,
       }),
       signal,
     });

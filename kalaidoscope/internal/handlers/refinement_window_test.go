@@ -116,7 +116,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	e.Request.SetPathValue("id", refl.Id)
 	e.Request.SetPathValue("rid", refRec.Id)
 	e.Response = rec
-	if err := HandleCommitReflectionRefinement(app)(e); err != nil {
+	if err := HandleCommitReflectionRefinement(app, testDeps(app))(e); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
 	refl, err = app.FindRecordById("reflection", refl.Id)

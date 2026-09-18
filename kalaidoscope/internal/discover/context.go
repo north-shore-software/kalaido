@@ -10,6 +10,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 type Context struct {
@@ -74,7 +75,7 @@ func newContext(app core.App, run *core.Record) (*Context, error) {
 
 // loadColours indexes every colour's membership against the annotation rows.
 func (c *Context) loadColours() error {
-	recs, err := c.App.FindRecordsByFilter("colour", "1=1", "created", 0, 0, nil)
+	recs, err := c.App.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
 	if err != nil {
 		return err
 	}

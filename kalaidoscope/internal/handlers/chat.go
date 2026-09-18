@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatRequest, refRec *core.Record) func(e *core.RequestEvent) error) func(e *core.RequestEvent) error {
@@ -26,11 +26,11 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 
 		ctx := e.Request.Context()
 
-		if refRec, err := app.FindFirstRecordByFilter("projection_refinement", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+		if refRec, err := app.FindFirstRecordByFilter(schema.ColProjectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
 			if refinementHandler != nil {
 				return refinementHandler(app, req, refRec)(e)
 			}
-		} else if refRec, err := app.FindFirstRecordByFilter("reflection_refinement", "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+		} else if refRec, err := app.FindFirstRecordByFilter(schema.ColReflectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
 			if refinementHandler != nil {
 				return refinementHandler(app, req, refRec)(e)
 			}
@@ -43,7 +43,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 				conv = c
 				dbMsgs, _ = chat.LoadMessages(ctx, app, conv)
 			} else {
-				log.Printf("chat persist: FindOrCreateConversation: %v", err)
+				logger().Error("chat persist: find or create conversation failed", "conversation_id", req.ID, "error", err)
 			}
 		}
 
@@ -56,7 +56,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		if conv != nil {
 			for _, m := range newMsgs {
 				if _, err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
-					log.Printf("chat persist: message %s: %v", m.ID, err)
+					logger().Error("chat persist message failed", "message_id", m.ID, "error", err)
 				}
 			}
 		}
@@ -85,7 +85,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		// Refuse before the call, with a message the user can act on, rather
 		// than let the provider reject an oversized prompt as a bare 400.
 		if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
-			log.Printf("chat %s: %v", req.ID, err)
+			logger().Warn("chat prompt too large", "conversation_id", req.ID, "error", err)
 			text := err.Error()
 			if !summaries {
 				text += chatTooLargeHint
@@ -130,7 +130,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 					Parts: parts,
 				}
 				if _, err := chat.PersistMessage(ctx, app, conv, aMsg, assistantModel); err != nil {
-					log.Printf("chat persist: assistant message: %v", err)
+					logger().Error("chat persist assistant message failed", "error", err)
 				}
 			}
 		}

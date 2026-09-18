@@ -11,12 +11,21 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeStatus, error) {
+// Workers are the live workers whose in-memory state the status reads
+// alongside the database.
+type Workers struct {
+	Mapping   *mapping.Worker
+	Reconcile *reconcile.Worker
+	Discover  *discover.Worker
+}
+
+func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.OrganizeStatus, error) {
 	var st api.OrganizeStatus
 
-	fragments, err := app.CountRecords("fragment", dbx.NewExp("deleted_at = ''"))
+	fragments, err := app.CountRecords(schema.ColFragment.String(), dbx.NewExp("deleted_at = ''"))
 	if err != nil {
 		return st, err
 	}
@@ -35,17 +44,17 @@ func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeSta
 		things = len(doc.Things)
 	}
 
-	if err := evaluateMap(app, version, int(fragments), &st.Map); err != nil {
+	if err := evaluateMap(app, w.Mapping, version, int(fragments), &st.Map); err != nil {
 		return st, err
 	}
-	if err := evaluateDiscover(app, version, things, &st.Discover); err != nil {
+	if err := evaluateDiscover(app, w.Discover, version, things, &st.Discover); err != nil {
 		return st, err
 	}
 
 	st.Policy = api.OrganizePolicy{
-		Wave: reconcile.WaveEnabled(),
+		Wave: w.Reconcile.WaveEnabled(),
 	}
-	wave := reconcile.Status()
+	wave := w.Reconcile.Status()
 	st.Reconcile = api.ReconcileStatus{
 		Running:   wave.Running,
 		LastError: wave.LastError,
@@ -60,12 +69,12 @@ func Evaluate(ctx context.Context, app core.App, now time.Time) (api.OrganizeSta
 }
 
 func evaluateImports(app core.App, out *api.ImportsStatus) error {
-	pending, err := app.CountRecords("ingest", dbx.HashExp{"status": "pending"})
+	pending, err := app.CountRecords(schema.ColIngest.String(), dbx.HashExp{"status": "pending"})
 	if err != nil {
 		return err
 	}
 	out.Pending = int(pending)
-	errored, err := app.FindRecordsByFilter("ingest", "status = 'error'", "-created", 1, 0)
+	errored, err := app.FindRecordsByFilter(schema.ColIngest.String(), "status = 'error'", "-created", 1, 0)
 	if err != nil {
 		return err
 	}
@@ -75,12 +84,12 @@ func evaluateImports(app core.App, out *api.ImportsStatus) error {
 	return nil
 }
 
-func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error {
-	annotated, err := app.CountRecords("fragment_annotation")
+func evaluateMap(app core.App, maps *mapping.Worker, version, fragments int, out *api.MapStatus) error {
+	annotated, err := app.CountRecords(schema.ColFragmentAnnotation.String())
 	if err != nil {
 		return err
 	}
-	unconsolidated, err := app.CountRecords("fragment_annotation", dbx.HashExp{"consolidated_at": ""})
+	unconsolidated, err := app.CountRecords(schema.ColFragmentAnnotation.String(), dbx.HashExp{"consolidated_at": ""})
 	if err != nil {
 		return err
 	}
@@ -88,7 +97,7 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 	if err != nil {
 		return err
 	}
-	runs, err := app.FindRecordsByFilter("map_run", "1=1", "-created", 1, 0)
+	runs, err := app.FindRecordsByFilter(schema.ColMapRun.String(), "1=1", "-created", 1, 0)
 	if err != nil {
 		return err
 	}
@@ -97,9 +106,9 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 	out.Annotated = int(annotated)
 	out.Unconsolidated = int(unconsolidated)
 	out.PendingAnnotation = pending
-	out.LastDrainError = mapping.LastDrainError()
+	out.LastDrainError = maps.LastDrainError()
 
-	consolidating := mapping.Consolidating()
+	consolidating := maps.Consolidating()
 	if len(runs) > 0 {
 		info := runInfo(runs[0])
 		info.Interrupted = info.Status == "running" && !consolidating
@@ -111,7 +120,7 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 		out.State = api.MapStateEmpty
 	case consolidating:
 		out.State = api.MapStateConsolidating
-	case pending > 0 && mapping.Annotating():
+	case pending > 0 && maps.Annotating():
 		out.State = api.MapStateAnnotating
 	case pending > 0:
 		out.State = api.MapStateUnannotated
@@ -123,15 +132,15 @@ func evaluateMap(app core.App, version, fragments int, out *api.MapStatus) error
 	return nil
 }
 
-func evaluateDiscover(app core.App, version, things int, out *api.DiscoverStatus) error {
-	out.Running = discover.Running()
-	out.Pending = discover.Pending()
+func evaluateDiscover(app core.App, disc *discover.Worker, version, things int, out *api.DiscoverStatus) error {
+	out.Running = disc.Running()
+	out.Pending = disc.Pending()
 	out.Due = []string{}
 	out.Runs = map[string]api.RunInfo{}
 
 	anyRun := false
 	for _, kind := range discover.KindOrder() {
-		newest, err := app.FindRecordsByFilter("discover_run", "kind = {:kind}", "-created", 1, 0, dbx.Params{"kind": kind})
+		newest, err := app.FindRecordsByFilter(schema.ColDiscoverRun.String(), "kind = {:kind}", "-created", 1, 0, dbx.Params{"kind": kind})
 		if err != nil {
 			return err
 		}
@@ -144,7 +153,7 @@ func evaluateDiscover(app core.App, version, things int, out *api.DiscoverStatus
 		if things == 0 {
 			continue
 		}
-		done, err := app.FindRecordsByFilter("discover_run", "kind = {:kind} && status = 'done'", "-created", 1, 0, dbx.Params{"kind": kind})
+		done, err := app.FindRecordsByFilter(schema.ColDiscoverRun.String(), "kind = {:kind} && status = 'done'", "-created", 1, 0, dbx.Params{"kind": kind})
 		if err != nil {
 			return err
 		}
@@ -153,11 +162,11 @@ func evaluateDiscover(app core.App, version, things int, out *api.DiscoverStatus
 		}
 	}
 
-	projections, err := app.CountRecords("projection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
+	projections, err := app.CountRecords(schema.ColProjection.String(), dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}
-	reflections, err := app.CountRecords("reflection", dbx.HashExp{"status": "proposed", "deleted_at": ""})
+	reflections, err := app.CountRecords(schema.ColReflection.String(), dbx.HashExp{"status": "proposed", "deleted_at": ""})
 	if err != nil {
 		return err
 	}

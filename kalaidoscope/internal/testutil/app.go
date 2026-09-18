@@ -26,7 +26,10 @@ func NewApp(t *testing.T) core.App {
 	if err := app.Bootstrap(); err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	t.Cleanup(func() { _ = app.ResetBootstrapState() })
+	t.Cleanup(func() {
+		_ = app.ResetBootstrapState()
+		VerifyNoLeaks(t)
+	})
 	return app
 }
 

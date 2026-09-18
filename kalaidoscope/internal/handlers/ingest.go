@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -21,10 +20,16 @@ func HandleIngest(app core.App) func(e *core.RequestEvent) error {
 		if strings.TrimSpace(msg.Content) == "" {
 			return e.BadRequestError("content required", nil)
 		}
+		// These configure file ingest (the `ingest` collection). A single
+		// inline entry has nothing for them to apply to, so rather than
+		// silently ignore them, say so.
+		if msg.Format != "" || msg.Limit != 0 || msg.Extensions != "" {
+			return e.BadRequestError("format, fragmentLimit and extensions apply to file ingest only", nil)
+		}
 
 		id, err := ingest.IngestSingle(app, msg)
 		if err != nil {
-			log.Printf("ingest: single entry failed: %v", err)
+			logger().Error("ingest failed", "error", err)
 			return e.InternalServerError("ingest failed", err)
 		}
 
@@ -35,9 +40,9 @@ func HandleIngest(app core.App) func(e *core.RequestEvent) error {
 			if fragType == "" {
 				fragType = "note"
 			}
-			log.Printf("ingest: fragment %s (%s): %s", id, fragType, contentPreview(msg.Content))
+			logger().Info("ingested fragment", "fragment_id", id, "fragment_type", fragType, "content", contentPreview(msg.Content))
 		} else {
-			log.Printf("ingest: duplicate entry skipped: %s", contentPreview(msg.Content))
+			logger().Warn("duplicate entry skipped", "content", contentPreview(msg.Content))
 		}
 		return e.JSON(http.StatusOK, api.IngestResponse{
 			FragmentID: id,

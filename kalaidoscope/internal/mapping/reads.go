@@ -5,6 +5,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 type Row = prompts.AnnotationRow
@@ -18,7 +19,7 @@ func LoadDocument(app core.App) (*mapdoc.Document, int, error) {
 }
 
 func LoadRows(app core.App) ([]Row, error) {
-	recs, err := app.FindRecordsByFilter("fragment_annotation", "1=1", "created", 0, 0, nil)
+	recs, err := app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "1=1", "created", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

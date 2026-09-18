@@ -22,13 +22,7 @@ import (
 // conversation would actually use; the chat's context meter reads this.
 func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		// The spec's own fields plus an optional window: a reflection's
-		// context bar counts only what falls inside its target window.
-		var body struct {
-			api.ContextSpec
-			Window         *api.Window `json:"window,omitempty"`
-			ConversationID string      `json:"conversationId,omitempty"`
-		}
+		var body api.TokenResolutionRequest
 		if err := e.BindBody(&body); err != nil {
 			return e.BadRequestError("Invalid JSON body", err)
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // ErrBackfillOutOfRange rejects a backfill that starts at or after the point
@@ -54,7 +54,7 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 		return nil, nil
 	}
 
-	col, err := app.FindCollectionByNameOrId("reflection_window")
+	col, err := app.FindCollectionByNameOrId(schema.ColReflectionWindow.String())
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 		if err := app.Save(row); err != nil {
 			// Already materialized: the unique index says so.
 			start, end := WindowBounds(&w)
-			existing, _ := app.FindFirstRecordByFilter("reflection_window",
+			existing, _ := app.FindFirstRecordByFilter(schema.ColReflectionWindow.String(),
 				"reflection_id = {:id} && window_start = {:ws} && window_end = {:we}",
 				map[string]any{"id": rec.Id, "ws": start.String(), "we": end.String()})
 			if existing == nil {
@@ -76,35 +76,37 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 	return windows, nil
 }
 
-// Background runs f off the caller's goroutine. A hook so tests can run it
-// inline or not at all: a goroutine outliving a test's app would touch a
-// closed database.
-var Background = func(f func()) { go f() }
+// A Runner runs work off the caller's goroutine under a lifetime it owns:
+// the server's runner is cancelled and awaited at shutdown, and a test's can
+// run inline or drop the work, so no goroutine outlives its app.
+type Runner interface {
+	Go(f func(ctx context.Context))
+}
 
 // RunPendingWindows generates, in the background and at background priority,
 // every window the reflection currently owes (PendingWindows). One pass: a
 // window whose generation fails stays pending for the next run rather than
 // being retried in a loop. The DB is the state — a restart mid-run loses
 // nothing but the goroutines.
-func RunPendingWindows(app core.App, reflectionID string) {
-	Background(func() { GeneratePendingWindows(app, reflectionID) })
+func RunPendingWindows(r Runner, app core.App, reflectionID string) {
+	r.Go(func(ctx context.Context) { GeneratePendingWindows(ctx, app, reflectionID) })
 }
 
 // GeneratePendingWindows is RunPendingWindows's body, run to completion on
 // the calling goroutine.
-func GeneratePendingWindows(app core.App, reflectionID string) {
-	rec, err := app.FindRecordById("reflection", reflectionID)
+func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID string) {
+	rec, err := app.FindRecordById(schema.ColReflection.String(), reflectionID)
 	if err != nil {
-		log.Printf("backfill %s: %v", reflectionID, err)
+		logger().Error("backfill: load reflection failed", "reflection_id", reflectionID, "error", err)
 		return
 	}
 	pending := PendingWindows(app, rec, time.Now())
 	if len(pending) == 0 {
 		return
 	}
-	log.Printf("backfill %s (%q): %d pending windows", reflectionID, rec.GetString("name"), len(pending))
+	logger().Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
 
-	ctx := llmq.WithPriority(context.Background(), llmq.Background)
+	ctx = llmq.WithPriority(ctx, llmq.Background)
 	results := GenerateWindows(ctx, app, reflectionID, StatusApproved, ReflectionStrategy{}, pending)
 	generated := 0
 	for i, r := range results {
@@ -112,14 +114,14 @@ func GeneratePendingWindows(app core.App, reflectionID string) {
 		case r.Err == nil:
 			generated++
 		case errors.Is(r.Err, ErrLensNotReady):
-			log.Printf("backfill %s: no lens yet", reflectionID)
+			logger().Warn("backfill: no lens yet", "reflection_id", reflectionID)
 		case errors.Is(r.Err, ErrGenerationInFlight):
 			// Someone else is producing this window; leave it to them.
 		default:
-			log.Printf("backfill %s: window %s: %v", reflectionID, WindowKey(pending[i]), r.Err)
+			logger().Error("backfill window failed", "reflection_id", reflectionID, "window", WindowKey(pending[i]), "error", r.Err)
 		}
 	}
-	log.Printf("backfill %s: generated %d of %d windows", reflectionID, generated, len(pending))
+	logger().Info("backfill completed", "reflection_id", reflectionID, "generated", generated, "count", len(pending))
 }
 
 // WindowResult is one window's outcome from GenerateWindows.

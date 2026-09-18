@@ -3,7 +3,6 @@ package mapping
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -12,13 +11,14 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func unintegratedRows(app core.App) ([]*core.Record, error) {
-	return app.FindRecordsByFilter("fragment_annotation", "consolidated_at = ''", "created", 0, 0, nil)
+	return app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "consolidated_at = ''", "created", 0, 0, nil)
 }
 
-func consolidate(app core.App) error {
+func consolidate(ctx context.Context, app core.App) error {
 	pending, err := unintegratedRows(app)
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func consolidate(app core.App) error {
 	if err != nil {
 		return err
 	}
-	runCol, err := app.FindCollectionByNameOrId("map_run")
+	runCol, err := app.FindCollectionByNameOrId(schema.ColMapRun.String())
 	if err != nil {
 		return err
 	}
@@ -59,12 +59,11 @@ func consolidate(app core.App) error {
 		run.Set("status", "error")
 		run.Set("error", err.Error())
 		if serr := app.Save(run); serr != nil {
-			log.Printf("mapping: save run: %v", serr)
+			logger().Error("save run failed", "error", serr)
 		}
 		return err
 	}
 
-	ctx := context.Background()
 	msgs := []llm.Message{{Role: "user", Content: prompts.ConsolidatePrompt(d.doc, input)}}
 	reply, err := generate(ctx, app, llm.RoleMap, model, msgs)
 	if err != nil {
@@ -109,7 +108,7 @@ func consolidate(app core.App) error {
 	run.Set("merges", merges)
 	run.Set("version_after", d.version+1)
 	if err := app.Save(run); err != nil {
-		log.Printf("mapping: save run: %v", err)
+		logger().Error("save run failed", "error", err)
 	}
 	return nil
 }
@@ -184,7 +183,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 }
 
 func fragmentDates(app core.App) (map[string]string, error) {
-	recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "", 0, 0, nil)
+	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

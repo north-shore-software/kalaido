@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -41,35 +40,37 @@ var (
 	ErrGenerationAbandoned = errors.New("generation ended without output")
 )
 
-// awaitPollInterval paces AwaitGeneration's reads of the claim row. A
-// variable so tests can shorten it.
+// awaitPollInterval is the fallback pace at which AwaitGeneration re-reads a
+// claim row it has not been told about. The generating goroutine in this
+// process wakes waiters the moment it settles the claim (claimHub), so the
+// poll only matters for a claim settled some other way. A variable so tests
+// can shorten it.
 var awaitPollInterval = 500 * time.Millisecond
 
 // AwaitGeneration joins a generation another caller (typically the wave) is
 // running for the target: it waits for the live claim row to be filled and
 // returns the resulting snapshot id. The row is the same durable state the
-// UI reads, so this needs no in-process handshake. Returns
+// UI reads; the in-process hub only says when to look. Returns
 // ErrGenerationAbandoned when there is no live claim or it is released
 // unfilled, and ctx's error when the wait is cancelled; a superseded row
 // (discarded while awaited) reads as abandoned too.
 func AwaitGeneration(ctx context.Context, app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
 	filter, params := statusSnapshotFilter(strat, parentID, window, StatusGenerating)
-	claims, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "-created", 1, 0, params)
+	live, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "-created", 1, 0, params)
 	if err != nil {
 		return "", err
 	}
-	if len(claims) == 0 {
+	if len(live) == 0 {
 		return "", ErrGenerationAbandoned
 	}
-	claimID := claims[0].Id
+	claimID := live[0].Id
+	settled := claims.subscribe(claimID)
+	defer claims.unsubscribe(claimID, settled)
 	ticker := time.NewTicker(awaitPollInterval)
 	defer ticker.Stop()
 	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-ticker.C:
-		}
+		// Read first: a claim settled between the lookup above and the
+		// subscribe has no waiter to wake, and must not cost a poll interval.
 		rec, err := app.FindRecordById(strat.SnapshotCollectionName(), claimID)
 		if err != nil {
 			// Released: the generation failed, or a settle-in-place found
@@ -78,11 +79,20 @@ func AwaitGeneration(ctx context.Context, app core.App, strat Strategy, parentID
 		}
 		switch rec.GetString("status") {
 		case StatusGenerating:
-			continue
 		case StatusDiscarded:
 			return "", ErrGenerationAbandoned
 		default:
 			return rec.Id, nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-settled:
+			// A closed channel is always ready; disable the case so a row
+			// that still reads as generating falls back to the poll rather
+			// than spinning.
+			settled = nil
+		case <-ticker.C:
 		}
 	}
 }
@@ -144,8 +154,10 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 		return
 	}
 	if err := app.Delete(rec); err != nil {
-		log.Printf("generation claim %s: release: %v", claimID, err)
+		logger().Error("generation claim release failed", "claim_id", claimID, "error", err)
+		return
 	}
+	claims.settle(claimID)
 }
 
 // discardOtherPending supersedes every other pending candidate for the same
@@ -179,7 +191,7 @@ func SweepGenerationClaims(app core.App) {
 		}
 		for _, r := range recs {
 			if err := app.Delete(r); err != nil {
-				log.Printf("generation claim sweep: %s %s: %v", strat.TargetType(), r.Id, err)
+				logger().Error("generation claim sweep delete failed", "target_type", strat.TargetType(), "claim_id", r.Id, "error", err)
 			}
 		}
 	}

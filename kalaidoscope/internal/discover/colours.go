@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // coloursFlow creates colours for real, each built on map things; membership
@@ -86,7 +87,7 @@ func (f coloursFlow) Dispatch(ctx context.Context, c *Context, call llm.ToolCall
 		}
 	}
 
-	col, err := c.App.FindCollectionByNameOrId("colour")
+	col, err := c.App.FindCollectionByNameOrId(schema.ColColour.String())
 	if err != nil {
 		return "", nil, err
 	}

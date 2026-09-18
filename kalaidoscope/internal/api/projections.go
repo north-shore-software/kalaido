@@ -4,11 +4,6 @@ type ProjectionSnapshotResponse struct {
 	SnapshotID string `json:"snapshotId"`
 }
 
-type CreateProjectionRequest struct {
-	ClientID string `json:"clientId"`
-	Name     string `json:"name"`
-}
-
 type CreateProjectionResponse struct {
 	ProjectionID string `json:"projectionId"`
 }

@@ -43,6 +43,8 @@ func editFixture(t *testing.T, app core.App) (*core.Record, *core.Record) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The source and the edited row land in the same millisecond here, as
+	// they never would in use; SnapshotIsCurrent must still pick the edit.
 	src := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":      proj.Id,
 		"lens_id":            proj.GetString("current_lens_id"),

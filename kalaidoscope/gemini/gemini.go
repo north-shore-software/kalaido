@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -346,7 +345,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 			// Priority overflow downgrades silently to the standard tier, so
 			// this line is the only place that shows which tier actually
 			// served the request (ON_DEMAND_PRIORITY vs ON_DEMAND).
-			log.Printf("gemini: traffic_type=%s model=%s", trafficType, p.model())
+			logger().Debug("traffic type", "traffic_type", trafficType, "model", p.model())
 		}
 		if ctx.Err() != nil {
 			return
@@ -368,8 +367,9 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 			if blockReason == "" {
 				blockReason = "none"
 			}
-			log.Printf("gemini: completion ended finish_reason=%s block_reason=%s text_parts=%d tool_calls=%d completion_tokens=%d model=%s %s %s",
-				finishReason, blockReason, textParts, toolParts, usage.CompletionTokens, p.model(), shape, detail)
+			logger().Warn("completion ended",
+				"finish_reason", finishReason, "block_reason", blockReason, "text_parts", textParts, "tool_calls", toolParts,
+				"completion_tokens", usage.CompletionTokens, "model", p.model(), "shape", shape, "detail", detail)
 		}
 	}()
 

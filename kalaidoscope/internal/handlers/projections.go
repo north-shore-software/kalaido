@@ -14,8 +14,8 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 	return handleGenerateSnapshot(app, engine.ProjectionStrategy{})
 }
 
-func HandleApproveCandidate(app core.App) func(e *core.RequestEvent) error {
-	return handleApproveCandidate(app, engine.ProjectionStrategy{})
+func HandleApproveCandidate(app core.App, deps Deps) func(e *core.RequestEvent) error {
+	return handleApproveCandidate(app, engine.ProjectionStrategy{}, deps.Reconcile)
 }
 
 func HandleEditCandidate(app core.App) func(e *core.RequestEvent) error {
