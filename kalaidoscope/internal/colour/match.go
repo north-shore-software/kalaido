@@ -2,7 +2,6 @@ package colour
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/pocketbase/dbx"
@@ -49,12 +48,12 @@ func ThingIDs(rec *core.Record) []string {
 func OnMapSettled(app core.App) {
 	_, version, err := mapping.LoadDocument(app)
 	if err != nil {
-		log.Printf("colour: map version: %v", err)
+		logger().Error("load map version failed", "error", err)
 		return
 	}
 	annotated, err := app.CountRecords("fragment_annotation")
 	if err != nil {
-		log.Printf("colour: annotation count: %v", err)
+		logger().Error("annotation count failed", "error", err)
 		return
 	}
 	settledMu.Lock()
@@ -65,7 +64,7 @@ func OnMapSettled(app core.App) {
 		return
 	}
 	if err := RematchThings(app); err != nil {
-		log.Printf("colour: rematch things: %v", err)
+		logger().Error("rematch things failed", "error", err)
 	}
 }
 

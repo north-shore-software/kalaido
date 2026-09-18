@@ -3,7 +3,6 @@ package llmcontext
 import (
 	stdctx "context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -26,7 +25,7 @@ func FragmentIDsForColours(ctx stdctx.Context, app core.App, colourIDs []string)
 	params["neg"] = "manual_negative"
 	recs, err := app.FindRecordsByFilter("colour_fragment", "("+strings.Join(ors, " || ")+") && match_type != {:neg}", "", 0, 0, params)
 	if err != nil {
-		log.Printf("colour: FragmentIDsForColours: %v", err)
+		logger().Error("colour fragment lookup failed", "error", err)
 		return nil
 	}
 	seen := make(map[string]bool, len(recs))

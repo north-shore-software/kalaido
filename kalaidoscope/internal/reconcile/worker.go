@@ -26,8 +26,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -49,10 +47,13 @@ var waveSignal = make(chan struct{}, 1)
 var workerApp core.App
 
 // autoWave switches on the automatic triggers (EnqueueWave). Off by default:
-// the only wave is the one the user starts. Any non-empty value enables it,
-// as with KALAIDO_LLM_TRACE, so KALAIDO_AUTO_WAVE=0 is "on" too. A variable
-// so tests can flip it.
-var autoWave = os.Getenv("KALAIDO_AUTO_WAVE") != ""
+// the only wave is the one the user starts. The binary sets it from
+// KALAIDO_AUTO_WAVE at boot via SetAutoWave; tests flip it directly.
+var autoWave bool
+
+// SetAutoWave turns the automatic triggers on or off. Call before the server
+// starts serving; EnqueueWave reads it on every trigger.
+func SetAutoWave(on bool) { autoWave = on }
 
 // waveDebounce is the quiet period between the last automatic trigger and the
 // wave it starts. The triggers arrive in bursts (an import completes, then the colour
@@ -95,9 +96,9 @@ func Register(app core.App) {
 			return err
 		}
 		if autoWave {
-			log.Printf("reconcile: automatic waves on (KALAIDO_AUTO_WAVE)")
+			logger().Info("automatic waves on", "env", "KALAIDO_AUTO_WAVE")
 		} else {
-			log.Printf("reconcile: automatic waves off (KALAIDO_AUTO_WAVE=1 enables them); the dashboard starts the wave")
+			logger().Info("automatic waves off; KALAIDO_AUTO_WAVE=1 enables them; the dashboard starts the wave", "env", "KALAIDO_AUTO_WAVE")
 		}
 		EnqueueWave()
 		return nil
@@ -219,7 +220,7 @@ func afterWave(err error) {
 		return
 	}
 	if errors.Is(err, usage.ErrExhausted) {
-		log.Printf("reconcile wave: quota exhausted; not retrying")
+		logger().Warn("wave quota exhausted; not retrying")
 		return
 	}
 	delay := retryBackoff[min(retries, len(retryBackoff)-1)]
@@ -228,7 +229,7 @@ func afterWave(err error) {
 		retryTimer.Stop()
 	}
 	retryTimer = time.AfterFunc(delay, signalWave)
-	log.Printf("reconcile wave: retrying in %s", delay)
+	logger().Warn("wave retrying", "delay", delay)
 }
 
 // runWave generates the whole stale set once. The returned error is the one
@@ -239,7 +240,7 @@ func runWave(app core.App) error {
 	// wave's worklist is exactly the dashboard's "needs action" set.
 	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(context.Background())
 	if err != nil {
-		log.Printf("reconcile wave: evaluate: %v", err)
+		logger().Error("wave evaluate failed", "error", err)
 		return fmt.Errorf("evaluate: %w", err)
 	}
 
@@ -261,7 +262,7 @@ func runWave(app core.App) error {
 			// failure leaves missing. End the wave; the dashboard keeps
 			// showing what remains, and the next wave resumes from a fresh
 			// evaluation.
-			log.Printf("reconcile wave: %s %s: %v; ending wave", s.Type, s.ID, err)
+			logger().Error("wave generate failed; ending wave", "target_type", s.Type, "target_id", s.ID, "error", err)
 			return fmt.Errorf("%s %s: %w", s.Type, s.ID, err)
 		}
 	}
@@ -288,7 +289,7 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 	if err != nil {
 		// Deleted (or hard-removed) since the wave was evaluated: nothing to
 		// produce for it, and no reason to end the wave for the others.
-		log.Printf("reconcile wave: %s %s: %v; skipping", s.Type, s.ID, err)
+		logger().Warn("wave target skipped", "target_type", s.Type, "target_id", s.ID, "error", err)
 		return nil
 	}
 
@@ -325,7 +326,7 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 				// Someone else is already producing this entity's output (an
 				// interactive generation), or it has never had a refinement
 				// committed. Skip it; the next wave re-evaluates from scratch.
-				log.Printf("reconcile wave: %s %s: %v; skipping", s.Type, s.ID, err)
+				logger().Warn("wave target skipped", "target_type", s.Type, "target_id", s.ID, "error", err)
 				break
 			}
 			if err != nil {

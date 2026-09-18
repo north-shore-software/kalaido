@@ -3,7 +3,6 @@ package ollama
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
@@ -35,13 +34,13 @@ func preloadDefaultModel(ctx context.Context) {
 	deadline := time.Now().Add(maxWait)
 	for {
 		if err := PreloadModel(ctx, defaultModel); err == nil {
-			log.Printf("ollama preload: model %q resident", defaultModel)
+			logger().Info("model resident", "model", defaultModel)
 			return
 		} else if time.Now().After(deadline) {
-			log.Printf("ollama preload: giving up on %q: %v", defaultModel, err)
+			logger().Warn("giving up on model preload", "model", defaultModel, "error", err)
 			return
 		} else {
-			log.Printf("ollama preload: %q not ready, retrying: %v", defaultModel, err)
+			logger().Warn("model not ready, retrying", "model", defaultModel, "error", err)
 		}
 
 		select {

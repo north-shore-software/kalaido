@@ -51,3 +51,10 @@ type BriefResponse struct {
 	Name    string `json:"name"`
 	Message string `json:"message"`
 }
+
+// ToolPartData is the Data of a "tool-<name>" UIMessagePart as the client
+// persists it: the call's id and the arguments the model supplied.
+type ToolPartData struct {
+	ToolCallID string          `json:"toolCallId"`
+	Input      json.RawMessage `json:"input"`
+}

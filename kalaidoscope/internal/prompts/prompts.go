@@ -101,6 +101,13 @@ func BuildPrefix(sourceBlock string, windowStart, windowEnd types.DateTime) stri
 // Renaming it is therefore never just a prompt change.
 const UpdateLensToolName = "update_lens"
 
+// UpdateLensArgs is the argument object the model supplies to
+// UpdateLensToolName. Only the lens itself is read back by the server; the
+// suggested name rides alongside and is consumed by the client.
+type UpdateLensArgs struct {
+	Lens string `json:"lens"`
+}
+
 // ApplyResultToolName is a wire identifier only — never advertised to any
 // model. The refinement handler fabricates AI-SDK tool events under this name
 // to stream each turn's applied output (the lens executed against the sources)

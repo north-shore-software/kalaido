@@ -55,14 +55,18 @@ func TestRejectedCallIsLoggedWithShapeAndBody(t *testing.T) {
 
 	out := buf.String()
 	for _, want := range []string{
-		"gemini: request failed (HTTP 400) model=gemini-test",
+		"request failed",
+		"component=llm",
+		"provider=gemini",
+		"status=\"HTTP 400\"",
+		"model=gemini-test",
 		"messages=3 (system:2/20ch, user:1/0ch) empty=1",
 		"tools=[update_lens]",
 		"temp=0.2",
 		"tier=priority",
 		"system_instruction=13ch",
 		"contents=1 parts=2",
-		"response body: {\"error\"",
+		"body=\"{\\\"error\\\"",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("log lacks %q:\n%s", want, out)
@@ -141,6 +145,8 @@ func TestAbnormalFinishIsLoggedWithReasonAndShape(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	// The finish-reason line is a Debug trace; slog's default handler drops
+	// Debug unless the bridge level is raised.
 
 	p := &Provider{Model: "gemini-test", APIKey: "k"}
 	comp, err := p.Stream(context.Background(), []llm.Message{
@@ -164,7 +170,9 @@ func TestAbnormalFinishIsLoggedWithReasonAndShape(t *testing.T) {
 
 	out := buf.String()
 	for _, want := range []string{
-		"gemini: completion ended finish_reason=MALFORMED_FUNCTION_CALL",
+		"completion ended",
+		"component=gemini",
+		"finish_reason=MALFORMED_FUNCTION_CALL",
 		"block_reason=none",
 		"text_parts=0 tool_calls=0 completion_tokens=249",
 		"model=gemini-test",

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"slices"
 	"strings"
 
@@ -133,8 +132,9 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 	if err != nil {
 		return EditResult{}, err
 	}
-	log.Printf("edit %s %s: candidate %s edited by hand into %s (fragment %s)",
-		strat.TargetType(), parentID, sourceSnapshotID, res.SnapshotID, res.FragmentID)
+	logger().Info("candidate edited by hand",
+		"target_type", strat.TargetType(), "id", parentID, "source_snapshot_id", sourceSnapshotID,
+		"snapshot_id", res.SnapshotID, "fragment_id", res.FragmentID)
 	return res, nil
 }
 

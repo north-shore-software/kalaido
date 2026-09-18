@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"time"
 
@@ -17,7 +16,7 @@ func HandleGetRotation(app core.App) func(e *core.RequestEvent) error {
 
 		statuses, err := evaluator.EvaluateAll(e.Request.Context())
 		if err != nil {
-			log.Printf("rotation.status: evaluation failed: %v", err)
+			logger().Error("rotation status evaluation failed", "error", err)
 			return e.InternalServerError("failed to evaluate staleness", err)
 		}
 

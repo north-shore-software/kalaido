@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -94,7 +93,7 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 			llm.Message{Role: "user", Content: strings.Join(results, "\n\n")})
 
 		if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
-			log.Printf("chat %s: round %d: %v", textID, round+1, err)
+			logger().Warn("chat summaries prompt too large", "text_id", textID, "round", round+1, "error", err)
 			sse.Error(err.Error())
 			break
 		}
@@ -104,7 +103,7 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 		}
 		comp, err = usage.Stream(ctx, app, llm.RoleChat, model, msgs, next)
 		if err != nil {
-			log.Printf("chat %s: round %d: %v", textID, round+1, err)
+			logger().Error("chat summaries stream failed", "text_id", textID, "round", round+1, "error", err)
 			sse.Error(err.Error())
 			break
 		}

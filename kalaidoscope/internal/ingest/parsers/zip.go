@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 )
 
 func parseZip(ctx context.Context, src Source, exts []string, emit Emit) error {
@@ -27,7 +26,7 @@ func parseZip(ctx context.Context, src Source, exts []string, emit Emit) error {
 		}
 		rc, err := f.Open()
 		if err != nil {
-			log.Printf("ingest: open zip entry %q: %v", f.Name, err)
+			logger().Warn("skipping unreadable zip entry", "file", f.Name, "error", err)
 			continue
 		}
 		data, _ := io.ReadAll(rc)

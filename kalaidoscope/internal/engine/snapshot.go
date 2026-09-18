@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -81,9 +80,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 
 	started := time.Now()
-	log.Printf("snapshot %s %s (%q): generating via %s — context: %d fragments, %d snapshots",
-		strat.TargetType(), rec.Id, rec.GetString("name"), model,
-		len(pinnedCtx.FragmentIDs), len(pinnedCtx.SnapshotIDs))
+	logger().Info("generating snapshot",
+		"target_type", strat.TargetType(), "id", rec.Id, "name", rec.GetString("name"), "model", model,
+		"fragments", len(pinnedCtx.FragmentIDs), "snapshots", len(pinnedCtx.SnapshotIDs))
 
 	outputStr, err := GenerateOutput(ctx, app, model, lensPrompt, sourceBlock, window)
 	if err != nil {
@@ -100,21 +99,21 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		// and shape are not this lens's to preserve — the minimal-diff rewrite
 		// would erase exactly the changes the new lens exists to make — so the
 		// raw candidate is the snapshot, as for a first generation.
-		log.Printf("snapshot %s %s: lens changed since last approval; generating from scratch", strat.TargetType(), rec.Id)
+		logger().Info("lens changed since last approval; generating from scratch", "target_type", strat.TargetType(), "id", rec.Id)
 	case strings.TrimSpace(prev) == "":
 		// First generation for this target (and window): nothing to anchor to.
 	case outputStr == prev:
-		log.Printf("snapshot %s %s: candidate matches the approved output byte-for-byte; nothing to rewrite", strat.TargetType(), rec.Id)
+		logger().Info("candidate matches the approved output byte-for-byte; nothing to rewrite", "target_type", strat.TargetType(), "id", rec.Id)
 		unchanged = true
 	default:
 		merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, window, prev, outputStr)
 		switch {
 		case err == nil:
 			if merged == prev {
-				log.Printf("snapshot %s %s: delta reported no semantic change; republishing the approved output verbatim", strat.TargetType(), rec.Id)
+				logger().Info("delta reported no semantic change; republishing the approved output verbatim", "target_type", strat.TargetType(), "id", rec.Id)
 				unchanged = true
 			} else {
-				log.Printf("snapshot %s %s: stored minimal-diff rewrite of the candidate", strat.TargetType(), rec.Id)
+				logger().Info("stored minimal-diff rewrite of the candidate", "target_type", strat.TargetType(), "id", rec.Id)
 			}
 			outputStr = merged
 		case errors.Is(err, llmq.ErrPreempted):
@@ -129,7 +128,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		default:
 			// The polish steps failing must not fail the generation; the
 			// raw candidate is correct, just noisier to diff.
-			log.Printf("snapshot %s %s: minimal-diff rewrite failed, keeping raw candidate: %v", strat.TargetType(), rec.Id, err)
+			logger().Warn("minimal-diff rewrite failed, keeping raw candidate", "target_type", strat.TargetType(), "id", rec.Id, "error", err)
 		}
 	}
 
@@ -153,8 +152,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 			return "", fmt.Errorf("settle in place: %w", err)
 		}
 		if settledID != "" {
-			log.Printf("snapshot %s %s (%q): unchanged; approved snapshot %s now records the current context (%s)",
-				strat.TargetType(), rec.Id, rec.GetString("name"), settledID, time.Since(started).Round(time.Millisecond))
+			logger().Info("snapshot unchanged; approved snapshot now records the current context",
+				"target_type", strat.TargetType(), "id", rec.Id, "name", rec.GetString("name"),
+				"snapshot_id", settledID, "duration", time.Since(started).Round(time.Millisecond))
 			return settledID, nil
 		}
 		// The approved snapshot moved under us; fall through and store the
@@ -174,9 +174,9 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
 	completed = true
-	log.Printf("snapshot %s %s (%q): stored %s snapshot %s (%d chars, %s)",
-		strat.TargetType(), rec.Id, rec.GetString("name"), status, claimID,
-		len(outputStr), time.Since(started).Round(time.Millisecond))
+	logger().Info("stored snapshot",
+		"target_type", strat.TargetType(), "id", rec.Id, "name", rec.GetString("name"), "status", status,
+		"snapshot_id", claimID, "chars", len(outputStr), "duration", time.Since(started).Round(time.Millisecond))
 
 	if status == StatusApproved {
 

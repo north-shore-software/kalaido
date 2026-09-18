@@ -2,19 +2,21 @@ package llm
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"sort"
 	"strings"
 )
 
+// logger is the process logger tagged with this package.
+func logger() *slog.Logger { return slog.Default().With("component", "llm") }
+
 // Trace switches on logging of every provider request body, user content
 // included, so a rejected call can be reproduced verbatim from the sidecar
-// log: KALAIDO_LLM_TRACE=1 in the sidecar's environment (the Tauri shell
+// log. The binary sets it from KALAIDO_LLM_TRACE at boot (the Tauri shell
 // forwards KALAIDO_* variables, so `KALAIDO_LLM_TRACE=1 ./kalaido.sh dev`
 // is enough). Off by default — the log would otherwise carry every document
 // of every context on every call.
-var Trace = os.Getenv("KALAIDO_LLM_TRACE") != ""
+var Trace bool
 
 // Shape summarises a call without its content: message count per role with
 // the characters each role carries, how many messages are empty, the tools
@@ -65,7 +67,7 @@ func LogRequest(provider ProviderID, model, url string, body []byte) {
 	if !Trace {
 		return
 	}
-	log.Printf("%s: trace request model=%s url=%s body=%s", provider, model, url, body)
+	logger().Info("trace request", "provider", provider, "model", model, "url", url, "body", string(body))
 }
 
 // LogFailure records a provider call that did not yield a stream: the HTTP
@@ -77,9 +79,6 @@ func LogFailure(provider ProviderID, model string, status int, shape, detail, bo
 	if status != 0 {
 		where = fmt.Sprintf("HTTP %d", status)
 	}
-	if detail != "" {
-		detail = " " + detail
-	}
-	log.Printf("%s: request failed (%s) model=%s %s%s\n%s: response body: %s",
-		provider, where, model, shape, detail, provider, strings.TrimSpace(body))
+	logger().Error("request failed", "provider", provider, "status", where, "model", model,
+		"shape", shape, "detail", detail, "body", strings.TrimSpace(body))
 }

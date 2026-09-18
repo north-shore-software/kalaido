@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -19,7 +18,7 @@ func RegisterHooks(app core.App) {
 	app.OnRecordCreate("ingest").BindFunc(func(e *core.RecordEvent) error {
 		files, err := readUnsavedFiles(e.Record)
 		if err != nil {
-			log.Printf("ingest: read uploads: %v", err)
+			logger().Error("read uploads failed", "error", err)
 		}
 		cfg := readConfig(e.Record)
 
@@ -65,6 +64,7 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 		return 0, err
 	}
 	w.origin = "import"
+	w.batch = importBatch
 
 	exts := opts.Extensions
 	if len(exts) == 0 {
@@ -86,6 +86,10 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 
 	src := parsers.Source{Name: opts.SourceName, Format: opts.Format, Data: opts.Data}
 	err = parsers.Parse(ctx, src, exts, sink)
+	// Whatever ended the parse, the fragments it did yield are good.
+	if ferr := w.flush(); ferr != nil {
+		return w.count, ferr
+	}
 	if err != nil && !errors.Is(err, errBudget) && !errors.Is(err, context.Canceled) {
 		return w.count, err
 	}
@@ -137,14 +141,14 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		total += n
 		if err != nil {
 			ingestErr = err
-			log.Printf("ingest: processing %q: %v", uf.name, err)
+			logger().Error("processing file failed", "file", uf.name, "error", err)
 			break
 		}
 	}
 
 	rec, err := app.FindRecordById("ingest", recID)
 	if err != nil {
-		log.Printf("ingest: reload record %s: %v", recID, err)
+		logger().Error("reload record failed", "record_id", recID, "error", err)
 		return
 	}
 	rec.Set("ingested", total)
@@ -155,9 +159,9 @@ func processIngestRecord(app core.App, recID string, cfg ingestConfig, files []u
 		rec.Set("status", "done")
 	}
 	if err := app.Save(rec); err != nil {
-		log.Printf("ingest: save status for %s: %v", recID, err)
+		logger().Error("save status failed", "record_id", recID, "error", err)
 	}
-	log.Printf("ingest: completed record %s (ingested %d fragments across %d file(s))", recID, total, len(files))
+	logger().Info("completed record", "record_id", recID, "fragments", total, "files", len(files))
 	// The batch is in: every lens over these fragments can now be
 	// regenerated ahead of the user. Colour and map follow-ups re-request
 	// the wave as they change membership; each re-run skips what is current.

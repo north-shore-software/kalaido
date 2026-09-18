@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
 	"time"
 
@@ -58,7 +57,7 @@ func writeQueueStatus(app core.App, st llmq.Status) {
 	} else {
 		col, err := app.FindCollectionByNameOrId(queueStatusCollection)
 		if err != nil {
-			log.Printf("queue status: collection unavailable: %v", err)
+			logger().Error("queue status collection unavailable", "error", err)
 			return
 		}
 		rec = core.NewRecord(col)
@@ -83,6 +82,6 @@ func writeQueueStatus(app core.App, st llmq.Status) {
 	rec.Set("waiting", string(waiting))
 	rec.Set("held", string(held))
 	if err := app.Save(rec); err != nil {
-		log.Printf("queue status: save failed: %v", err)
+		logger().Error("queue status save failed", "error", err)
 	}
 }

@@ -1,7 +1,6 @@
 package mapping
 
 import (
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,7 +34,7 @@ func aggregateLoop() {
 	for range time.Tick(aggregateTick) {
 		due, err := consolidateDue(workerApp, time.Now())
 		if err != nil {
-			log.Printf("mapping: consolidate check: %v", err)
+			logger().Error("consolidate check failed", "error", err)
 			continue
 		}
 		if due {
@@ -73,7 +72,7 @@ func integrate(app core.App) {
 	consolidating.Store(true)
 	defer consolidating.Store(false)
 	if err := consolidate(app); err != nil {
-		log.Printf("mapping: consolidate: %v", err)
+		logger().Error("consolidate failed", "error", err)
 	}
 }
 

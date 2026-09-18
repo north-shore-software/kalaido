@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"sync"
@@ -14,14 +14,31 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/gemini"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ollama"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/server"
 )
 
+// logger is the process logger tagged with this package.
+func logger() *slog.Logger { return slog.Default().With("component", "sidecar") }
+
 func main() {
+	// The environment is read exactly once, here, and fails the launch
+	// rather than the branch that would have used a bad value.
+	env, err := config.LoadEnv()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "kalaidoscope:", err)
+		os.Exit(1)
+	}
+	// Logs go to stderr: stdout is the host's channel for KALAIDO_PORT and
+	// KALAIDO_USER_TOKEN, and must carry nothing else it has to parse around.
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: env.LogLevel})))
+	llm.Trace = env.LLMTrace
+	reconcile.SetAutoWave(env.AutoWave)
+
 	a := server.New(true)
 
-	resolveModelSet(a)
+	resolveModelSet(a, env)
 	config.LoadAtBoot(a)
 
 	// The one place a provider gets wired up. A workspace that chose its own
@@ -51,12 +68,13 @@ func main() {
 	})
 	ollama.RegisterRoutes(a)
 	ollama.RegisterPreload(a)
-	seedSidecarUser(a)
+	seedSidecarUser(a, env)
 	reportPort(a)
 	server.EnsureReady()
 
 	if err := a.Start(); err != nil {
-		log.Fatal(err)
+		logger().Error("server stopped", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -99,12 +117,11 @@ func printBanner(port int) {
 // disagrees is warned about and ignored, because flipping an initialized scope's
 // set implies regenerating its stamped artifacts and is a deliberate operation
 // (a future route), not an env toggle.
-func resolveModelSet(a *pocketbase.PocketBase) {
+func resolveModelSet(a *pocketbase.PocketBase, env config.Env) {
 	a.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		col, err := a.FindCollectionByNameOrId("kalaidoscope_config")
 		if err != nil {
-
-			log.Printf("model set: config collection unavailable (%v); using default %q", err, llm.ActiveModelSet())
+			logger().Warn("model set: config collection unavailable; using default", "error", err, "model_set", llm.ActiveModelSet())
 			return se.Next()
 		}
 
@@ -115,27 +132,20 @@ func resolveModelSet(a *pocketbase.PocketBase) {
 			rec = core.NewRecord(col)
 		}
 
-		envRaw := os.Getenv("KALAIDO_MODEL_SET")
-
 		stored := rec.GetString("model_set")
 		if stored == "" {
-
 			set := llm.SetLocal
-			if envRaw != "" {
-				parsed, perr := llm.ParseModelSet(envRaw)
-				if perr != nil {
-					log.Fatal(perr)
-				}
-				set = parsed
+			if env.ModelSet != "" {
+				set = env.ModelSet
 			}
 			rec.Set("model_set", string(set))
 			if err := a.Save(rec); err != nil {
-				log.Printf("model set: failed to seed config (%v); using %q for this run", err, set)
+				logger().Warn("model set: failed to seed config; using it for this run only", "error", err, "model_set", set)
 				llm.SetActiveModelSet(set)
 				return se.Next()
 			}
 			llm.SetActiveModelSet(set)
-			log.Printf("model set: seeded %q", set)
+			logger().Info("model set seeded", "model_set", set)
 			return se.Next()
 		}
 
@@ -143,18 +153,19 @@ func resolveModelSet(a *pocketbase.PocketBase) {
 		if err != nil {
 			// A corrupt stored value shouldn't route generation somewhere
 			// unexpected — fail loudly rather than silently defaulting.
-			log.Fatalf("model set: stored value %q is invalid: %v", stored, err)
+			logger().Error("model set: stored value is invalid", "stored", stored, "error", err)
+			os.Exit(1)
 		}
-		if envRaw != "" && envRaw != stored {
-			log.Printf("model set: KALAIDO_MODEL_SET=%q ignored — this scope was initialized as %q (changing it requires regenerating its artifacts)", envRaw, stored)
+		if env.ModelSetRaw != "" && env.ModelSetRaw != stored {
+			logger().Warn("model set: KALAIDO_MODEL_SET ignored; this scope was initialized with another set (changing it requires regenerating its artifacts)", "env", env.ModelSetRaw, "stored", stored)
 		}
 		llm.SetActiveModelSet(set)
-		log.Printf("model set: loaded %q", set)
+		logger().Info("model set loaded", "model_set", set)
 		return se.Next()
 	})
 }
 
-func seedSidecarUser(a *pocketbase.PocketBase) {
+func seedSidecarUser(a *pocketbase.PocketBase, env config.Env) {
 	a.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		email := "user@kalaido.local"
 
@@ -169,18 +180,18 @@ func seedSidecarUser(a *pocketbase.PocketBase) {
 			record.Set("email", email)
 		}
 
-		if password := os.Getenv("KALAIDO_USER_PASSWORD"); password != "" {
-			record.SetPassword(password)
+		if env.UserPassword != "" {
+			record.SetPassword(env.UserPassword)
 		} else {
 			record.SetRandomPassword()
 		}
 		if err := a.Save(record); err != nil {
-			log.Printf("Error setting user password: %v", err)
+			logger().Error("seed user: set password failed", "error", err)
 			return se.Next()
 		}
 		token, err := record.NewAuthToken()
 		if err != nil {
-			log.Printf("Error creating user JWT: %v", err)
+			logger().Error("seed user: create JWT failed", "error", err)
 			return se.Next()
 		}
 

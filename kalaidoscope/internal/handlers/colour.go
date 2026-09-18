@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -37,7 +36,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 
 		recs, err := app.FindRecordsByFilter("fragment", "deleted_at = ''", "-created", 20, 0, dbx.Params{})
 		if err != nil {
-			log.Printf("colour preview: find fragments failed: %v", err)
+			logger().Error("colour preview: find fragments failed", "error", err)
 			return e.InternalServerError("failed to fetch fragments", err)
 		}
 
@@ -84,7 +83,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 					// A canceled context is the expected outcome of that
 					// superseded request, not a failure worth logging.
 					if ctx.Err() == nil {
-						log.Printf("colour preview: evaluation failed for fragment %s: %v", rec.Id, err)
+						logger().Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
 					}
 					return
 				}
@@ -103,7 +102,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		for rec := range results {
 			jsonData, err := json.Marshal(rec)
 			if err != nil {
-				log.Printf("colour preview: marshal fragment failed: %v", err)
+				logger().Warn("colour preview: marshal fragment failed, skipping", "error", err)
 				continue
 			}
 
@@ -150,7 +149,7 @@ func HandleCreateColour(app core.App) func(e *core.RequestEvent) error {
 		// skips pairs that hold a row, so they are not judged twice.
 		for _, fragID := range req.FragmentIDs {
 			if err := colour.SetPromptMatch(app, colourRec.Id, fragID); err != nil {
-				log.Printf("colour create: seed %s: %v", fragID, err)
+				logger().Warn("colour create: seeding prompt match failed", "fragment_id", fragID, "error", err)
 			}
 		}
 		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, nil); err != nil {

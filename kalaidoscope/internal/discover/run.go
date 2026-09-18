@@ -1,8 +1,6 @@
 package discover
 
 import (
-	"log"
-
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
@@ -36,7 +34,7 @@ func (c *Context) saveProgress() {
 	c.Run.Set("fragment_reads", c.Reads())
 	c.Run.Set("outputs", pbutil.JSONObject(outputs))
 	if err := c.App.Save(c.Run); err != nil {
-		log.Printf("discover: save run: %v", err)
+		logger().Error("save run failed", "error", err)
 	}
 }
 

@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -150,8 +149,8 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		return discardOtherPending(txApp, strat, parentID, SnapshotWindow(snap), snap.Id)
 	})
 	if err == nil && approvedSeq > 0 {
-		log.Printf("approve %s %s: snapshot %s is now the approved output (sequence %d)",
-			strat.TargetType(), parentID, snapshotID, approvedSeq)
+		logger().Info("snapshot approved",
+			"target_type", strat.TargetType(), "id", parentID, "snapshot_id", snapshotID, "sequence", approvedSeq)
 	}
 	return err
 }

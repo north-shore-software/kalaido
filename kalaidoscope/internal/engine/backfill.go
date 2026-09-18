@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -95,14 +94,14 @@ func RunPendingWindows(app core.App, reflectionID string) {
 func GeneratePendingWindows(app core.App, reflectionID string) {
 	rec, err := app.FindRecordById("reflection", reflectionID)
 	if err != nil {
-		log.Printf("backfill %s: %v", reflectionID, err)
+		logger().Error("backfill: load reflection failed", "reflection_id", reflectionID, "error", err)
 		return
 	}
 	pending := PendingWindows(app, rec, time.Now())
 	if len(pending) == 0 {
 		return
 	}
-	log.Printf("backfill %s (%q): %d pending windows", reflectionID, rec.GetString("name"), len(pending))
+	logger().Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
 
 	ctx := llmq.WithPriority(context.Background(), llmq.Background)
 	results := GenerateWindows(ctx, app, reflectionID, StatusApproved, ReflectionStrategy{}, pending)
@@ -112,14 +111,14 @@ func GeneratePendingWindows(app core.App, reflectionID string) {
 		case r.Err == nil:
 			generated++
 		case errors.Is(r.Err, ErrLensNotReady):
-			log.Printf("backfill %s: no lens yet", reflectionID)
+			logger().Warn("backfill: no lens yet", "reflection_id", reflectionID)
 		case errors.Is(r.Err, ErrGenerationInFlight):
 			// Someone else is producing this window; leave it to them.
 		default:
-			log.Printf("backfill %s: window %s: %v", reflectionID, WindowKey(pending[i]), r.Err)
+			logger().Error("backfill window failed", "reflection_id", reflectionID, "window", WindowKey(pending[i]), "error", r.Err)
 		}
 	}
-	log.Printf("backfill %s: generated %d of %d windows", reflectionID, generated, len(pending))
+	logger().Info("backfill completed", "reflection_id", reflectionID, "generated", generated, "count", len(pending))
 }
 
 // WindowResult is one window's outcome from GenerateWindows.

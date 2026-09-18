@@ -9,7 +9,6 @@ package colour
 import (
 	"context"
 	"errors"
-	"log"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -96,7 +95,7 @@ func loop() {
 	for range signal {
 		wrote, err := drain(workerApp)
 		if err != nil {
-			log.Printf("colour: drain: %v", err)
+			logger().Error("drain failed", "error", err)
 		}
 		if wrote > 0 {
 			for _, fn := range drainedHooks {
@@ -274,7 +273,7 @@ func recordProviderErrorKind(app core.App, colourRec *core.Record, err error) {
 	}
 	colourRec.Set("last_provider_error_kind", string(perr.Kind))
 	if err := app.Save(colourRec); err != nil {
-		log.Printf("colour: record provider error kind: %v", err)
+		logger().Error("record provider error kind failed", "error", err)
 	}
 }
 
@@ -284,6 +283,6 @@ func clearProviderErrorKind(app core.App, colourRec *core.Record) {
 	}
 	colourRec.Set("last_provider_error_kind", "")
 	if err := app.Save(colourRec); err != nil {
-		log.Printf("colour: clear provider error kind: %v", err)
+		logger().Error("clear provider error kind failed", "error", err)
 	}
 }

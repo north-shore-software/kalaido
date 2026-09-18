@@ -1,6 +1,6 @@
 # Go Sidecar Modernization Plan
 
-**Status:** Proposed, fact-checked against `kalaido/kalaidoscope/` at `55a8458` (2026-09-17). Nothing implemented yet; branch `louis/go-tidy` is clean.
+**Status:** Phases 1 and 2 implemented on `louis/go-tidy` (2026-09-17, uncommitted); fact-checked against `55a8458`. Phases 3 and 4 not started.
 **Scope:** Go backend only. Retire package-level globals, add a shutdown lifecycle, structured logging, typed config, and fix the handful of API-shape deviations. Keep the codebase's "standard library first" posture.
 
 ---
@@ -77,17 +77,19 @@ The coalescing-signal + re-derive-from-DB pattern is unchanged. Only the ownersh
 Each phase leaves `./kalaido.sh test:go` and `go vet ./...` clean and is a separate PR.
 
 ### Phase 1: Foundations (no behaviour change)
-- [ ] `go get github.com/cenkalti/backoff/v4 github.com/google/go-cmp`; promote `golang.org/x/sync` to direct.
-- [ ] `internal/config/env.go`: `Env` struct (`ModelSet`, `UserPassword`, `AutoWave`, `LLMTrace`, `LogLevel`), `LoadEnv() (Env, error)`. `main` loads it once and passes it down. `llm.Trace` and `reconcile.autoWave` stop reading the environment at package init and become fields set from `Env`. Provider credential env vars (`GEMINI_API_KEY`, `OLLAMA_HOST`) stay where they are: they belong to the provider, and `preflight.go` probes them by name.
-- [ ] `log/slog`: one logger built in `main`, level from `Env.LogLevel` (default `info`). Mechanical sweep of all `log.Printf` sites to `slog` with the worker/package as a fixed attribute. Keep `log.Fatal` semantics for boot invariants via `slog.Error` + `os.Exit(1)`.
-- [ ] Move the three anonymous HTTP request structs to `internal/api` (`CreateSynthesisRequest`, `TokenResolutionRequest`, `DiscoverKickRequest`). Move the tool-argument structs in `refinement_chat.go` next to their tool definitions in `internal/prompts`.
-- [ ] `api.IngestMessage`: switch JSON tags to lowerCamelCase and add an `UnmarshalJSON` that also accepts the legacy snake_case keys. Return `400` when `format`, `fragmentLimit`, or `extensions` are set on the synchronous route instead of ignoring them. Update `docs/api.md §1/§2` (regenerate, do not hand-edit).
-- [ ] `schema/constants.go`: typed `Collection` and `Status` constants and a `NotDeleted()` predicate. Adopt at call sites opportunistically in later phases; do not do a repo-wide sweep in this phase.
+- [x] `go get github.com/cenkalti/backoff/v4 github.com/google/go-cmp`; promote `golang.org/x/sync` to direct.
+- [x] `internal/config/env.go`: `Env` struct (`ModelSet`, `UserPassword`, `AutoWave`, `LLMTrace`, `LogLevel`), `LoadEnv() (Env, error)`. `main` loads it once and passes it down. `llm.Trace` and `reconcile.autoWave` stop reading the environment at package init and become fields set from `Env`. Provider credential env vars (`GEMINI_API_KEY`, `OLLAMA_HOST`) stay where they are: they belong to the provider, and `preflight.go` probes them by name.
+- [x] `log/slog`: one logger built in `main`, level from `Env.LogLevel` (default `info`). Mechanical sweep of all `log.Printf` sites to `slog` with the worker/package as a fixed attribute. Keep `log.Fatal` semantics for boot invariants via `slog.Error` + `os.Exit(1)`.
+- [x] Move the three anonymous HTTP request structs to `internal/api` (`CreateSynthesisRequest`, `TokenResolutionRequest`, `DiscoverKickRequest`). Move the tool-argument structs in `refinement_chat.go` next to their tool definitions in `internal/prompts`.
+- [x] `api.IngestMessage`: switch JSON tags to lowerCamelCase and add an `UnmarshalJSON` that also accepts the legacy snake_case keys. Return `400` when `format`, `fragmentLimit`, or `extensions` are set on the synchronous route instead of ignoring them. Update `docs/api.md §1/§2` (regenerate, do not hand-edit) — **still owed**.
+- [x] `schema/constants.go`: typed `Collection` and `Status` constants and a `NotDeleted()` predicate. Adopt at call sites opportunistically in later phases; do not do a repo-wide sweep in this phase.
 
 ### Phase 2: Fix the real bugs
-- [ ] `retryPreempted` in `mapping` and `discover`: replace the sleepless loop with `backoff.Retry` (exponential, jitter, `MaxElapsedTime` ≈ 2 min, `Permanent` for non-throttle errors, `ErrPreempted` retried immediately as today).
-- [ ] `ingest.SweepPending(app)` on `OnServe`, mirroring `engine.SweepGenerationClaims`: rows still `pending` at boot become `status=error`, `error="server restarted while processing"`.
-- [ ] `ingest/writer.go`: wrap the per-upload fragment writes in one `RunInTransaction` (no LLM calls in that loop). Confirm the birth hooks still fire per record.
+
+Notes from the build: the shared retry lives in `usage.RetryThrottled` (both callers already imported `usage`); the ingest writer commits pages of 100 fragments rather than one transaction per upload, so a large archive never holds the write connection for its whole parse; `go-cmp` is added but not yet used (Phase 4).
+- [x] `retryPreempted` in `mapping` and `discover`: replace the sleepless loop with `backoff.Retry` (exponential, jitter, `MaxElapsedTime` ≈ 2 min, `Permanent` for non-throttle errors, `ErrPreempted` retried immediately as today).
+- [x] `ingest.SweepPending(app)` on `OnServe`, mirroring `engine.SweepGenerationClaims`: rows still `pending` at boot become `status=error`, `error="server restarted while processing"`.
+- [x] `ingest/writer.go`: wrap the per-upload fragment writes in one `RunInTransaction` (no LLM calls in that loop). Confirm the birth hooks still fire per record.
 
 ### Phase 3: Workers as structs, lifecycle under errgroup
 - [ ] `engine.ClaimHub` (std lib): `Await(ctx, claimID)` and `Settle(claimID)`. `AwaitGeneration` waits on the hub and reads the row once on wake; the 500ms poll stays only as the fallback for a claim not registered in this process (TTL takeover).

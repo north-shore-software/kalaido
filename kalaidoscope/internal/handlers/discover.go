@@ -5,14 +5,13 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 )
 
 func HandleDiscoverKick(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		var req struct {
-			Kind string `json:"kind"`
-		}
+		var req api.DiscoverKickRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
@@ -39,7 +38,7 @@ func HandleBackfillReflection(app core.App) func(e *core.RequestEvent) error {
 		case errors.Is(err, engine.ErrBackfillOutOfRange):
 			return e.BadRequestError(err.Error(), err)
 		case err != nil:
-			log.Printf("reflection.backfill %s: %v", id, err)
+			logger().Error("reflection backfill failed", "reflection_id", id, "error", err)
 			return e.InternalServerError("backfill failed", err)
 		}
 		engine.RunPendingWindows(app, id)

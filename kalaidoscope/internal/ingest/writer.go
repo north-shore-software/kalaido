@@ -3,13 +3,18 @@ package ingest
 import (
 	"crypto/sha256"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
+
+// importBatch is how many fragments an import commits per transaction. One
+// transaction per fragment costs a disk sync each; one per import would hold
+// PocketBase's single write connection for the whole parse of a large
+// archive. A page of a hundred is a compromise between the two.
+const importBatch = 100
 
 type writer struct {
 	app    core.App
@@ -19,6 +24,10 @@ type writer struct {
 	count  int                   // records actually created
 	lastID string                // id of the most recently created fragment
 	origin string
+	// batch is how many records one transaction commits; 1 saves each
+	// fragment as it arrives. pending holds the built records not yet saved.
+	batch   int
+	pending []*core.Record
 }
 
 func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
@@ -26,7 +35,7 @@ func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fragment collection missing: %w", err)
 	}
-	w := &writer{app: app, col: col, limit: limit}
+	w := &writer{app: app, col: col, limit: limit, batch: 1}
 	if skipDuplicates {
 		w.seen = map[[32]byte]struct{}{}
 		if records, err := app.FindAllRecords("fragment"); err == nil {
@@ -34,13 +43,13 @@ func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
 				w.seen[sha256.Sum256([]byte(r.GetString("content")))] = struct{}{}
 			}
 		} else {
-			log.Printf("ingest: preload existing fragments for dedupe: %v", err)
+			logger().Warn("preload existing fragments for dedupe failed", "error", err)
 		}
 	}
 	return w, nil
 }
 
-func (w *writer) full() bool { return w.limit > 0 && w.count >= w.limit }
+func (w *writer) full() bool { return w.limit > 0 && w.count+len(w.pending) >= w.limit }
 
 func (w *writer) addAt(fragType, source, content string, sourceTime time.Time) error {
 	content = strings.TrimSpace(content)
@@ -64,10 +73,35 @@ func (w *writer) addAt(fragType, source, content string, sourceTime time.Time) e
 			rec.Set("occurred_at", dt)
 		}
 	}
-	if err := w.app.Save(rec); err != nil {
+	w.pending = append(w.pending, rec)
+	if len(w.pending) >= w.batch {
+		return w.flush()
+	}
+	return nil
+}
+
+// flush commits every pending record in one transaction. The fragment
+// after-create hooks fire once it commits, so the workers they signal see
+// the whole page at once. On failure the page is dropped and the count
+// stays at what actually landed.
+func (w *writer) flush() error {
+	if len(w.pending) == 0 {
+		return nil
+	}
+	page := w.pending
+	w.pending = nil
+	err := w.app.RunInTransaction(func(tx core.App) error {
+		for _, rec := range page {
+			if err := tx.Save(rec); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
-	w.count++
-	w.lastID = rec.Id
+	w.count += len(page)
+	w.lastID = page[len(page)-1].Id
 	return nil
 }

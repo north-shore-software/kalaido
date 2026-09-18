@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -144,7 +143,7 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 		return
 	}
 	if err := app.Delete(rec); err != nil {
-		log.Printf("generation claim %s: release: %v", claimID, err)
+		logger().Error("generation claim release failed", "claim_id", claimID, "error", err)
 	}
 }
 
@@ -179,7 +178,7 @@ func SweepGenerationClaims(app core.App) {
 		}
 		for _, r := range recs {
 			if err := app.Delete(r); err != nil {
-				log.Printf("generation claim sweep: %s %s: %v", strat.TargetType(), r.Id, err)
+				logger().Error("generation claim sweep delete failed", "target_type", strat.TargetType(), "claim_id", r.Id, "error", err)
 			}
 		}
 	}

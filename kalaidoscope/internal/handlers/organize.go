@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"time"
 
@@ -14,7 +13,7 @@ func HandleGetOrganize(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		st, err := organize.Evaluate(e.Request.Context(), app, time.Now())
 		if err != nil {
-			log.Printf("organize.status: evaluation failed: %v", err)
+			logger().Error("organize status evaluation failed", "error", err)
 			return e.InternalServerError("failed to evaluate organize status", err)
 		}
 		return e.JSON(http.StatusOK, st)

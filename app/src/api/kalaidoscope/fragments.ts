@@ -26,9 +26,9 @@ export async function addFragment(
       body: JSON.stringify({
         type,
         content,
-        ingested_via: opts?.ingestedVia ?? "app",
+        ingestedVia: opts?.ingestedVia ?? "app",
         source: opts?.source,
-        occurred_at: opts?.occurredAt,
+        occurredAt: opts?.occurredAt,
       }),
     });
     if (!res.ok) {

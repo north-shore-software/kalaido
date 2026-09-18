@@ -3,7 +3,6 @@ package mapping
 import (
 	"context"
 	"errors"
-	"log"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -11,14 +10,12 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 const (
-	annotateWorkers      = 100
-	maxThrottledAttempts = 6
+	annotateWorkers = 100
 )
 
 var signal = make(chan struct{}, 1)
@@ -93,7 +90,7 @@ func loop() {
 		annotating.Store(false)
 		setLastDrainError(err)
 		if err != nil {
-			log.Printf("mapping: drain: %v", err)
+			logger().Error("drain failed", "error", err)
 		}
 		followup.Run(active, err)
 	}
@@ -186,7 +183,7 @@ func drain(app core.App, full bool) error {
 				if err == nil {
 					return
 				}
-				log.Printf("mapping: annotate %s: %v", f.Id, err)
+				logger().Error("annotate failed", "fragment_id", f.Id, "error", err)
 				mu.Lock()
 				failed[f.Id] = true
 				if firstErr == nil {
@@ -207,22 +204,4 @@ func drain(app core.App, full bool) error {
 		settle(app)
 	}
 	return firstErr
-}
-
-func retryPreempted(f func() error) error {
-	throttled := 0
-	for {
-		err := f()
-		if errors.Is(err, llmq.ErrPreempted) {
-			continue
-		}
-		var perr *llm.ProviderError
-		if errors.As(err, &perr) && (perr.Kind == llm.ErrKindQuota || perr.Kind == llm.ErrKindTransient) {
-			throttled++
-			if throttled <= maxThrottledAttempts {
-				continue
-			}
-		}
-		return err
-	}
 }

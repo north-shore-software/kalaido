@@ -3,7 +3,6 @@ package mapping
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -59,7 +58,7 @@ func consolidate(app core.App) error {
 		run.Set("status", "error")
 		run.Set("error", err.Error())
 		if serr := app.Save(run); serr != nil {
-			log.Printf("mapping: save run: %v", serr)
+			logger().Error("save run failed", "error", serr)
 		}
 		return err
 	}
@@ -109,7 +108,7 @@ func consolidate(app core.App) error {
 	run.Set("merges", merges)
 	run.Set("version_after", d.version+1)
 	if err := app.Save(run); err != nil {
-		log.Printf("mapping: save run: %v", err)
+		logger().Error("save run failed", "error", err)
 	}
 	return nil
 }

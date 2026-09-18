@@ -1,8 +1,8 @@
 package server
 
 import (
-	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/pocketbase/pocketbase"
@@ -51,8 +51,11 @@ func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketb
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		se.InstallerFunc = nil
 		// A generation claim row is only live while its goroutine runs in this
-		// process; anything present at boot belongs to a crashed run.
+		// process, and an ingest record is only pending while its goroutine
+		// holds the uploads; anything of either kind present at boot belongs
+		// to a crashed run.
 		engine.SweepGenerationClaims(app)
+		ingest.SweepPending(app)
 		return se.Next()
 	})
 
@@ -202,6 +205,7 @@ func RegisterRoutes(app core.App) {
 
 func EnsureReady() {
 	if !llm.Ready() {
-		log.Fatal("server.EnsureReady: no LLM provider registered; call llm.SetProviderFactory before EnsureReady")
+		logger().Error("no LLM provider registered", "hint", "call llm.SetProviderFactory before EnsureReady")
+		os.Exit(1)
 	}
 }

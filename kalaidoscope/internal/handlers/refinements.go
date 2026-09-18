@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -171,7 +170,7 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 		})
 
 		if err != nil {
-			log.Printf("refinement.create: %v", err)
+			logger().Error("refinement create failed", "error", err)
 			return e.InternalServerError("failed to create refinement", err)
 		}
 
@@ -286,8 +285,8 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 			scanned = append(scanned, m.Role+"/"+p.Type)
 		}
 	}
-	log.Printf("refinement.extract: no drafted lens in %s (%d messages: %s)",
-		refRec.Id, len(msgs), strings.Join(scanned, ", "))
+	logger().Warn("refinement extract: no drafted lens",
+		"refinement_id", refRec.Id, "count", len(msgs), "scanned", strings.Join(scanned, ", "))
 
 	return "", "", pinned, spec, win, nil
 }
@@ -389,11 +388,11 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 		ctx := context.WithoutCancel(e.Request.Context())
 		newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, lens, output, pinned, spec, win, refRec.Id, targetCol)
 		if err != nil {
-			log.Printf("refinement.commit: %v", err)
+			logger().Error("refinement commit failed", "error", err)
 			return e.InternalServerError("failed to commit refinement", err)
 		}
 		if targetCol == "reflection" {
-			log.Printf("refinement.commit: reflection %s: refinement %s installed a new lens", parentID, refRec.Id)
+			logger().Info("refinement installed a new lens", "target_type", "reflection", "reflection_id", parentID, "refinement_id", refRec.Id)
 			// The lens exists (or changed), so the windows the series owes
 			// can be generated: for a brand-new reflection that is the whole
 			// grid. Windows that already have a snapshot keep it, marked as
@@ -401,7 +400,7 @@ func handleCommitRefinementGeneric(app core.App, targetCol, refinementColName, s
 			// regenerate brings them forward.
 			engine.RunPendingWindows(app, parentID)
 		} else {
-			log.Printf("refinement.commit: %s %s: refinement %s committed as snapshot %s", targetCol, parentID, refRec.Id, newSnapID)
+			logger().Info("refinement committed", "target_type", targetCol, "id", parentID, "refinement_id", refRec.Id, "snapshot_id", newSnapID)
 		}
 
 		return e.JSON(http.StatusOK, map[string]string{"snapshotId": newSnapID})

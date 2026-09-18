@@ -1,18 +1,12 @@
 package discover
 
 import (
-	"errors"
-	"log"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
-
-const maxThrottledAttempts = 6
 
 var (
 	wake      = make(chan struct{}, 1)
@@ -98,28 +92,10 @@ func loop() {
 			err := Run(workerApp, flows[kind])
 			setRunning("")
 			if err != nil {
-				log.Printf("discover: %s: %v", kind, err)
+				logger().Error("flow run failed", "kind", kind, "error", err)
 				last = err
 			}
 		}
 		followup.Run(active, last)
-	}
-}
-
-func retryPreempted(f func() error) error {
-	throttled := 0
-	for {
-		err := f()
-		if errors.Is(err, llmq.ErrPreempted) {
-			continue
-		}
-		var perr *llm.ProviderError
-		if errors.As(err, &perr) && (perr.Kind == llm.ErrKindQuota || perr.Kind == llm.ErrKindTransient) {
-			throttled++
-			if throttled <= maxThrottledAttempts {
-				continue
-			}
-		}
-		return err
 	}
 }

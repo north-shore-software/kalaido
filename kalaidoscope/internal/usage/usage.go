@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -85,7 +84,7 @@ func Record(ctx context.Context, app core.App, u *llm.Usage) {
 		}
 	}
 	if lastErr != nil {
-		log.Printf("usage: record %s: %v", period, lastErr)
+		logger().Error("record usage failed", "period", period, "error", lastErr)
 	}
 	if a := quota.Get(); a != nil {
 		a.Record(ctx, app, int64(u.TotalTokens))
