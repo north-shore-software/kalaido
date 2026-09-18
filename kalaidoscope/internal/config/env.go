@@ -27,10 +27,8 @@ type Env struct {
 	// (KALAIDO_USER_PASSWORD); "" means a random one per run.
 	UserPassword string
 	// AutoWave turns on the automatic reconcile triggers (KALAIDO_AUTO_WAVE).
-	// Any non-empty value enables it, so "0" is on too.
 	AutoWave bool
-	// LLMTrace logs every provider request body (KALAIDO_LLM_TRACE). Same
-	// non-empty rule.
+	// LLMTrace logs every provider request body (KALAIDO_LLM_TRACE).
 	LLMTrace bool
 	// LogLevel is the minimum level written to stderr (KALAIDO_LOG_LEVEL:
 	// debug, info, warn, error; default info).
@@ -48,8 +46,8 @@ func parseEnv(get func(string) string) (Env, error) {
 	env := Env{
 		ModelSetRaw:  get("KALAIDO_MODEL_SET"),
 		UserPassword: get("KALAIDO_USER_PASSWORD"),
-		AutoWave:     get("KALAIDO_AUTO_WAVE") != "",
-		LLMTrace:     get("KALAIDO_LLM_TRACE") != "",
+		AutoWave:     flag(get("KALAIDO_AUTO_WAVE")),
+		LLMTrace:     flag(get("KALAIDO_LLM_TRACE")),
 		LogLevel:     slog.LevelInfo,
 	}
 	if env.ModelSetRaw != "" {
@@ -67,4 +65,14 @@ func parseEnv(get func(string) string) (Env, error) {
 		env.LogLevel = lvl
 	}
 	return env, nil
+}
+
+// flag reads an on/off variable the conventional way: unset, "0", "false",
+// "no" and "off" are off; anything else ("1", "true", "yes", "on") is on.
+func flag(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "0", "false", "no", "off":
+		return false
+	}
+	return true
 }

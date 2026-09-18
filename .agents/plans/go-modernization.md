@@ -110,3 +110,13 @@ Notes from the build: `engine.RequestWave` was removed outright rather than repl
 2. `schema/parity_test.go` and `schema/delta_lint_test.go` untouched and passing.
 3. Boot still prints `KALAIDO_PORT=` and `KALAIDO_USER_TOKEN=` on stdout before serving. `slog` output goes to **stderr** so the host's stdout parse is unaffected.
 4. Quitting the desktop app during an active wave or import leaves no `generating` claim rows and no `pending` ingest rows on the next boot (both sweeps become no-ops in the common case).
+
+## 7. Review follow-ups (2026-09-17)
+
+Applied from the post-implementation review:
+- `AwaitGeneration` reads the row before it waits (a claim settled between the lookup and the subscribe has no waiter to wake) and disables the settle case once it fires (a closed channel is always ready; a row still reading as generating falls back to the poll instead of spinning).
+- `usage.RetryThrottled` checks the context inside its immediate-retry loop for preempted calls.
+- `KALAIDO_AUTO_WAVE` and `KALAIDO_LLM_TRACE` are read as conventional booleans: `0`, `false`, `no`, `off` and unset are off. Previously any non-empty value was on.
+- Package loggers are resolved once (`sync.Once`) and cached rather than rebuilt on every call; still resolved lazily so main's handler is the one captured.
+
+Left as they were, deliberately: `llm.SetProviderFactory`, the `llmq` process scheduler and the engine claim hub stay package-level (engine and llm have no instance to hang them on; the plan never scoped them). The typed collection constants are available but not swept through existing call sites. `docs/` is not regenerated (Louis's call).

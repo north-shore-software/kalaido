@@ -5,10 +5,20 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"sync"
 )
 
-// logger is the process logger tagged with this package.
-func logger() *slog.Logger { return slog.Default().With("component", "llm") }
+var (
+	loggerOnce sync.Once
+	pkgLogger  *slog.Logger
+)
+
+// logger is the process logger tagged with this package, resolved on first
+// use and cached.
+func logger() *slog.Logger {
+	loggerOnce.Do(func() { pkgLogger = slog.Default().With("component", "llm") })
+	return pkgLogger
+}
 
 // Trace switches on logging of every provider request body, user content
 // included, so a rejected call can be reproduced verbatim from the sidecar

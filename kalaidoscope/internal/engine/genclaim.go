@@ -69,12 +69,8 @@ func AwaitGeneration(ctx context.Context, app core.App, strat Strategy, parentID
 	ticker := time.NewTicker(awaitPollInterval)
 	defer ticker.Stop()
 	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-settled:
-		case <-ticker.C:
-		}
+		// Read first: a claim settled between the lookup above and the
+		// subscribe has no waiter to wake, and must not cost a poll interval.
 		rec, err := app.FindRecordById(strat.SnapshotCollectionName(), claimID)
 		if err != nil {
 			// Released: the generation failed, or a settle-in-place found
@@ -83,11 +79,20 @@ func AwaitGeneration(ctx context.Context, app core.App, strat Strategy, parentID
 		}
 		switch rec.GetString("status") {
 		case StatusGenerating:
-			continue
 		case StatusDiscarded:
 			return "", ErrGenerationAbandoned
 		default:
 			return rec.Id, nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-settled:
+			// A closed channel is always ready; disable the case so a row
+			// that still reads as generating falls back to the poll rather
+			// than spinning.
+			settled = nil
+		case <-ticker.C:
 		}
 	}
 }

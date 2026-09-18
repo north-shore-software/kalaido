@@ -26,7 +26,7 @@ func TestParseEnvValues(t *testing.T) {
 	vars := map[string]string{
 		"KALAIDO_MODEL_SET":     "cloud",
 		"KALAIDO_USER_PASSWORD": "pw",
-		"KALAIDO_AUTO_WAVE":     "0", // any non-empty value is on
+		"KALAIDO_AUTO_WAVE":     "1",
 		"KALAIDO_LLM_TRACE":     "1",
 		"KALAIDO_LOG_LEVEL":     "DEBUG",
 	}
@@ -53,6 +53,18 @@ func TestParseEnvRejectsBadValues(t *testing.T) {
 	} {
 		if _, err := parseEnv(func(k string) string { return vars[k] }); err == nil {
 			t.Errorf("%s: bad value accepted", name)
+		}
+	}
+}
+
+func TestFlagParsing(t *testing.T) {
+	t.Parallel()
+	for raw, want := range map[string]bool{
+		"": false, "0": false, "false": false, "FALSE": false, "no": false, "off": false,
+		"1": true, "true": true, "yes": true, "on": true, "anything": true,
+	} {
+		if got := flag(raw); got != want {
+			t.Errorf("flag(%q) = %v, want %v", raw, got, want)
 		}
 	}
 }

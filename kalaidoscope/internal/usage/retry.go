@@ -36,6 +36,9 @@ func RetryThrottled(ctx context.Context, f func() error) error {
 	return backoff.Retry(func() error {
 		var err error
 		for {
+			if err := ctx.Err(); err != nil {
+				return backoff.Permanent(err)
+			}
 			err = f()
 			if !errors.Is(err, llmq.ErrPreempted) {
 				break
