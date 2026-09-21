@@ -37,6 +37,7 @@ import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels";
 import { isPinned } from "@/lib/pins";
+import { captureEvent, captureException } from "@/lib/posthog";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import {
@@ -308,9 +309,13 @@ export default function Main() {
           ? await deleteProjection(item.id)
           : await deleteReflection(item.id);
       if (res.isErr()) {
+        captureException(res.error, { operation: "proposal_dismiss" });
         toast.error("Failed to dismiss", { description: res.error.message });
         return;
       }
+
+      captureEvent("proposal_dismissed", { proposal_type: it.kind });
+
       // Hold the optimistic row-less list until the live list agrees, so the
       // row never flashes back between the call and the realtime revalidation.
       await revalidate(item.kind);

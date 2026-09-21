@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { IngestPhase } from "@/api/kalaidoscope/ingest.ts";
 import { ingestNote } from "@/api/kalaidoscope/ingest.ts";
+import { captureEvent, captureException } from "@/lib/posthog";
 
 /**
  * Path A — synchronous single-entry ingest. Thin React state around
@@ -31,10 +32,16 @@ export function useNoteIngest() {
       abortRef.current = null;
 
       if (result.isOk()) {
+        captureEvent("fragment_created", {
+          fragment_type: type,
+          skip_duplicates: skipDuplicates,
+          character_count: trimmed.length,
+        });
         setPhase("done");
       } else if (controller.signal.aborted) {
         setPhase("cancelled");
       } else {
+        captureException(result.error, { operation: "fragment_create" });
         setErrorMsg(result.error.message || "Failed to save.");
         setPhase("error");
       }

@@ -58,6 +58,7 @@ export function CloudAuthPanel({
       // The account is in; a stale workspace list is not worth blocking on.
       const synced = await syncCloudWorkspaces();
       if (synced.isErr()) {
+        // todo: capture exception
         console.error(
           "Cloud workspace sync after sign-in failed:",
           synced.error,
@@ -65,6 +66,9 @@ export function CloudAuthPanel({
       }
 
       onAuthenticated?.({ isNewAccount: mode === "signup" });
+
+      // todo: capture event
+
       return null;
     },
     null,
