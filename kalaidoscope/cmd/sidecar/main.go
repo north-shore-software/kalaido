@@ -36,7 +36,7 @@ func main() {
 	logger = slog.Default().With("component", "sidecar")
 	llm.Trace = env.LLMTrace
 
-	a := server.NewWithOptions(pocketbase.Config{HideStartBanner: true}, schema.Options{}, server.Options{AutoWave: env.AutoWave})
+	a := server.NewWithSchemaWithOptions(pocketbase.Config{HideStartBanner: true}, schema.Options{}, server.Options{AutoWave: env.AutoWave})
 
 	resolveScopeModelSet(a, env)
 

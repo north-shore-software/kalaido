@@ -33,57 +33,54 @@ func logger(app core.App) *slog.Logger {
 
 // Options tune the server's own components; the zero value is the default.
 type Options struct {
-	// AutoWave turns on the reconcile worker's automatic triggers
-	// (KALAIDO_AUTO_WAVE). Off, only the dashboard's Start runs a wave.
+	// AutoWave controls the reconcile worker's automatic triggers
+	// (KALAIDO_AUTO_WAVE). Default off, only the dashboard's Start runs a wave.
 	AutoWave bool
 }
 
-func New(hideStartBanner bool) *pocketbase.PocketBase {
-	return NewWithConfig(pocketbase.Config{HideStartBanner: hideStartBanner})
-}
-
-func NewWithConfig(config pocketbase.Config) *pocketbase.PocketBase {
+func New(config pocketbase.Config) *pocketbase.PocketBase {
 	return NewWithSchema(config, schema.Options{})
 }
 
-// NewWithSchema is NewWithConfig with the schema runner tuned for a flavour
-// (the cloud binary hands it a hook to close Litestream before a restore).
 func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketbase.PocketBase {
-	return NewWithOptions(config, schemaOpts, Options{})
+	return NewWithSchemaWithOptions(config, schemaOpts, Options{})
 }
 
-// NewWithOptions builds the PocketBase app with every kalaidoscope component
-// wired: schema lifecycle, routes, triggers, and the background workers,
-// which start when the app serves and drain when it terminates.
-func NewWithOptions(config pocketbase.Config, schemaOpts schema.Options, opts Options) *pocketbase.PocketBase {
+func NewWithSchemaWithOptions(config pocketbase.Config, schemaOpts schema.Options, opts Options) *pocketbase.PocketBase {
 	app := pocketbase.NewWithConfig(config)
 
-	// Creates a new database from the canonical schema, or upgrades an old
-	// one, inside bootstrap — before anything below runs against collections.
+	// Migrate or initialize database schema, if not already present.
 	schema.Install(app, schemaOpts)
 	schema.RegisterCommand(app.RootCmd)
 
-	// PocketBase's installer opens the OS browser at the superuser dashboard once
-	// the listener binds, and it re-fires on every start because we never create a
-	// _superusers record (the app authenticates as `users`). Nil it out — the
-	// dashboard stays reachable at /_/ for anyone who creates a superuser by hand.
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		// PocketBase's installer opens the OS browser at the superuser dashboard once
+		// the listener binds, and it re-fires on every start because we never create a
+		// _superusers record (the app authenticates as `users`). Nil it out — the
+		// dashboard stays reachable at /_/ for anyone who creates a superuser by hand.
 		se.InstallerFunc = nil
+
 		// A generation claim row is only live while its goroutine runs in this
 		// process, and an ingest record is only pending while its goroutine
 		// holds the uploads; anything of either kind present at boot belongs
 		// to a crashed run.
 		engine.SweepGenerationClaims(app)
 		ingest.SweepPending(app)
+
 		return se.Next()
 	})
 
 	registerWriteEcho(app)
+
 	rt := newRuntime(app, opts)
+
 	RegisterTriggers(app, rt)
 	RegisterRoutes(app, rt.deps())
+
 	usage.Setup(app)
+
 	rt.bind(app)
+
 	registerQueueStatus(app, rt.Scheduler())
 
 	// After se.Next() so it runs once the rest of the boot chain — model set

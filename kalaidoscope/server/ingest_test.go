@@ -26,7 +26,7 @@ func startTestServer(t *testing.T) (*pocketbase.PocketBase, *testutil.TestServer
 		return testutil.MockProvider{}
 	})
 
-	a := server.NewWithConfig(pocketbase.Config{
+	a := server.New(pocketbase.Config{
 		DefaultDataDir:  t.TempDir(),
 		HideStartBanner: true,
 	})

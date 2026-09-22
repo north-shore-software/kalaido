@@ -1,4 +1,3 @@
-// UNREVIEWED
 package server
 
 import (
@@ -14,11 +13,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// registerWriteEcho logs every SQL statement that changes persistent state.
-// It replaces PocketBase's --dev firehose (which echoes every read too) for
-// normal dev runs: reads are silent, and churn tables are excluded. Launch the
-// sidecar with --dev (KALAIDO_PB_DEV=1 in the Tauri wrapper) to get the full
-// unfiltered echo back — in that mode this hook installs nothing.
+// registerWriteEcho logs every SQL statement that changes persistent state (excluding to llm_queue_status).
+// It is an alternative to PocketBase's --dev logging, which is too verbose most of the time (echoes every read, no tables excluded).
 func registerWriteEcho(app core.App) {
 	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
 		if err := e.Next(); err != nil {
@@ -40,9 +36,10 @@ func registerWriteEcho(app core.App) {
 	})
 }
 
-// The queue status row is rewritten several times a second while anything
-// runs; it is ephemeral coordination state, not user data.
+// Don't log writes to these tables.
 var writeEchoSkip = map[string]bool{
+	// The queue status row is rewritten several times a second while anything
+	// runs; it is ephemeral coordination state, not user data.
 	"llm_queue_status": true,
 }
 
