@@ -205,7 +205,7 @@ func HandleRestoreReflection(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) error {
+func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 		if id == "" {
@@ -248,7 +248,13 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			for _, w := range windowsToGenerate {
 				plain = append(plain, *w)
 			}
-			for _, r := range reflections.GenerateWindows(genCtx, app, id, status, plain) {
+			var results []reflections.WindowResult
+			if deps.Manager != nil {
+				results = deps.Manager.GenerateReflectionWindows(genCtx, id, status, plain)
+			} else {
+				results = reflections.GenerateWindows(genCtx, app, id, status, plain)
+			}
+			for _, r := range results {
 				if r.Err != nil {
 					if firstErr == nil {
 						firstErr = r.Err
@@ -260,11 +266,17 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			windowsToGenerate = nil
 		}
 		for _, w := range windowsToGenerate {
-			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
-			if errors.Is(err, engine.ErrGenerationInFlight) {
-				snapID, err = engine.JoinGeneration(e.Request.Context(), app, reflections.Strategy{}, id, w)
-				if errors.Is(err, engine.ErrGenerationAbandoned) {
-					snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
+			var snapID string
+			var err error
+			if deps.Manager != nil {
+				snapID, err = deps.Manager.GenerateReflectionSnapshot(genCtx, id, status, w)
+			} else {
+				snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
+				if errors.Is(err, engine.ErrGenerationInFlight) {
+					snapID, err = engine.JoinGeneration(e.Request.Context(), app, reflections.Strategy{}, id, w)
+					if errors.Is(err, engine.ErrGenerationAbandoned) {
+						snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
+					}
 				}
 			}
 			if err != nil {

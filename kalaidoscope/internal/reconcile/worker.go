@@ -90,6 +90,17 @@ type Worker struct {
 	lastStarted   time.Time
 	lastError     string
 	lastCompleted time.Time
+	waveCancel    context.CancelFunc
+}
+
+func (w *Worker) CancelWave() {
+	w.stateMu.Lock()
+	cancel := w.waveCancel
+	w.waveCancel = nil
+	w.stateMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 func logger(app core.App) *slog.Logger {
@@ -217,10 +228,16 @@ func (w *Worker) Run(ctx context.Context) error {
 		if err := w.signal.Wait(ctx); err != nil {
 			return err
 		}
+		waveCtx, cancel := context.WithCancel(ctx)
 		w.stateMu.Lock()
 		w.running, w.lastStarted = true, time.Now()
+		w.waveCancel = cancel
 		w.stateMu.Unlock()
-		err := runWave(ctx, w.app)
+		err := runWave(waveCtx, w.app)
+		w.stateMu.Lock()
+		w.waveCancel = nil
+		w.stateMu.Unlock()
+		cancel()
 		w.afterWave(err)
 	}
 }
@@ -245,6 +262,8 @@ func (w *Worker) afterWave(err error) {
 	w.running = false
 	if err == nil {
 		w.lastError, w.lastCompleted = "", time.Now()
+	} else if errors.Is(err, context.Canceled) {
+		w.lastError = ""
 	} else {
 		w.lastError = err.Error()
 	}
@@ -298,6 +317,9 @@ func runWave(ctx context.Context, app core.App) error {
 		queue.Background)
 
 	for _, s := range statuses { // EvaluateAll returns dependencies before dependents
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if !needsWork(s) {
 			continue
 		}
@@ -361,6 +383,9 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 
 	for _, win := range windows {
 		for {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			_, err := engine.GenerateSnapshot(ctx, app, s.ID, genStatus, strat, win)
 			if errors.Is(err, queue.ErrPreempted) {
 				// Interactive work took the slot mid-generation; the task is

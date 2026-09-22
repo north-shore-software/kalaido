@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -39,11 +40,16 @@ func logger(app core.App) *slog.Logger {
 // Worker is the prompt-matching worker: one per process, owned by the
 // server, woken by Signal and drained on its own goroutine (Run).
 type Worker struct {
-	app     core.App
-	logger  *slog.Logger
-	signal  workerutil.Signal
-	drained []func()
-	settled *settledMark
+	app      core.App
+	logger   *slog.Logger
+	signal   workerutil.Signal
+	drained  []func()
+	settled  *settledMark
+	draining atomic.Bool
+}
+
+func (w *Worker) Draining() bool {
+	return w.draining.Load()
 }
 
 // NewWorker builds the worker over app. Nothing runs until Run.
@@ -69,7 +75,9 @@ func (w *Worker) Run(ctx context.Context) error {
 		if err := w.signal.Wait(ctx); err != nil {
 			return err
 		}
+		w.draining.Store(true)
 		wrote, err := drain(ctx, w.app)
+		w.draining.Store(false)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			w.logger.Error("drain failed", "error", err)
 		}

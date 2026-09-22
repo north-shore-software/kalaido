@@ -114,7 +114,7 @@ func HandleRestoreProjection(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
+func HandleGenerateCandidate(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 		if id == "" {
@@ -144,11 +144,16 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		genCtx := context.WithoutCancel(e.Request.Context())
-		snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
-		if errors.Is(err, engine.ErrGenerationInFlight) {
-			snapID, err = engine.JoinGeneration(e.Request.Context(), app, projections.Strategy{}, id, nil)
-			if errors.Is(err, engine.ErrGenerationAbandoned) {
-				snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
+		var snapID string
+		if deps.Manager != nil {
+			snapID, err = deps.Manager.GenerateProjectionSnapshot(genCtx, id, status)
+		} else {
+			snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
+			if errors.Is(err, engine.ErrGenerationInFlight) {
+				snapID, err = engine.JoinGeneration(e.Request.Context(), app, projections.Strategy{}, id, nil)
+				if errors.Is(err, engine.ErrGenerationAbandoned) {
+					snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
+				}
 			}
 		}
 
