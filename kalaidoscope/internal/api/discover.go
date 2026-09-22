@@ -8,12 +8,14 @@ type StartDiscoverRequest struct {
 }
 
 type DiscoverStatus struct {
-	State     string             `json:"state"`
-	Running   string             `json:"running,omitempty"`
-	Pending   []string           `json:"pending"`
-	Due       []string           `json:"due"`
-	Runs      map[string]RunInfo `json:"runs"`
-	Proposals ProposalCounts     `json:"proposals"`
+	State          string             `json:"state"`
+	Running        string             `json:"running,omitempty"`
+	Pending        []string           `json:"pending"`
+	Due            []string           `json:"due"`
+	Runs           map[string]RunInfo `json:"runs"`
+	Proposals      ProposalCounts     `json:"proposals"`
+	WaitingOnMap   bool               `json:"waitingOnMap"`
+	CurrentStarted string             `json:"currentStarted,omitempty"`
 }
 
 type ProposalCounts struct {

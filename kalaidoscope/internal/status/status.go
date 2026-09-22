@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
@@ -18,6 +19,7 @@ import (
 
 // Workers bundles the live workers required to derive in-flight workspace status.
 type Workers struct {
+	Colour    *colour.Worker
 	Mapping   *mapping.Worker
 	Reconcile *reconcile.Worker
 	Discover  *discover.Worker
@@ -52,6 +54,7 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 	if err != nil {
 		return st, err
 	}
+	mapStatus.ThingsCount = things
 	st.Map = mapStatus
 
 	discoverStatus, err := discover.EvaluateStatus(app, w.Discover, version, things)
@@ -60,7 +63,15 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 	}
 	st.Discover = discoverStatus
 
-	st.Reconcile = w.Reconcile.EvaluateStatus()
+	colourStatus, err := colour.EvaluateStatus(app, w.Colour)
+	if err != nil {
+		return st, err
+	}
+	st.Colour = colourStatus
+
+	if w.Reconcile != nil {
+		st.Reconcile = w.Reconcile.EvaluateStatus()
+	}
 
 	return st, nil
 }

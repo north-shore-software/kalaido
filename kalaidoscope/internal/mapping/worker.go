@@ -55,6 +55,8 @@ func (w *Worker) Annotating() bool { return w.annotating.Load() }
 // Consolidating reports whether a consolidation is in progress.
 func (w *Worker) Consolidating() bool { return w.consolidating.Load() }
 
+func (w *Worker) WantSettle() bool { return w.wantSettle.Load() }
+
 // WaitSettled blocks while a consolidation is in progress and returns once the
 // map is quiescent. Readers that reason over the whole map (discover) call it
 // first, so a run kicked mid-consolidation reads the version about to land

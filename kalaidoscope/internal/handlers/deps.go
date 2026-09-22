@@ -29,7 +29,10 @@ type Deps struct {
 }
 
 func (d Deps) statusWorkers() status.Workers {
-	return status.Workers{Mapping: d.Mapping, Reconcile: d.Reconcile, Discover: d.Discover}
+	if d.Manager == nil {
+		return status.Workers{}
+	}
+	return status.Workers{Colour: d.Colour, Mapping: d.Mapping, Reconcile: d.Reconcile, Discover: d.Discover}
 }
 
 // entityStatus is kept as an alias for tests in the handlers package.

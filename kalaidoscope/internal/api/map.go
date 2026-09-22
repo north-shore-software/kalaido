@@ -9,6 +9,8 @@ type MapStatus struct {
 	Unconsolidated    int      `json:"unconsolidated"`
 	LastRun           *RunInfo `json:"lastRun,omitempty"`
 	LastDrainError    string   `json:"lastDrainError,omitempty"`
+	WantSettle        bool     `json:"wantSettle"`
+	ThingsCount       int      `json:"thingsCount"`
 }
 
 const (

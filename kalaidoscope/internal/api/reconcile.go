@@ -10,16 +10,22 @@ type StatusResponse struct {
 	Statuses []EntityStatus `json:"statuses"`
 }
 
-// ReconcileStatus is the speculative wave's state: whether one is running,
-// when the latest one began, what ended the last one, and when one last ran
-// clean. The dashboard's Start reads it to tell "still generating" from
-// "the wave I started has ended" (LastStarted at or after the press, and not
-// Running).
+type CurrentEntityInfo struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+}
+
+type WaveProgress struct {
+	Completed int `json:"completed"`
+	Total     int `json:"total"`
+}
+
 type ReconcileStatus struct {
-	Running bool `json:"running"`
-	// RFC3339; empty until a wave has started.
-	LastStarted string `json:"lastStarted,omitempty"`
-	LastError   string `json:"lastError,omitempty"`
-	// RFC3339; empty until a wave has completed without error.
-	LastCompleted string `json:"lastCompleted,omitempty"`
+	Running       bool               `json:"running"`
+	LastStarted   string             `json:"lastStarted,omitempty"`
+	LastError     string             `json:"lastError,omitempty"`
+	LastCompleted string             `json:"lastCompleted,omitempty"`
+	LastCancelled string             `json:"lastCancelled,omitempty"`
+	CurrentEntity *CurrentEntityInfo `json:"currentEntity,omitempty"`
+	Progress      *WaveProgress      `json:"progress,omitempty"`
 }

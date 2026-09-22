@@ -11,11 +11,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
@@ -46,10 +49,42 @@ type Worker struct {
 	drained  []func()
 	settled  *settledMark
 	draining atomic.Bool
+
+	stateMu         sync.Mutex
+	currentColourID string
+	lastStarted     time.Time
+	lastCompleted   time.Time
+	lastError       string
+}
+
+type WorkerStatus struct {
+	Draining        bool
+	CurrentColourID string
+	LastStarted     time.Time
+	LastCompleted   time.Time
+	LastError       string
 }
 
 func (w *Worker) Draining() bool {
 	return w.draining.Load()
+}
+
+func (w *Worker) Status() WorkerStatus {
+	w.stateMu.Lock()
+	defer w.stateMu.Unlock()
+	return WorkerStatus{
+		Draining:        w.draining.Load(),
+		CurrentColourID: w.currentColourID,
+		LastStarted:     w.lastStarted,
+		LastCompleted:   w.lastCompleted,
+		LastError:       w.lastError,
+	}
+}
+
+func (w *Worker) setCurrentColourID(id string) {
+	w.stateMu.Lock()
+	w.currentColourID = id
+	w.stateMu.Unlock()
 }
 
 // NewWorker builds the worker over app. Nothing runs until Run.
@@ -75,9 +110,24 @@ func (w *Worker) Run(ctx context.Context) error {
 		if err := w.signal.Wait(ctx); err != nil {
 			return err
 		}
+		w.stateMu.Lock()
+		w.lastStarted = time.Now()
+		w.stateMu.Unlock()
+
 		w.draining.Store(true)
-		wrote, err := drain(ctx, w.app)
+		wrote, err := w.drain(ctx)
 		w.draining.Store(false)
+
+		w.stateMu.Lock()
+		w.currentColourID = ""
+		if err != nil && !errors.Is(err, context.Canceled) {
+			w.lastError = err.Error()
+		} else {
+			w.lastError = ""
+			w.lastCompleted = time.Now()
+		}
+		w.stateMu.Unlock()
+
 		if err != nil && !errors.Is(err, context.Canceled) {
 			w.logger.Error("drain failed", "error", err)
 		}
@@ -122,8 +172,8 @@ func (w *Worker) Rematch(colourID string) error {
 // membership just changed, so every lens naming a colour may resolve
 // differently. Registered by server wiring (the reconcile wave), so this
 // package does not know its consumers.
-func drain(ctx context.Context, app core.App) (int, error) {
-	cols, err := app.FindRecordsByFilter(schema.ColColour.String(), "prompt != ''", "created", 0, 0, nil)
+func (w *Worker) drain(ctx context.Context) (int, error) {
+	cols, err := w.app.FindRecordsByFilter(schema.ColColour.String(), "prompt != ''", "created", 0, 0, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -142,7 +192,8 @@ func drain(ctx context.Context, app core.App) (int, error) {
 		if ctx.Err() != nil {
 			return wrote, ctx.Err()
 		}
-		n, err := drainColour(ctx, app, model, c)
+		w.setCurrentColourID(c.Id)
+		n, err := drainColour(ctx, w.app, model, c)
 		wrote += n
 		if errors.Is(err, usage.ErrExhausted) {
 			return wrote, err
@@ -152,6 +203,52 @@ func drain(ctx context.Context, app core.App) (int, error) {
 		}
 	}
 	return wrote, firstErr
+}
+
+func EvaluateStatus(app core.App, col *Worker) (api.ColourStatus, error) {
+	var out api.ColourStatus
+	if col != nil {
+		st := col.Status()
+		out.Draining = st.Draining
+		out.CurrentColourID = st.CurrentColourID
+		if !st.LastStarted.IsZero() {
+			out.LastStarted = st.LastStarted.UTC().Format(time.RFC3339)
+		}
+		if !st.LastCompleted.IsZero() {
+			out.LastCompleted = st.LastCompleted.UTC().Format(time.RFC3339)
+		}
+		out.LastError = st.LastError
+	}
+	total, err := app.CountRecords(schema.ColColour.String())
+	if err != nil {
+		return out, err
+	}
+	out.TotalColoursCount = int(total)
+
+	promptCols, err := app.FindRecordsByFilter(schema.ColColour.String(), "prompt != ''", "", 0, 0, nil)
+	if err != nil {
+		return out, err
+	}
+	out.PromptColoursCount = len(promptCols)
+
+	unjudged := 0
+	for _, c := range promptCols {
+		wm := c.GetString("prompt_match_completed_up_to_fragment_id")
+		filter := "deleted_at = ''"
+		params := dbx.Params{}
+		if wm != "" {
+			filter += " && id > {:wm}"
+			params["wm"] = wm
+		}
+		count, err := app.CountRecords(schema.ColFragment.String(), dbx.NewExp(filter, params))
+		if err != nil {
+			return out, err
+		}
+		unjudged += int(count)
+	}
+	out.UnjudgedFragments = unjudged
+
+	return out, nil
 }
 
 // drainColour judges every fragment past the colour's watermark, oldest

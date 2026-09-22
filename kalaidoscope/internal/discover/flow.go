@@ -51,10 +51,9 @@ func (w *Worker) run(ctx context.Context, flow Flow) error {
 	if err != nil {
 		return err
 	}
-	// A kick that lands while the map is still consolidating must not read the
-	// half-integrated version: the things the last batch introduced would be
-	// missing and every row citing them would resolve to nothing.
+	w.waitingOnMap.Store(true)
 	w.maps.WaitSettled()
+	w.waitingOnMap.Store(false)
 	c, err := newContext(app, nil)
 	if err != nil {
 		return err

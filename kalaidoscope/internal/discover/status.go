@@ -15,8 +15,14 @@ import (
 func EvaluateStatus(app core.App, disc *Worker, version, things int) (api.DiscoverStatus, error) {
 	var out api.DiscoverStatus
 
-	out.Running = disc.Running()
-	out.Pending = disc.Pending()
+	if disc != nil {
+		out.Running = disc.Running()
+		out.Pending = disc.Pending()
+		out.WaitingOnMap = disc.WaitingOnMap()
+		if started := disc.CurrentStarted(); !started.IsZero() {
+			out.CurrentStarted = started.UTC().Format(time.RFC3339)
+		}
+	}
 	out.Due = []string{}
 	out.Runs = map[string]api.RunInfo{}
 

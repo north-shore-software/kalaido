@@ -90,6 +90,9 @@ type Worker struct {
 	lastStarted   time.Time
 	lastError     string
 	lastCompleted time.Time
+	lastCancelled time.Time
+	currentEntity *api.CurrentEntityInfo
+	progress      *api.WaveProgress
 	waveCancel    context.CancelFunc
 }
 
@@ -97,6 +100,9 @@ func (w *Worker) CancelWave() {
 	w.stateMu.Lock()
 	cancel := w.waveCancel
 	w.waveCancel = nil
+	if w.running {
+		w.lastCancelled = time.Now()
+	}
 	w.stateMu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -138,44 +144,53 @@ func (w *Worker) LogPolicy() {
 // Surfaced to clients as the organize status policy.
 func (w *Worker) WaveEnabled() bool { return w.autoWave }
 
-// State is a consistent snapshot of the worker's status.
 type State struct {
-	// Running reports whether a wave is in progress.
-	Running bool
-	// LastStarted is when the most recent wave began; zero when none has.
-	LastStarted time.Time
-	// LastError is the error that ended the most recent wave, or "" when it
-	// ran clean (or none has run yet).
-	LastError string
-	// LastCompleted is when the most recent wave finished without error;
-	// zero when none has.
+	Running       bool
+	LastStarted   time.Time
+	LastError     string
 	LastCompleted time.Time
+	LastCancelled time.Time
+	CurrentEntity *api.CurrentEntityInfo
+	Progress      *api.WaveProgress
 }
 
-// Status returns the worker's state as of now.
 func (w *Worker) Status() State {
 	w.stateMu.Lock()
 	defer w.stateMu.Unlock()
-	return State{
+	st := State{
 		Running:       w.running,
 		LastStarted:   w.lastStarted,
 		LastError:     w.lastError,
 		LastCompleted: w.lastCompleted,
+		LastCancelled: w.lastCancelled,
 	}
+	if w.currentEntity != nil {
+		copyEntity := *w.currentEntity
+		st.CurrentEntity = &copyEntity
+	}
+	if w.progress != nil {
+		copyProg := *w.progress
+		st.Progress = &copyProg
+	}
+	return st
 }
 
-// EvaluateStatus returns the reconcile wave status formatted for api.ReconcileStatus.
 func (w *Worker) EvaluateStatus() api.ReconcileStatus {
 	wave := w.Status()
 	st := api.ReconcileStatus{
-		Running:   wave.Running,
-		LastError: wave.LastError,
+		Running:       wave.Running,
+		LastError:     wave.LastError,
+		CurrentEntity: wave.CurrentEntity,
+		Progress:      wave.Progress,
 	}
 	if !wave.LastStarted.IsZero() {
 		st.LastStarted = wave.LastStarted.UTC().Format(time.RFC3339)
 	}
 	if !wave.LastCompleted.IsZero() {
 		st.LastCompleted = wave.LastCompleted.UTC().Format(time.RFC3339)
+	}
+	if !wave.LastCancelled.IsZero() {
+		st.LastCancelled = wave.LastCancelled.UTC().Format(time.RFC3339)
 	}
 	return st
 }
@@ -231,9 +246,11 @@ func (w *Worker) Run(ctx context.Context) error {
 		waveCtx, cancel := context.WithCancel(ctx)
 		w.stateMu.Lock()
 		w.running, w.lastStarted = true, time.Now()
+		w.currentEntity = nil
+		w.progress = nil
 		w.waveCancel = cancel
 		w.stateMu.Unlock()
-		err := runWave(waveCtx, w.app)
+		err := runWaveWithWorker(waveCtx, w.app, w)
 		w.stateMu.Lock()
 		w.waveCancel = nil
 		w.stateMu.Unlock()
@@ -260,6 +277,7 @@ func (w *Worker) stopTimers() {
 func (w *Worker) afterWave(err error) {
 	w.stateMu.Lock()
 	w.running = false
+	w.currentEntity = nil
 	if err == nil {
 		w.lastError, w.lastCompleted = "", time.Now()
 	} else if errors.Is(err, context.Canceled) {
@@ -295,42 +313,55 @@ func (w *Worker) afterWave(err error) {
 	w.logger.Warn("wave retrying", "delay", delay)
 }
 
-// runWave generates the whole stale set once. The returned error is the one
-// that ended the wave early; nil means every entity that needed work was
-// generated or deliberately skipped.
 func runWave(ctx context.Context, app core.App) error {
+	return runWaveWithWorker(ctx, app, nil)
+}
+
+func runWaveWithWorker(ctx context.Context, app core.App, w *Worker) error {
 	log := logger(app)
-	// Staleness is evaluated with ordinary approved-only resolution: the
-	// wave's worklist is exactly the dashboard's "needs action" set.
 	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
 		log.Error("wave evaluate failed", "error", err)
 		return fmt.Errorf("evaluate: %w", err)
 	}
 
-	// Generation, by contrast, is speculative (candidate-or-approved
-	// upstreams) and runs at background priority so interactive work preempts
-	// it. Not a request context — the request that started the wave has
-	// already returned.
 	genCtx := queue.WithPriority(
 		llmcontext.WithGenerationTrigger(ctx, llmcontext.TriggerGenerateAll),
 		queue.Background)
 
-	for _, s := range statuses { // EvaluateAll returns dependencies before dependents
+	var worklist []api.EntityStatus
+	for _, s := range statuses {
+		if needsWork(s) {
+			worklist = append(worklist, s)
+		}
+	}
+
+	if w != nil {
+		w.stateMu.Lock()
+		w.progress = &api.WaveProgress{Completed: 0, Total: len(worklist)}
+		w.stateMu.Unlock()
+	}
+
+	for _, s := range worklist {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if !needsWork(s) {
-			continue
+		if w != nil {
+			w.stateMu.Lock()
+			w.currentEntity = &api.CurrentEntityInfo{ID: s.ID, Type: s.Type}
+			w.stateMu.Unlock()
 		}
 		if err := generateEntity(genCtx, app, s); err != nil {
-			// Topological order means everything upstream of this point is
-			// done, and a dependent generated now would consume output this
-			// failure leaves missing. End the wave; the dashboard keeps
-			// showing what remains, and the next wave resumes from a fresh
-			// evaluation.
 			log.Error("wave generate failed; ending wave", "target_type", s.Type, "target_id", s.ID, "error", err)
 			return fmt.Errorf("%s %s: %w", s.Type, s.ID, err)
+		}
+		if w != nil {
+			w.stateMu.Lock()
+			if w.progress != nil {
+				w.progress.Completed++
+			}
+			w.currentEntity = nil
+			w.stateMu.Unlock()
 		}
 	}
 	return nil

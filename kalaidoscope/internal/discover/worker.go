@@ -5,6 +5,8 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 
@@ -30,8 +32,21 @@ type Worker struct {
 	pendingMu sync.Mutex
 	pending   map[string]bool
 	followUps workerutil.Callbacks
-	runningMu sync.Mutex
-	running   string
+
+	runningMu      sync.Mutex
+	running        string
+	currentStarted time.Time
+	waitingOnMap   atomic.Bool
+}
+
+func (w *Worker) WaitingOnMap() bool {
+	return w.waitingOnMap.Load()
+}
+
+func (w *Worker) CurrentStarted() time.Time {
+	w.runningMu.Lock()
+	defer w.runningMu.Unlock()
+	return w.currentStarted
 }
 
 // NewWorker builds the worker over app. Nothing runs until Run.
@@ -49,6 +64,11 @@ func (w *Worker) Running() string {
 func (w *Worker) setRunning(kind string) {
 	w.runningMu.Lock()
 	w.running = kind
+	if kind != "" {
+		w.currentStarted = time.Now()
+	} else {
+		w.currentStarted = time.Time{}
+	}
 	w.runningMu.Unlock()
 }
 

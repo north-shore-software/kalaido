@@ -2,12 +2,23 @@
 package api
 
 type KalaidoscopeStatus struct {
-	Fragments int            `json:"fragments"`
-	Imports   ImportsStatus  `json:"imports"`
-	Map       MapStatus      `json:"map"`
-	Discover  DiscoverStatus `json:"discover"`
-
+	Fragments int             `json:"fragments"`
+	Imports   ImportsStatus   `json:"imports"`
+	Map       MapStatus       `json:"map"`
+	Discover  DiscoverStatus  `json:"discover"`
 	Reconcile ReconcileStatus `json:"reconcile"`
+	Colour    ColourStatus    `json:"colour"`
+}
+
+type ColourStatus struct {
+	Draining           bool   `json:"draining"`
+	CurrentColourID    string `json:"currentColourId,omitempty"`
+	LastStarted        string `json:"lastStarted,omitempty"`
+	LastCompleted      string `json:"lastCompleted,omitempty"`
+	LastError          string `json:"lastError,omitempty"`
+	PromptColoursCount int    `json:"promptColoursCount"`
+	TotalColoursCount  int    `json:"totalColoursCount"`
+	UnjudgedFragments  int    `json:"unjudgedFragments"`
 }
 
 type RunInfo struct {

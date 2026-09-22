@@ -37,6 +37,9 @@ func EvaluateStatus(app core.App, maps *Worker, version, fragments int) (api.Map
 	out.Unconsolidated = int(unconsolidated)
 	out.PendingAnnotation = pending
 	out.LastDrainError = maps.LastDrainError()
+	if maps != nil {
+		out.WantSettle = maps.WantSettle()
+	}
 
 	consolidating := maps.Consolidating()
 	if len(runs) > 0 {
