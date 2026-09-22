@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -40,21 +41,24 @@ func Find(app core.App, clientID string) (*core.Record, error) {
 
 // Parent resolves the parent projection or reflection entity record for the refinement.
 func Parent(app core.App, refRec *core.Record) *core.Record {
-	switch refRec.Collection().Name {
-	case schema.ColProjectionRefinement.String():
-		pid := refRec.GetString("projection_id")
-		if pid != "" {
-			if r, err := app.FindRecordById(schema.ColProjection.String(), pid); err == nil {
-				return r
-			}
-		}
-	case schema.ColReflectionRefinement.String():
-		rid := refRec.GetString("reflection_id")
-		if rid != "" {
-			if r, err := app.FindRecordById(schema.ColReflection.String(), rid); err == nil {
-				return r
+	targetCol, snapshotField := "projection", "projection_snapshot_id"
+	if refRec.Collection().Name == schema.ColReflectionRefinement.String() {
+		targetCol, snapshotField = "reflection", "reflection_snapshot_id"
+	}
+	parentID := refRec.GetString(targetCol + "_id")
+	if parentID == "" {
+		if snapID := refRec.GetString(snapshotField); snapID != "" {
+			if snap, err := app.FindRecordById(targetCol+"_snapshot", snapID); err == nil {
+				parentID = snap.GetString(targetCol + "_id")
 			}
 		}
 	}
-	return nil
+	if parentID == "" {
+		return nil
+	}
+	rec, err := app.FindRecordById(targetCol, parentID)
+	if err != nil || engine.IsDeleted(rec) {
+		return nil
+	}
+	return rec
 }

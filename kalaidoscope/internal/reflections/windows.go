@@ -310,3 +310,64 @@ func GenerateWindows(ctx context.Context, app core.App, reflectionID, status str
 	wg.Wait()
 	return results
 }
+
+var (
+	ErrWindowNotFound         = errors.New("window ID not found in this reflection's windows")
+	ErrMultiplePendingWindows = errors.New("multiple windows are pending; pass allWindows=true to generate them all")
+)
+
+// WindowsToGenerate picks the windows one generate call covers. An
+// explicit windowId may name any materialized window (a re-run of history);
+// otherwise the candidates are the windows owed (pending), those gone stale,
+// and those whose snapshot predates the current lens — all of them with
+// allWindows=true; and when nothing is owed, the current window — never a windowless
+// snapshot for a scheduled reflection.
+func WindowsToGenerate(app core.App, rec *core.Record, req api.GenerateReflectionSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	series := SeriesWindows(app, rec, now)
+	if req.WindowID != "" {
+		for _, s := range series {
+			if s.ID == req.WindowID {
+				w := s.Window
+				return []*api.Window{&w}, nil
+			}
+		}
+		return nil, ErrWindowNotFound
+	}
+	seen := map[string]bool{}
+	var candidates []api.Window
+	add := func(w api.Window) {
+		if !seen[w.ID] {
+			seen[w.ID] = true
+			candidates = append(candidates, w)
+		}
+	}
+	currentLens := rec.GetString("current_lens_id")
+	for _, s := range series {
+		switch {
+		case s.Generating:
+		case !s.HasApproved:
+			add(s.Window)
+		case s.LensID != currentLens:
+			add(s.Window)
+		}
+	}
+	for _, w := range st.StaleWindows {
+		add(w)
+	}
+	switch {
+	case len(candidates) == 0:
+		return []*api.Window{DefaultRefinementWindow(rec, now)}, nil
+	case len(candidates) == 1 || req.AllWindows:
+		ptrs := make([]*api.Window, len(candidates))
+		for i := range candidates {
+			ptrs[i] = &candidates[i]
+		}
+		return ptrs, nil
+	default:
+		return nil, ErrMultiplePendingWindows
+	}
+}

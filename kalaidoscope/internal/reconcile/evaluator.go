@@ -313,3 +313,17 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 
 	return status, nil
 }
+
+// EvaluateEntity evaluates the reconcile status for a single entity by ID.
+func EvaluateEntity(ctx stdctx.Context, app core.App, id string) (api.EntityStatus, error) {
+	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
+	if err != nil {
+		return api.EntityStatus{}, err
+	}
+	for _, s := range statuses {
+		if s.ID == id {
+			return s, nil
+		}
+	}
+	return api.EntityStatus{}, nil
+}

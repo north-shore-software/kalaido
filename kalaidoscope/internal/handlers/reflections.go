@@ -13,89 +13,15 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// validateWindowSpec rejects a schedule the grid could not evaluate. An empty
-// spec (unscheduled) is valid.
-func validateWindowSpec(spec api.WindowSpec) error {
-	if spec.Period == "" && spec.Duration == "" && spec.StartTime == "" {
-		return nil
-	}
-	if p, err := time.ParseDuration(spec.Period); err != nil || p <= 0 {
-		return errors.New("windowSpec.period must be a positive duration such as \"168h\"")
-	}
-	if spec.Duration != "" {
-		if d, err := time.ParseDuration(spec.Duration); err != nil || d <= 0 {
-			return errors.New("windowSpec.duration must be a positive duration such as \"168h\"")
-		}
-	}
-	if spec.StartTime != "" {
-		if _, err := time.Parse(time.RFC3339, spec.StartTime); err != nil {
-			return errors.New("windowSpec.startTime must be RFC3339")
-		}
-	}
-	return nil
-}
-
-// reflectionWindowsToGenerate picks the windows one generate call covers. An
-// explicit windowId may name any materialized window (a re-run of history);
-// otherwise the candidates are the windows owed (pending), those gone stale,
-// and those whose snapshot predates the current lens — all of them with
-// allWindows=true; and when nothing is owed, the current window — never a windowless
-// snapshot for a scheduled reflection.
-func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateReflectionSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
-	if err := req.Validate(); err != nil {
-		return nil, e.BadRequestError(err.Error(), err)
-	}
-	now := time.Now()
-	series := reflections.SeriesWindows(app, rec, now)
-	if req.WindowID != "" {
-		for _, s := range series {
-			if s.ID == req.WindowID {
-				w := s.Window
-				return []*api.Window{&w}, nil
-			}
-		}
-		return nil, e.BadRequestError("window ID not found in this reflection's windows", nil)
-	}
-	seen := map[string]bool{}
-	var candidates []api.Window
-	add := func(w api.Window) {
-		if !seen[w.ID] {
-			seen[w.ID] = true
-			candidates = append(candidates, w)
-		}
-	}
-	currentLens := rec.GetString("current_lens_id")
-	for _, s := range series {
-		switch {
-		case s.Generating:
-		case !s.HasApproved:
-			add(s.Window)
-		case s.LensID != currentLens:
-			add(s.Window)
-		}
-	}
-	for _, w := range st.StaleWindows {
-		add(w)
-	}
-	switch {
-	case len(candidates) == 0:
-		return []*api.Window{reflections.DefaultRefinementWindow(rec, now)}, nil
-	case len(candidates) == 1 || req.AllWindows:
-		ptrs := make([]*api.Window, len(candidates))
-		for i := range candidates {
-			ptrs[i] = &candidates[i]
-		}
-		return ptrs, nil
-	default:
-		return nil, e.BadRequestError("multiple windows are pending; pass allWindows=true to generate them all", nil)
-	}
+// reflectionWindowsToGenerate is kept as an alias for tests in the handlers package.
+var reflectionWindowsToGenerate = func(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateReflectionSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
+	return reflections.WindowsToGenerate(app, rec, req, st)
 }
 
 // HandleBackfillReflection materializes the grid windows between `from` and
@@ -148,7 +74,7 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 			return e.NotFoundError("reflection not found", err)
 		}
 		stale := map[string]bool{}
-		if st, err := entityStatus(e.Request.Context(), app, id); err == nil {
+		if st, err := reconcile.EvaluateEntity(e.Request.Context(), app, id); err == nil {
 			for _, w := range st.StaleWindows {
 				stale[w.ID] = true
 			}
@@ -181,7 +107,7 @@ func HandleCreateReflection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("invalid request body", err)
 		}
 		if req.WindowSpec != nil {
-			if err := validateWindowSpec(*req.WindowSpec); err != nil {
+			if err := req.WindowSpec.Validate(); err != nil {
 				return e.BadRequestError(err.Error(), err)
 			}
 		}
@@ -243,7 +169,7 @@ func HandleUpdateReflection(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		if req.WindowSpec != nil {
-			if err := validateWindowSpec(*req.WindowSpec); err != nil {
+			if err := req.WindowSpec.Validate(); err != nil {
 				return e.BadRequestError(err.Error(), err)
 			}
 		}
@@ -266,27 +192,7 @@ func HandleUpdateReflection(app core.App) func(e *core.RequestEvent) error {
 			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 		}
 		if req.Pinned != nil && e.Auth != nil {
-			pinnedBy := rec.GetStringSlice("pinned_by")
-			var newPinnedBy []string
-			if *req.Pinned {
-				hasUser := false
-				for _, uid := range pinnedBy {
-					if uid == e.Auth.Id {
-						hasUser = true
-					}
-					newPinnedBy = append(newPinnedBy, uid)
-				}
-				if !hasUser {
-					newPinnedBy = append(newPinnedBy, e.Auth.Id)
-				}
-			} else {
-				for _, uid := range pinnedBy {
-					if uid != e.Auth.Id {
-						newPinnedBy = append(newPinnedBy, uid)
-					}
-				}
-			}
-			rec.Set("pinned_by", newPinnedBy)
+			pbutil.TogglePinnedBy(rec, e.Auth.Id, *req.Pinned)
 		}
 
 		if err := app.Save(rec); err != nil {
@@ -323,10 +229,8 @@ func HandleDeleteReflection(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		err = app.RunInTransaction(func(tx core.App) error {
-			for _, collection := range []string{"projection", "reflection"} {
-				if err := scrubIDFromSpecs(tx, collection, sourceReflectionIDs, id); err != nil {
-					return err
-				}
+			if err := engine.ScrubContextSpecs(tx, "reflection", id); err != nil {
+				return err
 			}
 			return engine.SoftDelete(tx, rec)
 		})
@@ -379,16 +283,16 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			return e.NotFoundError("reflection not found", err)
 		}
 
-		st, err := entityStatus(e.Request.Context(), app, id)
+		st, err := reconcile.EvaluateEntity(e.Request.Context(), app, id)
 		if err != nil {
 			logger(app).Warn("staleness check failed", "target_type", "reflection", "error", err)
 		} else if len(st.BlockedBy) > 0 {
 			return e.Error(http.StatusConflict, "upstream dependencies are not up to date; approve them first", nil)
 		}
 
-		windowsToGenerate, err := reflectionWindowsToGenerate(e, app, rec, req, st)
+		windowsToGenerate, err := reflections.WindowsToGenerate(app, rec, req, st)
 		if err != nil {
-			return err
+			return e.BadRequestError(err.Error(), err)
 		}
 
 		genCtx := context.WithoutCancel(e.Request.Context())
@@ -414,7 +318,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 		for _, w := range windowsToGenerate {
 			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
 			if errors.Is(err, engine.ErrGenerationInFlight) {
-				snapID, err = joinGeneration(e.Request.Context(), app, reflections.Strategy{}, id, w)
+				snapID, err = engine.JoinGeneration(e.Request.Context(), app, reflections.Strategy{}, id, w)
 				if errors.Is(err, engine.ErrGenerationAbandoned) {
 					snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
 				}
@@ -422,20 +326,16 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			if err != nil {
 				firstErr = err
 			}
+			if handled, herr := WriteLLMError(e, app, err); handled {
+				return herr
+			}
 			switch {
-			case errors.Is(err, usage.ErrExhausted):
-				return usage.WriteExhausted(e, app)
 			case errors.Is(err, engine.ErrLensNotReady):
 				return e.Error(http.StatusConflict, "This reflection's lens is still being prepared — try again in a moment.", err)
 			case errors.Is(err, engine.ErrGenerationInFlight):
 				return e.Error(http.StatusConflict, "A generation for this reflection is already running.", err)
-			case errors.Is(err, llm.ErrContextTooLarge):
-				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			case err != nil:
 				logger(app).Error("generate failed", "target_type", "reflection", "error", err)
-				if usage.WriteProviderError(e, err) {
-					return nil
-				}
 				if strings.Contains(err.Error(), "not found") {
 					return e.NotFoundError("reflection not found", err)
 				}
@@ -448,20 +348,16 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 
 		if firstErr != nil && len(snapIDs) == 0 {
 			err := firstErr
+			if handled, herr := WriteLLMError(e, app, err); handled {
+				return herr
+			}
 			switch {
-			case errors.Is(err, usage.ErrExhausted):
-				return usage.WriteExhausted(e, app)
 			case errors.Is(err, engine.ErrLensNotReady):
 				return e.Error(http.StatusConflict, "This reflection's lens is still being prepared — try again in a moment.", err)
 			case errors.Is(err, engine.ErrGenerationInFlight):
 				return e.Error(http.StatusConflict, "A generation for this reflection is already running.", err)
-			case errors.Is(err, llm.ErrContextTooLarge):
-				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			default:
 				logger(app).Error("generate failed", "target_type", "reflection", "error", err)
-				if usage.WriteProviderError(e, err) {
-					return nil
-				}
 				return e.InternalServerError("generate reflection failed", err)
 			}
 		} else if firstErr != nil {

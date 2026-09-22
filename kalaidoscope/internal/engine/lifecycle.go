@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 const (
@@ -301,4 +302,50 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 	// (or the windows) regenerates; the wave's dedup guard leaves untouched
 	// branches alone.
 	return newSnapID, nil
+}
+
+// ScrubContextSpecs drops one id from the chosen list of every live
+// current_context_spec in the projection and reflection collections, so a deleted
+// colour or a soft-deleted upstream entity leaves no dangling reference behind.
+func ScrubContextSpecs(app core.App, entityType string, id string) error {
+	var selector func(spec *api.ContextSpec) *[]string
+	switch entityType {
+	case "colour":
+		selector = func(spec *api.ContextSpec) *[]string { return &spec.ColourIDs }
+	case "projection":
+		selector = func(spec *api.ContextSpec) *[]string { return &spec.SourceProjectionIDs }
+	case "reflection":
+		selector = func(spec *api.ContextSpec) *[]string { return &spec.SourceReflectionIDs }
+	default:
+		return fmt.Errorf("unknown entity type for context spec scrub: %s", entityType)
+	}
+
+	for _, collection := range []string{schema.ColProjection.String(), schema.ColReflection.String()} {
+		recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": id})
+		if err != nil {
+			return err
+		}
+		for _, rec := range recs {
+			var spec api.ContextSpec
+			if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
+				continue
+			}
+			list := selector(&spec)
+			kept := (*list)[:0]
+			for _, x := range *list {
+				if x != id {
+					kept = append(kept, x)
+				}
+			}
+			if len(kept) == len(*list) {
+				continue
+			}
+			*list = kept
+			rec.Set("current_context_spec", pbutil.JSONObject(spec))
+			if err := app.Save(rec); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

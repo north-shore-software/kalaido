@@ -11,24 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
-
-// findExploreConversation resolves the {cid} path segment to an explore conversation.
-// A refinement's client id, or an explore session that has not sent its first turn,
-// is simply not found — neither has bookmarks.
-func findExploreConversation(app core.App, e *core.RequestEvent) (*core.Record, error) {
-	cid := e.Request.PathValue("cid")
-	if cid == "" {
-		return nil, e.BadRequestError("missing conversation id", nil)
-	}
-	conv, err := explore.FindConversation(app, cid)
-	if err != nil {
-		return nil, e.NotFoundError("conversation not found", err)
-	}
-	return conv, nil
-}
 
 // HandleBookmarkMessage sets or clears one message's bookmark. The message
 // is addressed by its UIMessage id; a turn still streaming has no row yet
@@ -92,13 +75,10 @@ func HandleExploreBrief(app core.App) func(e *core.RequestEvent) error {
 			return err
 		}
 		brief, err := explore.GenerateBrief(e.Request.Context(), app, conv)
-		if errors.Is(err, usage.ErrExhausted) {
-			return usage.WriteExhausted(e, app)
+		if handled, herr := WriteLLMError(e, app, err); handled {
+			return herr
 		}
-		if usage.WriteProviderError(e, err) {
-			return nil
-		}
-		if errors.Is(err, llm.ErrContextTooLarge) || errors.Is(err, explore.ErrNoBrief) {
+		if errors.Is(err, explore.ErrNoBrief) {
 			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 		}
 		if err != nil {

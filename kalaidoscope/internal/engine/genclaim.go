@@ -202,3 +202,12 @@ func SweepGenerationClaims(app core.App) {
 		}
 	}
 }
+
+// JoinGeneration waits for the generation already running for the target and
+// returns its snapshot. Interactive callers pay at most the claim TTL.
+func JoinGeneration(ctx context.Context, app core.App, strat Strategy, id string, w *api.Window) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, GenerationClaimTTL)
+	defer cancel()
+	logger(app).Warn("already generating; joining", "target_type", strat.TargetType(), "id", id)
+	return AwaitGeneration(ctx, app, strat, id, w)
+}

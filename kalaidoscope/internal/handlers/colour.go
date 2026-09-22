@@ -10,9 +10,8 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -181,10 +180,8 @@ func HandleDeleteColour(app core.App) func(e *core.RequestEvent) error {
 			return err
 		}
 		err = app.RunInTransaction(func(tx core.App) error {
-			for _, collection := range []string{"projection", "reflection"} {
-				if err := scrubIDFromSpecs(tx, collection, colourIDs, colourRec.Id); err != nil {
-					return err
-				}
+			if err := engine.ScrubContextSpecs(tx, "colour", colourRec.Id); err != nil {
+				return err
 			}
 			return tx.Delete(colourRec)
 		})
@@ -223,45 +220,6 @@ func applyExamples(app core.App, colourID string, positive, negative, clear []st
 	}
 	for _, fragID := range clear {
 		if err := colour.ClearManual(app, colourID, fragID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// specIDs selects one id list of a context spec, for scrubbing.
-type specIDs func(spec *api.ContextSpec) *[]string
-
-func colourIDs(spec *api.ContextSpec) *[]string           { return &spec.ColourIDs }
-func sourceProjectionIDs(spec *api.ContextSpec) *[]string { return &spec.SourceProjectionIDs }
-func sourceReflectionIDs(spec *api.ContextSpec) *[]string { return &spec.SourceReflectionIDs }
-
-// scrubIDFromSpecs drops one id from the chosen list of every live
-// current_context_spec in the collection, so a deleted colour or a
-// soft-deleted upstream entity leaves no dangling reference behind.
-func scrubIDFromSpecs(app core.App, collection string, field specIDs, id string) error {
-	recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": id})
-	if err != nil {
-		return err
-	}
-	for _, rec := range recs {
-		var spec api.ContextSpec
-		if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
-			continue
-		}
-		list := field(&spec)
-		kept := (*list)[:0]
-		for _, x := range *list {
-			if x != id {
-				kept = append(kept, x)
-			}
-		}
-		if len(kept) == len(*list) {
-			continue
-		}
-		*list = kept
-		rec.Set("current_context_spec", pbutil.JSONObject(spec))
-		if err := app.Save(rec); err != nil {
 			return err
 		}
 	}

@@ -11,9 +11,9 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -76,27 +76,7 @@ func HandleUpdateProjection(app core.App) func(e *core.RequestEvent) error {
 			rec.Set("generate_with_model", *req.GenerateWithModel)
 		}
 		if req.Pinned != nil && e.Auth != nil {
-			pinnedBy := rec.GetStringSlice("pinned_by")
-			var newPinnedBy []string
-			if *req.Pinned {
-				hasUser := false
-				for _, uid := range pinnedBy {
-					if uid == e.Auth.Id {
-						hasUser = true
-					}
-					newPinnedBy = append(newPinnedBy, uid)
-				}
-				if !hasUser {
-					newPinnedBy = append(newPinnedBy, e.Auth.Id)
-				}
-			} else {
-				for _, uid := range pinnedBy {
-					if uid != e.Auth.Id {
-						newPinnedBy = append(newPinnedBy, uid)
-					}
-				}
-			}
-			rec.Set("pinned_by", newPinnedBy)
+			pbutil.TogglePinnedBy(rec, e.Auth.Id, *req.Pinned)
 		}
 
 		if err := app.Save(rec); err != nil {
@@ -133,10 +113,8 @@ func HandleDeleteProjection(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		err = app.RunInTransaction(func(tx core.App) error {
-			for _, collection := range []string{"projection", "reflection"} {
-				if err := scrubIDFromSpecs(tx, collection, sourceProjectionIDs, id); err != nil {
-					return err
-				}
+			if err := engine.ScrubContextSpecs(tx, "projection", id); err != nil {
+				return err
 			}
 			return engine.SoftDelete(tx, rec)
 		})
@@ -159,31 +137,15 @@ func HandleRestoreProjection(app core.App) func(e *core.RequestEvent) error {
 		if err != nil {
 			return e.NotFoundError("projection not found", err)
 		}
+		if !engine.IsDeleted(rec) {
+			return e.NoContent(http.StatusNoContent)
+		}
 		if err := engine.Restore(app, rec); err != nil {
 			logger(app).Error("restore projection failed", "id", id, "error", err)
 			return e.InternalServerError("restore projection failed", err)
 		}
 		return e.JSON(http.StatusOK, map[string]string{"id": id})
 	}
-}
-
-func resolveCandidate(e *core.RequestEvent, app core.App) (string, error) {
-	id := e.Request.PathValue("id")
-	if id == "" {
-		return "", e.BadRequestError("projection id required", nil)
-	}
-	rid := e.Request.PathValue("rid")
-	if rid == "" {
-		return "", e.BadRequestError("candidate id required", nil)
-	}
-	snap, err := app.FindRecordById(schema.ColProjectionSnapshot.String(), rid)
-	if err != nil {
-		return "", e.NotFoundError("candidate not found", err)
-	}
-	if snap.GetString("projection_id") != id {
-		return "", e.NotFoundError("candidate does not belong to this projection", nil)
-	}
-	return rid, nil
 }
 
 func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
@@ -208,7 +170,7 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 			return e.NotFoundError("projection not found", err)
 		}
 
-		st, err := entityStatus(e.Request.Context(), app, id)
+		st, err := reconcile.EvaluateEntity(e.Request.Context(), app, id)
 		if err != nil {
 			logger(app).Warn("staleness check failed", "target_type", "projection", "error", err)
 		} else if len(st.BlockedBy) > 0 {
@@ -218,26 +180,22 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 		genCtx := context.WithoutCancel(e.Request.Context())
 		snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
 		if errors.Is(err, engine.ErrGenerationInFlight) {
-			snapID, err = joinGeneration(e.Request.Context(), app, projections.Strategy{}, id, nil)
+			snapID, err = engine.JoinGeneration(e.Request.Context(), app, projections.Strategy{}, id, nil)
 			if errors.Is(err, engine.ErrGenerationAbandoned) {
 				snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
 			}
 		}
 
+		if handled, herr := WriteLLMError(e, app, err); handled {
+			return herr
+		}
 		switch {
-		case errors.Is(err, usage.ErrExhausted):
-			return usage.WriteExhausted(e, app)
 		case errors.Is(err, engine.ErrLensNotReady):
 			return e.Error(http.StatusConflict, "This projection's lens is still being prepared — try again in a moment.", err)
 		case errors.Is(err, engine.ErrGenerationInFlight):
 			return e.Error(http.StatusConflict, "A generation for this projection is already running.", err)
-		case errors.Is(err, llm.ErrContextTooLarge):
-			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 		case err != nil:
 			logger(app).Error("generate failed", "target_type", "projection", "error", err)
-			if usage.WriteProviderError(e, err) {
-				return nil
-			}
 			if strings.Contains(err.Error(), "not found") {
 				return e.NotFoundError("projection not found", err)
 			}
