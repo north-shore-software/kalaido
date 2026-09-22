@@ -13,7 +13,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -45,7 +44,7 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 	}
 
 	report := func(label string) []api.Window {
-		statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
+		statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 		if err != nil {
 			t.Fatalf("evaluate: %v", err)
 		}

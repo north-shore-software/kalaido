@@ -39,7 +39,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
@@ -152,6 +151,22 @@ func (w *Worker) Status() State {
 		LastError:     w.lastError,
 		LastCompleted: w.lastCompleted,
 	}
+}
+
+// EvaluateStatus returns the reconcile wave status formatted for api.ReconcileStatus.
+func (w *Worker) EvaluateStatus() api.ReconcileStatus {
+	wave := w.Status()
+	st := api.ReconcileStatus{
+		Running:   wave.Running,
+		LastError: wave.LastError,
+	}
+	if !wave.LastStarted.IsZero() {
+		st.LastStarted = wave.LastStarted.UTC().Format(time.RFC3339)
+	}
+	if !wave.LastCompleted.IsZero() {
+		st.LastCompleted = wave.LastCompleted.UTC().Format(time.RFC3339)
+	}
+	return st
 }
 
 // EnqueueWave is the automatic trigger: it requests a speculative generation
@@ -268,7 +283,7 @@ func runWave(ctx context.Context, app core.App) error {
 	log := logger(app)
 	// Staleness is evaluated with ordinary approved-only resolution: the
 	// wave's worklist is exactly the dashboard's "needs action" set.
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
+	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
 		log.Error("wave evaluate failed", "error", err)
 		return fmt.Errorf("evaluate: %w", err)

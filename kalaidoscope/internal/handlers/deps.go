@@ -10,7 +10,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/organize"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
 )
@@ -31,12 +31,12 @@ type Deps struct {
 	Runner engine.Runner
 }
 
-func (d Deps) organizeWorkers() organize.Workers {
-	return organize.Workers{Mapping: d.Mapping, Reconcile: d.Reconcile, Discover: d.Discover}
+func (d Deps) statusWorkers() status.Workers {
+	return status.Workers{Mapping: d.Mapping, Reconcile: d.Reconcile, Discover: d.Discover}
 }
 
 func entityStatus(ctx context.Context, app core.App, id string) (api.EntityStatus, error) {
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
+	statuses, err := reconcile.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
 		return api.EntityStatus{}, err
 	}

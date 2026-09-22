@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -62,7 +61,7 @@ func TestWaveNoChangeSettlesInPlaceWithoutStalingDependents(t *testing.T) {
 
 	// P1 and P2 consumed rSnap0 / p1Snap0, whose ids did not move: nothing
 	// to regenerate, and the whole chain reads as up to date.
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(context.Background())
+	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(context.Background())
 	if err != nil {
 		t.Fatalf("evaluate: %v", err)
 	}

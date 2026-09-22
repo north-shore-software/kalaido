@@ -14,7 +14,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -221,7 +220,7 @@ func TestApprovingAsIsSettlesChainWithoutRegeneration(t *testing.T) {
 		t.Fatalf("approve p2: %v", err)
 	}
 
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
+	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
 		t.Fatalf("evaluate: %v", err)
 	}

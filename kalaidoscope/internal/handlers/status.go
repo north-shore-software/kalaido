@@ -7,22 +7,20 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 )
 
-func HandleGetRotation(app core.App) func(e *core.RequestEvent) error {
+// HandleGetStatus evaluates and returns the full Kaleidoscope system status under GET /api/status.
+func HandleGetStatus(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		evaluator := status.NewEvaluator(app, time.Now())
-
-		statuses, err := evaluator.EvaluateAll(e.Request.Context())
+		st, err := status.Evaluate(e.Request.Context(), app, time.Now(), deps.statusWorkers())
 		if err != nil {
-			logger(app).Error("rotation status evaluation failed", "error", err)
-			return e.InternalServerError("failed to evaluate staleness", err)
+			logger(app).Error("status evaluation failed", "error", err)
+			return e.InternalServerError("failed to evaluate status", err)
 		}
-
-		return e.JSON(http.StatusOK, api.StatusResponse{
-			Statuses: statuses,
-		})
+		return e.JSON(http.StatusOK, st)
 	}
 }
+
+// HandleGetOrganize is an alias for HandleGetStatus under legacy GET /api/organize.
+var HandleGetOrganize = HandleGetStatus

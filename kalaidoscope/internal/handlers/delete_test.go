@@ -14,7 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -91,7 +91,7 @@ func TestDeleteProjectionSoftDeletesAndScrubs(t *testing.T) {
 	}
 
 	// Invisible to staleness and to context resolution while deleted.
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(context.Background())
+	statuses, err := reconcile.NewEvaluator(app, time.Now()).EvaluateAll(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
