@@ -13,7 +13,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -47,13 +46,13 @@ type SnapshotSpec struct {
 	CreatedFromRefinementID string
 }
 
-func AppendSnapshot(ctx context.Context, app core.App, collectionName string, foreignKeyCol string, s SnapshotSpec) (string, error) {
-	sCol, err := app.FindCollectionByNameOrId(collectionName)
+func AppendSnapshot(ctx context.Context, app core.App, strat Strategy, s SnapshotSpec) (string, error) {
+	sCol, err := app.FindCollectionByNameOrId(strat.SnapshotCollectionName())
 	if err != nil {
 		return "", err
 	}
 	snap := core.NewRecord(sCol)
-	applySnapshotSpec(ctx, snap, collectionName, foreignKeyCol, s)
+	applySnapshotSpec(ctx, snap, strat, s)
 	if err := app.Save(snap); err != nil {
 		return "", err
 	}
@@ -63,16 +62,14 @@ func AppendSnapshot(ctx context.Context, app core.App, collectionName string, fo
 // applySnapshotSpec stamps a SnapshotSpec onto a record — a fresh one
 // (AppendSnapshot) or the generation claim row being filled in place
 // (completeClaimedSnapshot).
-func applySnapshotSpec(ctx context.Context, snap *core.Record, collectionName string, foreignKeyCol string, s SnapshotSpec) {
-	snap.Set(foreignKeyCol, s.SourceID)
+func applySnapshotSpec(ctx context.Context, snap *core.Record, strat Strategy, s SnapshotSpec) {
+	snap.Set(strat.ForeignKeyCol(), s.SourceID)
 	snap.Set("lens_id", s.LensID)
 	snap.Set("output", s.Output)
 	snap.Set("context_spec", pbutil.JSONObject(s.ContextSpec))
 	snap.Set("resolved_context", pbutil.JSONObject(s.ResolvedContext))
 
-	if collectionName == "reflection_snapshot" {
-		setSnapshotWindow(snap, s.Window)
-	}
+	strat.ApplySnapshotWindow(snap, s.Window)
 
 	status := s.Status
 	if status == "" {
@@ -98,7 +95,7 @@ func completeClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, 
 		if err != nil {
 			return err
 		}
-		applySnapshotSpec(ctx, snap, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), s)
+		applySnapshotSpec(ctx, snap, strat, s)
 		if err := tx.Save(snap); err != nil {
 			return err
 		}
@@ -168,23 +165,10 @@ func ApprovedSnapshotFilter(strat Strategy, parentID string, window *api.Window)
 func statusSnapshotFilter(strat Strategy, parentID string, window *api.Window, status string) (string, dbx.Params) {
 	filter := strat.ForeignKeyCol() + " = {:parent} && status = {:status}"
 	params := dbx.Params{"parent": parentID, "status": status}
-	if strat.TargetType() == "reflection" {
-		if window == nil {
-			// A bound empty param compares `= ''` in SQL and misses rows whose
-			// bounds were never written (NULL); PocketBase's literal ''
-			// matches empty-or-null. Without this, every windowless snapshot
-			// would live in its own chain: approvals would all sequence from 1
-			// (and the second one hit the unique index), and the minimal-diff
-			// rewrite would never find its predecessor.
-			filter += " && window_start = ''"
-		} else {
-			// DateFields store PocketBase's own datetime format, so the
-			// RFC3339 bounds on api.Window are normalised before comparing.
-			start, end := WindowBounds(window)
-			filter += " && window_start = {:ws} && window_end = {:we}"
-			params["ws"] = start.String()
-			params["we"] = end.String()
-		}
+	clause, wParams := strat.SnapshotWindowFilter(window)
+	filter += clause
+	for k, v := range wParams {
+		params[k] = v
 	}
 	return filter, params
 }
@@ -219,7 +203,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 	var generationTrigger string
 
 	err := app.RunInTransaction(func(tx core.App) error {
-		if sourceSnapshotID != "" && strat.TargetType() == "projection" {
+		if sourceSnapshotID != "" && strat.InheritsCandidateTrigger() {
 			if sourceSnap, err := tx.FindRecordById(strat.SnapshotCollectionName(), sourceSnapshotID); err == nil {
 				// Only a still-pending chain candidate carries its mark forward: the
 				// user is mid click-through and edited instead of approving as-is.
@@ -248,43 +232,16 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 			lensRec.Set("parent_lens_id", oldLensID)
 		}
 		lensRec.Set("prompt", lensPrompt)
-		if strat.TargetType() == "reflection" {
-			lensRec.Set("created_from_reflection_refinement_id", refinementID)
-		} else {
-			lensRec.Set("created_from_projection_refinement_id", refinementID)
-		}
+		lensRec.Set(strat.RefinementForeignKeyCol(), refinementID)
 		if err := tx.Save(lensRec); err != nil {
 			return err
 		}
 
-		if strat.TargetType() == "projection" {
-			// Provenance is the model that actually produced the output — the
-			// per-turn apply resolves RoleSnapshot against the parent, exactly as a
-			// future regeneration will, so SnapshotIsCurrent's model check stays
-			// coherent.
-			model, _ := llm.ResolveRoleFor(llm.RoleSnapshot, parentRec.GetString("generate_with_model"))
-
-			newSnapID, err = AppendSnapshot(ctx, tx, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
-				SourceID:        parentID,
-				LensID:          lensRec.Id,
-				Output:          output,
-				ContextSpec:     spec,
-				ResolvedContext: pinned,
-				Status:          StatusApproved,
-
-				Model:             model,
-				GenerationTrigger: generationTrigger,
-
-				CreatedFromRefinementID: refinementID,
-			})
-			if err != nil {
-				return err
-			}
-
-			if err := ApproveSnapshot(ctx, tx, strat, newSnapID); err != nil {
-				return err
-			}
+		snapID, err := strat.CommitRefinementSnapshot(ctx, tx, parentRec, lensRec, output, pinned, spec, generationTrigger, refinementID)
+		if err != nil {
+			return err
 		}
+		newSnapID = snapID
 
 		parentRec.Set("current_lens_id", lensRec.Id)
 		parentRec.Set("current_context_spec", pbutil.JSONObject(spec))
@@ -341,6 +298,34 @@ func ScrubContextSpecs(app core.App, entityType string, id string) error {
 				continue
 			}
 			*list = kept
+			rec.Set("current_context_spec", pbutil.JSONObject(spec))
+			if err := app.Save(rec); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ScrubContextSpecsByStrategy drops one id from the appropriate list of every live
+// current_context_spec in the projection and reflection collections using strat.ScrubSpec.
+func ScrubContextSpecsByStrategy(app core.App, strat Strategy, id string) error {
+	for _, collection := range []string{schema.ColProjection.String(), schema.ColReflection.String()} {
+		recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": id})
+		if err != nil {
+			return err
+		}
+		for _, rec := range recs {
+			var spec api.ContextSpec
+			if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
+				continue
+			}
+			before := len(spec.SourceProjectionIDs) + len(spec.SourceReflectionIDs) + len(spec.ColourIDs)
+			strat.ScrubSpec(&spec, id)
+			after := len(spec.SourceProjectionIDs) + len(spec.SourceReflectionIDs) + len(spec.ColourIDs)
+			if before == after {
+				continue
+			}
 			rec.Set("current_context_spec", pbutil.JSONObject(spec))
 			if err := app.Save(rec); err != nil {
 				return err

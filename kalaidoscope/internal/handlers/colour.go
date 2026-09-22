@@ -10,7 +10,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -75,33 +74,17 @@ func HandleCreateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 			return e.BadRequestError("name is required", nil)
 		}
 
-		collection, err := app.FindCollectionByNameOrId(schema.ColColour.String())
+		colourRec, err := colour.Create(app, colour.CreateParams{
+			Name:             req.Name,
+			Prompt:           req.Prompt,
+			FragmentIDs:      req.FragmentIDs,
+			PositiveExamples: req.PositiveExamples,
+			NegativeExamples: req.NegativeExamples,
+		})
 		if err != nil {
-			return e.InternalServerError("colour collection", err)
-		}
-		swatch, err := colour.NextSwatch(app)
-		if err != nil {
-			return e.InternalServerError("colour swatch", err)
-		}
-		colourRec := core.NewRecord(collection)
-		colourRec.Set("name", strings.TrimSpace(req.Name))
-		colourRec.Set("prompt", strings.TrimSpace(req.Prompt))
-		colourRec.Set("swatch", swatch)
-		if err := app.Save(colourRec); err != nil {
-			return e.InternalServerError("failed to save colour", err)
+			return e.InternalServerError("failed to create colour", err)
 		}
 
-		// The preview's matches were judged by this prompt already: record
-		// them so the colour has members the moment it appears. The worker
-		// skips pairs that hold a row, so they are not judged twice.
-		for _, fragID := range req.FragmentIDs {
-			if err := colour.SetPromptMatch(app, colourRec.Id, fragID); err != nil {
-				logger(app).Warn("colour create: seeding prompt match failed", "fragment_id", fragID, "error", err)
-			}
-		}
-		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, nil); err != nil {
-			return e.InternalServerError("failed to save examples", err)
-		}
 		if colourRec.GetString("prompt") != "" {
 			deps.Colour.Signal()
 		}
@@ -123,33 +106,28 @@ func HandleUpdateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, req.ClearExamples); err != nil {
-			return e.InternalServerError("failed to save examples", err)
+		updatedRec, promptChanged, err := colour.Update(app, colourRec.Id, colour.UpdateParams{
+			Name:             req.Name,
+			Prompt:           req.Prompt,
+			PositiveExamples: req.PositiveExamples,
+			NegativeExamples: req.NegativeExamples,
+			ClearExamples:    req.ClearExamples,
+		})
+		if err != nil {
+			return e.InternalServerError("failed to update colour", err)
 		}
 
-		if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
-			colourRec.Set("name", strings.TrimSpace(*req.Name))
-		}
-		promptChanged := false
-		if req.Prompt != nil {
-			next := strings.TrimSpace(*req.Prompt)
-			promptChanged = next != colourRec.GetString("prompt")
-			colourRec.Set("prompt", next)
-		}
-		if err := app.Save(colourRec); err != nil {
-			return e.InternalServerError("failed to save colour", err)
-		}
 		if promptChanged {
-			if err := deps.Colour.Rematch(colourRec.Id); err != nil {
+			if err := deps.Colour.Rematch(updatedRec.Id); err != nil {
 				return e.InternalServerError("failed to restart matching", err)
 			}
 			deps.Reconcile.EnqueueWave()
 		}
 
 		return e.JSON(http.StatusOK, api.UpdateColourResponse{
-			ColourID: colourRec.Id,
-			Name:     colourRec.GetString("name"),
-			Prompt:   colourRec.GetString("prompt"),
+			ColourID: updatedRec.Id,
+			Name:     updatedRec.GetString("name"),
+			Prompt:   updatedRec.GetString("prompt"),
 		})
 	}
 }
@@ -179,13 +157,7 @@ func HandleDeleteColour(app core.App) func(e *core.RequestEvent) error {
 		if err != nil {
 			return err
 		}
-		err = app.RunInTransaction(func(tx core.App) error {
-			if err := engine.ScrubContextSpecs(tx, "colour", colourRec.Id); err != nil {
-				return err
-			}
-			return tx.Delete(colourRec)
-		})
-		if err != nil {
+		if err := colour.Delete(app, colourRec.Id); err != nil {
 			return e.InternalServerError("failed to delete colour", err)
 		}
 		return e.NoContent(http.StatusNoContent)
@@ -202,26 +174,4 @@ func findColour(app core.App, e *core.RequestEvent) (*core.Record, error) {
 		return nil, e.NotFoundError("colour not found", err)
 	}
 	return rec, nil
-}
-
-// applyExamples writes manual rows. Negatives first, then positives, so a
-// fragment named in both ends up pinned; clears run last and re-derive the
-// pair mechanically.
-func applyExamples(app core.App, colourID string, positive, negative, clear []string) error {
-	for _, fragID := range negative {
-		if err := colour.SetManual(app, colourID, fragID, colour.MatchManualNegative); err != nil {
-			return err
-		}
-	}
-	for _, fragID := range positive {
-		if err := colour.SetManual(app, colourID, fragID, colour.MatchManualPositive); err != nil {
-			return err
-		}
-	}
-	for _, fragID := range clear {
-		if err := colour.ClearManual(app, colourID, fragID); err != nil {
-			return err
-		}
-	}
-	return nil
 }

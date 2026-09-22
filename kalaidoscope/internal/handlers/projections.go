@@ -11,10 +11,8 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
-	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func HandleCreateProjection(app core.App) func(e *core.RequestEvent) error {
@@ -24,31 +22,17 @@ func HandleCreateProjection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		var targetID string
-		err := app.RunInTransaction(func(txApp core.App) error {
-			col, err := txApp.FindCollectionByNameOrId(schema.ColProjection.String())
-			if err != nil {
-				return err
-			}
-			rec := core.NewRecord(col)
-			rec.Set("name", req.Name)
-			rec.Set("status", engine.EntityActive)
-			if d := strings.TrimSpace(req.Description); d != "" {
-				rec.Set("description", d)
-			}
-			if err := txApp.Save(rec); err != nil {
-				return err
-			}
-			targetID = rec.Id
-			return nil
+		target, err := projections.Create(app, projections.CreateParams{
+			Name:        req.Name,
+			Description: req.Description,
 		})
 		if err != nil {
 			logger(app).Error("create projection failed", "error", err)
 			return e.InternalServerError("create projection failed", err)
 		}
 
-		logger(app).Info("created projection", "id", targetID)
-		return e.JSON(http.StatusCreated, api.CreateProjectionResponse{ProjectionID: targetID})
+		logger(app).Info("created projection", "id", target.Id)
+		return e.JSON(http.StatusCreated, api.CreateProjectionResponse{ProjectionID: target.Id})
 	}
 }
 
@@ -59,27 +43,26 @@ func HandleUpdateProjection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("id required", nil)
 		}
 
-		rec, err := projections.FindLive(app, id)
-		if err != nil {
-			return e.NotFoundError("projection not found", err)
-		}
-
 		var req api.UpdateProjectionRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		if req.Name != nil {
-			rec.Set("name", *req.Name)
-		}
-		if req.GenerateWithModel != nil {
-			rec.Set("generate_with_model", *req.GenerateWithModel)
-		}
-		if req.Pinned != nil && e.Auth != nil {
-			pbutil.TogglePinnedBy(rec, e.Auth.Id, *req.Pinned)
+		authID := ""
+		if e.Auth != nil {
+			authID = e.Auth.Id
 		}
 
-		if err := app.Save(rec); err != nil {
+		_, err := projections.Update(app, id, projections.UpdateParams{
+			Name:              req.Name,
+			GenerateWithModel: req.GenerateWithModel,
+			Pinned:            req.Pinned,
+			AuthID:            authID,
+		})
+		if err != nil {
+			if errors.Is(err, projections.ErrNotFound) {
+				return e.NotFoundError("projection not found", err)
+			}
 			logger(app).Error("update projection failed", "error", err)
 			return e.InternalServerError("update projection failed", err)
 		}
@@ -95,32 +78,17 @@ func HandleDeleteProjection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("id required", nil)
 		}
 
-		rec, err := app.FindRecordById(schema.ColProjection.String(), id)
+		err := projections.Delete(app, id)
 		if err != nil {
-			return e.NotFoundError("projection not found", err)
-		}
-		if engine.IsDeleted(rec) {
-			return e.NoContent(http.StatusNoContent)
-		}
-
-		inFlight, err := engine.HasLiveClaim(app, projections.Strategy{}, id)
-		if err != nil {
-			logger(app).Error("delete projection failed", "id", id, "error", err)
-			return e.InternalServerError("delete projection failed", err)
-		}
-		if inFlight {
-			return e.Error(http.StatusConflict, "a generation is running for this projection", nil)
-		}
-
-		err = app.RunInTransaction(func(tx core.App) error {
-			if err := engine.ScrubContextSpecs(tx, "projection", id); err != nil {
-				return err
+			switch {
+			case errors.Is(err, projections.ErrNotFound):
+				return e.NotFoundError("projection not found", err)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict, "a generation is running for this projection", nil)
+			default:
+				logger(app).Error("delete projection failed", "id", id, "error", err)
+				return e.InternalServerError("delete projection failed", err)
 			}
-			return engine.SoftDelete(tx, rec)
-		})
-		if err != nil {
-			logger(app).Error("delete projection failed", "id", id, "error", err)
-			return e.InternalServerError("delete projection failed", err)
 		}
 
 		return e.NoContent(http.StatusNoContent)
@@ -133,14 +101,12 @@ func HandleRestoreProjection(app core.App) func(e *core.RequestEvent) error {
 		if id == "" {
 			return e.BadRequestError("id required", nil)
 		}
-		rec, err := app.FindRecordById(schema.ColProjection.String(), id)
+
+		_, err := projections.Restore(app, id)
 		if err != nil {
-			return e.NotFoundError("projection not found", err)
-		}
-		if !engine.IsDeleted(rec) {
-			return e.NoContent(http.StatusNoContent)
-		}
-		if err := engine.Restore(app, rec); err != nil {
+			if errors.Is(err, projections.ErrNotFound) {
+				return e.NotFoundError("projection not found", err)
+			}
 			logger(app).Error("restore projection failed", "id", id, "error", err)
 			return e.InternalServerError("restore projection failed", err)
 		}
@@ -212,7 +178,7 @@ func HandleApproveCandidate(app core.App, deps Deps) func(e *core.RequestEvent) 
 		if herr != nil {
 			return herr
 		}
-		if err := engine.ApproveSnapshot(e.Request.Context(), app, projections.Strategy{}, snapID); err != nil {
+		if err := projections.Approve(e.Request.Context(), app, snapID); err != nil {
 			logger(app).Error("approve failed", "target_type", "projection", "error", err)
 			if errors.Is(err, engine.ErrNotApprovable) {
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)

@@ -113,7 +113,7 @@ func ApplyEdit(ctx context.Context, app core.App, parentID, sourceSnapshotID, ol
 		pinned.FragmentIDs = appendUnique(pinned.FragmentIDs, frag.Id)
 		pinned.ExpandedIDs = appendUnique(pinned.ExpandedIDs, frag.Id)
 
-		snapID, err := engine.AppendSnapshot(ctx, tx, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), engine.SnapshotSpec{
+		snapID, err := engine.AppendSnapshot(ctx, tx, strat, engine.SnapshotSpec{
 			SourceID:        parentID,
 			LensID:          src.GetString("lens_id"),
 			Output:          newOutput,

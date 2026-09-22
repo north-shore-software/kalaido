@@ -12,11 +12,9 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // reflectionWindowsToGenerate is kept as an alias for tests in the handlers package.
@@ -106,48 +104,22 @@ func HandleCreateReflection(app core.App) func(e *core.RequestEvent) error {
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
-		if req.WindowSpec != nil {
-			if err := req.WindowSpec.Validate(); err != nil {
-				return e.BadRequestError(err.Error(), err)
-			}
-		}
 
-		var targetID string
-		err := app.RunInTransaction(func(txApp core.App) error {
-			col, err := txApp.FindCollectionByNameOrId(schema.ColReflection.String())
-			if err != nil {
-				return err
-			}
-			rec := core.NewRecord(col)
-			rec.Set("name", req.Name)
-			rec.Set("status", engine.EntityActive)
-			if d := strings.TrimSpace(req.Description); d != "" {
-				rec.Set("description", d)
-			}
-			spec := api.WindowSpec{}
-			if req.WindowSpec != nil {
-				spec = *req.WindowSpec
-			}
-			effective := time.Now()
-			if st, err := time.Parse(time.RFC3339, spec.StartTime); err == nil && st.Before(effective) {
-				effective = st
-			}
-			versions := reflections.AppendWindowSpecVersion(nil, spec, effective)
-			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
-
-			if err := txApp.Save(rec); err != nil {
-				return err
-			}
-			targetID = rec.Id
-			return nil
+		target, err := reflections.Create(app, reflections.CreateParams{
+			Name:        req.Name,
+			Description: req.Description,
+			WindowSpec:  req.WindowSpec,
 		})
 		if err != nil {
+			if req.WindowSpec != nil && req.WindowSpec.Validate() != nil {
+				return e.BadRequestError(err.Error(), err)
+			}
 			logger(app).Error("create reflection failed", "error", err)
 			return e.InternalServerError("create reflection failed", err)
 		}
 
-		logger(app).Info("created reflection", "id", targetID)
-		return e.JSON(http.StatusCreated, api.CreateReflectionResponse{ReflectionID: targetID})
+		logger(app).Info("created reflection", "id", target.Id)
+		return e.JSON(http.StatusCreated, api.CreateReflectionResponse{ReflectionID: target.Id})
 	}
 }
 
@@ -158,44 +130,30 @@ func HandleUpdateReflection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("id required", nil)
 		}
 
-		rec, err := reflections.FindLive(app, id)
-		if err != nil {
-			return e.NotFoundError("reflection not found", err)
-		}
-
 		var req api.UpdateReflectionRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		if req.WindowSpec != nil {
-			if err := req.WindowSpec.Validate(); err != nil {
+		authID := ""
+		if e.Auth != nil {
+			authID = e.Auth.Id
+		}
+
+		_, err := reflections.Update(app, id, reflections.UpdateParams{
+			Name:              req.Name,
+			GenerateWithModel: req.GenerateWithModel,
+			WindowSpec:        req.WindowSpec,
+			Pinned:            req.Pinned,
+			AuthID:            authID,
+		})
+		if err != nil {
+			if errors.Is(err, reflections.ErrNotFound) {
+				return e.NotFoundError("reflection not found", err)
+			}
+			if req.WindowSpec != nil && req.WindowSpec.Validate() != nil {
 				return e.BadRequestError(err.Error(), err)
 			}
-		}
-
-		if req.Name != nil {
-			rec.Set("name", *req.Name)
-		}
-		if req.GenerateWithModel != nil {
-			rec.Set("generate_with_model", *req.GenerateWithModel)
-		}
-		if req.WindowSpec != nil {
-			spec := *req.WindowSpec
-			versions := reflections.LoadWindowSpecVersions(rec)
-			if spec.StartTime == "" {
-				if cur, ok := reflections.GoverningVersion(versions, time.Now()); ok {
-					spec.StartTime = cur.Spec.StartTime
-				}
-			}
-			versions = reflections.AppendWindowSpecVersion(versions, spec, time.Now())
-			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
-		}
-		if req.Pinned != nil && e.Auth != nil {
-			pbutil.TogglePinnedBy(rec, e.Auth.Id, *req.Pinned)
-		}
-
-		if err := app.Save(rec); err != nil {
 			logger(app).Error("update reflection failed", "error", err)
 			return e.InternalServerError("update reflection failed", err)
 		}
@@ -211,32 +169,17 @@ func HandleDeleteReflection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("id required", nil)
 		}
 
-		rec, err := app.FindRecordById(schema.ColReflection.String(), id)
+		err := reflections.Delete(app, id)
 		if err != nil {
-			return e.NotFoundError("reflection not found", err)
-		}
-		if engine.IsDeleted(rec) {
-			return e.NoContent(http.StatusNoContent)
-		}
-
-		inFlight, err := engine.HasLiveClaim(app, reflections.Strategy{}, id)
-		if err != nil {
-			logger(app).Error("delete reflection failed", "id", id, "error", err)
-			return e.InternalServerError("delete reflection failed", err)
-		}
-		if inFlight {
-			return e.Error(http.StatusConflict, "a generation is running for this reflection", nil)
-		}
-
-		err = app.RunInTransaction(func(tx core.App) error {
-			if err := engine.ScrubContextSpecs(tx, "reflection", id); err != nil {
-				return err
+			switch {
+			case errors.Is(err, reflections.ErrNotFound):
+				return e.NotFoundError("reflection not found", err)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict, "a generation is running for this reflection", nil)
+			default:
+				logger(app).Error("delete reflection failed", "id", id, "error", err)
+				return e.InternalServerError("delete reflection failed", err)
 			}
-			return engine.SoftDelete(tx, rec)
-		})
-		if err != nil {
-			logger(app).Error("delete reflection failed", "id", id, "error", err)
-			return e.InternalServerError("delete reflection failed", err)
 		}
 
 		return e.NoContent(http.StatusNoContent)
@@ -249,11 +192,12 @@ func HandleRestoreReflection(app core.App) func(e *core.RequestEvent) error {
 		if id == "" {
 			return e.BadRequestError("id required", nil)
 		}
-		rec, err := app.FindRecordById(schema.ColReflection.String(), id)
+
+		_, err := reflections.Restore(app, id)
 		if err != nil {
-			return e.NotFoundError("reflection not found", err)
-		}
-		if err := engine.Restore(app, rec); err != nil {
+			if errors.Is(err, reflections.ErrNotFound) {
+				return e.NotFoundError("reflection not found", err)
+			}
 			logger(app).Error("restore reflection failed", "id", id, "error", err)
 			return e.InternalServerError("restore reflection failed", err)
 		}
