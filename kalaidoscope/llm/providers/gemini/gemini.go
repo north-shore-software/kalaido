@@ -30,6 +30,19 @@ type Provider struct {
 	APIKey string
 }
 
+var Descriptor = llm.ProviderDescriptor{
+	ID:            llm.ProviderGemini,
+	RequiresKey:   true,
+	CredentialEnv: "GEMINI_API_KEY",
+	New: func(model string, apiKey string) llm.Provider {
+		return &Provider{Model: model, APIKey: apiKey}
+	},
+}
+
+func Register() {
+	llm.RegisterProvider(Descriptor)
+}
+
 func (p *Provider) model() string {
 	return p.Model
 }

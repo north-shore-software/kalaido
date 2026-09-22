@@ -136,3 +136,33 @@ func TestRequiresCredential(t *testing.T) {
 		t.Error("ollama should not require a credential")
 	}
 }
+
+func TestRegisterProvider(t *testing.T) {
+	var capturedModel, capturedKey string
+	RegisterProvider(ProviderDescriptor{
+		ID:            "test-provider",
+		RequiresKey:   true,
+		CredentialEnv: "TEST_KEY",
+		New: func(model, apiKey string) Provider {
+			capturedModel = model
+			capturedKey = apiKey
+			return errProvider{}
+		},
+	})
+
+	if !RequiresCredential("test-provider") {
+		t.Error("test-provider should require key")
+	}
+	if got := CredentialEnv("test-provider"); got != "TEST_KEY" {
+		t.Errorf("CredentialEnv = %q, want %q", got, "TEST_KEY")
+	}
+	if !Ready() {
+		t.Error("Ready() should be true when descriptor registered")
+	}
+
+	cfg := WorkspaceConfig{Provider: "test-provider", APIKey: "secret"}
+	_ = SelectedProviderForConfig("my-model", cfg)
+	if capturedModel != "my-model" || capturedKey != "secret" {
+		t.Errorf("got model=%q key=%q, want my-model and secret", capturedModel, capturedKey)
+	}
+}

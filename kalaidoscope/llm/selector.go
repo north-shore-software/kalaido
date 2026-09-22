@@ -8,13 +8,37 @@ import (
 	"sync"
 )
 
+// ProviderDescriptor registers an LLM provider implementation.
+type ProviderDescriptor struct {
+	ID            ProviderID
+	RequiresKey   bool
+	CredentialEnv string
+	New           func(model string, apiKey string) Provider
+}
+
 var (
 	providerFactory func(model string, cfg WorkspaceConfig) Provider
 	activeSet       = SetLocal
 
 	workspaceMu  sync.RWMutex
 	workspaceCfg WorkspaceConfig
+
+	descriptorsMu sync.RWMutex
+	descriptors   = make(map[ProviderID]ProviderDescriptor)
 )
+
+func RegisterProvider(d ProviderDescriptor) {
+	descriptorsMu.Lock()
+	defer descriptorsMu.Unlock()
+	descriptors[d.ID] = d
+}
+
+func Descriptor(id ProviderID) (ProviderDescriptor, bool) {
+	descriptorsMu.RLock()
+	defer descriptorsMu.RUnlock()
+	d, ok := descriptors[id]
+	return d, ok
+}
 
 // WorkspaceConfig is this workspace's own provider selection, loaded from its
 // PocketBase database rather than the process environment.
@@ -89,7 +113,9 @@ func SetProviderFactory(f func(model string, cfg WorkspaceConfig) Provider) {
 }
 
 func Ready() bool {
-	return providerFactory != nil
+	descriptorsMu.RLock()
+	defer descriptorsMu.RUnlock()
+	return providerFactory != nil || len(descriptors) > 0
 }
 
 func SetActiveModelSet(s ModelSet) {
@@ -163,8 +189,30 @@ func SelectedProvider(model string) Provider {
 // through the exact same construction path a real call uses, without the
 // caller knowing which concrete provider is involved.
 func SelectedProviderForConfig(model string, cfg WorkspaceConfig) Provider {
-	if providerFactory == nil {
-		panic("llm: no provider factory registered; call llm.SetProviderFactory at startup")
+	if providerFactory != nil {
+		return providerFactory(model, cfg)
 	}
-	return providerFactory(model, cfg)
+
+	descriptorsMu.RLock()
+	defer descriptorsMu.RUnlock()
+
+	if len(descriptors) == 0 {
+		panic("llm: no provider registered; register providers or call llm.SetProviderFactory at startup")
+	}
+
+	target := cfg.Provider
+	if target == "" {
+		p, err := ProviderFor(model)
+		if err != nil {
+			return ErrorProvider(err)
+		}
+		target = p
+	}
+
+	desc, ok := descriptors[target]
+	if !ok {
+		return ErrorProvider(fmt.Errorf("llm: provider %q not registered", target))
+	}
+
+	return desc.New(model, cfg.APIKey)
 }

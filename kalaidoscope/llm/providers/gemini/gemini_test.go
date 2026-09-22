@@ -216,3 +216,23 @@ func TestNormalFinishIsNotLogged(t *testing.T) {
 		t.Errorf("normal STOP finish was logged:\n%s", buf.String())
 	}
 }
+
+func TestDescriptor(t *testing.T) {
+	if Descriptor.ID != llm.ProviderGemini {
+		t.Errorf("Descriptor.ID = %q, want %q", Descriptor.ID, llm.ProviderGemini)
+	}
+	if !Descriptor.RequiresKey {
+		t.Error("Descriptor.RequiresKey should be true")
+	}
+	if Descriptor.CredentialEnv != "GEMINI_API_KEY" {
+		t.Errorf("Descriptor.CredentialEnv = %q, want GEMINI_API_KEY", Descriptor.CredentialEnv)
+	}
+	p := Descriptor.New("gemini-test", "test-key")
+	gp, ok := p.(*Provider)
+	if !ok {
+		t.Fatalf("Descriptor.New did not return *Provider: %T", p)
+	}
+	if gp.Model != "gemini-test" || gp.APIKey != "test-key" {
+		t.Errorf("got model=%q key=%q, want gemini-test and test-key", gp.Model, gp.APIKey)
+	}
+}

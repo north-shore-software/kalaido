@@ -11,7 +11,25 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
+
+var Descriptor = llm.ProviderDescriptor{
+	ID:            llm.ProviderOllama,
+	RequiresKey:   false,
+	CredentialEnv: "",
+	New: func(model string, _ string) llm.Provider {
+		return &OllamaProvider{Model: model}
+	},
+}
+
+// Register registers Ollama's provider descriptor with the LLM registry,
+// mounts its status and pull HTTP endpoints, and installs its background preload hook.
+func Register(app core.App) {
+	llm.RegisterProvider(Descriptor)
+	RegisterRoutes(app)
+	RegisterPreload(app)
+}
 
 func logger(app core.App) *slog.Logger {
 	if app != nil {

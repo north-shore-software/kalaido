@@ -11,10 +11,10 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/gemini"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ollama"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/providers/gemini"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/providers/ollama"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/north-shore-software/kalaido/kalaidoscope/server"
 )
@@ -42,28 +42,8 @@ func main() {
 
 	config.LoadAtBoot(a)
 
-	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
-		switch cfg.Provider {
-		case llm.ProviderGemini:
-			return &gemini.Provider{Model: model, APIKey: cfg.APIKey}
-		case llm.ProviderOllama:
-			return &ollama.OllamaProvider{Model: model}
-		}
-
-		provider, err := llm.ProviderFor(model)
-		if err != nil {
-			return llm.ErrorProvider(err)
-		}
-		switch provider {
-		case llm.ProviderGemini:
-			return &gemini.Provider{Model: model}
-		default:
-			return &ollama.OllamaProvider{Model: model}
-		}
-	})
-
-	ollama.RegisterRoutes(a)
-	ollama.RegisterPreload(a)
+	gemini.Register()
+	ollama.Register(a)
 
 	reportPortOnServe(a)
 	createLocalAppUser(a, env)
