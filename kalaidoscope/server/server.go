@@ -153,17 +153,18 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 			return e.JSON(http.StatusOK, st)
 		})
 
-		se.Router.POST("/api/explore", handlers.HandleExplore(app))
-		se.Router.POST("/api/refinements/chat", handlers.HandleRefinementChat(app))
-
+		se.Router.GET("/api/status", handlers.HandleGetStatus(app, deps))
 		se.Router.POST("/api/ingest", handlers.HandleIngest(app))
-
-		se.Router.POST("/api/context/tokens", handlers.HandleResolveTokens(app))
+		se.Router.POST("/api/map", handlers.HandleMapKick(deps.Mapping))
+		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(deps.Discover))
+		se.Router.POST("/api/reconcile", handlers.HandleReconcile(deps.Reconcile))
 
 		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
 		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))
+		se.Router.POST("/api/llm/count-tokens", handlers.HandleResolveTokens(app))
 
 		// Explore
+		se.Router.POST("/api/explore", handlers.HandleExplore(app))
 		se.Router.PATCH("/api/explore/conversations/{cid}/messages/{mid}/bookmark", handlers.HandleBookmarkMessage(app))
 		se.Router.POST("/api/explore/conversations/{cid}/bookmarks/save", handlers.HandleSaveBookmarks(app))
 		se.Router.POST("/api/explore/conversations/{cid}/brief", handlers.HandleExploreBrief(app))
@@ -198,17 +199,6 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.PATCH("/api/colours/{id}", handlers.HandleUpdateColour(app, deps))
 		se.Router.DELETE("/api/colours/{id}", handlers.HandleDeleteColour(app))
 		se.Router.POST("/api/colours/{id}/rematch", handlers.HandleRematchColour(app, deps))
-
-		se.Router.GET("/api/rotation", handlers.HandleGetRotation(app))
-
-		se.Router.GET("/api/status", handlers.HandleGetStatus(app, deps))
-		se.Router.GET("/api/organize", handlers.HandleGetStatus(app, deps))
-
-		se.Router.POST("/api/reconcile", handlers.HandleReconcile(deps.Reconcile))
-
-		se.Router.POST("/api/map", handlers.HandleMapKick(deps.Mapping))
-
-		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(deps.Discover))
 
 		return se.Next()
 	})
