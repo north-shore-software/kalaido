@@ -1,4 +1,3 @@
-// UNREVIEWED
 package refinement_test
 
 import (

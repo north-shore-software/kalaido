@@ -1,4 +1,3 @@
-// UNREVIEWED
 package ingest
 
 // startPipeline runs the organise pipeline after an import: a full map

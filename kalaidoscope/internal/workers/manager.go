@@ -1,4 +1,3 @@
-// UNREVIEWED
 package workers
 
 import (

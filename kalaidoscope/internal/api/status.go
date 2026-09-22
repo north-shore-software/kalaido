@@ -1,4 +1,3 @@
-// UNREVIEWED
 package api
 
 type KalaidoscopeStatus struct {

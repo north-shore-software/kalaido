@@ -1,4 +1,3 @@
-// UNREVIEWED
 package explore
 
 import (

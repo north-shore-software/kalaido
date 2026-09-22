@@ -1,4 +1,3 @@
-// UNREVIEWED
 // Package queue is the single admission gate for outbound LLM calls.
 //
 // Every call that reaches a provider first passes through Acquire, which

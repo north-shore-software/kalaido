@@ -1,4 +1,3 @@
-// UNREVIEWED
 package reflections_test
 
 import (

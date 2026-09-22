@@ -1,4 +1,3 @@
-// UNREVIEWED
 package api
 
 // ValidateProviderRequest tests a candidate provider configuration without

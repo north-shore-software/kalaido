@@ -1,4 +1,3 @@
-// UNREVIEWED
 // Package schema owns the kalaidoscope database schema and its lifecycle.
 //
 // A brand-new database is created from Canonical (canonical.go) in one pass

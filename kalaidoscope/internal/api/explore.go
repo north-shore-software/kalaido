@@ -1,4 +1,3 @@
-// UNREVIEWED
 package api
 
 // ExploreRequest is the body of POST /api/explore.

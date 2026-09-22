@@ -1,4 +1,3 @@
-// UNREVIEWED
 package prompts
 
 import "testing"

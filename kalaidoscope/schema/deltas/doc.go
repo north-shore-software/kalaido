@@ -1,4 +1,3 @@
-// UNREVIEWED
 // Package deltas holds the core upgrade steps, one file per version:
 //
 //	v0002_add_fragment_language.go

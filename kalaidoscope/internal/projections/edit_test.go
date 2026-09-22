@@ -1,4 +1,3 @@
-// UNREVIEWED
 package projections_test
 
 import (

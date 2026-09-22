@@ -1,4 +1,3 @@
-// UNREVIEWED
 package usage
 
 import (

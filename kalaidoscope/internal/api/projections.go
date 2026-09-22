@@ -1,4 +1,3 @@
-// UNREVIEWED
 package api
 
 type ProjectionSnapshotResponse struct {

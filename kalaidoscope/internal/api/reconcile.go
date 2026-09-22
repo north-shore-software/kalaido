@@ -1,4 +1,3 @@
-// UNREVIEWED
 package api
 
 // EntityStatus is one entity's freshness as served by GET /api/rotation.

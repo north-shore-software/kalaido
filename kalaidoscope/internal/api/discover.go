@@ -1,4 +1,3 @@
-// UNREVIEWED
 package api
 
 // StartDiscoverRequest is the body of POST /api/discover: which discover flow

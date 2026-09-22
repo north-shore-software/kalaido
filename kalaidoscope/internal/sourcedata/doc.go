@@ -1,4 +1,3 @@
-// UNREVIEWED
 // Package sourcedata provides unified, read-only accessors for workspace
 // source data: fragments, colour membership, map document & annotation index,
 // and upstream snapshots.
