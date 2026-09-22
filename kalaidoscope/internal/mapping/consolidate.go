@@ -4,6 +4,7 @@ package mapping
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -13,6 +14,65 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
+
+const (
+	consolidatePendingFloor = 50
+	consolidateStaleAge     = time.Minute
+	consolidateTick         = 10 * time.Second
+)
+
+func (w *Worker) consolidateLoop(ctx context.Context) error {
+	ticker := time.NewTicker(consolidateTick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+		due, err := consolidateDue(w.app, time.Now())
+		if err != nil {
+			w.logger.Error("consolidate check failed", "error", err)
+			continue
+		}
+		if due {
+			w.cycle(ctx)
+		}
+	}
+}
+
+func consolidateDue(app core.App, now time.Time) (bool, error) {
+	rows, err := app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "consolidated_at = ''", "-created", 0, 0, nil)
+	if err != nil || len(rows) == 0 {
+		return false, err
+	}
+	if len(rows) > consolidatePendingFloor {
+		return true, nil
+	}
+	newest := rows[0].GetDateTime("created").Time()
+	return now.Sub(newest) > consolidateStaleAge, nil
+}
+
+func (w *Worker) settle(ctx context.Context) {
+	w.cycle(ctx)
+}
+
+func (w *Worker) cycle(ctx context.Context) {
+	w.integrate(ctx)
+	for _, fn := range w.settleHooks {
+		fn(w.app)
+	}
+}
+
+func (w *Worker) integrate(ctx context.Context) {
+	w.consolidateMu.Lock()
+	defer w.consolidateMu.Unlock()
+	w.consolidating.Store(true)
+	defer w.consolidating.Store(false)
+	if err := consolidate(ctx, w.app); err != nil {
+		w.logger.Error("consolidate failed", "error", err)
+	}
+}
 
 func unintegratedRows(app core.App) ([]*core.Record, error) {
 	return app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "consolidated_at = ''", "created", 0, 0, nil)
