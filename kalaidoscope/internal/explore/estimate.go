@@ -10,7 +10,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 // PromptEstimate is the size of the prompt a conversation's next turn would
@@ -72,7 +72,7 @@ func EstimatePrompt(ctx context.Context, app core.App, clientID string, spec *ap
 	allMsgs := append(append([]api.UIMessage(nil), dbMsgs...), pending...)
 	msgs := PrepareLLMPrompt(ctx, app, conv, allMsgs)
 	for i, m := range msgs {
-		tokens := engine.EstimateTokens(len(m.Content))
+		tokens := llm.EstimateTokens(len(m.Content))
 		switch {
 		case i == 0:
 			est.System += tokens

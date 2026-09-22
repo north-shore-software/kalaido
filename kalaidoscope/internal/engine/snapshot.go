@@ -24,7 +24,7 @@ import (
 func GenerateOutput(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window) (string, error) {
 	start, end := WindowBounds(win)
 	prompt := prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)
-	if err := CheckPromptFits(model, len(prompt)); err != nil {
+	if err := llm.CheckPromptFits(model, len(prompt)); err != nil {
 		return "", err
 	}
 	output, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleSnapshot, model, nil)

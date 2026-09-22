@@ -8,7 +8,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -72,7 +71,7 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 
 		if model, err := llm.ResolveRoleFor(llm.RoleChat, ""); err == nil {
 			res.Model = model
-			res.Limit = engine.PromptBudget(model)
+			res.Limit = llm.PromptBudget(model)
 		}
 		res.Fits = res.Limit <= 0 || res.TotalTokens <= res.Limit
 
@@ -98,7 +97,7 @@ func resolvePromptTokens(e *core.RequestEvent, app core.App, clientID string, sp
 	}
 	if model, err := llm.ResolveRoleFor(llm.RoleChat, est.Model); err == nil {
 		res.Model = model
-		res.Limit = engine.PromptBudget(model)
+		res.Limit = llm.PromptBudget(model)
 	}
 	res.Fits = res.Limit <= 0 || res.TotalTokens <= res.Limit
 	return e.JSON(http.StatusOK, res)
@@ -112,5 +111,5 @@ func countTokensForSpec(ctx context.Context, app core.App, spec api.ContextSpec,
 		return 0
 	}
 	text, _ := llmcontext.HydrateDeltaToText(ctx, app, pinned, llmcontext.PinnedIDs{}, spec.WholeScope == api.WholeScopeSummaries)
-	return engine.EstimateTokens(len(text))
+	return llm.EstimateTokens(len(text))
 }

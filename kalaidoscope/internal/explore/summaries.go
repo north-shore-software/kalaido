@@ -13,7 +13,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -97,7 +96,7 @@ func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, m
 			}
 		},
 		PromptGuard: func(updatedMsgs []llm.Message) error {
-			if err := engine.CheckPromptFits(model, engine.MessagesChars(updatedMsgs)); err != nil {
+			if err := llm.CheckPromptFits(model, llm.MessagesChars(updatedMsgs)); err != nil {
 				logger(app).Warn("explore summaries prompt too large", "text_id", textID, "error", err)
 				sse.Error(err.Error())
 				return err

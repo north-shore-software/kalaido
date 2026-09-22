@@ -12,10 +12,10 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -33,7 +33,7 @@ type Deps struct {
 	Discover  *discover.Worker
 	// Runner owns the processing goroutine, so shutdown can cancel and
 	// await an import in progress.
-	Runner engine.Runner
+	Runner workerutil.Runner
 }
 
 // RegisterHooks processes every new `ingest` record off the request

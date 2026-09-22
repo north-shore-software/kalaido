@@ -1,11 +1,9 @@
 // UNREVIEWED
-package engine
+package llm
 
 import (
 	"errors"
 	"fmt"
-
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 // ErrContextTooLarge marks a generation refused before the model call because
@@ -45,7 +43,7 @@ func EstimateTokens(chars int) int { return chars / 4 }
 // exceeds the model's context window less a reserve for the output. A provider
 // that reports no window (0) is not checked.
 func CheckPromptFits(model string, chars int) error {
-	limit := llm.SelectedProvider(model).ContextWindow()
+	limit := SelectedProvider(model).ContextWindow()
 	if limit <= 0 {
 		return nil
 	}
@@ -59,7 +57,7 @@ func CheckPromptFits(model string, chars int) error {
 // context window less a reserve for the output. Zero when the provider
 // reports no window, meaning "unchecked".
 func PromptBudget(model string) int {
-	limit := llm.SelectedProvider(model).ContextWindow()
+	limit := SelectedProvider(model).ContextWindow()
 	if limit <= 0 {
 		return 0
 	}
@@ -67,7 +65,7 @@ func PromptBudget(model string) int {
 }
 
 // MessagesChars totals the characters of a transcript for CheckPromptFits.
-func MessagesChars(msgs []llm.Message) int {
+func MessagesChars(msgs []Message) int {
 	n := 0
 	for _, m := range msgs {
 		n += len(m.Content)

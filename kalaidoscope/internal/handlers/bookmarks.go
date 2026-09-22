@@ -10,9 +10,9 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 // findExploreConversation resolves the {cid} path segment to an explore conversation.
@@ -98,7 +98,7 @@ func HandleExploreBrief(app core.App) func(e *core.RequestEvent) error {
 		if usage.WriteProviderError(e, err) {
 			return nil
 		}
-		if errors.Is(err, engine.ErrContextTooLarge) || errors.Is(err, explore.ErrNoBrief) {
+		if errors.Is(err, llm.ErrContextTooLarge) || errors.Is(err, explore.ErrNoBrief) {
 			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 		}
 		if err != nil {

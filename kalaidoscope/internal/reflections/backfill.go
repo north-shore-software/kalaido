@@ -12,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -90,7 +91,7 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 // window whose generation fails stays pending for the next run rather than
 // being retried in a loop. The DB is the state — a restart mid-run loses
 // nothing but the goroutines.
-func RunPendingWindows(r engine.Runner, app core.App, reflectionID string) {
+func RunPendingWindows(r workerutil.Runner, app core.App, reflectionID string) {
 	r.Go(func(ctx context.Context) { GeneratePendingWindows(ctx, app, reflectionID) })
 }
 
@@ -109,7 +110,7 @@ func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID stri
 	logger(app).Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
 
 	ctx = queue.WithPriority(ctx, queue.Background)
-	results := engine.GenerateWindows(ctx, app, reflectionID, engine.StatusApproved, Strategy{}, pending)
+	results := GenerateWindows(ctx, app, reflectionID, engine.StatusApproved, pending)
 	generated := 0
 	for i, r := range results {
 		switch {

@@ -12,7 +12,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -92,7 +91,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 
 	// Refuse before the call, with a message the user can act on, rather
 	// than let the provider reject an oversized prompt as a bare 400.
-	if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
+	if err := llm.CheckPromptFits(assistantModel, llm.MessagesChars(hydratedMsgs)); err != nil {
 		logger(app).Warn("explore prompt too large", "conversation_id", req.ID, "error", err)
 		text := err.Error()
 		if !summaries {

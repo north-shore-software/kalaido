@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/types"
+
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 )
 
 // LiveFilter is the clause every reader of live projections/reflections
@@ -21,7 +22,7 @@ var ErrEntityDeleted = errors.New("entity deleted")
 
 // IsDeleted reports whether an entity row carries the soft-delete stamp.
 func IsDeleted(rec *core.Record) bool {
-	return !rec.GetDateTime("deleted_at").IsZero()
+	return pbutil.IsDeleted(rec)
 }
 
 // FindLive loads a projection/reflection that is not soft-deleted. A missing
@@ -57,18 +58,10 @@ func HasLiveClaim(app core.App, strat Strategy, parentID string) (bool, error) {
 
 // SoftDelete stamps the entity; a second call is a no-op.
 func SoftDelete(app core.App, rec *core.Record) error {
-	if IsDeleted(rec) {
-		return nil
-	}
-	rec.Set("deleted_at", types.NowDateTime())
-	return app.Save(rec)
+	return pbutil.SoftDelete(app, rec)
 }
 
 // Restore clears the stamp; a live entity is left as is.
 func Restore(app core.App, rec *core.Record) error {
-	if !IsDeleted(rec) {
-		return nil
-	}
-	rec.Set("deleted_at", "")
-	return app.Save(rec)
+	return pbutil.Restore(app, rec)
 }

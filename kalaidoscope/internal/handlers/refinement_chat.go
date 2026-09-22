@@ -9,9 +9,9 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 // Backward-compatibility aliases for tests and internal/handlers callers.
@@ -57,7 +57,7 @@ func HandleChatForRefinement(app core.App, req api.RefinementChatRequest, refRec
 			return nil
 		}
 
-		var tooLarge *engine.ContextTooLargeError
+		var tooLarge *llm.ContextTooLargeError
 		if errors.As(err, &tooLarge) {
 			logger(app).Warn("refinement chat prompt too large", "refinement_id", refRec.Id, "error", err)
 			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)

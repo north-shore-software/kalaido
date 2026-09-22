@@ -13,7 +13,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -92,7 +91,7 @@ func GenerateBrief(ctx context.Context, app core.App, conv *core.Record) (Brief,
 		{Role: "system", Content: prompts.ChatBriefSystem},
 		{Role: "user", Content: prompts.ChatBriefTranscript(lines)},
 	}
-	if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
+	if err := llm.CheckPromptFits(model, llm.MessagesChars(msgs)); err != nil {
 		return Brief{}, err
 	}
 

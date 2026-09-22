@@ -13,6 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
 
 func logger(app core.App) *slog.Logger {
@@ -28,7 +29,7 @@ func logger(app core.App) *slog.Logger {
 // hands it to every route that needs it.
 type Deps struct {
 	*workers.Manager
-	Runner engine.Runner
+	Runner workerutil.Runner
 }
 
 func (d Deps) statusWorkers() status.Workers {

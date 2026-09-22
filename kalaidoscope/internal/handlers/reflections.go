@@ -15,6 +15,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -100,7 +102,7 @@ func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.R
 // the point the schedule already covers, then generates them in the
 // background. Progress arrives as reflection_snapshot rows over the live
 // subscription; the response only says which windows were materialized.
-func HandleBackfillReflection(app core.App, runner engine.Runner) func(e *core.RequestEvent) error {
+func HandleBackfillReflection(app core.App, runner workerutil.Runner) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 		if id == "" {
@@ -398,7 +400,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			for _, w := range windowsToGenerate {
 				plain = append(plain, *w)
 			}
-			for _, r := range engine.GenerateWindows(genCtx, app, id, status, reflections.Strategy{}, plain) {
+			for _, r := range reflections.GenerateWindows(genCtx, app, id, status, plain) {
 				if r.Err != nil {
 					if firstErr == nil {
 						firstErr = r.Err
@@ -427,7 +429,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 				return e.Error(http.StatusConflict, "This reflection's lens is still being prepared — try again in a moment.", err)
 			case errors.Is(err, engine.ErrGenerationInFlight):
 				return e.Error(http.StatusConflict, "A generation for this reflection is already running.", err)
-			case errors.Is(err, engine.ErrContextTooLarge):
+			case errors.Is(err, llm.ErrContextTooLarge):
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			case err != nil:
 				logger(app).Error("generate failed", "target_type", "reflection", "error", err)
@@ -453,7 +455,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 				return e.Error(http.StatusConflict, "This reflection's lens is still being prepared — try again in a moment.", err)
 			case errors.Is(err, engine.ErrGenerationInFlight):
 				return e.Error(http.StatusConflict, "A generation for this reflection is already running.", err)
-			case errors.Is(err, engine.ErrContextTooLarge):
+			case errors.Is(err, llm.ErrContextTooLarge):
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			default:
 				logger(app).Error("generate failed", "target_type", "reflection", "error", err)

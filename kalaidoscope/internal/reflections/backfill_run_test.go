@@ -175,7 +175,7 @@ func TestGenerateWindowsRunsInParallel(t *testing.T) {
 	}}
 	script.install(t)
 
-	results := engine.GenerateWindows(context.Background(), app, refl.Id, engine.StatusApproved, reflections.Strategy{}, reflections.CurrentGridWindows(refl, time.Now()))
+	results := reflections.GenerateWindows(context.Background(), app, refl.Id, engine.StatusApproved, reflections.CurrentGridWindows(refl, time.Now()))
 	if len(results) != 2 {
 		t.Fatalf("results = %d, want 2", len(results))
 	}

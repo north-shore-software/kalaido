@@ -14,7 +14,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
@@ -68,7 +67,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 
 	// Refuse before the call, with a message the user can act on, rather
 	// than let the provider reject an oversized prompt as a bare 400.
-	if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
+	if err := llm.CheckPromptFits(assistantModel, llm.MessagesChars(hydratedMsgs)); err != nil {
 		logger(app).Warn("refinement chat prompt too large", "refinement_id", refRec.Id, "error", err)
 		return err
 	}
@@ -121,7 +120,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 	// Phase two: execute the drafted lens so the user previews what it
 	// actually produces — the same RoleSnapshot call a future regeneration
 	// under this lens makes, always from scratch (a drafted lens is a
-	// changed lens; see engine.ApplyDraftLens). The lens-writing model
+	// changed lens; see ApplyDraftLens). The lens-writing model
 	// never sees this output; it streams to the client as a fabricated
 	// apply_result tool part and persists beside the lens on the same
 	// assistant message.
@@ -133,7 +132,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 		return nil
 	}
 
-	if match := engine.LensCountPin(lens); match != "" {
+	if match := LensCountPin(lens); match != "" {
 		// Surfaced, not auto-redrafted: the user sees that the lens pinned
 		// a count; the apply still runs so they can judge the result.
 		logger(app).Warn("refinement chat: drafted lens pins a count", "refinement_id", refRec.Id, "match", match)
@@ -162,7 +161,7 @@ func StreamNameOnlyContinuation(ctx context.Context, app core.App, sse *chat.SSE
 	msgs = append(msgs,
 		llm.Message{Role: "assistant", Content: strings.TrimSpace(prompts.DiscoverEchoToolCalls(names))},
 		llm.Message{Role: "user", Content: prompts.NameRecordedContinue})
-	if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
+	if err := llm.CheckPromptFits(model, llm.MessagesChars(msgs)); err != nil {
 		logger(app).Warn("refinement continuation prompt too large", "error", err)
 		return ""
 	}
@@ -295,14 +294,14 @@ func StreamApplyLeg(ctx context.Context, app core.App, sse *chat.SSE, refRec *co
 	sse.ToolInputStart(applyID, prompts.ApplyResultToolName)
 	sse.ToolInputDelta(applyID, `{"output":"`)
 
-	final, err := engine.ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, win, func(chunk string) {
+	final, err := ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, win, func(chunk string) {
 		sse.ToolInputDelta(applyID, JSONStringChunk(chunk))
 	})
 	if err != nil {
 		logger(app).Error("refinement chat apply failed", "refinement_id", refRec.Id, "error", err)
 		kind := "apply_failed"
 		message := "generating the preview failed — send another message to retry"
-		var tooLarge *engine.ContextTooLargeError
+		var tooLarge *llm.ContextTooLargeError
 		switch {
 		case errors.Is(err, usage.ErrExhausted):
 			kind = "quota_exhausted"

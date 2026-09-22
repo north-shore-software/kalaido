@@ -4,8 +4,8 @@ package handlers
 import (
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
 
 // testDeps builds a handler's dependencies over app with every worker
@@ -15,6 +15,6 @@ import (
 func testDeps(app core.App) Deps {
 	return Deps{
 		Manager: workers.New(app, workers.Options{}),
-		Runner:  engine.DiscardRunner{},
+		Runner:  workerutil.DiscardRunner{},
 	}
 }

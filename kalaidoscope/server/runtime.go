@@ -8,10 +8,10 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
@@ -25,7 +25,7 @@ const shutdownGrace = 10 * time.Second
 // the app serves, and drains them when it terminates.
 type runtime struct {
 	workers   *workers.Manager
-	runner    *engine.TrackedRunner
+	runner    *workerutil.TrackedRunner
 	scheduler *queue.Scheduler
 	logger    *slog.Logger
 
@@ -39,7 +39,7 @@ func newRuntime(app core.App, opts Options) *runtime {
 	mgr := workers.New(app, workers.Options{AutoWave: opts.AutoWave})
 	rt := &runtime{
 		workers:   mgr,
-		runner:    engine.NewTrackedRunner(ctx),
+		runner:    workerutil.NewTrackedRunner(ctx),
 		scheduler: queue.New(queue.ConfigForProvider(llm.ActiveProviderID())),
 		logger:    logger(app),
 		cancel:    cancel,

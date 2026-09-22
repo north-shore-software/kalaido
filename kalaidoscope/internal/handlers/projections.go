@@ -13,6 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -230,7 +231,7 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 			return e.Error(http.StatusConflict, "This projection's lens is still being prepared — try again in a moment.", err)
 		case errors.Is(err, engine.ErrGenerationInFlight):
 			return e.Error(http.StatusConflict, "A generation for this projection is already running.", err)
-		case errors.Is(err, engine.ErrContextTooLarge):
+		case errors.Is(err, llm.ErrContextTooLarge):
 			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 		case err != nil:
 			logger(app).Error("generate failed", "target_type", "projection", "error", err)

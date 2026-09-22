@@ -2,16 +2,12 @@
 package engine
 
 import (
-	"context"
-	"errors"
-	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 // WindowBounds parses a window's timestamps for prompt rendering and SQL
@@ -52,38 +48,4 @@ func SnapshotWindow(rec *core.Record) *api.Window {
 		Start: start.Time().UTC().Format(time.RFC3339),
 		End:   end.Time().UTC().Format(time.RFC3339),
 	}
-}
-
-// WindowResult is one window's outcome from GenerateWindows.
-type WindowResult struct {
-	SnapshotID string
-	Err        error
-}
-
-// GenerateWindows generates every window at once, one goroutine each, and
-// returns their outcomes in the same order. Concurrency is not throttled
-// here: every model call passes through queue, which caps in-flight calls per
-// provider (one on local Ollama, wide on hosted APIs), so windows run as
-// parallel as the provider allows and no more. A preempted call retries;
-// the retry blocks in the scheduler until a slot frees up.
-func GenerateWindows(ctx context.Context, app core.App, targetID, status string, strat Strategy, windows []api.Window) []WindowResult {
-	results := make([]WindowResult, len(windows))
-	var wg sync.WaitGroup
-	for i := range windows {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			w := windows[i]
-			for {
-				id, err := GenerateSnapshot(ctx, app, targetID, status, strat, &w)
-				if errors.Is(err, queue.ErrPreempted) {
-					continue
-				}
-				results[i] = WindowResult{SnapshotID: id, Err: err}
-				return
-			}
-		}(i)
-	}
-	wg.Wait()
-	return results
 }

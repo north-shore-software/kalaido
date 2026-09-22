@@ -1,5 +1,5 @@
 // UNREVIEWED
-package engine
+package refinement
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -28,9 +29,9 @@ import (
 // Raw candidate text streams through onDelta as it generates; the returned
 // string is the trimmed final output.
 func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window, onDelta func(string)) (string, error) {
-	start, end := WindowBounds(win)
+	start, end := engine.WindowBounds(win)
 	prompt := prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)
-	if err := CheckPromptFits(model, len(prompt)); err != nil {
+	if err := llm.CheckPromptFits(model, len(prompt)); err != nil {
 		return "", fmt.Errorf("apply lens: %w", err)
 	}
 	candidate, err := usage.GenerateStreamMsgs(ctx, app,
