@@ -1,4 +1,3 @@
-// UNREVIEWED
 package gemini
 
 import (
@@ -22,10 +21,7 @@ type errorBody struct {
 // classify maps a failed response onto a shared error kind.
 //
 // The status line alone is not enough: Gemini reports an invalid or revoked API
-// key as HTTP 400 INVALID_ARGUMENT with an API_KEY_INVALID reason, not as a 401,
-// so classifying on status would file a dead credential under "other" and lose
-// the one distinction the user actually needs. The body decides where it can,
-// and status is the fallback.
+// key as HTTP 400 INVALID_ARGUMENT with an API_KEY_INVALID reason, not as a 401.
 func classify(status int, body []byte) llm.ErrorKind {
 	var parsed errorBody
 	if err := json.Unmarshal(body, &parsed); err == nil {

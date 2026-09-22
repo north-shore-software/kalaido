@@ -19,20 +19,15 @@ import (
 )
 
 // geminiBase is a variable so a test can point the provider at a fake server.
+// TODO: make this user-configurable (or at least an env var)
 var geminiBase = "https://generativelanguage.googleapis.com/v1beta"
 
-// Demo 2026-08-27: every request rides the Priority tier. Make this
-// configurable (kalaidoscope_config) when the demo hardcode is lifted.
-// Requests beyond the account's priority limits are served at the standard
-// tier rather than failing; usageMetadata.trafficType reports which tier
-// actually served the request.
+// TODO: make the service tier user-configurable
 const serviceTier = "priority"
 
 type Provider struct {
 	Model string
-	// APIKey is the workspace's own BYOK credential. When empty the process
-	// environment is used instead, which is how the managed cloud deployment
-	// and any pre-BYOK workspace still authenticate.
+	// When empty, the process environment is used instead.
 	APIKey string
 }
 
@@ -41,6 +36,7 @@ func (p *Provider) model() string {
 }
 
 func (p *Provider) ContextWindow() int {
+	// TODO: pull this from the API, don't hardcode it
 	return 1_000_000
 }
 
