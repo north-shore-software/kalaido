@@ -58,7 +58,7 @@ func entityStatus(ctx context.Context, app core.App, id string) (api.EntityStatu
 // and those whose snapshot predates the current lens — all of them with
 // allWindows=true; and when nothing is owed, the current window — never a windowless
 // snapshot for a scheduled reflection.
-func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
+func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateReflectionSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
 	if err := req.Validate(); err != nil {
 		return nil, e.BadRequestError(err.Error(), err)
 	}
@@ -115,16 +115,26 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 			return e.BadRequestError(strat.TargetType()+" id required", nil)
 		}
 
-		var req api.GenerateSnapshotRequest
-		if err := e.BindBody(&req); err != nil {
-			return e.BadRequestError("invalid request body", err)
-		}
-		if err := req.Validate(); err != nil {
-			return e.BadRequestError(err.Error(), err)
+		var preview bool
+		var reflReq api.GenerateReflectionSnapshotRequest
+		if strat.TargetType() == "reflection" {
+			if err := e.BindBody(&reflReq); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+			if err := reflReq.Validate(); err != nil {
+				return e.BadRequestError(err.Error(), err)
+			}
+			preview = reflReq.Preview
+		} else {
+			var projReq api.GenerateProjectionSnapshotRequest
+			if err := e.BindBody(&projReq); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+			preview = projReq.Preview
 		}
 
 		status := engine.StatusPending
-		if !req.Preview {
+		if !preview {
 			status = engine.StatusApproved
 		} else {
 			status = engine.StatusPending
@@ -150,7 +160,7 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 
 		windowsToGenerate := []*api.Window{nil}
 		if strat.TargetType() == "reflection" {
-			windowsToGenerate, err = reflectionWindowsToGenerate(e, app, rec, req, st)
+			windowsToGenerate, err = reflectionWindowsToGenerate(e, app, rec, reflReq, st)
 			if err != nil {
 				return err
 			}
@@ -333,17 +343,29 @@ func handleEditCandidate(app core.App, strat engine.Strategy) func(e *core.Reque
 
 func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		var req api.CreateSynthesisRequest
-		if err := e.BindBody(&req); err != nil {
-			return e.BadRequestError("invalid request body", err)
-		}
-		if req.WindowSpec != nil {
-			if strat.TargetType() != "reflection" {
-				return e.BadRequestError("windowSpec is only valid for reflections", nil)
+		var name, description string
+		var windowSpec *api.WindowSpec
+
+		if strat.TargetType() == "reflection" {
+			var req api.CreateReflectionRequest
+			if err := e.BindBody(&req); err != nil {
+				return e.BadRequestError("invalid request body", err)
 			}
-			if err := validateWindowSpec(*req.WindowSpec); err != nil {
-				return e.BadRequestError(err.Error(), err)
+			if req.WindowSpec != nil {
+				if err := validateWindowSpec(*req.WindowSpec); err != nil {
+					return e.BadRequestError(err.Error(), err)
+				}
+				windowSpec = req.WindowSpec
 			}
+			name = req.Name
+			description = req.Description
+		} else {
+			var req api.CreateProjectionRequest
+			if err := e.BindBody(&req); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+			name = req.Name
+			description = req.Description
 		}
 
 		var targetID string
@@ -353,15 +375,15 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 				return err
 			}
 			rec := core.NewRecord(col)
-			rec.Set("name", req.Name)
+			rec.Set("name", name)
 			rec.Set("status", engine.EntityActive)
-			if d := strings.TrimSpace(req.Description); d != "" {
+			if d := strings.TrimSpace(description); d != "" {
 				rec.Set("description", d)
 			}
 			if strat.TargetType() == "reflection" {
 				spec := api.WindowSpec{}
-				if req.WindowSpec != nil {
-					spec = *req.WindowSpec
+				if windowSpec != nil {
+					spec = *windowSpec
 				}
 				effective := time.Now()
 				if st, err := time.Parse(time.RFC3339, spec.StartTime); err == nil && st.Before(effective) {
@@ -400,32 +422,50 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			return e.BadRequestError("id required", nil)
 		}
 
-		var req api.UpdateSynthesisRequest
-		if err := e.BindBody(&req); err != nil {
-			return e.BadRequestError("invalid request body", err)
-		}
-
 		rec, err := engine.FindLive(app, strat, id)
 		if err != nil {
 			return e.NotFoundError(strat.TargetType()+" not found", err)
 		}
 
-		if req.Name != nil {
-			rec.Set("name", *req.Name)
+		var name *string
+		var pinned *bool
+		var generateWithModel *string
+		var windowSpec *api.WindowSpec
+
+		if strat.TargetType() == "reflection" {
+			var req api.UpdateReflectionRequest
+			if err := e.BindBody(&req); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+			name = req.Name
+			pinned = req.Pinned
+			generateWithModel = req.GenerateWithModel
+			if req.WindowSpec != nil {
+				if err := validateWindowSpec(*req.WindowSpec); err != nil {
+					return e.BadRequestError(err.Error(), err)
+				}
+				windowSpec = req.WindowSpec
+			}
+		} else {
+			var req api.UpdateProjectionRequest
+			if err := e.BindBody(&req); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+			name = req.Name
+			pinned = req.Pinned
+			generateWithModel = req.GenerateWithModel
 		}
 
-		if req.GenerateWithModel != nil {
-			rec.Set("generate_with_model", strings.TrimSpace(*req.GenerateWithModel))
+		if name != nil {
+			rec.Set("name", *name)
 		}
 
-		if req.WindowSpec != nil {
-			if strat.TargetType() != "reflection" {
-				return e.BadRequestError("windowSpec is only valid for reflections", nil)
-			}
-			if err := validateWindowSpec(*req.WindowSpec); err != nil {
-				return e.BadRequestError(err.Error(), err)
-			}
-			spec := *req.WindowSpec
+		if generateWithModel != nil {
+			rec.Set("generate_with_model", strings.TrimSpace(*generateWithModel))
+		}
+
+		if windowSpec != nil {
+			spec := *windowSpec
 			versions := engine.LoadWindowSpecVersions(rec)
 			// The grid origin is part of the reflection's identity: an edit
 			// that only changes cadence or lookback keeps it, so windows stay
@@ -439,11 +479,11 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 		}
 
-		if req.Pinned != nil {
+		if pinned != nil {
 			if e.Auth != nil {
 				pinnedBy := rec.GetStringSlice("pinned_by")
 				var newPinnedBy []string
-				if *req.Pinned {
+				if *pinned {
 
 					found := false
 					for _, uid := range pinnedBy {

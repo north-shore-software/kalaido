@@ -15,15 +15,16 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-// chatScript is the chat's scripted model. Given tools and a fragment id it
+// exploreScript is the explore feature's scripted model. Given tools and a fragment id it
 // has not read yet, it calls read_fragment for it; otherwise it answers in
 // text. It records the tool count and transcript of every call.
-type chatScript struct {
+type exploreScript struct {
 	mu         sync.Mutex
 	readID     string
 	window     int
@@ -32,24 +33,24 @@ type chatScript struct {
 	read       bool
 }
 
-func (s *chatScript) install(t *testing.T) {
+func (s *exploreScript) install(t *testing.T) {
 	t.Helper()
 	llm.SetActiveModelSet(llm.SetLocal)
 	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
-		return chatScriptProvider{s}
+		return exploreScriptProvider{s}
 	})
 }
 
-type chatScriptProvider struct{ s *chatScript }
+type exploreScriptProvider struct{ s *exploreScript }
 
-func (p chatScriptProvider) ContextWindow() int {
+func (p exploreScriptProvider) ContextWindow() int {
 	if p.s.window > 0 {
 		return p.s.window
 	}
 	return 256_000
 }
 
-func (p chatScriptProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
+func (p exploreScriptProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
 	p.s.mu.Lock()
 	defer p.s.mu.Unlock()
 	p.s.toolCounts = append(p.s.toolCounts, len(tools))
@@ -70,9 +71,9 @@ func (p chatScriptProvider) Stream(ctx context.Context, msgs []llm.Message, tool
 	return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
 }
 
-// runChatTurn drives one plain chat turn: an optional context_spec system
+// runExploreTurn drives one explore turn: an optional context_spec system
 // message followed by the user's text.
-func runChatTurn(t *testing.T, app core.App, convID string, spec *api.ContextSpec, userText string) (string, error) {
+func runExploreTurn(t *testing.T, app core.App, convID string, spec *api.ContextSpec, userText string) (string, error) {
 	t.Helper()
 	var msgs []api.UIMessage
 	if spec != nil {
@@ -84,16 +85,16 @@ func runChatTurn(t *testing.T, app core.App, convID string, spec *api.ContextSpe
 	body, _ := json.Marshal(api.ChatRequest{ID: convID, Messages: msgs})
 	rec := httptest.NewRecorder()
 	e := &core.RequestEvent{App: app}
-	e.Request = httptest.NewRequest("POST", "/api/chat", strings.NewReader(string(body)))
+	e.Request = httptest.NewRequest("POST", "/api/explore", strings.NewReader(string(body)))
 	e.Request.Header.Set("Content-Type", "application/json")
 	e.Response = rec
-	err := HandleChat(app, nil)(e)
+	err := HandleExplore(app)(e)
 	return rec.Body.String(), err
 }
 
-func persistedChat(t *testing.T, app core.App, convID string) []api.UIMessage {
+func persistedExplore(t *testing.T, app core.App, convID string) []api.UIMessage {
 	t.Helper()
-	conv, err := chat.FindOrCreateConversation(context.Background(), app, convID)
+	conv, err := explore.FindOrCreateConversation(context.Background(), app, convID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,13 +106,13 @@ func persistedChat(t *testing.T, app core.App, convID string) []api.UIMessage {
 }
 
 // Full mode is untouched: no tools, one text turn.
-func TestChatFullModeHasNoTools(t *testing.T) {
+func TestExploreFullModeHasNoTools(t *testing.T) {
 	app := testutil.NewApp(t)
 	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "BODY"})
-	script := &chatScript{readID: frag.Id}
+	script := &exploreScript{readID: frag.Id}
 	script.install(t)
 
-	body, err := runChatTurn(t, app, "conv-full", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hi")
+	body, err := runExploreTurn(t, app, "conv-full", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hi")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,16 +128,16 @@ func TestChatFullModeHasNoTools(t *testing.T) {
 // a tool part with its output before a second text turn, the persisted
 // message carries the read with its output, and the second model call saw the
 // echo plus the read body as a user turn.
-func TestChatSummariesModeReadsThenAnswers(t *testing.T) {
+func TestExploreSummariesModeReadsThenAnswers(t *testing.T) {
 	app := testutil.NewApp(t)
 	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "THE SECRET BODY"})
 	testutil.NewRecord(t, app, "fragment_annotation", map[string]any{
 		"fragment_id": frag.Id, "title": "A note", "summary": "It hides a secret.",
 	})
-	script := &chatScript{readID: frag.Id}
+	script := &exploreScript{readID: frag.Id}
 	script.install(t)
 
-	body, err := runChatTurn(t, app, "conv-sum", &api.ContextSpec{WholeScope: api.WholeScopeSummaries}, "what is the secret?")
+	body, err := runExploreTurn(t, app, "conv-sum", &api.ContextSpec{WholeScope: api.WholeScopeSummaries}, "what is the secret?")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,7 @@ func TestChatSummariesModeReadsThenAnswers(t *testing.T) {
 		t.Errorf("second call lacks the read body: %+v", results)
 	}
 
-	msgs := persistedChat(t, app, "conv-sum")
+	msgs := persistedExplore(t, app, "conv-sum")
 	last := msgs[len(msgs)-1]
 	if last.Role != "assistant" {
 		t.Fatalf("last persisted message is %s", last.Role)
@@ -199,10 +200,10 @@ func TestChatSummariesModeReadsThenAnswers(t *testing.T) {
 
 // An oversized prompt is refused up front with a 422; only full mode adds the
 // hint to switch to summaries.
-func TestChatRefusesOversizedPrompt(t *testing.T) {
+func TestExploreRefusesOversizedPrompt(t *testing.T) {
 	app := testutil.NewApp(t)
 	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "BODY"})
-	script := &chatScript{readID: frag.Id, window: 100}
+	script := &exploreScript{readID: frag.Id, window: 100}
 	script.install(t)
 
 	for _, tc := range []struct {
@@ -213,12 +214,12 @@ func TestChatRefusesOversizedPrompt(t *testing.T) {
 		{"full", api.ContextSpec{WholeScope: api.WholeScopeFull}, true},
 		{"summaries", api.ContextSpec{WholeScope: api.WholeScopeSummaries}, false},
 	} {
-		_, err := runChatTurn(t, app, "conv-big-"+tc.name, &tc.spec, "hi")
+		_, err := runExploreTurn(t, app, "conv-big-"+tc.name, &tc.spec, "hi")
 		var apiErr *router.ApiError
 		if err == nil || !errors.As(err, &apiErr) || apiErr.Status != 422 {
 			t.Fatalf("%s: err = %v, want 422", tc.name, err)
 		}
-		if strings.Contains(apiErr.Message, chatTooLargeHint) != tc.hint {
+		if strings.Contains(apiErr.Message, exploreTooLargeHint) != tc.hint {
 			t.Errorf("%s: hint present = %v, want %v: %q", tc.name, !tc.hint, tc.hint, apiErr.Message)
 		}
 	}

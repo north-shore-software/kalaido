@@ -1,5 +1,5 @@
 // UNREVIEWED
-package chat
+package explore
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
@@ -23,7 +24,7 @@ import (
 // any text to fall back on.
 var ErrNoBrief = errors.New("the model returned no brief")
 
-// Brief is what a chat session was working towards, as the opening of a
+// Brief is what an explore session was working towards, as the opening of a
 // projection: a name and the user's first message to its drafter.
 type Brief struct {
 	Name    string `json:"name"`
@@ -41,7 +42,7 @@ func proposeBriefTool() llm.Tool {
 	}
 }
 
-// BriefLines is the conversation as the brief call reads it: every chat
+// BriefLines is the conversation as the brief call reads it: every explore
 // turn with text, in order, with the bookmarked ones marked.
 func BriefLines(app core.App, conv *core.Record) ([]prompts.ChatBriefLine, error) {
 	rows, err := app.FindRecordsByFilter(
@@ -55,7 +56,7 @@ func BriefLines(app core.App, conv *core.Record) ([]prompts.ChatBriefLine, error
 	}
 	var lines []prompts.ChatBriefLine
 	for _, row := range rows {
-		msg, err := MessageFromRecord(row)
+		msg, err := chat.MessageFromRecord(row)
 		if err != nil || msg.Role == "system" {
 			continue
 		}
@@ -74,7 +75,7 @@ func BriefLines(app core.App, conv *core.Record) ([]prompts.ChatBriefLine, error
 
 // GenerateBrief asks the conversation's model what projection the session
 // was working towards. Interactive priority: the user is waiting on it. The
-// prompt is checked against the model's budget first, like a chat turn.
+// prompt is checked against the model's budget first, like an explore turn.
 func GenerateBrief(ctx context.Context, app core.App, conv *core.Record) (Brief, error) {
 	lines, err := BriefLines(app, conv)
 	if err != nil {

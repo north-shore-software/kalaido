@@ -1,5 +1,5 @@
 // UNREVIEWED
-package chat
+package explore
 
 import (
 	"context"
@@ -9,12 +9,13 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 )
 
 // PromptEstimate is the size of the prompt a conversation's next turn would
 // send, split the way the transcript is built: the system prompt, the context
-// deltas (hydrated fragment bodies or summary rows), and the chat turns
+// deltas (hydrated fragment bodies or summary rows), and the explore turns
 // themselves. Tokens are the guard's chars/4 estimate.
 type PromptEstimate struct {
 	System     int
@@ -27,7 +28,7 @@ type PromptEstimate struct {
 
 func (p PromptEstimate) Total() int { return p.System + p.Context + p.Transcript }
 
-// EstimatePrompt sizes the next turn of the conversation identified by the
+// EstimatePrompt sizes the next turn of the explore conversation identified by the
 // client id, as if `spec` (and `win`, when given) were the context in effect
 // for that turn. It reads the persisted transcript without creating the
 // conversation: a chat that has not sent yet estimates as an empty history
@@ -46,7 +47,7 @@ func EstimatePrompt(ctx context.Context, app core.App, clientID string, spec *ap
 		dbx.Params{"cid": clientID},
 	); err == nil {
 		conv = rec
-		msgs, err := LoadMessages(ctx, app, conv)
+		msgs, err := chat.LoadMessages(ctx, app, conv)
 		if err != nil {
 			return est, err
 		}
@@ -65,7 +66,7 @@ func EstimatePrompt(ctx context.Context, app core.App, clientID string, spec *ap
 			}
 		}
 		pending = []api.UIMessage{{ID: "estimate-spec", Role: "system", Parts: parts}}
-		ResolveContextSpecs(ctx, app, dbMsgs, pending)
+		chat.ResolveContextSpecs(ctx, app, dbMsgs, pending)
 	}
 
 	allMsgs := append(append([]api.UIMessage(nil), dbMsgs...), pending...)

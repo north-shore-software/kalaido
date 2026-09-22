@@ -8,8 +8,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -84,7 +84,7 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 // split into what the transcript is made of. The conversation's own model
 // override wins here, as it does on the turn itself.
 func resolvePromptTokens(e *core.RequestEvent, app core.App, clientID string, spec api.ContextSpec, win *api.Window) error {
-	est, err := chat.EstimatePrompt(e.Request.Context(), app, clientID, &spec, win)
+	est, err := explore.EstimatePrompt(e.Request.Context(), app, clientID, &spec, win)
 	if err != nil {
 		return e.InternalServerError("estimate failed", err)
 	}

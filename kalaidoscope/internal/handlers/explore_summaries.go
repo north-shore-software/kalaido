@@ -18,15 +18,15 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-// chatTooLargeHint follows the guard's message when a full-mode prompt is too
+// exploreTooLargeHint follows the guard's message when a full-mode prompt is too
 // big: summaries mode is the way through.
-const chatTooLargeHint = ` Switch the scope to "Summaries" in the context bar to chat over it through summaries instead.`
+const exploreTooLargeHint = ` Switch the scope to "Summaries" in the context bar to chat over it through summaries instead.`
 
-// maxChatToolRounds caps the model calls in one summaries turn; the last one
+// maxExploreToolRounds caps the model calls in one summaries turn; the last one
 // runs without tools so the turn ends in text.
-const maxChatToolRounds = 4
+const maxExploreToolRounds = 4
 
-// streamSummariesTurn is the chat turn in summaries mode: the model sees rows,
+// streamSummariesTurn is the explore turn in summaries mode: the model sees rows,
 // not bodies, and may call read_fragment / read_thing; each round's results go
 // back as a user turn and the model is called again, all inside one SSE
 // response (one assistant message on the client). Reads persist with their
@@ -36,7 +36,7 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 
 	reader, err := discover.NewChatReader(app)
 	if err != nil {
-		return e.InternalServerError("load map for summaries chat", err)
+		return e.InternalServerError("load map for summaries explore", err)
 	}
 	tools := discover.ChatReadTools()
 
@@ -68,7 +68,7 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 		if turn.Text != "" {
 			parts = append(parts, api.UIMessagePart{Type: "text", Text: turn.Text})
 		}
-		if len(turn.ToolCalls) == 0 || round+1 >= maxChatToolRounds {
+		if len(turn.ToolCalls) == 0 || round+1 >= maxExploreToolRounds {
 			break
 		}
 
@@ -94,17 +94,17 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 			llm.Message{Role: "user", Content: strings.Join(results, "\n\n")})
 
 		if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
-			logger(app).Warn("chat summaries prompt too large", "text_id", textID, "round", round+1, "error", err)
+			logger(app).Warn("explore summaries prompt too large", "text_id", textID, "round", round+1, "error", err)
 			sse.Error(err.Error())
 			break
 		}
 		next := tools
-		if round+2 >= maxChatToolRounds {
+		if round+2 >= maxExploreToolRounds {
 			next = nil
 		}
 		comp, err = usage.Stream(ctx, app, llm.RoleChat, model, msgs, next)
 		if err != nil {
-			logger(app).Error("chat summaries stream failed", "text_id", textID, "round", round+1, "error", err)
+			logger(app).Error("explore summaries stream failed", "text_id", textID, "round", round+1, "error", err)
 			sse.Error(err.Error())
 			break
 		}

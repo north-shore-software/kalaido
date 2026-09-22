@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
@@ -20,6 +21,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 var updateLensTool = llm.Tool{
@@ -88,6 +90,31 @@ func latestLensArg(toolCalls []llm.ToolCall) string {
 func jsonStringChunk(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b[1 : len(b)-1])
+}
+
+// HandleRefinementChat handles drafting chat turns directly for projection and
+// reflection refinements under POST /api/refinements/chat.
+func HandleRefinementChat(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		req := api.ChatRequest{}
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid chat request body", err)
+		}
+		if req.ID == "" {
+			return e.BadRequestError("refinement conversation id required", nil)
+		}
+
+		var refRec *core.Record
+		if r, err := app.FindFirstRecordByFilter(schema.ColProjectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+			refRec = r
+		} else if r, err := app.FindFirstRecordByFilter(schema.ColReflectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
+			refRec = r
+		} else {
+			return e.NotFoundError("refinement conversation not found", nil)
+		}
+
+		return HandleChatForRefinement(app, req, refRec)(e)
+	}
 }
 
 func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {

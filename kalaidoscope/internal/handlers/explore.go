@@ -7,44 +7,34 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
-	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatRequest, refRec *core.Record) func(e *core.RequestEvent) error) func(e *core.RequestEvent) error {
+// HandleExplore handles conversational workspace exploration turns under POST /api/explore.
+func HandleExplore(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		req := api.ChatRequest{}
 		if err := e.BindBody(&req); err != nil {
-			return e.BadRequestError("invalid chat request body", err)
+			return e.BadRequestError("invalid explore request body", err)
 		}
 
 		ctx := e.Request.Context()
 
-		if refRec, err := app.FindFirstRecordByFilter(schema.ColProjectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
-			if refinementHandler != nil {
-				return refinementHandler(app, req, refRec)(e)
-			}
-		} else if refRec, err := app.FindFirstRecordByFilter(schema.ColReflectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": req.ID}); err == nil {
-			if refinementHandler != nil {
-				return refinementHandler(app, req, refRec)(e)
-			}
-		}
-
 		var conv *core.Record
 		var dbMsgs []api.UIMessage
 		if req.ID != "" {
-			if c, err := chat.FindOrCreateConversation(ctx, app, req.ID); err == nil {
+			if c, err := explore.FindOrCreateConversation(ctx, app, req.ID); err == nil {
 				conv = c
 				dbMsgs, _ = chat.LoadMessages(ctx, app, conv)
 			} else {
-				logger(app).Error("chat persist: find or create conversation failed", "conversation_id", req.ID, "error", err)
+				logger(app).Error("explore persist: find or create conversation failed", "conversation_id", req.ID, "error", err)
 			}
 		}
 
@@ -57,7 +47,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		if conv != nil {
 			for _, m := range newMsgs {
 				if _, err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
-					logger(app).Error("chat persist message failed", "message_id", m.ID, "error", err)
+					logger(app).Error("explore persist message failed", "message_id", m.ID, "error", err)
 				}
 			}
 		}
@@ -65,7 +55,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 		allMsgs := append(dbMsgs, newMsgs...)
 
 		// Phase 2: Prepare LLM Prompt
-		hydratedMsgs := chat.PrepareLLMPrompt(ctx, app, conv, allMsgs)
+		hydratedMsgs := explore.PrepareLLMPrompt(ctx, app, conv, allMsgs)
 		if len(hydratedMsgs) == 0 {
 			return e.BadRequestError("messages required", nil)
 		}
@@ -81,15 +71,15 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 			return e.InternalServerError("no model configured for chat", err)
 		}
 
-		summaries := chat.ConversationSummaries(allMsgs)
+		summaries := explore.ConversationSummaries(allMsgs)
 
 		// Refuse before the call, with a message the user can act on, rather
 		// than let the provider reject an oversized prompt as a bare 400.
 		if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
-			logger(app).Warn("chat prompt too large", "conversation_id", req.ID, "error", err)
+			logger(app).Warn("explore prompt too large", "conversation_id", req.ID, "error", err)
 			text := err.Error()
 			if !summaries {
-				text += chatTooLargeHint
+				text += exploreTooLargeHint
 			}
 			return e.Error(http.StatusUnprocessableEntity, text, err)
 		}
@@ -131,7 +121,7 @@ func HandleChat(app core.App, refinementHandler func(app core.App, req api.ChatR
 					Parts: parts,
 				}
 				if _, err := chat.PersistMessage(ctx, app, conv, aMsg, assistantModel); err != nil {
-					logger(app).Error("chat persist assistant message failed", "error", err)
+					logger(app).Error("explore persist assistant message failed", "error", err)
 				}
 			}
 		}

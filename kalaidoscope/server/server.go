@@ -153,7 +153,8 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 			return e.JSON(http.StatusOK, st)
 		})
 
-		se.Router.POST("/api/chat", handlers.HandleChat(app, handlers.HandleChatForRefinement))
+		se.Router.POST("/api/explore", handlers.HandleExplore(app))
+		se.Router.POST("/api/refinements/chat", handlers.HandleRefinementChat(app))
 
 		se.Router.POST("/api/ingest", handlers.HandleIngest(app))
 
@@ -162,10 +163,10 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
 		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))
 
-		// Chat
-		se.Router.PATCH("/api/chat/conversations/{cid}/messages/{mid}/bookmark", handlers.HandleBookmarkMessage(app))
-		se.Router.POST("/api/chat/conversations/{cid}/bookmarks/save", handlers.HandleSaveBookmarks(app))
-		se.Router.POST("/api/chat/conversations/{cid}/brief", handlers.HandleChatBrief(app))
+		// Explore
+		se.Router.PATCH("/api/explore/conversations/{cid}/messages/{mid}/bookmark", handlers.HandleBookmarkMessage(app))
+		se.Router.POST("/api/explore/conversations/{cid}/bookmarks/save", handlers.HandleSaveBookmarks(app))
+		se.Router.POST("/api/explore/conversations/{cid}/brief", handlers.HandleExploreBrief(app))
 
 		// Projections
 		se.Router.POST("/api/projections", handlers.HandleCreateProjection(app))

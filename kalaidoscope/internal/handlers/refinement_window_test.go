@@ -58,7 +58,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	if err := HandleCreateReflectionRefinement(app)(e); err != nil {
 		t.Fatalf("create refinement: %v", err)
 	}
-	var created api.CreateRefinementResponse
+	var created api.CreateReflectionRefinementResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
 	}
@@ -254,7 +254,7 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	return refl, current
 }
 
-func openRefinement(t *testing.T, app core.App, reflID, body string) (api.CreateRefinementResponse, *core.Record) {
+func openRefinement(t *testing.T, app core.App, reflID, body string) (api.CreateReflectionRefinementResponse, *core.Record) {
 	t.Helper()
 	rec := httptest.NewRecorder()
 	e := &core.RequestEvent{App: app}
@@ -265,7 +265,7 @@ func openRefinement(t *testing.T, app core.App, reflID, body string) (api.Create
 	if err := HandleCreateReflectionRefinement(app)(e); err != nil {
 		t.Fatalf("create refinement: %v", err)
 	}
-	var created api.CreateRefinementResponse
+	var created api.CreateReflectionRefinementResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
 	}
@@ -467,7 +467,7 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	}
 
 	st, _ := entityStatus(context.Background(), app, refl.Id)
-	windows, herr := reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateSnapshotRequest{AllWindows: true}, st)
+	windows, herr := reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateReflectionSnapshotRequest{AllWindows: true}, st)
 	if herr != nil {
 		t.Fatal(herr)
 	}
@@ -476,7 +476,7 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	}
 
 	// Exclusive: specifying both windowId and allWindows must fail.
-	_, herr = reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateSnapshotRequest{
+	_, herr = reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateReflectionSnapshotRequest{
 		WindowID:   "some-window",
 		AllWindows: true,
 	}, st)
@@ -485,7 +485,7 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	}
 
 	// JSON unmarshaling supports both legacy "all" and "allWindows".
-	var req1 api.GenerateSnapshotRequest
+	var req1 api.GenerateReflectionSnapshotRequest
 	if err := json.Unmarshal([]byte(`{"all":true}`), &req1); err != nil {
 		t.Fatalf("unmarshal legacy all: %v", err)
 	}
@@ -493,7 +493,7 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 		t.Fatal("expected AllWindows=true from legacy all=true")
 	}
 
-	var req2 api.GenerateSnapshotRequest
+	var req2 api.GenerateReflectionSnapshotRequest
 	if err := json.Unmarshal([]byte(`{"allWindows":true}`), &req2); err != nil {
 		t.Fatalf("unmarshal allWindows: %v", err)
 	}

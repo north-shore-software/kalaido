@@ -13,7 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -27,7 +27,7 @@ func bookmark(t *testing.T, app core.App, convID, msgID string, on bool) (int, a
 	}
 	rec := httptest.NewRecorder()
 	e := &core.RequestEvent{App: app}
-	e.Request = httptest.NewRequest("PATCH", "/api/chat/conversations/"+convID+"/messages/"+msgID+"/bookmark", strings.NewReader(body))
+	e.Request = httptest.NewRequest("PATCH", "/api/explore/conversations/"+convID+"/messages/"+msgID+"/bookmark", strings.NewReader(body))
 	e.Request.Header.Set("Content-Type", "application/json")
 	e.Request.SetPathValue("cid", convID)
 	e.Request.SetPathValue("mid", msgID)
@@ -47,11 +47,11 @@ func bookmark(t *testing.T, app core.App, convID, msgID string, on bool) (int, a
 func TestBookmarkMessageMarksBothRoles(t *testing.T) {
 	app := testutil.NewApp(t)
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "a note"})
-	(&chatScript{}).install(t)
-	if _, err := runChatTurn(t, app, "conv-bm", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "keep this"); err != nil {
+	(&exploreScript{}).install(t)
+	if _, err := runExploreTurn(t, app, "conv-bm", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "keep this"); err != nil {
 		t.Fatal(err)
 	}
-	msgs := persistedChat(t, app, "conv-bm")
+	msgs := persistedExplore(t, app, "conv-bm")
 	var userID, assistantID string
 	for _, m := range msgs {
 		switch m.Role {
@@ -71,8 +71,8 @@ func TestBookmarkMessageMarksBothRoles(t *testing.T) {
 			t.Errorf("bookmark %s: code %d mark %+v", id, code, mark)
 		}
 	}
-	conv, _ := chat.FindConversation(app, "conv-bm")
-	rec, err := chat.FindMessage(app, conv, assistantID)
+	conv, _ := explore.FindConversation(app, "conv-bm")
+	rec, err := explore.FindMessage(app, conv, assistantID)
 	if err != nil || !rec.GetBool("bookmarked") {
 		t.Errorf("assistant row not marked: %v %v", err, rec)
 	}
@@ -87,8 +87,8 @@ func TestBookmarkMessageMarksBothRoles(t *testing.T) {
 // a chat that has never sent, and a refinement's transcript.
 func TestBookmarkMessageRefusals(t *testing.T) {
 	app := testutil.NewApp(t)
-	(&chatScript{}).install(t)
-	if _, err := runChatTurn(t, app, "conv-ref", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hi"); err != nil {
+	(&exploreScript{}).install(t)
+	if _, err := runExploreTurn(t, app, "conv-ref", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hi"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -115,7 +115,7 @@ func saveBookmarks(t *testing.T, app core.App, convID string) (int, api.SaveBook
 	t.Helper()
 	rec := httptest.NewRecorder()
 	e := &core.RequestEvent{App: app}
-	e.Request = httptest.NewRequest("POST", "/api/chat/conversations/"+convID+"/bookmarks/save", nil)
+	e.Request = httptest.NewRequest("POST", "/api/explore/conversations/"+convID+"/bookmarks/save", nil)
 	e.Request.SetPathValue("cid", convID)
 	e.Response = rec
 	if err := HandleSaveBookmarks(app)(e); err != nil {
@@ -142,13 +142,13 @@ func countFragments(t *testing.T, app core.App) int {
 // was since deleted gets a fresh one; a cleared bookmark keeps its fragment.
 func TestSaveBookmarksIsIdempotent(t *testing.T) {
 	app := testutil.NewApp(t)
-	(&chatScript{}).install(t)
+	(&exploreScript{}).install(t)
 	mention := "look at @[Fragment:abc123|standup notes] please"
-	if _, err := runChatTurn(t, app, "conv-save", &api.ContextSpec{WholeScope: api.WholeScopeFull}, mention); err != nil {
+	if _, err := runExploreTurn(t, app, "conv-save", &api.ContextSpec{WholeScope: api.WholeScopeFull}, mention); err != nil {
 		t.Fatal(err)
 	}
 	var userID, assistantID string
-	for _, m := range persistedChat(t, app, "conv-save") {
+	for _, m := range persistedExplore(t, app, "conv-save") {
 		switch m.Role {
 		case "user":
 			userID = m.ID
@@ -186,11 +186,11 @@ func TestSaveBookmarksIsIdempotent(t *testing.T) {
 	if frag.GetString("content") != "look at @standup notes please" {
 		t.Errorf("mention not stripped: %q", frag.GetString("content"))
 	}
-	if frag.GetString("source") != "chat:conv-save:"+userID || frag.GetString("type") != "chat" || frag.GetString("ingested_via") != "app" {
+	if frag.GetString("source") != "explore:conv-save:"+userID || frag.GetString("type") != "chat" || frag.GetString("ingested_via") != "app" {
 		t.Errorf("provenance: source=%q type=%q via=%q", frag.GetString("source"), frag.GetString("type"), frag.GetString("ingested_via"))
 	}
-	conv, _ := chat.FindConversation(app, "conv-save")
-	row, _ := chat.FindMessage(app, conv, userID)
+	conv, _ := explore.FindConversation(app, "conv-save")
+	row, _ := explore.FindMessage(app, conv, userID)
 	if row.GetString("fragment_id") != frag.Id {
 		t.Errorf("row not stamped: %q", row.GetString("fragment_id"))
 	}
@@ -285,10 +285,10 @@ func requestBrief(t *testing.T, app core.App, convID string) (int, api.BriefResp
 	t.Helper()
 	rec := httptest.NewRecorder()
 	e := &core.RequestEvent{App: app}
-	e.Request = httptest.NewRequest("POST", "/api/chat/conversations/"+convID+"/brief", nil)
+	e.Request = httptest.NewRequest("POST", "/api/explore/conversations/"+convID+"/brief", nil)
 	e.Request.SetPathValue("cid", convID)
 	e.Response = rec
-	if err := HandleChatBrief(app)(e); err != nil {
+	if err := HandleExploreBrief(app)(e); err != nil {
 		return apiErrorStatus(err), api.BriefResponse{}
 	}
 	var res api.BriefResponse
@@ -301,15 +301,15 @@ func requestBrief(t *testing.T, app core.App, convID string) (int, api.BriefResp
 // The brief call sees the whole conversation with the bookmarked turns
 // marked and mentions stripped, and returns the tool call's name and
 // message; without a tool call the answer text stands in as the message.
-func TestChatBriefFromBookmarks(t *testing.T) {
+func TestExploreBriefFromBookmarks(t *testing.T) {
 	app := testutil.NewApp(t)
 	script := &briefScript{}
 	script.install(t)
-	if _, err := runChatTurn(t, app, "conv-brief", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "about @[Fragment:abc123|the lift] contract"); err != nil {
+	if _, err := runExploreTurn(t, app, "conv-brief", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "about @[Fragment:abc123|the lift] contract"); err != nil {
 		t.Fatal(err)
 	}
 	var assistantID string
-	for _, m := range persistedChat(t, app, "conv-brief") {
+	for _, m := range persistedExplore(t, app, "conv-brief") {
 		if m.Role == "assistant" {
 			assistantID = m.ID
 		}
@@ -345,12 +345,12 @@ func TestChatBriefFromBookmarks(t *testing.T) {
 	}
 }
 
-// An oversized conversation is refused the way a chat turn is.
-func TestChatBriefRefusesOversized(t *testing.T) {
+// An oversized conversation is refused the way an explore turn is.
+func TestExploreBriefRefusesOversized(t *testing.T) {
 	app := testutil.NewApp(t)
 	script := &briefScript{}
 	script.install(t)
-	if _, err := runChatTurn(t, app, "conv-big", &api.ContextSpec{}, strings.Repeat("word ", 20)); err != nil {
+	if _, err := runExploreTurn(t, app, "conv-big", &api.ContextSpec{}, strings.Repeat("word ", 20)); err != nil {
 		t.Fatal(err)
 	}
 	// The window shrinks under the brief call alone.

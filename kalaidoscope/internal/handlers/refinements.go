@@ -30,16 +30,38 @@ func HandleCreateReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 
 func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetRefinementCol string) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		var req api.CreateRefinementRequest
-		if err := e.BindBody(&req); err != nil {
-			return e.BadRequestError("invalid request body", err)
-		}
-		if req.ClientID == "" {
-			return e.BadRequestError("missing clientId", nil)
-		}
 		targetID := e.Request.PathValue("id")
 		if targetID == "" {
 			return e.BadRequestError("missing target id", nil)
+		}
+
+		var clientID string
+		var snapshotID string
+		var reqWindow *api.Window
+		var contextSpec *api.ContextSpec
+
+		if targetCol == "projection" {
+			var req api.CreateProjectionRefinementRequest
+			if err := e.BindBody(&req); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+			if req.ClientID == "" {
+				return e.BadRequestError("missing clientId", nil)
+			}
+			clientID = req.ClientID
+			snapshotID = req.SnapshotID
+			contextSpec = req.ContextSpec
+		} else {
+			var req api.CreateReflectionRefinementRequest
+			if err := e.BindBody(&req); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+			if req.ClientID == "" {
+				return e.BadRequestError("missing clientId", nil)
+			}
+			clientID = req.ClientID
+			reqWindow = req.Window
+			contextSpec = req.ContextSpec
 		}
 
 		var refID string
@@ -50,7 +72,7 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				return err
 			}
 			rec := core.NewRecord(col)
-			rec.Set("external_conversation_id", req.ClientID)
+			rec.Set("external_conversation_id", clientID)
 
 			// A projection refinement may be scoped to one snapshot (a review
 			// candidate). A reflection's is not: its lens is refined
@@ -62,9 +84,9 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 					return err
 				}
 				rec.Set("projection_id", targetID)
-				if req.SnapshotID != "" {
-					rec.Set("projection_snapshot_id", req.SnapshotID)
-					snap, err = txApp.FindRecordById(snapColName, req.SnapshotID)
+				if snapshotID != "" {
+					rec.Set("projection_snapshot_id", snapshotID)
+					snap, err = txApp.FindRecordById(snapColName, snapshotID)
 					if err != nil {
 						return err
 					}
@@ -88,8 +110,8 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			// reflection, the reflection's own current context.
 			var ctxSpec *api.ContextSpec
 			switch {
-			case req.ContextSpec != nil:
-				ctxSpec = req.ContextSpec
+			case contextSpec != nil:
+				ctxSpec = contextSpec
 			case snap != nil:
 				var fromSnap api.ContextSpec
 				if err := snap.UnmarshalJSONField("context_spec", &fromSnap); err == nil {
@@ -111,8 +133,8 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			// part; this is only the starting point.
 			var win *api.Window
 			if parent != nil {
-				if req.Window != nil && req.Window.Start != "" && req.Window.End != "" {
-					win = &api.Window{Start: req.Window.Start, End: req.Window.End}
+				if reqWindow != nil && reqWindow.Start != "" && reqWindow.End != "" {
+					win = &api.Window{Start: reqWindow.Start, End: reqWindow.End}
 				} else {
 					win = engine.DefaultRefinementWindow(parent, time.Now())
 				}
@@ -176,7 +198,13 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			return e.InternalServerError("failed to create refinement", err)
 		}
 
-		return e.JSON(http.StatusCreated, api.CreateRefinementResponse{
+		if targetCol == "projection" {
+			return e.JSON(http.StatusCreated, api.CreateProjectionRefinementResponse{
+				RefinementID: refID,
+				Messages:     seeded,
+			})
+		}
+		return e.JSON(http.StatusCreated, api.CreateReflectionRefinementResponse{
 			RefinementID: refID,
 			Messages:     seeded,
 		})

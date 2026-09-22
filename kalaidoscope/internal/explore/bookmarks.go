@@ -1,5 +1,5 @@
 // UNREVIEWED
-package chat
+package explore
 
 import (
 	"context"
@@ -10,18 +10,20 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// FragmentKind is the fragment type a saved chat turn gets.
+// FragmentKind is the fragment type a saved explore turn gets.
+// Matches the "chat" type enum on the fragment collection.
 const FragmentKind = "chat"
 
 // FragmentSource is the provenance a saved turn carries: the conversation's
 // client id and the turn's UIMessage id, so the fragment points back at the
 // exact message. Free text by design (source is never parsed).
 func FragmentSource(clientID, messageID string) string {
-	return fmt.Sprintf("chat:%s:%s", clientID, messageID)
+	return fmt.Sprintf("explore:%s:%s", clientID, messageID)
 }
 
 // MessageText is what a turn says: its text parts joined, with a user turn's
@@ -71,7 +73,7 @@ func SaveBookmarks(ctx context.Context, app core.App, conv *core.Record) ([]api.
 			return err
 		}
 		for _, row := range rows {
-			msg, err := MessageFromRecord(row)
+			msg, err := chat.MessageFromRecord(row)
 			if err != nil || msg.Role == "system" {
 				continue
 			}
