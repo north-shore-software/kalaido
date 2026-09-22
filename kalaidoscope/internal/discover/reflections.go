@@ -36,18 +36,8 @@ func (reflectionsFlow) Initial(c *Context) string {
 	return prompts.DiscoverReflectionsInitial(c.Doc, c.coloursBlock(), c.rhythmsBlock(rhythmGrainMonth, nil))
 }
 
-// cadencePeriods is the fixed cadence vocabulary the model may use, mapped to
-// the grid period. Go's time.ParseDuration has no day unit, so hours.
-var cadencePeriods = map[string]string{
-	"daily":     "24h",
-	"weekly":    "168h",
-	"monthly":   "720h",
-	"quarterly": "2160h",
-}
-
-func cadenceNames() []string {
-	return []string{"daily", "weekly", "monthly", "quarterly"}
-}
+var cadencePeriods = reflections.CadencePeriods
+var cadenceNames = reflections.CadenceNames
 
 var rhythmsTool = llm.Tool{
 	Name:        prompts.RhythmsToolName,
@@ -193,40 +183,10 @@ func (reflectionsFlow) propose(c *Context, call llm.ToolCall, now time.Time) (st
 	return prompts.DiscoverProposedReflection(args.Name, rec.Id, len(members), held, len(rows), thingNames, args.Cadence, start.Format("2006-01-02")), out, nil
 }
 
-// buildReflectionSpec turns the model's cadence word and start date into the
-// grid spec. The start is floored to midnight UTC and becomes the grid origin;
-// the run summarizes one period each time (duration = period). Returns the
-// rejection text when the input cannot become a schedule.
 func buildReflectionSpec(cadence, startTime string, now time.Time) (api.WindowSpec, time.Time, string) {
-	period, ok := cadencePeriods[strings.ToLower(strings.TrimSpace(cadence))]
-	if !ok {
-		return api.WindowSpec{}, time.Time{}, prompts.DiscoverUnknownCadence(cadence, cadenceNames())
-	}
-	start, ok := parseStartDate(startTime)
-	if !ok {
-		return api.WindowSpec{}, time.Time{}, prompts.DiscoverBadStartTime(startTime)
-	}
-	if start.After(now) {
-		return api.WindowSpec{}, time.Time{}, prompts.DiscoverStartInFuture(start.Format("2006-01-02"))
-	}
-	p, _ := time.ParseDuration(period)
-	if windows := int(now.Sub(start) / p); windows > reflections.MaxGridWindows {
-		return api.WindowSpec{}, time.Time{}, prompts.DiscoverTooManyWindows(windows, reflections.MaxGridWindows)
-	}
-	spec := api.WindowSpec{
-		StartTime: start.Format(time.RFC3339),
-		Period:    period,
-		Duration:  period,
-	}
-	return spec, start, ""
+	return reflections.BuildReflectionSpec(cadence, startTime, now)
 }
 
 func parseStartDate(s string) (time.Time, bool) {
-	s = strings.TrimSpace(s)
-	for _, layout := range []string{"2006-01-02", time.RFC3339, "2006-01"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), true
-		}
-	}
-	return time.Time{}, false
+	return reflections.ParseStartDate(s)
 }

@@ -1,5 +1,4 @@
-// UNREVIEWED
-package discover
+package mapreader
 
 import (
 	"context"
@@ -12,9 +11,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-// The read budget is per Reader: the chat builds one per turn, so its budget
-// is per turn; discover's lives for the run. Past it, reads return the
-// exhausted message rather than text.
 func TestReaderBudget(t *testing.T) {
 	app := testutil.NewApp(t)
 	f1 := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "FIRST BODY"})

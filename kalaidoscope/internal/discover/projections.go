@@ -9,16 +9,13 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/agent"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
-	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 const worklistFloor = 5
@@ -36,7 +33,7 @@ func (projectionsFlow) Initial(c *Context) string {
 }
 
 func stringArray(description string) string {
-	return `{"type":"array","items":{"type":"string"},"description":` + strconv.Quote(description) + `}`
+	return agent.StringArraySchema(description)
 }
 
 var readColourTool = idsTool(prompts.ReadColourToolName, prompts.ReadColourToolDescription, prompts.ReadColourParamDescription)
@@ -62,64 +59,6 @@ func (projectionsFlow) Existing(c *Context) ([]Existing, error) {
 
 func (projectionsFlow) Coverage(c *Context, existing []Existing) string {
 	return c.colourCoverage(existing)
-}
-
-// existingEntities lists every colour, projection and reflection, made by a
-// person or by a run, with the fragments each holds. Every flow uses it: a
-// proposal must not restate what is there, and projections scope by colour id.
-func existingEntities(c *Context) ([]Existing, error) {
-	var out []Existing
-	colours, err := c.App.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	for _, rec := range colours {
-		members, err := colour.MemberIDs(c.App, rec.Id)
-		if err != nil {
-			return nil, err
-		}
-		var names []string
-		for _, id := range colour.ThingIDs(rec) {
-			if t := mapping.ResolveRef(c.Doc, id); t != nil {
-				names = append(names, t.Name)
-			}
-		}
-		out = append(out, Existing{
-			Kind:        "colour",
-			ID:          rec.Id,
-			Name:        rec.GetString("name"),
-			Description: prompts.DiscoverColourDescription(rec.GetString("prompt"), names),
-			FragmentIDs: members,
-		})
-	}
-	for _, col := range []string{"projection", "reflection"} {
-		recs, err := c.App.FindRecordsByFilter(col, engine.LiveFilter, "created", 0, 0, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, rec := range recs {
-			var spec api.ContextSpec
-			_ = rec.UnmarshalJSONField("current_context_spec", &spec)
-			pinned, _ := llmcontext.ResolveSpecToIDs(context.Background(), c.App, spec, nil)
-			note := ""
-			if rec.GetString("status") == engine.EntityProposed {
-				if c.Run != nil && rec.GetString("created_by_discover_run_id") == c.Run.Id {
-					note = prompts.DiscoverNoteProposedThisRun
-				} else {
-					note = prompts.DiscoverNoteProposedEarlier
-				}
-			}
-			out = append(out, Existing{
-				Kind:        col,
-				ID:          rec.Id,
-				Name:        rec.GetString("name"),
-				Description: rec.GetString("description"),
-				Note:        note,
-				FragmentIDs: pinned.FragmentIDs,
-			})
-		}
-	}
-	return out, nil
 }
 
 type proposeProjectionArgs struct {
@@ -151,7 +90,7 @@ func (f projectionsFlow) Dispatch(ctx context.Context, c *Context, call llm.Tool
 			return prompts.DiscoverRejected(prompts.DiscoverUbiquitousColour(c.colourByRef(id).Name, id)), nil, nil
 		}
 	}
-	sourceIDs := union(nil, args.SourceProjectionIDs)
+	sourceIDs := pbutil.Union(nil, args.SourceProjectionIDs)
 	for _, id := range sourceIDs {
 		if _, err := projections.FindLive(c.App, id); err != nil {
 			return prompts.DiscoverRejected(prompts.DiscoverNoRecord("projection", id)), nil, nil
@@ -194,18 +133,4 @@ func insertProposed(c *Context, col, name, message string, spec api.ContextSpec,
 		return nil, err
 	}
 	return rec, nil
-}
-
-func union(a, b []string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, id := range append(append([]string{}, a...), b...) {
-		id = strings.TrimSpace(id)
-		if id == "" || seen[id] {
-			continue
-		}
-		seen[id] = true
-		out = append(out, id)
-	}
-	return out
 }

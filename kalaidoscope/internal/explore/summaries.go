@@ -12,7 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/agent"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapreader"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -35,11 +35,11 @@ const maxExploreToolRounds = 4
 // response (one assistant message on the client). Reads persist with their
 // output so llmcontext.Flatten can replay them on later turns.
 func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, msgs []llm.Message, model, textID string, w http.ResponseWriter) error {
-	reader, err := discover.NewChatReader(app)
+	reader, err := mapreader.NewChatReader(app)
 	if err != nil {
 		return fmt.Errorf("load map for summaries explore: %w", err)
 	}
-	tools := discover.ChatReadTools()
+	tools := mapreader.ChatReadTools()
 
 	comp, err := usage.Stream(ctx, app, llm.RoleChat, model, msgs, tools)
 	if err != nil {

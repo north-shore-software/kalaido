@@ -3,8 +3,6 @@ package discover
 
 import (
 	"context"
-	"encoding/json"
-	"strconv"
 	"strings"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/agent"
@@ -16,25 +14,15 @@ import (
 const maxRounds = 30
 
 func idTool(name, description, param, paramDescription string) llm.Tool {
-	return llm.Tool{
-		Name:        name,
-		Description: description,
-		Parameters: json.RawMessage(`{"type":"object","properties":{"` + param + `":{"type":"string","description":` +
-			strconv.Quote(paramDescription) + `}},"required":["` + param + `"]}`),
-	}
+	return agent.IDTool(name, description, param, paramDescription)
 }
 
 func idsTool(name, description, paramDescription string) llm.Tool {
-	return llm.Tool{
-		Name:        name,
-		Description: description,
-		Parameters: json.RawMessage(`{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"},"description":` +
-			strconv.Quote(paramDescription) + `}},"required":["ids"]}`),
-	}
+	return agent.IDsTool(name, description, paramDescription)
 }
 
 func emptyTool(name, description string) llm.Tool {
-	return llm.Tool{Name: name, Description: description, Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}
+	return agent.EmptyTool(name, description)
 }
 
 func sharedTools() []llm.Tool {
