@@ -2,13 +2,14 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/agent"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
@@ -63,52 +64,56 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 		}
 	}
 
-	for round := 0; ; round++ {
-		turn := sse.StreamTurn(comp, fmt.Sprintf("%s-r%d", textID, round), nil)
-		if turn.Text != "" {
-			parts = append(parts, api.UIMessagePart{Type: "text", Text: turn.Text})
-		}
-		if len(turn.ToolCalls) == 0 || round+1 >= maxExploreToolRounds {
-			break
-		}
-
-		names := make([]string, 0, len(turn.ToolCalls))
-		results := make([]string, 0, len(turn.ToolCalls))
-		for _, tc := range turn.ToolCalls {
+	currentComp := comp
+	runner := agent.Runner{
+		MaxRounds:              maxExploreToolRounds,
+		StopBeforeLastDispatch: true,
+		Generate: func(ctx context.Context, curMsgs []llm.Message, round int) (agent.Turn, error) {
+			if round > 0 {
+				next := tools
+				if round+1 >= maxExploreToolRounds {
+					next = nil
+				}
+				var err error
+				currentComp, err = usage.Stream(ctx, app, llm.RoleChat, model, curMsgs, next)
+				if err != nil {
+					logger(app).Error("explore summaries stream failed", "text_id", textID, "round", round, "error", err)
+					sse.Error(err.Error())
+					return agent.Turn{}, err
+				}
+			}
+			turn := sse.StreamTurn(currentComp, fmt.Sprintf("%s-r%d", textID, round), nil)
+			if turn.Text != "" {
+				parts = append(parts, api.UIMessagePart{Type: "text", Text: turn.Text})
+			}
+			return agent.Turn{Text: turn.Text, ToolCalls: turn.ToolCalls}, nil
+		},
+		Dispatch: func(ctx context.Context, tc llm.ToolCall) (string, bool, error) {
 			out, ok := reader.Dispatch(ctx, tc)
 			if !ok {
 				out = prompts.DiscoverUnknownTool(tc.Name)
 			}
+			return out, false, nil
+		},
+		OnToolDispatched: func(tc llm.ToolCall, out string) {
 			sse.ToolOutputAvailable(tc.ID, out)
 			if part, ok := toolResultPart(tc, out); ok {
 				parts = append(parts, part)
 			}
-			names = append(names, tc.Name)
-			results = append(results, out)
-		}
-		// Written per round so an interrupted turn still leaves its reads.
-		persist()
-
-		msgs = append(msgs,
-			llm.Message{Role: "assistant", Content: turn.Text + prompts.DiscoverEchoToolCalls(names)},
-			llm.Message{Role: "user", Content: strings.Join(results, "\n\n")})
-
-		if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
-			logger(app).Warn("explore summaries prompt too large", "text_id", textID, "round", round+1, "error", err)
-			sse.Error(err.Error())
-			break
-		}
-		next := tools
-		if round+2 >= maxExploreToolRounds {
-			next = nil
-		}
-		comp, err = usage.Stream(ctx, app, llm.RoleChat, model, msgs, next)
-		if err != nil {
-			logger(app).Error("explore summaries stream failed", "text_id", textID, "round", round+1, "error", err)
-			sse.Error(err.Error())
-			break
-		}
+		},
+		PromptGuard: func(updatedMsgs []llm.Message) error {
+			if err := engine.CheckPromptFits(model, engine.MessagesChars(updatedMsgs)); err != nil {
+				logger(app).Warn("explore summaries prompt too large", "text_id", textID, "error", err)
+				sse.Error(err.Error())
+				return err
+			}
+			return nil
+		},
+		OnRoundEnd: func(ctx context.Context, round int) {
+			persist()
+		},
 	}
+	_ = runner.Run(ctx, &msgs)
 
 	persist()
 	sse.Finish()

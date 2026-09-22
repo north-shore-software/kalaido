@@ -13,7 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/dbutils"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
-	"github.com/north-shore-software/kalaido/kalaidoscope/quota"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/quota"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 

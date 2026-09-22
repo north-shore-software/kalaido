@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 func shortRetry(t *testing.T) {
@@ -40,7 +40,7 @@ func TestRetryThrottledPreemptedReentersAtOnce(t *testing.T) {
 	err := RetryThrottled(context.Background(), func() error {
 		calls++
 		if calls < 4 {
-			return llmq.ErrPreempted
+			return queue.ErrPreempted
 		}
 		return nil
 	})

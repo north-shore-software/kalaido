@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/agent"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -46,34 +47,6 @@ func sharedTools() []llm.Tool {
 	}
 }
 
-func idsArg(call llm.ToolCall) []string {
-	var args struct {
-		IDs []string `json:"ids"`
-		ID  string   `json:"id"`
-	}
-	_ = json.Unmarshal(call.Args, &args)
-	ids := args.IDs
-	if len(ids) == 0 && strings.TrimSpace(args.ID) != "" {
-		ids = []string{args.ID}
-	}
-	return ids
-}
-
-func strArg(call llm.ToolCall, key string) string {
-	var args map[string]any
-	_ = json.Unmarshal(call.Args, &args)
-	v, _ := args[key].(string)
-	return strings.TrimSpace(v)
-}
-
-func idArg(call llm.ToolCall) string {
-	var args struct {
-		ID string `json:"id"`
-	}
-	_ = json.Unmarshal(call.Args, &args)
-	return strings.TrimSpace(args.ID)
-}
-
 func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 	existing, err := flow.Existing(c)
 	if err != nil {
@@ -84,73 +57,66 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 		{Role: "system", Content: flow.System()},
 		{Role: "user", Content: flow.Initial(c) + "\n\n" + prompts.DiscoverExistingBlock(c.listExisting(existing)) + "\n\n" + prompts.DiscoverCoverageBlock(flow.Coverage(c, existing))},
 	}
-	for c.rounds < maxRounds {
-		var reply string
-		var calls []llm.ToolCall
-		err := usage.RetryThrottled(ctx, func() error {
-			var genErr error
-			reply, calls, genErr = usage.GenerateWithToolCalls(ctx, c.App, msgs, llm.RoleMap, model, tools)
-			return genErr
-		})
-		if err != nil {
-			return err
-		}
-		c.rounds++
-		msgs = append(msgs, llm.Message{Role: "assistant", Content: reply + prompts.DiscoverEchoToolCalls(toolNames(calls))})
-		if len(calls) == 0 {
-			c.saveProgress()
-			return nil
-		}
-		finished := false
-		var results []string
-		for _, call := range calls {
+
+	var lastReply string
+	runner := agent.Runner{
+		MaxRounds: maxRounds,
+		Generate: func(ctx context.Context, curMsgs []llm.Message, round int) (agent.Turn, error) {
+			var reply string
+			var calls []llm.ToolCall
+			err := usage.RetryThrottled(ctx, func() error {
+				var genErr error
+				reply, calls, genErr = usage.GenerateWithToolCalls(ctx, c.App, curMsgs, llm.RoleMap, model, tools)
+				return genErr
+			})
+			if err != nil {
+				return agent.Turn{}, err
+			}
+			c.rounds++
+			lastReply = reply
+			return agent.Turn{Text: reply, ToolCalls: calls}, nil
+		},
+		Dispatch: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
 			switch call.Name {
 			case prompts.ReadThingToolName:
-				results = append(results, c.ReadThings(idsArg(call)))
+				return c.ReadThings(agent.IDsArg(call)), false, nil
 			case prompts.ReadFragmentToolName:
-				results = append(results, c.ReadFragment(ctx, idArg(call)))
+				return c.ReadFragment(ctx, agent.IDArg(call)), false, nil
 			case prompts.ListExistingToolName:
+				var err error
 				existing, err = flow.Existing(c)
 				if err != nil {
-					return err
+					return "", false, err
 				}
-				results = append(results, c.listExisting(existing))
+				return c.listExisting(existing), false, nil
 			case prompts.ReadColourToolName:
-				results = append(results, c.ReadColours(idsArg(call)))
+				return c.ReadColours(agent.IDsArg(call)), false, nil
 			case prompts.CoverageToolName:
-				results = append(results, flow.Coverage(c, existing))
+				return flow.Coverage(c, existing), false, nil
 			case prompts.FinishToolName:
-				finished = true
 				// Some models put the closing note in the tool call rather than
 				// alongside it; either way it is the run's summary.
-				if strings.TrimSpace(reply) == "" {
-					reply = strArg(call, "summary")
+				summary := lastReply
+				if strings.TrimSpace(summary) == "" {
+					summary = agent.StrArg(call, "summary")
 				}
+				c.Run.Set("summary", summary)
+				return "", true, nil
 			default:
 				text, out, err := flow.Dispatch(ctx, c, call)
 				if err != nil {
-					return err
+					return "", false, err
 				}
 				if out != nil {
 					c.outputs = append(c.outputs, *out)
 				}
-				results = append(results, text)
+				return text, false, nil
 			}
-		}
-		c.saveProgress()
-		if finished {
-			c.Run.Set("summary", reply)
-			return nil
-		}
-		msgs = append(msgs, llm.Message{Role: "user", Content: strings.Join(results, "\n\n")})
+		},
+		OnRoundEnd: func(ctx context.Context, round int) {
+			c.saveProgress()
+		},
 	}
-	return nil
-}
 
-func toolNames(calls []llm.ToolCall) []string {
-	names := make([]string, 0, len(calls))
-	for _, call := range calls {
-		names = append(names, call.Name)
-	}
-	return names
+	return runner.Run(ctx, &msgs)
 }

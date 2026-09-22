@@ -15,9 +15,9 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 
 	// The core upgrade deltas register themselves on import.
@@ -90,7 +90,7 @@ func NewWithSchemaWithOptions(config pocketbase.Config, schemaOpts schema.Option
 		if err := se.Next(); err != nil {
 			return err
 		}
-		rt.Scheduler().Reconfigure(llmq.ConfigForProvider(llm.ActiveProviderID()))
+		rt.Scheduler().Reconfigure(queue.ConfigForProvider(llm.ActiveProviderID()))
 		return nil
 	})
 

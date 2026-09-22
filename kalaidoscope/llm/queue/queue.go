@@ -1,5 +1,5 @@
 // UNREVIEWED
-// Package llmq is the single admission gate for outbound LLM calls.
+// Package queue is the single admission gate for outbound LLM calls.
 //
 // Every call that reaches a provider first passes through Acquire, which
 // enforces a concurrency cap (1 on local Ollama, where parallel generations
@@ -13,7 +13,7 @@
 // Idle-tier work is additionally gated by hysteresis: it starts only after
 // IdleAfter of no higher-priority activity, so opportunistic work (colour
 // evaluation) doesn't evict a local model's cache between two chat turns.
-package llmq
+package queue
 
 import (
 	"context"
@@ -57,7 +57,7 @@ func (p Priority) MarshalJSON() ([]byte, error) {
 // ErrPreempted is the cancellation cause of a run context whose slot was taken
 // by Interactive work. The owner of a preempted call is expected to retry —
 // re-entering Acquire and waiting its turn — rather than treat it as failure.
-var ErrPreempted = errors.New("llmq: call preempted by higher-priority work")
+var ErrPreempted = errors.New("queue: call preempted by higher-priority work")
 
 type Config struct {
 	MaxConcurrent    int           // in-flight cap; minimum (and Ollama's value) is 1

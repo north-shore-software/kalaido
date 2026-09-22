@@ -7,7 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 const queueStatusCollection = "llm_queue_status"
@@ -18,11 +18,11 @@ const queueStatusCollection = "llm_queue_status"
 // arrive in bursts (enqueue + admit + release), and every write fans out an
 // SSE event. The mirror starts when the app serves and stops when it
 // terminates, so no timer outlives the database it writes to.
-func registerQueueStatus(app core.App, sched *llmq.Scheduler) {
+func registerQueueStatus(app core.App, sched *queue.Scheduler) {
 	m := &queueMirror{app: app}
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		// A previous process's state is meaningless to this one.
-		writeQueueStatus(app, llmq.Status{})
+		writeQueueStatus(app, queue.Status{})
 		sched.SetOnChange(m.onChange)
 		return se.Next()
 	})
@@ -38,7 +38,7 @@ type queueMirror struct {
 	app core.App
 
 	mu      sync.Mutex
-	latest  llmq.Status
+	latest  queue.Status
 	timer   *time.Timer // the pending flush, nil when none
 	stopped bool
 }
@@ -48,7 +48,7 @@ const queueStatusDebounce = 300 * time.Millisecond
 // onChange receives every scheduler transition. Deliveries are async, so
 // Version keeps a stale snapshot from overwriting a newer one, and one may
 // still arrive after stop: stopped makes it a no-op.
-func (m *queueMirror) onChange(st llmq.Status) {
+func (m *queueMirror) onChange(st queue.Status) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.stopped || st.Version <= m.latest.Version {
@@ -84,7 +84,7 @@ func (m *queueMirror) stop() {
 	}
 }
 
-func writeQueueStatus(app core.App, st llmq.Status) {
+func writeQueueStatus(app core.App, st queue.Status) {
 	var rec *core.Record
 	if recs, err := app.FindAllRecords(queueStatusCollection); err == nil && len(recs) > 0 {
 		rec = recs[0]
@@ -102,7 +102,7 @@ func writeQueueStatus(app core.App, st llmq.Status) {
 		state = "active"
 	}
 	if st.Running == nil {
-		st.Running = []llmq.TaskInfo{}
+		st.Running = []queue.TaskInfo{}
 	}
 	if st.Waiting == nil {
 		st.Waiting = map[string]int{}

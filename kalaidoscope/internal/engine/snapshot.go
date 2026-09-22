@@ -14,11 +14,11 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 func GenerateOutput(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window) (string, error) {
@@ -117,7 +117,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 				logger(app).Info("stored minimal-diff rewrite of the candidate", "target_type", strat.TargetType(), "id", rec.Id)
 			}
 			outputStr = merged
-		case errors.Is(err, llmq.ErrPreempted):
+		case errors.Is(err, queue.ErrPreempted):
 			// The same contract as a preempted GenerateOutput: the caller
 			// (the reconcile worker) retries the whole generation rather
 			// than publishing a half-processed candidate.

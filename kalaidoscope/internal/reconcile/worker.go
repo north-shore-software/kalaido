@@ -36,11 +36,11 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 // Options tune a Worker.
@@ -293,9 +293,9 @@ func runWave(ctx context.Context, app core.App) error {
 	// upstreams) and runs at background priority so interactive work preempts
 	// it. Not a request context — the request that started the wave has
 	// already returned.
-	genCtx := llmq.WithPriority(
+	genCtx := queue.WithPriority(
 		llmcontext.WithGenerationTrigger(ctx, llmcontext.TriggerGenerateAll),
-		llmq.Background)
+		queue.Background)
 
 	for _, s := range statuses { // EvaluateAll returns dependencies before dependents
 		if !needsWork(s) {
@@ -362,7 +362,7 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 	for _, win := range windows {
 		for {
 			_, err := engine.GenerateSnapshot(ctx, app, s.ID, genStatus, strat, win)
-			if errors.Is(err, llmq.ErrPreempted) {
+			if errors.Is(err, queue.ErrPreempted) {
 				// Interactive work took the slot mid-generation; the task is
 				// still in hand — the retry blocks in the scheduler until a
 				// slot frees up.

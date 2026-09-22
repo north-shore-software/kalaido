@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 type Flow interface {
@@ -70,7 +70,7 @@ func (w *Worker) run(ctx context.Context, flow Flow) error {
 		return err
 	}
 	c.Run = run
-	ctx = llmq.WithPriority(ctx, llmq.Background)
+	ctx = queue.WithPriority(ctx, queue.Background)
 	err = runLoop(ctx, c, flow, model)
 	finishRun(c, err)
 	return err

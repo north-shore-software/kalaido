@@ -11,12 +11,12 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 type backfillScript struct {
@@ -153,7 +153,7 @@ func TestGenerateWindowsRunsInParallel(t *testing.T) {
 		"window_spec_versions": pbutil.JSONObject(versions),
 	})
 
-	sched := llmq.New(llmq.Config{MaxConcurrent: 2, IdleAfter: time.Minute})
+	sched := queue.New(queue.Config{MaxConcurrent: 2, IdleAfter: time.Minute})
 	app.Store().Set(usage.SchedulerStoreKey, sched)
 
 	var mu sync.Mutex

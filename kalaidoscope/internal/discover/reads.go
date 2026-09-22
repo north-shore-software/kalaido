@@ -8,6 +8,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/agent"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
@@ -84,9 +85,9 @@ func (r *Reader) Reads() int { return r.reads }
 func (r *Reader) Dispatch(ctx context.Context, call llm.ToolCall) (result string, ok bool) {
 	switch call.Name {
 	case prompts.ReadThingToolName:
-		return r.ReadThings(idsArg(call)), true
+		return r.ReadThings(agent.IDsArg(call)), true
 	case prompts.ReadFragmentToolName:
-		return r.ReadFragments(ctx, idsArg(call)), true
+		return r.ReadFragments(ctx, agent.IDsArg(call)), true
 	}
 	return "", false
 }

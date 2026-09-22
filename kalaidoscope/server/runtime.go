@@ -10,10 +10,10 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 // shutdownGrace bounds how long terminate waits for the workers and the
@@ -26,7 +26,7 @@ const shutdownGrace = 10 * time.Second
 type runtime struct {
 	workers   *workers.Manager
 	runner    *engine.TrackedRunner
-	scheduler *llmq.Scheduler
+	scheduler *queue.Scheduler
 	logger    *slog.Logger
 
 	ctx    context.Context
@@ -40,7 +40,7 @@ func newRuntime(app core.App, opts Options) *runtime {
 	rt := &runtime{
 		workers:   mgr,
 		runner:    engine.NewTrackedRunner(ctx),
-		scheduler: llmq.New(llmq.ConfigForProvider(llm.ActiveProviderID())),
+		scheduler: queue.New(queue.ConfigForProvider(llm.ActiveProviderID())),
 		logger:    logger(app),
 		cancel:    cancel,
 	}
@@ -50,7 +50,7 @@ func newRuntime(app core.App, opts Options) *runtime {
 	return rt
 }
 
-func (rt *runtime) Scheduler() *llmq.Scheduler {
+func (rt *runtime) Scheduler() *queue.Scheduler {
 	return rt.scheduler
 }
 

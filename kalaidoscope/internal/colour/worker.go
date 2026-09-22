@@ -16,11 +16,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -255,7 +255,7 @@ func exampleBlocks(ctx context.Context, app core.App, colourID string) (positive
 func judge(ctx context.Context, app core.App, model, prompt string) (string, error) {
 	for {
 		out, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleColour, model, nil)
-		if errors.Is(err, llmq.ErrPreempted) {
+		if errors.Is(err, queue.ErrPreempted) {
 			// Higher-priority work took the slot mid-generation. Go around;
 			// the retry blocks in the scheduler until the next idle window.
 			continue

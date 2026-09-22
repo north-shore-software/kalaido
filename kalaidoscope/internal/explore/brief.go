@@ -14,10 +14,10 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 // ErrNoBrief is returned when the model produced neither a tool call nor
@@ -96,7 +96,7 @@ func GenerateBrief(ctx context.Context, app core.App, conv *core.Record) (Brief,
 		return Brief{}, err
 	}
 
-	ctx = llmq.WithPriority(ctx, llmq.Interactive)
+	ctx = queue.WithPriority(ctx, queue.Interactive)
 	text, calls, err := usage.GenerateWithToolCalls(ctx, app, msgs, llm.RoleChat, model, []llm.Tool{proposeBriefTool()})
 	if err != nil {
 		return Brief{}, err

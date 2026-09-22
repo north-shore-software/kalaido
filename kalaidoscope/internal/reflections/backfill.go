@@ -12,7 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -108,7 +108,7 @@ func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID stri
 	}
 	logger(app).Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
 
-	ctx = llmq.WithPriority(ctx, llmq.Background)
+	ctx = queue.WithPriority(ctx, queue.Background)
 	results := engine.GenerateWindows(ctx, app, reflectionID, engine.StatusApproved, Strategy{}, pending)
 	generated := 0
 	for i, r := range results {
