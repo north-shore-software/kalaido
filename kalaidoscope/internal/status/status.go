@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -41,7 +42,7 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 	}
 	st.Imports = imports
 
-	doc, version, err := mapping.LoadDocument(app)
+	doc, version, err := sourcedata.LoadDocument(app)
 	if err != nil {
 		return st, err
 	}

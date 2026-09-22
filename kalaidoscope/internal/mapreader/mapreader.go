@@ -9,9 +9,9 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/agent"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -24,7 +24,7 @@ type Reader struct {
 	App     core.App
 	Doc     *mapdoc.Document
 	Version int
-	Rows    []mapping.Row
+	Rows    []sourcedata.Row
 	ByThing map[string][]int
 
 	budget    int
@@ -33,20 +33,16 @@ type Reader struct {
 }
 
 func New(app core.App, budget int) (*Reader, error) {
-	doc, version, err := mapping.LoadDocument(app)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := mapping.LoadRows(app)
+	idx, err := sourcedata.LoadMapIndex(app)
 	if err != nil {
 		return nil, err
 	}
 	return &Reader{
 		App:       app,
-		Doc:       doc,
-		Version:   version,
-		Rows:      rows,
-		ByThing:   mapping.IndexRows(doc, rows),
+		Doc:       idx.Doc,
+		Version:   idx.Version,
+		Rows:      idx.Rows,
+		ByThing:   idx.ByThing,
 		budget:    budget,
 		exhausted: prompts.DiscoverReadBudgetExhausted,
 	}, nil
@@ -144,8 +140,8 @@ func (r *Reader) ReadFragment(ctx context.Context, id string) string {
 	if r.reads >= r.budget {
 		return r.exhausted(r.budget)
 	}
-	recs := llmcontext.LoadFragmentsByIDs(ctx, r.App, []string{id})
-	if len(recs) == 0 {
+	recs, err := sourcedata.FindFragmentsByIDs(r.App, []string{id})
+	if err != nil || len(recs) == 0 {
 		return prompts.DiscoverNoFragment(id)
 	}
 	r.reads++

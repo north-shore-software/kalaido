@@ -15,7 +15,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapreader"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 )
 
 type Context struct {
@@ -64,15 +64,16 @@ type Existing struct {
 // proposal must not restate what is there, and projections scope by colour id.
 func existingEntities(c *Context) ([]Existing, error) {
 	var out []Existing
-	colours, err := c.App.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
+	colours, err := sourcedata.FindAllColours(c.App)
+	if err != nil {
+		return nil, err
+	}
+	membersMap, err := sourcedata.ColourMembersMap(c.App, nil)
 	if err != nil {
 		return nil, err
 	}
 	for _, rec := range colours {
-		members, err := colour.MemberIDs(c.App, rec.Id)
-		if err != nil {
-			return nil, err
-		}
+		members := membersMap[rec.Id]
 		var names []string
 		for _, id := range colour.ThingIDs(rec) {
 			if t := c.Doc.Resolve(id); t != nil {
@@ -138,7 +139,11 @@ func newContext(app core.App, run *core.Record) (*Context, error) {
 
 // loadColours indexes every colour's membership against the annotation rows.
 func (c *Context) loadColours() error {
-	recs, err := c.App.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
+	recs, err := sourcedata.FindAllColours(c.App)
+	if err != nil {
+		return err
+	}
+	membersMap, err := sourcedata.ColourMembersMap(c.App, nil)
 	if err != nil {
 		return err
 	}
@@ -149,10 +154,7 @@ func (c *Context) loadColours() error {
 	c.Colours = nil
 	c.ByColour = map[string][]int{}
 	for _, rec := range recs {
-		members, err := colour.MemberIDs(c.App, rec.Id)
-		if err != nil {
-			return err
-		}
+		members := membersMap[rec.Id]
 		info := colourInfo{ID: rec.Id, Name: rec.GetString("name"), Members: members, rowSet: map[int]bool{}}
 		for _, id := range colour.ThingIDs(rec) {
 			if t := c.Doc.Resolve(id); t != nil {

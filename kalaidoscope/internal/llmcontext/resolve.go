@@ -13,6 +13,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -82,16 +83,7 @@ func windowClause(win *api.Window) (string, dbx.Params) {
 
 // resolveWholeScope is every live fragment, windowed.
 func resolveWholeScope(app core.App, win *api.Window) ([]string, error) {
-	winClause, winParams := windowClause(win)
-	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''"+winClause, "", 0, 0, winParams)
-	if err != nil {
-		return nil, fmt.Errorf("resolve WholeScope fragments: %w", err)
-	}
-	var ids []string
-	for _, r := range recs {
-		ids = append(ids, r.Id)
-	}
-	return ids, nil
+	return sourcedata.FindLiveFragmentIDs(app, win)
 }
 
 // resolvePinnedFragments is the union of the spec's fragment-level pins:
@@ -229,7 +221,7 @@ func hydrateFlat(ctx stdctx.Context, app core.App, pinned PinnedIDs) string {
 }
 
 func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, sb *strings.Builder) {
-	projSnaps, _ := app.FindRecordsByIds(schema.ColProjectionSnapshot.String(), ids)
+	projSnaps, _ := sourcedata.FindProjectionSnapshotsByIDs(app, ids)
 	var pids []string
 	for _, snap := range projSnaps {
 		if pid := snap.GetString("projection_id"); pid != "" {
@@ -256,7 +248,7 @@ func hydrateProjectionSnapshots(ctx stdctx.Context, app core.App, ids []string, 
 }
 
 func hydrateReflectionSnapshots(ctx stdctx.Context, app core.App, ids []string, sb *strings.Builder) {
-	reflSnaps, _ := app.FindRecordsByIds(schema.ColReflectionSnapshot.String(), ids)
+	reflSnaps, _ := sourcedata.FindReflectionSnapshotsByIDs(app, ids)
 	var rids []string
 	for _, snap := range reflSnaps {
 		if rid := snap.GetString("reflection_id"); rid != "" {

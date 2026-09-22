@@ -11,8 +11,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -106,7 +106,7 @@ func PrepareLLMPrompt(ctx context.Context, app core.App, conv *core.Record, allM
 	system := prompts.ChatSystemPrompt
 	if ConversationSummaries(allMsgs) {
 		digest := ""
-		if doc, _, err := mapping.LoadDocument(app); err == nil {
+		if doc, _, err := sourcedata.LoadDocument(app); err == nil {
 			digest = prompts.SummariesMapDigest(doc, prompts.SummariesThingFloor)
 		}
 		system = prompts.ChatSummariesSystemPrompt(digest)

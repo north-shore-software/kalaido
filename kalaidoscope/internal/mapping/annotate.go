@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -14,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -41,49 +41,12 @@ func (w *Worker) annotateLoop(ctx context.Context) error {
 	}
 }
 
-func annotatedIDs(app core.App) (map[string]bool, error) {
-	recs, err := app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "1=1", "", 0, 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	ids := make(map[string]bool, len(recs))
-	for _, r := range recs {
-		ids[r.GetString("fragment_id")] = true
-	}
-	return ids, nil
-}
-
 func pendingFragments(app core.App) ([]*core.Record, error) {
-	done, err := annotatedIDs(app)
-	if err != nil {
-		return nil, err
-	}
-	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), schema.NotDeleted(), "", 0, 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	var pending []*core.Record
-	for _, r := range recs {
-		if !done[r.Id] {
-			pending = append(pending, r)
-		}
-	}
-	sort.SliceStable(pending, func(i, j int) bool {
-		li, lj := pending[i].GetString("ingested_via") == "import", pending[j].GetString("ingested_via") == "import"
-		if li != lj {
-			return !li
-		}
-		return pending[i].GetDateTime("occurred_at").Compare(pending[j].GetDateTime("occurred_at")) < 0
-	})
-	return pending, nil
+	return sourcedata.PendingAnnotationFragments(app)
 }
 
 func pendingCount(app core.App) (int, error) {
-	pending, err := pendingFragments(app)
-	if err != nil {
-		return 0, err
-	}
-	return len(pending), nil
+	return sourcedata.PendingAnnotationCount(app)
 }
 
 // drain annotates every pending fragment, annotateWorkers at a time, until

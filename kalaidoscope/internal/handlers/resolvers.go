@@ -5,6 +5,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -19,7 +20,7 @@ func resolveCandidate(e *core.RequestEvent, app core.App) (string, error) {
 	if rid == "" {
 		return "", e.BadRequestError("candidate id required", nil)
 	}
-	snap, err := app.FindRecordById(schema.ColProjectionSnapshot.String(), rid)
+	snap, err := sourcedata.FindSnapshotByID(app, schema.ColProjectionSnapshot.String(), rid)
 	if err != nil {
 		return "", e.NotFoundError("candidate not found", err)
 	}
