@@ -2,6 +2,7 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -22,6 +23,13 @@ import (
 	// The core upgrade deltas register themselves on import.
 	_ "github.com/north-shore-software/kalaido/kalaidoscope/schema/deltas"
 )
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "server")
+	}
+	return slog.Default().With("component", "server")
+}
 
 // Options tune the server's own components; the zero value is the default.
 type Options struct {
@@ -211,7 +219,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 
 func EnsureReady() {
 	if !llm.Ready() {
-		logger().Error("no LLM provider registered", "hint", "call llm.SetProviderFactory before EnsureReady")
+		logger(nil).Error("no LLM provider registered", "hint", "call llm.SetProviderFactory before EnsureReady")
 		os.Exit(1)
 	}
 }

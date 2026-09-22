@@ -3,6 +3,7 @@ package pbutil
 
 import (
 	"encoding/json"
+	"log/slog"
 
 	"github.com/pocketbase/pocketbase/tools/types"
 )
@@ -10,7 +11,7 @@ import (
 func JSONObject(v any) types.JSONRaw {
 	b, err := json.Marshal(v)
 	if err != nil {
-		logger().Error("json marshal failed", "error", err)
+		slog.Default().With("component", "pbutil").Error("json marshal failed", "error", err)
 		return types.JSONRaw([]byte(`{}`))
 	}
 	return types.JSONRaw(b)

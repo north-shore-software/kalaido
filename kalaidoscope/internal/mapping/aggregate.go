@@ -29,7 +29,7 @@ func (w *Worker) aggregateLoop(ctx context.Context) error {
 		}
 		due, err := consolidateDue(w.app, time.Now())
 		if err != nil {
-			logger().Error("consolidate check failed", "error", err)
+			w.logger.Error("consolidate check failed", "error", err)
 			continue
 		}
 		if due {
@@ -67,7 +67,7 @@ func (w *Worker) integrate(ctx context.Context) {
 	w.consolidating.Store(true)
 	defer w.consolidating.Store(false)
 	if err := consolidate(ctx, w.app); err != nil {
-		logger().Error("consolidate failed", "error", err)
+		w.logger.Error("consolidate failed", "error", err)
 	}
 }
 

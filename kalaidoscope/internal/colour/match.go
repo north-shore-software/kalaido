@@ -54,12 +54,12 @@ func ThingIDs(rec *core.Record) []string {
 func (w *Worker) OnMapSettled(app core.App) {
 	_, version, err := mapping.LoadDocument(app)
 	if err != nil {
-		logger().Error("load map version failed", "error", err)
+		w.logger.Error("load map version failed", "error", err)
 		return
 	}
 	annotated, err := app.CountRecords(schema.ColFragmentAnnotation.String())
 	if err != nil {
-		logger().Error("annotation count failed", "error", err)
+		w.logger.Error("annotation count failed", "error", err)
 		return
 	}
 	w.settled.mu.Lock()
@@ -70,7 +70,7 @@ func (w *Worker) OnMapSettled(app core.App) {
 		return
 	}
 	if err := RematchThings(app); err != nil {
-		logger().Error("rematch things failed", "error", err)
+		w.logger.Error("rematch things failed", "error", err)
 	}
 }
 

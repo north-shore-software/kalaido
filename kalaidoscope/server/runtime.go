@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -33,6 +34,7 @@ type runtime struct {
 	discover  *discover.Worker
 	runner    *engine.TrackedRunner
 	scheduler *llmq.Scheduler
+	logger    *slog.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -47,6 +49,7 @@ func newRuntime(app core.App, opts Options) *runtime {
 		reconcile: reconcile.NewWorker(app, reconcile.Options{AutoWave: opts.AutoWave}),
 		runner:    engine.NewTrackedRunner(ctx),
 		scheduler: llmq.New(llmq.ConfigForProvider(llm.ActiveProviderID())),
+		logger:    logger(app),
 		cancel:    cancel,
 	}
 	app.Store().Set(usage.SchedulerStoreKey, rt.scheduler)
@@ -120,8 +123,8 @@ func (rt *runtime) stop() {
 	}()
 	select {
 	case <-done:
-		logger().Info("workers drained")
+		rt.logger.Info("workers drained")
 	case <-time.After(shutdownGrace):
-		logger().Warn("workers still running at shutdown; exiting anyway", "grace", shutdownGrace)
+		rt.logger.Warn("workers still running at shutdown; exiting anyway", "grace", shutdownGrace)
 	}
 }

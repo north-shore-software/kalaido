@@ -134,7 +134,7 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 		st, err := entityStatus(e.Request.Context(), app, id)
 		if err != nil {
 			// Never let the freshness check itself stop a requested generation.
-			logger().Warn("staleness check failed", "target_type", strat.TargetType(), "error", err)
+			logger(app).Warn("staleness check failed", "target_type", strat.TargetType(), "error", err)
 		} else if len(st.BlockedBy) > 0 {
 			return e.Error(http.StatusConflict,
 				"upstream dependencies are not up to date; approve them first", nil)
@@ -205,7 +205,7 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 			case errors.Is(err, engine.ErrContextTooLarge):
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			case err != nil:
-				logger().Error("generate failed", "target_type", strat.TargetType(), "error", err)
+				logger(app).Error("generate failed", "target_type", strat.TargetType(), "error", err)
 				if usage.WriteProviderError(e, err) {
 					return nil
 				}
@@ -233,14 +233,14 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 			case errors.Is(err, engine.ErrContextTooLarge):
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			default:
-				logger().Error("generate failed", "target_type", strat.TargetType(), "error", err)
+				logger(app).Error("generate failed", "target_type", strat.TargetType(), "error", err)
 				if usage.WriteProviderError(e, err) {
 					return nil
 				}
 				return e.InternalServerError("generate "+strat.TargetType()+" failed", err)
 			}
 		} else if firstErr != nil {
-			logger().Warn("generate: some windows failed",
+			logger(app).Warn("generate: some windows failed",
 				"target_type", strat.TargetType(), "succeeded", len(snapIDs), "error", firstErr)
 		}
 
@@ -260,7 +260,7 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 func joinGeneration(ctx context.Context, app core.App, strat engine.Strategy, id string, w *api.Window) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, engine.GenerationClaimTTL)
 	defer cancel()
-	logger().Warn("already generating; joining", "target_type", strat.TargetType(), "id", id)
+	logger(app).Warn("already generating; joining", "target_type", strat.TargetType(), "id", id)
 	return engine.AwaitGeneration(ctx, app, strat, id, w)
 }
 
@@ -271,7 +271,7 @@ func handleApproveCandidate(app core.App, strat engine.Strategy, waves *reconcil
 			return herr
 		}
 		if err := engine.ApproveSnapshot(e.Request.Context(), app, strat, snapID); err != nil {
-			logger().Error("approve failed", "target_type", strat.TargetType(), "error", err)
+			logger(app).Error("approve failed", "target_type", strat.TargetType(), "error", err)
 			if errors.Is(err, engine.ErrNotApprovable) {
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			}
@@ -310,7 +310,7 @@ func handleEditCandidate(app core.App, strat engine.Strategy) func(e *core.Reque
 		res, err := engine.ApplyEdit(context.WithoutCancel(e.Request.Context()), app, strat,
 			e.Request.PathValue("id"), snapID, req.OldText, req.NewText)
 		if err != nil {
-			logger().Error("edit failed", "target_type", strat.TargetType(), "error", err)
+			logger(app).Error("edit failed", "target_type", strat.TargetType(), "error", err)
 			switch {
 			case errors.Is(err, engine.ErrEditNotPending):
 				return e.Error(http.StatusConflict, err.Error(), err)
@@ -369,11 +369,11 @@ func handleCreate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			return nil
 		})
 		if err != nil {
-			logger().Error("create failed", "target_type", strat.TargetType(), "error", err)
+			logger(app).Error("create failed", "target_type", strat.TargetType(), "error", err)
 			return e.InternalServerError("create "+strat.TargetType()+" failed", err)
 		}
 
-		logger().Info("created", "target_type", strat.TargetType(), "id", targetID)
+		logger(app).Info("created", "target_type", strat.TargetType(), "id", targetID)
 		if strat.TargetType() == "projection" {
 			return e.JSON(http.StatusCreated, api.CreateProjectionResponse{
 				ProjectionID: targetID,
@@ -460,7 +460,7 @@ func handleUpdate(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 		}
 
 		if err := app.Save(rec); err != nil {
-			logger().Error("update failed", "target_type", strat.TargetType(), "error", err)
+			logger(app).Error("update failed", "target_type", strat.TargetType(), "error", err)
 			return e.InternalServerError("update "+strat.TargetType()+" failed", err)
 		}
 
@@ -512,7 +512,7 @@ func handleDelete(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 
 		inFlight, err := engine.HasLiveClaim(app, strat, id)
 		if err != nil {
-			logger().Error("delete failed", "target_type", strat.TargetType(), "id", id, "error", err)
+			logger(app).Error("delete failed", "target_type", strat.TargetType(), "id", id, "error", err)
 			return e.InternalServerError("delete "+strat.TargetType()+" failed", err)
 		}
 		if inFlight {
@@ -532,7 +532,7 @@ func handleDelete(app core.App, strat engine.Strategy) func(e *core.RequestEvent
 			return engine.SoftDelete(tx, rec)
 		})
 		if err != nil {
-			logger().Error("delete failed", "target_type", strat.TargetType(), "id", id, "error", err)
+			logger(app).Error("delete failed", "target_type", strat.TargetType(), "id", id, "error", err)
 			return e.InternalServerError("delete "+strat.TargetType()+" failed", err)
 		}
 
@@ -553,7 +553,7 @@ func handleRestore(app core.App, strat engine.Strategy) func(e *core.RequestEven
 			return e.NotFoundError(strat.TargetType()+" not found", err)
 		}
 		if err := engine.Restore(app, rec); err != nil {
-			logger().Error("restore failed", "target_type", strat.TargetType(), "id", id, "error", err)
+			logger(app).Error("restore failed", "target_type", strat.TargetType(), "id", id, "error", err)
 			return e.InternalServerError("restore "+strat.TargetType()+" failed", err)
 		}
 		return e.JSON(http.StatusOK, map[string]string{"id": id})

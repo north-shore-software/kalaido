@@ -60,7 +60,7 @@ func consolidate(ctx context.Context, app core.App) error {
 		run.Set("status", "error")
 		run.Set("error", err.Error())
 		if serr := app.Save(run); serr != nil {
-			logger().Error("save run failed", "error", serr)
+			logger(app).Error("save run failed", "error", serr)
 		}
 		return err
 	}
@@ -109,7 +109,7 @@ func consolidate(ctx context.Context, app core.App) error {
 	run.Set("merges", merges)
 	run.Set("version_after", d.version+1)
 	if err := app.Save(run); err != nil {
-		logger().Error("save run failed", "error", err)
+		logger(app).Error("save run failed", "error", err)
 	}
 	return nil
 }

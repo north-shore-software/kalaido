@@ -101,7 +101,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 
 		for _, m := range newMsgs {
 			if _, err := chat.PersistMessage(ctx, app, refRec, m, ""); err != nil {
-				logger().Error("refinement persist message failed", "message_id", m.ID, "error", err)
+				logger(app).Error("refinement persist message failed", "message_id", m.ID, "error", err)
 			}
 		}
 
@@ -138,7 +138,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		// Refuse before the call, with a message the user can act on, rather
 		// than let the provider reject an oversized prompt as a bare 400.
 		if err := engine.CheckPromptFits(assistantModel, engine.MessagesChars(hydratedMsgs)); err != nil {
-			logger().Warn("refinement chat prompt too large", "refinement_id", refRec.Id, "error", err)
+			logger(app).Warn("refinement chat prompt too large", "refinement_id", refRec.Id, "error", err)
 			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 		}
 
@@ -189,7 +189,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 				parts = append(parts, api.UIMessagePart{Type: "text", Text: text})
 				turnWriter.write(parts)
 			} else {
-				logger().Warn("refinement chat: name-only turn produced no text on continuation", "refinement_id", refRec.Id)
+				logger(app).Warn("refinement chat: name-only turn produced no text on continuation", "refinement_id", refRec.Id)
 			}
 		}
 
@@ -211,7 +211,7 @@ func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Rec
 		if match := engine.LensCountPin(lens); match != "" {
 			// Surfaced, not auto-redrafted: the user sees that the lens pinned
 			// a count; the apply still runs so they can judge the result.
-			logger().Warn("refinement chat: drafted lens pins a count", "refinement_id", refRec.Id, "match", match)
+			logger(app).Warn("refinement chat: drafted lens pins a count", "refinement_id", refRec.Id, "match", match)
 			if data, err := json.Marshal(map[string]string{"match": match}); err == nil {
 				sse.DataPart("refine_lint", json.RawMessage(data), false)
 				parts = append(parts, api.UIMessagePart{Type: "data-refine_lint", Data: data})
@@ -239,12 +239,12 @@ func streamNameOnlyContinuation(ctx context.Context, app core.App, sse *chat.SSE
 		llm.Message{Role: "assistant", Content: strings.TrimSpace(prompts.DiscoverEchoToolCalls(names))},
 		llm.Message{Role: "user", Content: prompts.NameRecordedContinue})
 	if err := engine.CheckPromptFits(model, engine.MessagesChars(msgs)); err != nil {
-		logger().Warn("refinement continuation prompt too large", "error", err)
+		logger(app).Warn("refinement continuation prompt too large", "error", err)
 		return ""
 	}
 	comp, err := usage.Stream(ctx, app, llm.RoleRefinement, model, msgs, nil)
 	if err != nil {
-		logger().Error("refinement continuation failed", "error", err)
+		logger(app).Error("refinement continuation failed", "error", err)
 		return ""
 	}
 	return sse.StreamTurn(comp, textID+"-c1", nil).Text
@@ -357,13 +357,13 @@ func (w *turnWriter) write(parts []api.UIMessagePart) {
 	msg := api.UIMessage{ID: w.id, Role: "assistant", Parts: parts}
 	if w.rec != nil {
 		if err := chat.RewriteMessage(w.app, w.rec, msg); err != nil {
-			logger().Error("refinement persist assistant message failed", "message_id", w.id, "error", err)
+			logger(w.app).Error("refinement persist assistant message failed", "message_id", w.id, "error", err)
 		}
 		return
 	}
 	rec, err := chat.PersistMessage(w.ctx, w.app, w.conv, msg, w.model)
 	if err != nil {
-		logger().Error("refinement persist assistant message failed", "message_id", w.id, "error", err)
+		logger(w.app).Error("refinement persist assistant message failed", "message_id", w.id, "error", err)
 		return
 	}
 	w.rec = rec
@@ -408,7 +408,7 @@ func streamApplyLeg(ctx context.Context, app core.App, sse *chat.SSE, refRec *co
 		sse.ToolInputDelta(applyID, jsonStringChunk(chunk))
 	})
 	if err != nil {
-		logger().Error("refinement chat apply failed", "refinement_id", refRec.Id, "error", err)
+		logger(app).Error("refinement chat apply failed", "refinement_id", refRec.Id, "error", err)
 		kind := "apply_failed"
 		message := "generating the preview failed — send another message to retry"
 		var tooLarge *engine.ContextTooLargeError

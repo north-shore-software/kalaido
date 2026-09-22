@@ -3,6 +3,7 @@ package discover
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -11,12 +12,20 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 )
 
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "discover")
+	}
+	return slog.Default().With("component", "discover")
+}
+
 // Worker runs the discover flows: Signal marks a kind pending, Run drains the
 // pending kinds in pipeline order. One per process, owned by the server.
 type Worker struct {
-	app  core.App
-	maps *mapping.Worker // a run waits for the map to settle first
-	wake chan struct{}   // buffered by one: wakes coalesce
+	app    core.App
+	logger *slog.Logger
+	maps   *mapping.Worker // a run waits for the map to settle first
+	wake   chan struct{}   // buffered by one: wakes coalesce
 
 	pendingMu sync.Mutex
 	pending   map[string]bool
@@ -27,7 +36,7 @@ type Worker struct {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App, maps *mapping.Worker) *Worker {
-	return &Worker{app: app, maps: maps, wake: make(chan struct{}, 1), pending: map[string]bool{}}
+	return &Worker{app: app, logger: logger(app), maps: maps, wake: make(chan struct{}, 1), pending: map[string]bool{}}
 }
 
 // Running is the kind currently running, or "".
@@ -113,7 +122,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			err := w.run(ctx, flows[kind])
 			w.setRunning("")
 			if err != nil {
-				logger().Error("flow run failed", "kind", kind, "error", err)
+				w.logger.Error("flow run failed", "kind", kind, "error", err)
 				last = err
 			}
 		}

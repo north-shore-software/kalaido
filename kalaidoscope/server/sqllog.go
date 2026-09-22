@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -26,9 +27,13 @@ func registerWriteEcho(app core.App) {
 		if app.IsDev() {
 			return nil
 		}
+		log := logger(app)
+		execLogger := func(ctx context.Context, d time.Duration, sqlStr string, res sql.Result, err error) {
+			echoWrite(log, ctx, d, sqlStr, res, err)
+		}
 		for _, b := range []dbx.Builder{app.DB(), app.NonconcurrentDB()} {
 			if db, ok := b.(*dbx.DB); ok {
-				db.ExecLogFunc = echoWrite
+				db.ExecLogFunc = execLogger
 			}
 		}
 		return nil
@@ -47,7 +52,7 @@ var writeVerb = regexp.MustCompile("(?i)^\\s*(?:INSERT INTO|UPDATE|DELETE FROM)\
 
 const writeEchoMaxRunes = 500
 
-func echoWrite(_ context.Context, _ time.Duration, sqlStr string, _ sql.Result, err error) {
+func echoWrite(log *slog.Logger, _ context.Context, _ time.Duration, sqlStr string, _ sql.Result, err error) {
 	m := writeVerb.FindStringSubmatch(sqlStr)
 	if m == nil {
 		return
@@ -62,8 +67,8 @@ func echoWrite(_ context.Context, _ time.Duration, sqlStr string, _ sql.Result, 
 		line = string(r[:writeEchoMaxRunes]) + fmt.Sprintf("… (+%d chars)", len(r)-writeEchoMaxRunes)
 	}
 	if err != nil {
-		logger().Error("db write failed", "sql", line, "error", err)
+		log.Error("db write failed", "sql", line, "error", err)
 		return
 	}
-	logger().Debug("db write", "sql", line)
+	log.Debug("db write", "sql", line)
 }

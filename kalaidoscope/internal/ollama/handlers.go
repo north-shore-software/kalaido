@@ -4,6 +4,7 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -11,6 +12,13 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 )
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "ollama")
+	}
+	return slog.Default().With("component", "ollama")
+}
 
 func RegisterRoutes(app core.App) {
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
@@ -22,8 +30,9 @@ func RegisterRoutes(app core.App) {
 
 func RegisterPreload(app core.App) {
 	ctx, cancel := context.WithCancel(context.Background())
+	log := logger(app)
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		go preloadDefaultModel(ctx)
+		go preloadDefaultModel(ctx, log)
 		return se.Next()
 	})
 	app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {
@@ -32,7 +41,7 @@ func RegisterPreload(app core.App) {
 	})
 }
 
-func preloadDefaultModel(ctx context.Context) {
+func preloadDefaultModel(ctx context.Context, log *slog.Logger) {
 	const (
 		retryDelay = 5 * time.Second
 		maxWait    = 2 * time.Minute
@@ -40,13 +49,13 @@ func preloadDefaultModel(ctx context.Context) {
 	deadline := time.Now().Add(maxWait)
 	for {
 		if err := PreloadModel(ctx, defaultModel); err == nil {
-			logger().Info("model resident", "model", defaultModel)
+			log.Info("model resident", "model", defaultModel)
 			return
 		} else if time.Now().After(deadline) {
-			logger().Warn("giving up on model preload", "model", defaultModel, "error", err)
+			log.Warn("giving up on model preload", "model", defaultModel, "error", err)
 			return
 		} else {
-			logger().Warn("model not ready, retrying", "model", defaultModel, "error", err)
+			log.Warn("model not ready, retrying", "model", defaultModel, "error", err)
 		}
 
 		select {

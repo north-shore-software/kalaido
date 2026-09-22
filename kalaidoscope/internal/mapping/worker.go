@@ -4,6 +4,7 @@ package mapping
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -21,11 +22,19 @@ const (
 	annotateWorkers = 100
 )
 
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "mapping")
+	}
+	return slog.Default().With("component", "mapping")
+}
+
 // Worker is the map worker: it annotates fragments on demand (Signal,
 // SignalAnnotate) and consolidates the map on a timer or when a full cycle
 // is asked for. One per process, owned by the server; Run drives both loops.
 type Worker struct {
 	app        core.App
+	logger     *slog.Logger
 	signal     chan struct{} // buffered by one: wakes coalesce
 	wantSettle atomic.Bool
 	followUps  followup.Queue
@@ -46,7 +55,7 @@ type Worker struct {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App) *Worker {
-	return &Worker{app: app, signal: make(chan struct{}, 1)}
+	return &Worker{app: app, logger: logger(app), signal: make(chan struct{}, 1)}
 }
 
 // Annotating reports whether an annotate drain is in progress.
@@ -126,7 +135,7 @@ func (w *Worker) annotateLoop(ctx context.Context) error {
 		w.annotating.Store(false)
 		w.setLastDrainError(err)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			logger().Error("drain failed", "error", err)
+			w.logger.Error("drain failed", "error", err)
 		}
 		followup.Run(active, err)
 	}
@@ -218,7 +227,7 @@ func (w *Worker) drain(ctx context.Context, full bool) error {
 				if err == nil {
 					return nil
 				}
-				logger().Error("annotate failed", "fragment_id", f.Id, "error", err)
+				logger(app).Error("annotate failed", "fragment_id", f.Id, "error", err)
 				mu.Lock()
 				failed[f.Id] = true
 				if firstErr == nil {

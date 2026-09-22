@@ -6,19 +6,10 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	"sync"
 )
 
-var (
-	loggerOnce sync.Once
-	pkgLogger  *slog.Logger
-)
-
-// logger is the process logger tagged with this package, resolved on first
-// use and cached.
 func logger() *slog.Logger {
-	loggerOnce.Do(func() { pkgLogger = slog.Default().With("component", "llm") })
-	return pkgLogger
+	return slog.Default().With("component", "llm")
 }
 
 // Trace switches on logging of every provider request body, user content

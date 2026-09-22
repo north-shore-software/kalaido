@@ -18,17 +18,17 @@ const restartedError = "server restarted while processing"
 func SweepPending(app core.App) {
 	recs, err := app.FindRecordsByFilter(schema.ColIngest.String(), "status = 'pending'", "", 0, 0)
 	if err != nil {
-		logger().Error("sweep pending ingest lookup failed", "error", err)
+		logger(app).Error("sweep pending ingest lookup failed", "error", err)
 		return
 	}
 	for _, r := range recs {
 		r.Set("status", "error")
 		r.Set("error", restartedError)
 		if err := app.Save(r); err != nil {
-			logger().Error("sweep pending ingest save failed", "record_id", r.Id, "error", err)
+			logger(app).Error("sweep pending ingest save failed", "record_id", r.Id, "error", err)
 		}
 	}
 	if len(recs) > 0 {
-		logger().Warn("failed ingest records left pending by a previous run", "count", len(recs))
+		logger(app).Warn("failed ingest records left pending by a previous run", "count", len(recs))
 	}
 }

@@ -39,7 +39,7 @@ func HandleBackfillReflection(app core.App, runner engine.Runner) func(e *core.R
 		case errors.Is(err, engine.ErrBackfillOutOfRange):
 			return e.BadRequestError(err.Error(), err)
 		case err != nil:
-			logger().Error("reflection backfill failed", "reflection_id", id, "error", err)
+			logger(app).Error("reflection backfill failed", "reflection_id", id, "error", err)
 			return e.InternalServerError("backfill failed", err)
 		}
 		engine.RunPendingWindows(runner, app, id)

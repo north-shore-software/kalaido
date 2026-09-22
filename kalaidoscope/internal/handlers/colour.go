@@ -41,7 +41,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 
 		recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "-created", 20, 0, dbx.Params{})
 		if err != nil {
-			logger().Error("colour preview: find fragments failed", "error", err)
+			logger(app).Error("colour preview: find fragments failed", "error", err)
 			return e.InternalServerError("failed to fetch fragments", err)
 		}
 
@@ -86,7 +86,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 					// A canceled context is the expected outcome of that
 					// superseded request, not a failure worth logging.
 					if ctx.Err() == nil {
-						logger().Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
+						logger(app).Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
 					}
 					return nil
 				}
@@ -106,7 +106,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		for rec := range results {
 			jsonData, err := json.Marshal(rec)
 			if err != nil {
-				logger().Warn("colour preview: marshal fragment failed, skipping", "error", err)
+				logger(app).Warn("colour preview: marshal fragment failed, skipping", "error", err)
 				continue
 			}
 
@@ -153,7 +153,7 @@ func HandleCreateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 		// skips pairs that hold a row, so they are not judged twice.
 		for _, fragID := range req.FragmentIDs {
 			if err := colour.SetPromptMatch(app, colourRec.Id, fragID); err != nil {
-				logger().Warn("colour create: seeding prompt match failed", "fragment_id", fragID, "error", err)
+				logger(app).Warn("colour create: seeding prompt match failed", "fragment_id", fragID, "error", err)
 			}
 		}
 		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, nil); err != nil {

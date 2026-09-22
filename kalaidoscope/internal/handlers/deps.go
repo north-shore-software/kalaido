@@ -2,6 +2,10 @@
 package handlers
 
 import (
+	"log/slog"
+
+	"github.com/pocketbase/pocketbase/core"
+
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
@@ -9,6 +13,13 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/organize"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 )
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "handlers")
+	}
+	return slog.Default().With("component", "handlers")
+}
 
 // Deps are the long-lived components a handler reaches beyond the database:
 // the background workers it wakes or reads, and the runner that owns any

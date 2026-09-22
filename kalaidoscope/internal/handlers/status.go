@@ -17,7 +17,7 @@ func HandleGetRotation(app core.App) func(e *core.RequestEvent) error {
 
 		statuses, err := evaluator.EvaluateAll(e.Request.Context())
 		if err != nil {
-			logger().Error("rotation status evaluation failed", "error", err)
+			logger(app).Error("rotation status evaluation failed", "error", err)
 			return e.InternalServerError("failed to evaluate staleness", err)
 		}
 

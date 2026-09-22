@@ -149,7 +149,7 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		return discardOtherPending(txApp, strat, parentID, SnapshotWindow(snap), snap.Id)
 	})
 	if err == nil && approvedSeq > 0 {
-		logger().Info("snapshot approved",
+		logger(app).Info("snapshot approved",
 			"target_type", strat.TargetType(), "id", parentID, "snapshot_id", snapshotID, "sequence", approvedSeq)
 	}
 	return err

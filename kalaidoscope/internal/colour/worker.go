@@ -10,6 +10,7 @@ package colour
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -27,10 +28,18 @@ const (
 	exampleLimit = 20
 )
 
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "colour")
+	}
+	return slog.Default().With("component", "colour")
+}
+
 // Worker is the prompt-matching worker: one per process, owned by the
 // server, woken by Signal and drained on its own goroutine (Run).
 type Worker struct {
 	app     core.App
+	logger  *slog.Logger
 	signal  chan struct{} // buffered by one: wakes coalesce
 	drained []func()
 	settled *settledMark
@@ -38,7 +47,7 @@ type Worker struct {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App) *Worker {
-	return &Worker{app: app, signal: make(chan struct{}, 1), settled: newSettledMark()}
+	return &Worker{app: app, logger: logger(app), signal: make(chan struct{}, 1), settled: newSettledMark()}
 }
 
 // Signal asks the worker to drain. Coalesces.
@@ -66,7 +75,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 		wrote, err := drain(ctx, w.app)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			logger().Error("drain failed", "error", err)
+			w.logger.Error("drain failed", "error", err)
 		}
 		if wrote > 0 {
 			for _, fn := range w.drained {
@@ -276,7 +285,7 @@ func recordProviderErrorKind(app core.App, colourRec *core.Record, err error) {
 	}
 	colourRec.Set("last_provider_error_kind", string(perr.Kind))
 	if err := app.Save(colourRec); err != nil {
-		logger().Error("record provider error kind failed", "error", err)
+		logger(app).Error("record provider error kind failed", "error", err)
 	}
 }
 
@@ -286,6 +295,6 @@ func clearProviderErrorKind(app core.App, colourRec *core.Record) {
 	}
 	colourRec.Set("last_provider_error_kind", "")
 	if err := app.Save(colourRec); err != nil {
-		logger().Error("clear provider error kind failed", "error", err)
+		logger(app).Error("clear provider error kind failed", "error", err)
 	}
 }

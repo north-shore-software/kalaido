@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -346,7 +347,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 			// Priority overflow downgrades silently to the standard tier, so
 			// this line is the only place that shows which tier actually
 			// served the request (ON_DEMAND_PRIORITY vs ON_DEMAND).
-			logger().Debug("traffic type", "traffic_type", trafficType, "model", p.model())
+			slog.Default().With("component", "gemini").Debug("traffic type", "traffic_type", trafficType, "model", p.model())
 		}
 		if ctx.Err() != nil {
 			return
@@ -368,7 +369,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 			if blockReason == "" {
 				blockReason = "none"
 			}
-			logger().Warn("completion ended",
+			slog.Default().With("component", "gemini").Warn("completion ended",
 				"finish_reason", finishReason, "block_reason", blockReason, "text_parts", textParts, "tool_calls", toolParts,
 				"completion_tokens", usage.CompletionTokens, "model", p.model(), "shape", shape, "detail", detail)
 		}

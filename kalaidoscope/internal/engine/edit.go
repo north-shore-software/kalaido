@@ -134,7 +134,7 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 	if err != nil {
 		return EditResult{}, err
 	}
-	logger().Info("candidate edited by hand",
+	logger(app).Info("candidate edited by hand",
 		"target_type", strat.TargetType(), "id", parentID, "source_snapshot_id", sourceSnapshotID,
 		"snapshot_id", res.SnapshotID, "fragment_id", res.FragmentID)
 	return res, nil

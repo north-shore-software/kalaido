@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -16,6 +17,13 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/north-shore-software/kalaido/kalaidoscope/timeutil"
 )
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "usage")
+	}
+	return slog.Default().With("component", "usage")
+}
 
 var ErrExhausted = errors.New("quota exhausted")
 
@@ -86,7 +94,7 @@ func Record(ctx context.Context, app core.App, u *llm.Usage) {
 		}
 	}
 	if lastErr != nil {
-		logger().Error("record usage failed", "period", period, "error", lastErr)
+		logger(app).Error("record usage failed", "period", period, "error", lastErr)
 	}
 	if a := quota.Get(); a != nil {
 		a.Record(ctx, app, int64(u.TotalTokens))

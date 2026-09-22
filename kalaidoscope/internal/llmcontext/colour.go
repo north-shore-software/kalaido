@@ -4,12 +4,20 @@ package llmcontext
 import (
 	stdctx "context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "llmcontext")
+	}
+	return slog.Default().With("component", "llmcontext")
+}
 
 // FragmentIDsForColours returns the members of the given colours: every
 // colour_fragment row except manual_negative, which is an exclusion.
@@ -27,7 +35,7 @@ func FragmentIDsForColours(ctx stdctx.Context, app core.App, colourIDs []string)
 	params["neg"] = "manual_negative"
 	recs, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "("+strings.Join(ors, " || ")+") && match_type != {:neg}", "", 0, 0, params)
 	if err != nil {
-		logger().Error("colour fragment lookup failed", "error", err)
+		logger(app).Error("colour fragment lookup failed", "error", err)
 		return nil
 	}
 	seen := make(map[string]bool, len(recs))

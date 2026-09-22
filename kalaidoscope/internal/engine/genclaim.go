@@ -155,7 +155,7 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 		return
 	}
 	if err := app.Delete(rec); err != nil {
-		logger().Error("generation claim release failed", "claim_id", claimID, "error", err)
+		logger(app).Error("generation claim release failed", "claim_id", claimID, "error", err)
 		return
 	}
 	claims.settle(claimID)
@@ -192,7 +192,7 @@ func SweepGenerationClaims(app core.App) {
 		}
 		for _, r := range recs {
 			if err := app.Delete(r); err != nil {
-				logger().Error("generation claim sweep delete failed", "target_type", strat.TargetType(), "claim_id", r.Id, "error", err)
+				logger(app).Error("generation claim sweep delete failed", "target_type", strat.TargetType(), "claim_id", r.Id, "error", err)
 			}
 		}
 	}
