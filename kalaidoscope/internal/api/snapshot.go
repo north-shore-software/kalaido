@@ -7,7 +7,7 @@ import (
 )
 
 type GenerateProjectionSnapshotRequest struct {
-	SourceID    string      `json:"sourceId"` // ProjectionID or ReflectionID
+	SourceID    string      `json:"sourceId"` // ProjectionID
 	ChatID      string      `json:"chatId"`
 	FragmentIDs []string    `json:"fragmentIds"`
 	ColourIDs   []string    `json:"colourIds"`
@@ -16,7 +16,7 @@ type GenerateProjectionSnapshotRequest struct {
 }
 
 type GenerateReflectionSnapshotRequest struct {
-	SourceID    string      `json:"sourceId"` // ProjectionID or ReflectionID
+	SourceID    string      `json:"sourceId"` // ReflectionID
 	ChatID      string      `json:"chatId"`
 	FragmentIDs []string    `json:"fragmentIds"`
 	ColourIDs   []string    `json:"colourIds"`
@@ -26,7 +26,7 @@ type GenerateReflectionSnapshotRequest struct {
 	AllWindows  bool        `json:"allWindows,omitempty"`
 }
 
-func (r GenerateSnapshotRequest) Validate() error {
+func (r GenerateReflectionSnapshotRequest) Validate() error {
 	if r.WindowID != "" && r.AllWindows {
 		return errors.New("cannot specify both windowId and allWindows=true")
 	}
@@ -34,8 +34,8 @@ func (r GenerateSnapshotRequest) Validate() error {
 }
 
 // UnmarshalJSON supports both "allWindows" and the legacy "all" JSON key.
-func (r *GenerateSnapshotRequest) UnmarshalJSON(data []byte) error {
-	type rawRequest GenerateSnapshotRequest
+func (r *GenerateReflectionSnapshotRequest) UnmarshalJSON(data []byte) error {
+	type rawRequest GenerateReflectionSnapshotRequest
 	var raw struct {
 		rawRequest
 		All bool `json:"all"`
@@ -43,7 +43,7 @@ func (r *GenerateSnapshotRequest) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	*r = GenerateSnapshotRequest(raw.rawRequest)
+	*r = GenerateReflectionSnapshotRequest(raw.rawRequest)
 	if raw.All {
 		r.AllWindows = true
 	}
@@ -56,6 +56,7 @@ type GenerateSnapshotResponse struct {
 	SnapshotID string `json:"snapshotId"`
 	Content    string `json:"content,omitempty"`
 }
+
 type ReviewCandidateRequest struct {
 	SnapshotID string `json:"snapshotId"`
 }
