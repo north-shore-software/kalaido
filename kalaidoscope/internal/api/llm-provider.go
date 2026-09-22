@@ -21,3 +21,32 @@ type ValidateProviderResponse struct {
 	Model    string `json:"model,omitempty"`
 	Detail   string `json:"detail,omitempty"`
 }
+
+type ModelInfo struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+type OllamaStatusResponse struct {
+	Reachable bool        `json:"reachable"`
+	Models    []ModelInfo `json:"models"`
+	Error     string      `json:"error,omitempty"`
+}
+
+type OllamaPullRequest struct {
+	Model string `json:"model"`
+}
+
+type ModelPreflightRole struct {
+	Role     string `json:"role"`
+	Model    string `json:"model,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	OK       bool   `json:"ok"`
+	Detail   string `json:"detail,omitempty"`
+}
+
+type ModelPreflightResponse struct {
+	ModelSet string               `json:"modelSet"`
+	OK       bool                 `json:"ok"`
+	Roles    []ModelPreflightRole `json:"roles"`
+}

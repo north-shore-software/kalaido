@@ -6,7 +6,16 @@ import (
 	"errors"
 )
 
-type GenerateSnapshotRequest struct {
+type GenerateProjectionSnapshotRequest struct {
+	SourceID    string      `json:"sourceId"` // ProjectionID or ReflectionID
+	ChatID      string      `json:"chatId"`
+	FragmentIDs []string    `json:"fragmentIds"`
+	ColourIDs   []string    `json:"colourIds"`
+	Messages    []UIMessage `json:"messages"`
+	Preview     bool        `json:"preview"`
+}
+
+type GenerateReflectionSnapshotRequest struct {
 	SourceID    string      `json:"sourceId"` // ProjectionID or ReflectionID
 	ChatID      string      `json:"chatId"`
 	FragmentIDs []string    `json:"fragmentIds"`
