@@ -47,12 +47,18 @@ export function RefineChatPanel({
   placeholder?: string;
   flat?: boolean;
 }) {
+  const api =
+    session.parentId && session.refinementId
+      ? `/api/${session.target}s/${encodeURIComponent(session.parentId)}/refinements/${encodeURIComponent(session.refinementId)}/chat`
+      : undefined;
+
   return (
     <PanelErrorBoundary label="the chat" resetKey={session.clientId}>
       <ChatPanel
         flat={flat}
         key={session.clientId}
         chatId={session.clientId}
+        api={api}
         initialMessages={session.initialMessages}
         initialPrompt={session.firstPrompt ?? undefined}
         context={context}

@@ -97,11 +97,12 @@ export function useResumeRefinement({
     // streaming session with the stale persisted messages.
     if (session.refinementId === openRefinement.id) return;
     resume({
+      parentId,
       clientId: openRefinement.external_conversation_id,
       refinementId: openRefinement.id,
       messages,
     });
-  }, [ready, openRefinement, messages, session.refinementId, resume]);
+  }, [ready, openRefinement, messages, session.refinementId, resume, parentId]);
 
   return { openRefinement, messages, context, resumed, ready };
 }

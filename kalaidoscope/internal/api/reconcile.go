@@ -28,3 +28,8 @@ type ReconcileStatus struct {
 	CurrentEntity *CurrentEntityInfo `json:"currentEntity,omitempty"`
 	Progress      *WaveProgress      `json:"progress,omitempty"`
 }
+
+type ReconcilePlanResponse struct {
+	ReconcileStatus
+	Statuses []EntityStatus `json:"statuses"`
+}

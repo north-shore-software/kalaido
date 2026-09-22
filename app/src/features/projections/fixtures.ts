@@ -197,6 +197,8 @@ const mockMessages: UIMessage[] = [
 ];
 
 export const mockSession: RefineSession = {
+  target: "projection",
+  parentId: "proj-123",
   clientId: "client-123",
   refinementId: "ref-123",
   firstPrompt: "Make a product roadmap",

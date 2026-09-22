@@ -96,6 +96,7 @@ interface ChatPanelProps {
   flat?: boolean;
   className?: string;
   transport?: ChatTransport<UIMessage>;
+  api?: string;
 }
 
 export function ChatPanel({
@@ -118,6 +119,7 @@ export function ChatPanel({
   flat,
   className,
   transport: transportProp,
+  api,
 }: ChatPanelProps) {
   const client = useKalaidoscopeClient();
   const [input, setInput] = useState("");
@@ -165,8 +167,8 @@ export function ChatPanel({
 
   const transport = useMemo(() => {
     if (transportProp) return transportProp;
-    return createKalaidoChatTransport({ baseURL: client.baseURL });
-  }, [transportProp, client]);
+    return createKalaidoChatTransport({ baseURL: client.baseURL, api });
+  }, [transportProp, client, api]);
 
   const { messages, sendMessage, status, setMessages } = useChat({
     id: chatId,

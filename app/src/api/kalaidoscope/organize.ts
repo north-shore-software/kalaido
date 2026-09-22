@@ -57,7 +57,7 @@ export interface OrganizeStatus {
     proposals: { projections: number; reflections: number };
   };
   /** Waves start on their own (KALAIDO_AUTO_WAVE) or only from Start. */
-  policy: { wave: boolean };
+  policy?: { wave: boolean };
   reconcile: ReconcileStatus;
 }
 
@@ -79,6 +79,6 @@ export async function getOrganizeStatus(): Promise<
   Result<OrganizeStatus, Error>
 > {
   return withActiveClient((client) =>
-    client.send<OrganizeStatus>("/api/organize", { method: "GET" }),
+    client.send<OrganizeStatus>("/api/status", { method: "GET" }),
   );
 }

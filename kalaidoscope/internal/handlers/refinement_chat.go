@@ -11,6 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // Backward-compatibility aliases for tests and internal/handlers callers.
@@ -19,6 +20,68 @@ var (
 	suggestNameTool = refinement.SuggestNameTool
 	toolCallPart    = chat.ToolCallPart
 )
+
+// HandleProjectionRefinementChat handles drafting chat turns for projection refinements under
+// POST /api/projections/{id}/refinements/{rid}/chat.
+func HandleProjectionRefinementChat(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		projID := e.Request.PathValue("id")
+		rid := e.Request.PathValue("rid")
+		if projID == "" || rid == "" {
+			return e.BadRequestError("projection id and refinement id required", nil)
+		}
+
+		refRec, err := app.FindRecordById(schema.ColProjectionRefinement.String(), rid)
+		if err != nil {
+			return e.NotFoundError("projection refinement not found", err)
+		}
+
+		if parent := refinement.Parent(app, refRec); parent == nil || parent.Id != projID {
+			return e.BadRequestError("refinement does not belong to specified projection", nil)
+		}
+
+		req := api.RefinementChatRequest{}
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid chat request body", err)
+		}
+		if req.ID == "" {
+			req.ID = refRec.GetString("external_conversation_id")
+		}
+
+		return HandleChatForRefinement(app, req, refRec)(e)
+	}
+}
+
+// HandleReflectionRefinementChat handles drafting chat turns for reflection refinements under
+// POST /api/reflections/{id}/refinements/{rid}/chat.
+func HandleReflectionRefinementChat(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		reflID := e.Request.PathValue("id")
+		rid := e.Request.PathValue("rid")
+		if reflID == "" || rid == "" {
+			return e.BadRequestError("reflection id and refinement id required", nil)
+		}
+
+		refRec, err := app.FindRecordById(schema.ColReflectionRefinement.String(), rid)
+		if err != nil {
+			return e.NotFoundError("reflection refinement not found", err)
+		}
+
+		if parent := refinement.Parent(app, refRec); parent == nil || parent.Id != reflID {
+			return e.BadRequestError("refinement does not belong to specified reflection", nil)
+		}
+
+		req := api.RefinementChatRequest{}
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid chat request body", err)
+		}
+		if req.ID == "" {
+			req.ID = refRec.GetString("external_conversation_id")
+		}
+
+		return HandleChatForRefinement(app, req, refRec)(e)
+	}
+}
 
 // HandleRefinementChat handles drafting chat turns directly for projection and
 // reflection refinements under POST /api/refinements/chat.

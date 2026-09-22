@@ -156,6 +156,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.POST("/api/ingest", handlers.HandleIngest(app))
 		se.Router.POST("/api/map", handlers.HandleMapKick(deps.Mapping))
 		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(deps.Discover))
+		se.Router.GET("/api/reconcile", handlers.HandleGetReconcile(app, deps.Reconcile))
 		se.Router.POST("/api/reconcile", handlers.HandleReconcile(deps.Reconcile))
 
 		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
@@ -178,6 +179,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app, deps))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/edit", handlers.HandleEditCandidate(app))
 		se.Router.POST("/api/projections/{id}/refinements", handlers.HandleCreateProjectionRefinement(app))
+		se.Router.POST("/api/projections/{id}/refinements/{rid}/chat", handlers.HandleProjectionRefinementChat(app))
 		se.Router.POST("/api/projections/{id}/refinements/{rid}/commit", handlers.HandleCommitProjectionRefinement(app, deps))
 
 		// Reflections
@@ -190,6 +192,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.GET("/api/reflections/{id}/windows", handlers.HandleListReflectionWindows(app))
 		se.Router.POST("/api/reflections/{id}/backfill", handlers.HandleBackfillReflection(app, deps.Runner))
 		se.Router.POST("/api/reflections/{id}/refinements", handlers.HandleCreateReflectionRefinement(app))
+		se.Router.POST("/api/reflections/{id}/refinements/{rid}/chat", handlers.HandleReflectionRefinementChat(app))
 		se.Router.POST("/api/reflections/{id}/refinements/{rid}/commit", handlers.HandleCommitReflectionRefinement(app, deps))
 
 		// Colours
