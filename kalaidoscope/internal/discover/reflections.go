@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -179,7 +180,7 @@ func (reflectionsFlow) propose(c *Context, call llm.ToolCall, now time.Time) (st
 		return prompts.DiscoverRejected(prompts.DiscoverScopeMissesRhythm(held, len(rows), thingNames, coverLines(covers))), nil, nil
 	}
 	contextSpec := api.ContextSpec{ColourIDs: colourIDs}
-	versions := engine.AppendWindowSpecVersion(nil, spec, start)
+	versions := reflections.AppendWindowSpecVersion(nil, spec, start)
 	rec, err := insertProposed(c, "reflection", args.Name, args.Message, contextSpec, map[string]any{
 		"window_spec_versions": pbutil.JSONObject(versions),
 	})
@@ -209,8 +210,8 @@ func buildReflectionSpec(cadence, startTime string, now time.Time) (api.WindowSp
 		return api.WindowSpec{}, time.Time{}, prompts.DiscoverStartInFuture(start.Format("2006-01-02"))
 	}
 	p, _ := time.ParseDuration(period)
-	if windows := int(now.Sub(start) / p); windows > engine.MaxGridWindows {
-		return api.WindowSpec{}, time.Time{}, prompts.DiscoverTooManyWindows(windows, engine.MaxGridWindows)
+	if windows := int(now.Sub(start) / p); windows > reflections.MaxGridWindows {
+		return api.WindowSpec{}, time.Time{}, prompts.DiscoverTooManyWindows(windows, reflections.MaxGridWindows)
 	}
 	spec := api.WindowSpec{
 		StartTime: start.Format(time.RFC3339),

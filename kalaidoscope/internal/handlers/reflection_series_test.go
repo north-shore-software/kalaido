@@ -12,6 +12,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -55,7 +56,7 @@ func TestCreateReflectionWithStartInPastEnumeratesHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	versions := engine.LoadWindowSpecVersions(refl)
+	versions := reflections.LoadWindowSpecVersions(refl)
 	if len(versions) != 1 || versions[0].EffectiveFrom != start.Format(time.RFC3339) || versions[0].Spec.Period != "168h" {
 		t.Fatalf("versions = %+v, want one version effective from the start date", versions)
 	}
@@ -101,7 +102,7 @@ func TestUpdateReflectionScheduleKeepsOrigin(t *testing.T) {
 		t.Fatalf("update: %v", err)
 	}
 	refl, _ := app.FindRecordById("reflection", created.ReflectionID)
-	versions := engine.LoadWindowSpecVersions(refl)
+	versions := reflections.LoadWindowSpecVersions(refl)
 	if len(versions) != 2 {
 		t.Fatalf("versions = %d, want 2", len(versions))
 	}

@@ -1,15 +1,18 @@
 // UNREVIEWED
-package engine
+package reflections
 
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"sort"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // MaxGridWindows bounds one enumeration of a grid. A misconfigured spec
@@ -34,17 +37,6 @@ func SnapshotWindow(rec *core.Record) *api.Window {
 	return &w
 }
 
-// setSnapshotWindow stamps a window's bounds onto a row; a nil window leaves
-// the row windowless.
-func setSnapshotWindow(rec *core.Record, w *api.Window) {
-	if w == nil {
-		return
-	}
-	start, end := WindowBounds(w)
-	rec.Set("window_start", start)
-	rec.Set("window_end", end)
-}
-
 // WindowID is the id the API hands out for a window on a reflection's grid,
 // stable across evaluations.
 func WindowID(reflectionID string, w api.Window) string {
@@ -59,18 +51,6 @@ func newWindow(reflectionID string, start, end time.Time) api.Window {
 	}
 	w.ID = WindowID(reflectionID, w)
 	return w
-}
-
-// WindowBounds parses a window's timestamps for prompt rendering and SQL
-// comparison. Zero values for a nil window, so callers can pass one straight
-// through to prompts.ApplyPrompt.
-func WindowBounds(w *api.Window) (start, end types.DateTime) {
-	if w == nil {
-		return start, end
-	}
-	start, _ = types.ParseDateTime(w.Start)
-	end, _ = types.ParseDateTime(w.End)
-	return start, end
 }
 
 func parseRFC3339(s string) time.Time {
@@ -92,13 +72,6 @@ func parseDurationOr(s string, fallback time.Duration) time.Duration {
 	return d
 }
 
-// versionLowerBound is the instant from which a window spec version produces
-// windows: its Effective From, or its Start Time when that is later (a grid
-// origin in the future starts nothing before it). The create handler sets the
-// first version's Effective From to its Start Time when that lies in the past,
-// which is what makes "summarize from <date>" enumerate history: every grid
-// window from then to now is pending. Later versions are effective from the
-// moment of the edit, so a cadence change never re-enumerates history.
 func versionLowerBound(v api.WindowSpecVersion) time.Time {
 	eff := parseRFC3339(v.EffectiveFrom)
 	if st := parseRFC3339(v.Spec.StartTime); st.After(eff) {
@@ -129,7 +102,6 @@ func GridWindows(reflectionID string, spec api.WindowSpec, lowerBound, now time.
 		return nil
 	}
 
-	// Smallest k ≥ 1 whose grid point lies strictly after lowerBound.
 	k := int64(1)
 	if lowerBound.After(origin) {
 		k = int64(lowerBound.Sub(origin)/period) + 1
@@ -205,4 +177,98 @@ func ParseWindowPart(w api.Window) *api.Window {
 		return nil
 	}
 	return &w
+}
+
+// WindowState is one window of a reflection's series with what the store
+// holds for it.
+type WindowState struct {
+	api.Window
+	Key         string
+	HasApproved bool
+	Generating  bool
+	Backfilled  bool
+	LensID      string
+	approvedSeq int
+}
+
+// SeriesWindows is a reflection's materialized windows, oldest first
+// (spec/model.md §Materialized Windows): the governing version's grid since
+// its lower bound, every explicitly backfilled window, and every window that
+// already has an approved snapshot — the last so that windows generated under
+// an earlier schedule version stay in the series after an edit.
+func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState {
+	byKey := make(map[string]*WindowState)
+	var order []string
+	add := func(w api.Window, backfilled bool) *WindowState {
+		key := WindowKey(w)
+		if st, ok := byKey[key]; ok {
+			st.Backfilled = st.Backfilled || backfilled
+			return st
+		}
+		if w.ID == "" {
+			w.ID = WindowID(rec.Id, w)
+		}
+		st := &WindowState{Window: w, Key: key, Backfilled: backfilled}
+		byKey[key] = st
+		order = append(order, key)
+		return st
+	}
+
+	for _, w := range CurrentGridWindows(rec, now) {
+		add(w, false)
+	}
+
+	backfills, _ := app.FindRecordsByFilter(schema.ColReflectionWindow.String(),
+		"reflection_id = {:id}", "window_start", 0, 0, dbx.Params{"id": rec.Id})
+	for _, b := range backfills {
+		if w := SnapshotWindow(b); w != nil {
+			add(*w, true)
+		}
+	}
+
+	snaps, _ := app.FindRecordsByFilter(schema.ColReflectionSnapshot.String(),
+		"reflection_id = {:id} && window_start != '' && (status = 'approved' || status = 'generating')",
+		"", 0, 0, dbx.Params{"id": rec.Id})
+	for _, s := range snaps {
+		w := SnapshotWindow(s)
+		if w == nil {
+			continue
+		}
+		st := add(*w, false)
+		switch s.GetString("status") {
+		case engine.StatusApproved:
+			st.HasApproved = true
+			if seq := s.GetInt("approval_sequence_number"); seq >= st.approvedSeq {
+				st.approvedSeq = seq
+				st.LensID = s.GetString("lens_id")
+			}
+		case engine.StatusGenerating:
+			st.Generating = true
+		}
+	}
+	out := make([]WindowState, 0, len(order))
+	for _, key := range order {
+		out = append(out, *byKey[key])
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Start != out[j].Start {
+			return out[i].Start < out[j].Start
+		}
+		return out[i].End < out[j].End
+	})
+	return out
+}
+
+// PendingWindows are the materialized windows that still need a snapshot:
+// no approved output yet and no generation in flight. Oldest first, so a
+// catch-up (or a backfill) walks history forward.
+func PendingWindows(app core.App, rec *core.Record, now time.Time) []api.Window {
+	var pending []api.Window
+	for _, st := range SeriesWindows(app, rec, now) {
+		if st.HasApproved || st.Generating {
+			continue
+		}
+		pending = append(pending, st.Window)
+	}
+	return pending
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -50,7 +51,7 @@ func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.R
 		return nil, e.BadRequestError(err.Error(), err)
 	}
 	now := time.Now()
-	series := engine.SeriesWindows(app, rec, now)
+	series := reflections.SeriesWindows(app, rec, now)
 	if req.WindowID != "" {
 		for _, s := range series {
 			if s.ID == req.WindowID {
@@ -83,7 +84,7 @@ func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.R
 	}
 	switch {
 	case len(candidates) == 0:
-		return []*api.Window{engine.DefaultRefinementWindow(rec, now)}, nil
+		return []*api.Window{reflections.DefaultRefinementWindow(rec, now)}, nil
 	case len(candidates) == 1 || req.AllWindows:
 		ptrs := make([]*api.Window, len(candidates))
 		for i := range candidates {
@@ -113,19 +114,19 @@ func HandleBackfillReflection(app core.App, runner engine.Runner) func(e *core.R
 		if err != nil {
 			return e.BadRequestError("from must be RFC3339", err)
 		}
-		rec, err := engine.FindLive(app, engine.ReflectionStrategy{}, id)
+		rec, err := reflections.FindLive(app, id)
 		if err != nil {
 			return e.NotFoundError("reflection not found", err)
 		}
-		windows, err := engine.MaterializeBackfill(app, rec, from, time.Now())
+		windows, err := reflections.MaterializeBackfill(app, rec, from, time.Now())
 		switch {
-		case errors.Is(err, engine.ErrBackfillOutOfRange):
+		case errors.Is(err, reflections.ErrBackfillOutOfRange):
 			return e.BadRequestError(err.Error(), err)
 		case err != nil:
 			logger(app).Error("reflection backfill failed", "reflection_id", id, "error", err)
 			return e.InternalServerError("backfill failed", err)
 		}
-		engine.RunPendingWindows(runner, app, id)
+		reflections.RunPendingWindows(runner, app, id)
 		return e.JSON(http.StatusOK, api.BackfillResponse{Windows: windows})
 	}
 }
@@ -140,7 +141,7 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 		if id == "" {
 			return e.BadRequestError("reflection id required", nil)
 		}
-		rec, err := engine.FindLive(app, engine.ReflectionStrategy{}, id)
+		rec, err := reflections.FindLive(app, id)
 		if err != nil {
 			return e.NotFoundError("reflection not found", err)
 		}
@@ -150,7 +151,7 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 				stale[w.ID] = true
 			}
 		}
-		series := engine.SeriesWindows(app, rec, time.Now())
+		series := reflections.SeriesWindows(app, rec, time.Now())
 		currentLens := rec.GetString("current_lens_id")
 		res := api.ReflectionWindowsResponse{Windows: make([]api.WindowInfo, 0, len(series))}
 		for _, st := range series {
@@ -164,7 +165,7 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 				LensOutdated: st.HasApproved && st.LensID != currentLens,
 			})
 		}
-		if win := engine.DefaultRefinementWindow(rec, time.Now()); win != nil {
+		if win := reflections.DefaultRefinementWindow(rec, time.Now()); win != nil {
 			res.CurrentWindowID = win.ID
 		}
 		return e.JSON(http.StatusOK, res)
@@ -203,7 +204,7 @@ func HandleCreateReflection(app core.App) func(e *core.RequestEvent) error {
 			if st, err := time.Parse(time.RFC3339, spec.StartTime); err == nil && st.Before(effective) {
 				effective = st
 			}
-			versions := engine.AppendWindowSpecVersion(nil, spec, effective)
+			versions := reflections.AppendWindowSpecVersion(nil, spec, effective)
 			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 
 			if err := txApp.Save(rec); err != nil {
@@ -229,7 +230,7 @@ func HandleUpdateReflection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("id required", nil)
 		}
 
-		rec, err := engine.FindLive(app, engine.ReflectionStrategy{}, id)
+		rec, err := reflections.FindLive(app, id)
 		if err != nil {
 			return e.NotFoundError("reflection not found", err)
 		}
@@ -253,13 +254,13 @@ func HandleUpdateReflection(app core.App) func(e *core.RequestEvent) error {
 		}
 		if req.WindowSpec != nil {
 			spec := *req.WindowSpec
-			versions := engine.LoadWindowSpecVersions(rec)
+			versions := reflections.LoadWindowSpecVersions(rec)
 			if spec.StartTime == "" {
-				if cur, ok := engine.GoverningVersion(versions, time.Now()); ok {
+				if cur, ok := reflections.GoverningVersion(versions, time.Now()); ok {
 					spec.StartTime = cur.Spec.StartTime
 				}
 			}
-			versions = engine.AppendWindowSpecVersion(versions, spec, time.Now())
+			versions = reflections.AppendWindowSpecVersion(versions, spec, time.Now())
 			rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 		}
 		if req.Pinned != nil && e.Auth != nil {
@@ -310,7 +311,7 @@ func HandleDeleteReflection(app core.App) func(e *core.RequestEvent) error {
 			return e.NoContent(http.StatusNoContent)
 		}
 
-		inFlight, err := engine.HasLiveClaim(app, engine.ReflectionStrategy{}, id)
+		inFlight, err := engine.HasLiveClaim(app, reflections.Strategy{}, id)
 		if err != nil {
 			logger(app).Error("delete reflection failed", "id", id, "error", err)
 			return e.InternalServerError("delete reflection failed", err)
@@ -371,7 +372,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			status = engine.StatusPending
 		}
 
-		rec, err := engine.FindLive(app, engine.ReflectionStrategy{}, id)
+		rec, err := reflections.FindLive(app, id)
 		if err != nil {
 			return e.NotFoundError("reflection not found", err)
 		}
@@ -397,7 +398,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			for _, w := range windowsToGenerate {
 				plain = append(plain, *w)
 			}
-			for _, r := range engine.GenerateWindows(genCtx, app, id, status, engine.ReflectionStrategy{}, plain) {
+			for _, r := range engine.GenerateWindows(genCtx, app, id, status, reflections.Strategy{}, plain) {
 				if r.Err != nil {
 					if firstErr == nil {
 						firstErr = r.Err
@@ -409,11 +410,11 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			windowsToGenerate = nil
 		}
 		for _, w := range windowsToGenerate {
-			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, engine.ReflectionStrategy{}, w)
+			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
 			if errors.Is(err, engine.ErrGenerationInFlight) {
-				snapID, err = joinGeneration(e.Request.Context(), app, engine.ReflectionStrategy{}, id, w)
+				snapID, err = joinGeneration(e.Request.Context(), app, reflections.Strategy{}, id, w)
 				if errors.Is(err, engine.ErrGenerationAbandoned) {
-					snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, engine.ReflectionStrategy{}, w)
+					snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
 				}
 			}
 			if err != nil {

@@ -15,7 +15,9 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -80,7 +82,7 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 			var snap *core.Record
 			var parent *core.Record
 			if targetCol == "projection" {
-				if _, err := engine.FindLive(txApp, engine.ProjectionStrategy{}, targetID); err != nil {
+				if _, err := projections.FindLive(txApp, targetID); err != nil {
 					return err
 				}
 				rec.Set("projection_id", targetID)
@@ -93,7 +95,7 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				}
 			} else {
 				rec.Set("reflection_id", targetID)
-				parent, err = engine.FindLive(txApp, engine.ReflectionStrategy{}, targetID)
+				parent, err = reflections.FindLive(txApp, targetID)
 				if err != nil {
 					return err
 				}
@@ -136,10 +138,10 @@ func handleCreateRefinementGeneric(app core.App, targetCol, snapColName, targetR
 				if reqWindow != nil && reqWindow.Start != "" && reqWindow.End != "" {
 					win = &api.Window{Start: reqWindow.Start, End: reqWindow.End}
 				} else {
-					win = engine.DefaultRefinementWindow(parent, time.Now())
+					win = reflections.DefaultRefinementWindow(parent, time.Now())
 				}
 				if win != nil {
-					win.ID = engine.WindowID(targetID, *win)
+					win.ID = reflections.WindowID(targetID, *win)
 				}
 			}
 
@@ -240,7 +242,7 @@ func seedLensTurn(app core.App, parent *core.Record, win *api.Window) (api.UIMes
 		parts = append(parts, p)
 	}
 	if win != nil {
-		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, parent.Id, win)
+		filter, params := engine.ApprovedSnapshotFilter(reflections.Strategy{}, parent.Id, win)
 		if snaps, err := app.FindRecordsByFilter(schema.ColReflectionSnapshot.String(), filter, "-approval_sequence_number", 1, 0, params); err == nil && len(snaps) > 0 {
 			if output := strings.TrimSpace(snaps[0].GetString("output")); output != "" {
 				if p, ok := toolCallPart(llm.ToolCall{ID: fmt.Sprintf("seed-apply-%d", now), Name: prompts.ApplyResultToolName,
@@ -406,9 +408,9 @@ func handleCommitRefinementGeneric(app core.App, deps Deps, targetCol, refinemen
 
 		var strat engine.Strategy
 		if targetCol == "projection" {
-			strat = engine.ProjectionStrategy{}
+			strat = projections.Strategy{}
 		} else {
-			strat = engine.ReflectionStrategy{}
+			strat = reflections.Strategy{}
 		}
 
 		sourceSnapID := refRec.GetString(snapshotField)
@@ -434,7 +436,7 @@ func handleCommitRefinementGeneric(app core.App, deps Deps, targetCol, refinemen
 			// grid. Windows that already have a snapshot keep it, marked as
 			// produced by an older lens, until Refresh or a per-window
 			// regenerate brings them forward.
-			engine.RunPendingWindows(deps.Runner, app, parentID)
+			reflections.RunPendingWindows(deps.Runner, app, parentID)
 		} else {
 			logger(app).Info("refinement committed", "target_type", targetCol, "id", parentID, "refinement_id", refRec.Id, "snapshot_id", newSnapID)
 		}

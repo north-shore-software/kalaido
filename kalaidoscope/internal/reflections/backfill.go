@@ -1,16 +1,17 @@
 // UNREVIEWED
-package engine
+package reflections
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"log/slog"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -18,6 +19,13 @@ import (
 // ErrBackfillOutOfRange rejects a backfill that starts at or after the point
 // the grid already covers.
 var ErrBackfillOutOfRange = errors.New("backfill start must be before the windows already on the grid")
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "reflections")
+	}
+	return slog.Default().With("component", "reflections")
+}
 
 // MaterializeBackfill records every grid window between `from` and the point
 // the governing version already covers (spec/model.md §Window Backfill),
@@ -62,10 +70,10 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 	for _, w := range windows {
 		row := core.NewRecord(col)
 		row.Set("reflection_id", rec.Id)
-		setSnapshotWindow(row, &w)
+		engine.SetSnapshotWindow(row, &w)
 		if err := app.Save(row); err != nil {
 			// Already materialized: the unique index says so.
-			start, end := WindowBounds(&w)
+			start, end := engine.WindowBounds(&w)
 			existing, _ := app.FindFirstRecordByFilter(schema.ColReflectionWindow.String(),
 				"reflection_id = {:id} && window_start = {:ws} && window_end = {:we}",
 				map[string]any{"id": rec.Id, "ws": start.String(), "we": end.String()})
@@ -77,19 +85,12 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 	return windows, nil
 }
 
-// A Runner runs work off the caller's goroutine under a lifetime it owns:
-// the server's runner is cancelled and awaited at shutdown, and a test's can
-// run inline or drop the work, so no goroutine outlives its app.
-type Runner interface {
-	Go(f func(ctx context.Context))
-}
-
 // RunPendingWindows generates, in the background and at background priority,
 // every window the reflection currently owes (PendingWindows). One pass: a
 // window whose generation fails stays pending for the next run rather than
 // being retried in a loop. The DB is the state — a restart mid-run loses
 // nothing but the goroutines.
-func RunPendingWindows(r Runner, app core.App, reflectionID string) {
+func RunPendingWindows(r engine.Runner, app core.App, reflectionID string) {
 	r.Go(func(ctx context.Context) { GeneratePendingWindows(ctx, app, reflectionID) })
 }
 
@@ -108,53 +109,19 @@ func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID stri
 	logger(app).Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
 
 	ctx = llmq.WithPriority(ctx, llmq.Background)
-	results := GenerateWindows(ctx, app, reflectionID, StatusApproved, ReflectionStrategy{}, pending)
+	results := engine.GenerateWindows(ctx, app, reflectionID, engine.StatusApproved, Strategy{}, pending)
 	generated := 0
 	for i, r := range results {
 		switch {
 		case r.Err == nil:
 			generated++
-		case errors.Is(r.Err, ErrLensNotReady):
+		case errors.Is(r.Err, engine.ErrLensNotReady):
 			logger(app).Warn("backfill: no lens yet", "reflection_id", reflectionID)
-		case errors.Is(r.Err, ErrGenerationInFlight):
+		case errors.Is(r.Err, engine.ErrGenerationInFlight):
 			// Someone else is producing this window; leave it to them.
 		default:
 			logger(app).Error("backfill window failed", "reflection_id", reflectionID, "window", WindowKey(pending[i]), "error", r.Err)
 		}
 	}
 	logger(app).Info("backfill completed", "reflection_id", reflectionID, "generated", generated, "count", len(pending))
-}
-
-// WindowResult is one window's outcome from GenerateWindows.
-type WindowResult struct {
-	SnapshotID string
-	Err        error
-}
-
-// GenerateWindows generates every window at once, one goroutine each, and
-// returns their outcomes in the same order. Concurrency is not throttled
-// here: every model call passes through llmq, which caps in-flight calls per
-// provider (one on local Ollama, wide on hosted APIs), so windows run as
-// parallel as the provider allows and no more. A preempted call retries;
-// the retry blocks in the scheduler until a slot frees up.
-func GenerateWindows(ctx context.Context, app core.App, targetID, status string, strat Strategy, windows []api.Window) []WindowResult {
-	results := make([]WindowResult, len(windows))
-	var wg sync.WaitGroup
-	for i := range windows {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			w := windows[i]
-			for {
-				id, err := GenerateSnapshot(ctx, app, targetID, status, strat, &w)
-				if errors.Is(err, llmq.ErrPreempted) {
-					continue
-				}
-				results[i] = WindowResult{SnapshotID: id, Err: err}
-				return
-			}
-		}(i)
-	}
-	wg.Wait()
-	return results
 }

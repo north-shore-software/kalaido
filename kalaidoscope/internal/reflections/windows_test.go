@@ -1,5 +1,5 @@
 // UNREVIEWED
-package engine
+package reflections_test
 
 import (
 	"testing"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -33,7 +34,7 @@ func assertWindows(t *testing.T, got []api.Window, want [][2]time.Time) {
 // the still-open one excluded.
 func TestGridWindowsTumbling(t *testing.T) {
 	day := 24 * time.Hour
-	got := GridWindows("r", api.WindowSpec{Period: "168h", Duration: "168h"}, t0, t0.Add(22*day))
+	got := reflections.GridWindows("r", api.WindowSpec{Period: "168h", Duration: "168h"}, t0, t0.Add(22*day))
 	assertWindows(t, got, [][2]time.Time{
 		{t0, t0.Add(7 * day)},
 		{t0.Add(7 * day), t0.Add(14 * day)},
@@ -43,7 +44,7 @@ func TestGridWindowsTumbling(t *testing.T) {
 
 // A missing Duration means tumbling.
 func TestGridWindowsDefaultsDurationToPeriod(t *testing.T) {
-	got := GridWindows("r", api.WindowSpec{Period: "24h"}, t0, t0.Add(25*time.Hour))
+	got := reflections.GridWindows("r", api.WindowSpec{Period: "24h"}, t0, t0.Add(25*time.Hour))
 	assertWindows(t, got, [][2]time.Time{{t0, t0.Add(24 * time.Hour)}})
 }
 
@@ -52,7 +53,7 @@ func TestGridWindowsDefaultsDurationToPeriod(t *testing.T) {
 // §Boundary Semantics, first-window truncation).
 func TestGridWindowsOverlappingTruncatesAtOrigin(t *testing.T) {
 	day := 24 * time.Hour
-	got := GridWindows("r", api.WindowSpec{Period: "24h", Duration: "72h"}, t0, t0.Add(4*day+time.Hour))
+	got := reflections.GridWindows("r", api.WindowSpec{Period: "24h", Duration: "72h"}, t0, t0.Add(4*day+time.Hour))
 	assertWindows(t, got, [][2]time.Time{
 		{t0, t0.Add(1 * day)},
 		{t0, t0.Add(2 * day)},
@@ -64,7 +65,7 @@ func TestGridWindowsOverlappingTruncatesAtOrigin(t *testing.T) {
 // Gapped (Duration < Period): the window is the Duration before each grid
 // point; the leading gap after the origin is not covered.
 func TestGridWindowsGapped(t *testing.T) {
-	got := GridWindows("r", api.WindowSpec{Period: "24h", Duration: "1h"}, t0, t0.Add(48*time.Hour))
+	got := reflections.GridWindows("r", api.WindowSpec{Period: "24h", Duration: "1h"}, t0, t0.Add(48*time.Hour))
 	assertWindows(t, got, [][2]time.Time{
 		{t0.Add(23 * time.Hour), t0.Add(24 * time.Hour)},
 		{t0.Add(47 * time.Hour), t0.Add(48 * time.Hour)},
@@ -76,7 +77,7 @@ func TestGridWindowsGapped(t *testing.T) {
 func TestGridWindowsStartTimeInPastEnumeratesHistory(t *testing.T) {
 	day := 24 * time.Hour
 	now := t0.Add(30 * day)
-	got := GridWindows("r", api.WindowSpec{StartTime: rfc(t0), Period: "168h", Duration: "168h"}, t0, now)
+	got := reflections.GridWindows("r", api.WindowSpec{StartTime: rfc(t0), Period: "168h", Duration: "168h"}, t0, now)
 	if len(got) != 4 {
 		t.Fatalf("got %d windows, want 4 full weeks since start", len(got))
 	}
@@ -91,7 +92,7 @@ func TestGridWindowsStartTimeInPastEnumeratesHistory(t *testing.T) {
 func TestGridWindowsLaterVersionDoesNotReenumerate(t *testing.T) {
 	day := 24 * time.Hour
 	effective := t0.Add(20 * day)
-	got := GridWindows("r", api.WindowSpec{StartTime: rfc(t0), Period: "168h", Duration: "168h"}, effective, t0.Add(30*day))
+	got := reflections.GridWindows("r", api.WindowSpec{StartTime: rfc(t0), Period: "168h", Duration: "168h"}, effective, t0.Add(30*day))
 	assertWindows(t, got, [][2]time.Time{
 		{t0.Add(14 * day), t0.Add(21 * day)},
 		{t0.Add(21 * day), t0.Add(28 * day)},
@@ -99,7 +100,7 @@ func TestGridWindowsLaterVersionDoesNotReenumerate(t *testing.T) {
 }
 
 func TestGridWindowsUnscheduled(t *testing.T) {
-	if got := GridWindows("r", api.WindowSpec{}, t0, t0.Add(time.Hour)); got != nil {
+	if got := reflections.GridWindows("r", api.WindowSpec{}, t0, t0.Add(time.Hour)); got != nil {
 		t.Fatalf("unscheduled spec produced windows: %+v", got)
 	}
 }
@@ -110,12 +111,12 @@ func TestGridWindowsUnscheduled(t *testing.T) {
 func TestDefaultRefinementWindowTrailingBeforeFirstGridPoint(t *testing.T) {
 	app := testutil.NewApp(t)
 	now := t0.Add(2 * time.Hour)
-	versions := AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, t0)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, t0)
 	rec := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "R", "window_spec_versions": pbutil.JSONObject(versions),
 	})
 
-	win := DefaultRefinementWindow(rec, now)
+	win := reflections.DefaultRefinementWindow(rec, now)
 	if win == nil {
 		t.Fatal("no default window")
 	}
@@ -128,12 +129,12 @@ func TestDefaultRefinementWindowTrailingBeforeFirstGridPoint(t *testing.T) {
 func TestDefaultRefinementWindowIsCurrentGridWindow(t *testing.T) {
 	app := testutil.NewApp(t)
 	day := 24 * time.Hour
-	versions := AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, t0)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, t0)
 	rec := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "R", "window_spec_versions": pbutil.JSONObject(versions),
 	})
 
-	win := DefaultRefinementWindow(rec, t0.Add(16*day))
+	win := reflections.DefaultRefinementWindow(rec, t0.Add(16*day))
 	if win == nil {
 		t.Fatal("no default window")
 	}
@@ -144,11 +145,11 @@ func TestDefaultRefinementWindowIsCurrentGridWindow(t *testing.T) {
 
 func TestDefaultRefinementWindowUnscheduledIsNil(t *testing.T) {
 	app := testutil.NewApp(t)
-	versions := AppendWindowSpecVersion(nil, api.WindowSpec{}, t0)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{}, t0)
 	rec := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "R", "window_spec_versions": pbutil.JSONObject(versions),
 	})
-	if win := DefaultRefinementWindow(rec, t0.Add(time.Hour)); win != nil {
+	if win := reflections.DefaultRefinementWindow(rec, t0.Add(time.Hour)); win != nil {
 		t.Fatalf("unscheduled reflection got a window: %+v", win)
 	}
 }

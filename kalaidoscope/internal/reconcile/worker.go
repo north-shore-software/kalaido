@@ -37,6 +37,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
@@ -307,10 +309,10 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 	var strat engine.Strategy
 	var genStatus string
 	if s.Type == "reflection" {
-		strat = engine.ReflectionStrategy{}
+		strat = reflections.Strategy{}
 		genStatus = engine.StatusApproved // reflections publish live, as everywhere else
 	} else {
-		strat = engine.ProjectionStrategy{}
+		strat = projections.Strategy{}
 		genStatus = engine.StatusPending // projections get review candidates
 	}
 
@@ -331,7 +333,7 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 			windows = append(windows, &s.StaleWindows[i])
 		}
 	} else {
-		if s.Type == "reflection" && len(engine.CurrentGridWindows(rec, time.Now())) > 0 {
+		if s.Type == "reflection" && len(reflections.CurrentGridWindows(rec, time.Now())) > 0 {
 			// A scheduled reflection owes nothing: its windows are all
 			// generated and fresh. A windowless snapshot is never the answer.
 			return nil

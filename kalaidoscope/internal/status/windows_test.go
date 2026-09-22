@@ -13,6 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
@@ -50,14 +51,14 @@ func TestReflectionStalenessIsPerWindow(t *testing.T) {
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": "L",
 	})
-	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "weekly", "status": engine.EntityActive,
 		"current_context_spec": pbutil.JSONObject(spec),
 		"current_lens_id":      lens.Id,
 		"window_spec_versions": pbutil.JSONObject(versions),
 	})
-	grid := engine.CurrentGridWindows(refl, now)
+	grid := reflections.CurrentGridWindows(refl, now)
 	if len(grid) != 2 {
 		t.Fatalf("grid = %d, want 2", len(grid))
 	}

@@ -1,10 +1,11 @@
 // UNREVIEWED
-package engine
+package projections
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
@@ -36,6 +38,13 @@ type EditResult struct {
 	FragmentID string
 }
 
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "projections")
+	}
+	return slog.Default().With("component", "projections")
+}
+
 // ApplyEdit records a hand edit of a pending candidate: an "edit" fragment
 // holding the passage before and after, pinned into the parent's
 // current_context_spec, and a new pending snapshot whose output is the
@@ -46,24 +55,22 @@ type EditResult struct {
 // The new row inherits the source's lens, model and resolved context (plus
 // the new fragment), so staleness reads it as current. Everything runs in one
 // transaction; a rejected edit leaves no trace. Projections only.
-func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID, oldText, newText string) (EditResult, error) {
-	if strat.TargetType() != "projection" {
-		return EditResult{}, fmt.Errorf("edit: %s snapshots cannot be edited by hand", strat.TargetType())
-	}
+func ApplyEdit(ctx context.Context, app core.App, parentID, sourceSnapshotID, oldText, newText string) (EditResult, error) {
+	strat := Strategy{}
 	var res EditResult
 	err := app.RunInTransaction(func(tx core.App) error {
-		parent, err := FindLive(tx, strat, parentID)
+		parent, err := FindLive(tx, parentID)
 		if err != nil {
-			return fmt.Errorf("edit: %s %s: %w", strat.TargetType(), parentID, err)
+			return fmt.Errorf("edit: projection %s: %w", parentID, err)
 		}
 		src, err := tx.FindRecordById(strat.SnapshotCollectionName(), sourceSnapshotID)
 		if err != nil {
 			return fmt.Errorf("edit: candidate %s: %w", sourceSnapshotID, err)
 		}
 		if src.GetString(strat.ForeignKeyCol()) != parentID {
-			return fmt.Errorf("edit: candidate %s does not belong to %s %s", sourceSnapshotID, strat.TargetType(), parentID)
+			return fmt.Errorf("edit: candidate %s does not belong to projection %s", sourceSnapshotID, parentID)
 		}
-		if src.GetString("status") != StatusPending {
+		if src.GetString("status") != engine.StatusPending {
 			return fmt.Errorf("%w: %w", ErrEditRejected, ErrEditNotPending)
 		}
 
@@ -82,8 +89,6 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 		frag.Set("ingested_via", "app")
 		frag.Set("source", fmt.Sprintf("edit to projection %q (candidate %s)", parent.GetString("name"), src.Id))
 		frag.Set("content", prompts.EditFragmentContent(oldText, newText))
-		// The fragment create hook (server) defaults occurred_at; set it here
-		// too so the row is complete wherever the hook is not installed.
 		frag.Set("occurred_at", types.NowDateTime())
 		if err := tx.Save(frag); err != nil {
 			return fmt.Errorf("edit: save fragment: %w", err)
@@ -108,15 +113,13 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 		pinned.FragmentIDs = appendUnique(pinned.FragmentIDs, frag.Id)
 		pinned.ExpandedIDs = appendUnique(pinned.ExpandedIDs, frag.Id)
 
-		// GenerationTrigger and CreatedFromRefinementID stay empty: a hand
-		// edit belongs to no speculative chain and came from no refinement.
-		snapID, err := AppendSnapshot(ctx, tx, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), SnapshotSpec{
+		snapID, err := engine.AppendSnapshot(ctx, tx, strat.SnapshotCollectionName(), strat.ForeignKeyCol(), engine.SnapshotSpec{
 			SourceID:        parentID,
 			LensID:          src.GetString("lens_id"),
 			Output:          newOutput,
 			ContextSpec:     snapSpec,
 			ResolvedContext: pinned,
-			Status:          StatusPending,
+			Status:          engine.StatusPending,
 			Model:           src.GetString("generated_by_model"),
 		})
 		if err != nil {
@@ -125,7 +128,7 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 
 		parent.Set("current_context_spec", pbutil.JSONObject(parentSpec))
 		if err := tx.Save(parent); err != nil {
-			return fmt.Errorf("edit: pin fragment on %s: %w", strat.TargetType(), err)
+			return fmt.Errorf("edit: pin fragment on projection: %w", err)
 		}
 
 		res = EditResult{SnapshotID: snapID, FragmentID: frag.Id}
@@ -135,15 +138,11 @@ func ApplyEdit(ctx context.Context, app core.App, strat Strategy, parentID, sour
 		return EditResult{}, err
 	}
 	logger(app).Info("candidate edited by hand",
-		"target_type", strat.TargetType(), "id", parentID, "source_snapshot_id", sourceSnapshotID,
+		"target_type", "projection", "id", parentID, "source_snapshot_id", sourceSnapshotID,
 		"snapshot_id", res.SnapshotID, "fragment_id", res.FragmentID)
 	return res, nil
 }
 
-// replacePassage swaps the single occurrence of oldText in output for newText.
-// A passage that appears twice is refused rather than guessed at: "replace
-// the selection" has no one answer then, and the user can widen the selection.
-// An empty newText deletes the passage, as long as something remains.
 func replacePassage(output, oldText, newText string) (string, error) {
 	if oldText == "" {
 		return "", ErrEditTextNotFound

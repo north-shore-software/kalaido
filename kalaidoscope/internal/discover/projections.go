@@ -15,6 +15,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -152,7 +153,7 @@ func (f projectionsFlow) Dispatch(ctx context.Context, c *Context, call llm.Tool
 	}
 	sourceIDs := union(nil, args.SourceProjectionIDs)
 	for _, id := range sourceIDs {
-		if _, err := engine.FindLive(c.App, engine.ProjectionStrategy{}, id); err != nil {
+		if _, err := projections.FindLive(c.App, id); err != nil {
 			return prompts.DiscoverRejected(prompts.DiscoverNoRecord("projection", id)), nil, nil
 		}
 	}

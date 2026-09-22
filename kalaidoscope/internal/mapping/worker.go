@@ -12,7 +12,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
@@ -38,7 +37,7 @@ type Worker struct {
 	logger     *slog.Logger
 	signal     workerutil.Signal
 	wantSettle atomic.Bool
-	followUps  followup.Queue
+	followUps  workerutil.Callbacks
 
 	annotating     atomic.Bool
 	drainErrMu     sync.Mutex
@@ -124,7 +123,7 @@ func (w *Worker) annotateLoop(ctx context.Context) error {
 		if err := w.signal.Wait(ctx); err != nil {
 			return err
 		}
-		active := w.followUps.Take()
+		active := w.followUps.Detach()
 		full := w.wantSettle.Swap(false)
 		w.annotating.Store(true)
 		err := w.drain(ctx, full)
@@ -133,7 +132,7 @@ func (w *Worker) annotateLoop(ctx context.Context) error {
 		if err != nil && !errors.Is(err, context.Canceled) {
 			w.logger.Error("drain failed", "error", err)
 		}
-		followup.Run(active, err)
+		active.Invoke(err)
 	}
 }
 

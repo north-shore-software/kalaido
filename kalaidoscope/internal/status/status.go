@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -105,7 +106,7 @@ func (e *Evaluator) buildNode(rec *core.Record, entityType string) *node {
 // pending. Returns done=false for a reflection with no windowed snapshot, which
 // the caller evaluates the windowless way.
 func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, status api.EntityStatus) (bool, api.EntityStatus) {
-	series := engine.SeriesWindows(e.app, n.record, e.now)
+	series := reflections.SeriesWindows(e.app, n.record, e.now)
 	windowed := false
 	for _, st := range series {
 		if st.HasApproved {
@@ -127,7 +128,7 @@ func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, statu
 			}
 			continue
 		}
-		filter, params := engine.ApprovedSnapshotFilter(engine.ReflectionStrategy{}, n.record.Id, &st.Window)
+		filter, params := engine.ApprovedSnapshotFilter(reflections.Strategy{}, n.record.Id, &st.Window)
 		snaps, err := e.app.FindRecordsByFilter(schema.ColReflectionSnapshot.String(), filter,
 			"-approval_sequence_number", 1, 0, params)
 		if err != nil || len(snaps) == 0 {
@@ -301,7 +302,7 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	// unscheduled one, or one scheduled after the fact): it may still owe
 	// grid windows.
 	if n.entityType == "reflection" {
-		status.PendingWindows = engine.PendingWindows(e.app, n.record, e.now)
+		status.PendingWindows = reflections.PendingWindows(e.app, n.record, e.now)
 	}
 
 	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 &&

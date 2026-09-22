@@ -10,6 +10,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -96,14 +97,14 @@ func TestProposeReflectionWritesScheduleFromOnset(t *testing.T) {
 	if !strings.Contains(text, "12 fragments in scope, holding 12 of 12 about Thing t_news") {
 		t.Fatalf("reply = %q, want the member count and the cover", text)
 	}
-	versions := engine.LoadWindowSpecVersions(rec)
+	versions := reflections.LoadWindowSpecVersions(rec)
 	if len(versions) != 1 || versions[0].VersionNumber != 1 {
 		t.Fatalf("versions = %+v", versions)
 	}
 	if versions[0].EffectiveFrom != "2026-06-01T00:00:00Z" || versions[0].Spec.StartTime != "2026-06-01T00:00:00Z" || versions[0].Spec.Period != "168h" {
 		t.Fatalf("first version = %+v, want effective from the start date", versions[0])
 	}
-	if grid := engine.CurrentGridWindows(rec, now); len(grid) != 13 {
+	if grid := reflections.CurrentGridWindows(rec, now); len(grid) != 13 {
 		t.Fatalf("grid = %d windows, want 13 weekly windows since the onset", len(grid))
 	}
 

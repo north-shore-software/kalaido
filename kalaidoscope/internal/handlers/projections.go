@@ -11,6 +11,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -57,7 +58,7 @@ func HandleUpdateProjection(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("id required", nil)
 		}
 
-		rec, err := engine.FindLive(app, engine.ProjectionStrategy{}, id)
+		rec, err := projections.FindLive(app, id)
 		if err != nil {
 			return e.NotFoundError("projection not found", err)
 		}
@@ -121,7 +122,7 @@ func HandleDeleteProjection(app core.App) func(e *core.RequestEvent) error {
 			return e.NoContent(http.StatusNoContent)
 		}
 
-		inFlight, err := engine.HasLiveClaim(app, engine.ProjectionStrategy{}, id)
+		inFlight, err := engine.HasLiveClaim(app, projections.Strategy{}, id)
 		if err != nil {
 			logger(app).Error("delete projection failed", "id", id, "error", err)
 			return e.InternalServerError("delete projection failed", err)
@@ -201,7 +202,7 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 			status = engine.StatusPending
 		}
 
-		_, err := engine.FindLive(app, engine.ProjectionStrategy{}, id)
+		_, err := projections.FindLive(app, id)
 		if err != nil {
 			return e.NotFoundError("projection not found", err)
 		}
@@ -214,11 +215,11 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		genCtx := context.WithoutCancel(e.Request.Context())
-		snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, engine.ProjectionStrategy{}, nil)
+		snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
 		if errors.Is(err, engine.ErrGenerationInFlight) {
-			snapID, err = joinGeneration(e.Request.Context(), app, engine.ProjectionStrategy{}, id, nil)
+			snapID, err = joinGeneration(e.Request.Context(), app, projections.Strategy{}, id, nil)
 			if errors.Is(err, engine.ErrGenerationAbandoned) {
-				snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, engine.ProjectionStrategy{}, nil)
+				snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
 			}
 		}
 
@@ -252,7 +253,7 @@ func HandleApproveCandidate(app core.App, deps Deps) func(e *core.RequestEvent) 
 		if herr != nil {
 			return herr
 		}
-		if err := engine.ApproveSnapshot(e.Request.Context(), app, engine.ProjectionStrategy{}, snapID); err != nil {
+		if err := engine.ApproveSnapshot(e.Request.Context(), app, projections.Strategy{}, snapID); err != nil {
 			logger(app).Error("approve failed", "target_type", "projection", "error", err)
 			if errors.Is(err, engine.ErrNotApprovable) {
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
@@ -277,14 +278,14 @@ func HandleEditCandidate(app core.App) func(e *core.RequestEvent) error {
 		if req.OldText == "" {
 			return e.BadRequestError("oldText required", nil)
 		}
-		res, err := engine.ApplyEdit(context.WithoutCancel(e.Request.Context()), app, engine.ProjectionStrategy{},
+		res, err := projections.ApplyEdit(context.WithoutCancel(e.Request.Context()), app,
 			e.Request.PathValue("id"), snapID, req.OldText, req.NewText)
 		if err != nil {
 			logger(app).Error("edit failed", "target_type", "projection", "error", err)
 			switch {
-			case errors.Is(err, engine.ErrEditNotPending):
+			case errors.Is(err, projections.ErrEditNotPending):
 				return e.Error(http.StatusConflict, err.Error(), err)
-			case errors.Is(err, engine.ErrEditRejected):
+			case errors.Is(err, projections.ErrEditRejected):
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			}
 			return e.InternalServerError("edit failed", err)

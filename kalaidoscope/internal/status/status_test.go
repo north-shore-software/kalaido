@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
@@ -102,7 +103,7 @@ func TestApprovingACandidateGeneratedAgainstOldContext(t *testing.T) {
 	})
 
 	if err := engine.ApproveSnapshot(
-		context.Background(), app, engine.ProjectionStrategy{}, candidate.Id,
+		context.Background(), app, projections.Strategy{}, candidate.Id,
 	); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestApprovingACandidateAfterAFragmentLands(t *testing.T) {
 	f3 := addFragment(t, app, "third")
 
 	if err := engine.ApproveSnapshot(
-		context.Background(), app, engine.ProjectionStrategy{}, candidate.Id,
+		context.Background(), app, projections.Strategy{}, candidate.Id,
 	); err != nil {
 		t.Fatalf("approve: %v", err)
 	}

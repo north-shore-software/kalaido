@@ -8,7 +8,6 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
@@ -30,7 +29,7 @@ type Worker struct {
 
 	pendingMu sync.Mutex
 	pending   map[string]bool
-	followUps followup.Queue
+	followUps workerutil.Callbacks
 	runningMu sync.Mutex
 	running   string
 }
@@ -108,7 +107,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		if err := w.wake.Wait(ctx); err != nil {
 			return err
 		}
-		active := w.followUps.Take()
+		active := w.followUps.Detach()
 		var last error
 		for _, kind := range w.takePending() {
 			if ctx.Err() != nil {
@@ -122,6 +121,6 @@ func (w *Worker) Run(ctx context.Context) error {
 				last = err
 			}
 		}
-		followup.Run(active, last)
+		active.Invoke(last)
 	}
 }

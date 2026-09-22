@@ -1,5 +1,5 @@
 // UNREVIEWED
-package engine
+package reflections_test
 
 import (
 	"testing"
@@ -8,15 +8,17 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
 func weeklyReflection(t *testing.T, app core.App, effective time.Time) *core.Record {
 	t.Helper()
-	versions := AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
 	return testutil.NewRecord(t, app, "reflection", map[string]any{
-		"name": "weekly", "status": EntityActive,
+		"name": "weekly", "status": engine.EntityActive,
 		"window_spec_versions": pbutil.JSONObject(versions),
 	})
 }
@@ -30,20 +32,20 @@ func TestPendingWindowsExcludesApprovedAndInFlight(t *testing.T) {
 	now := t0.Add(16 * day) // two completed weeks
 	refl := weeklyReflection(t, app, eff)
 
-	grid := CurrentGridWindows(refl, now)
+	grid := reflections.CurrentGridWindows(refl, now)
 	if len(grid) != 2 {
 		t.Fatalf("grid = %d windows, want 2", len(grid))
 	}
-	if got := PendingWindows(app, refl, now); len(got) != 2 {
+	if got := reflections.PendingWindows(app, refl, now); len(got) != 2 {
 		t.Fatalf("pending = %d, want both windows", len(got))
 	}
 
 	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
-		"reflection_id": refl.Id, "status": StatusApproved, "approval_sequence_number": 1,
+		"reflection_id": refl.Id, "status": engine.StatusApproved, "approval_sequence_number": 1,
 		"output":       "week one",
 		"window_start": grid[0].Start, "window_end": grid[0].End,
 	})
-	got := PendingWindows(app, refl, now)
+	got := reflections.PendingWindows(app, refl, now)
 	if len(got) != 1 || got[0].ID != grid[1].ID {
 		t.Fatalf("pending after approving week one = %+v, want only week two", got)
 	}
@@ -51,13 +53,13 @@ func TestPendingWindowsExcludesApprovedAndInFlight(t *testing.T) {
 	// A generation claim parks the window: the claim row is written by the
 	// real claim path and read back through the DB's own date format, so
 	// this also checks that a window round-trips to the same series key.
-	if _, err := claimGeneration(app, ReflectionStrategy{}, refl.Id, &grid[1]); err != nil {
+	if _, err := engine.ClaimGeneration(app, reflections.Strategy{}, refl.Id, &grid[1]); err != nil {
 		t.Fatal(err)
 	}
-	if got := PendingWindows(app, refl, now); len(got) != 0 {
+	if got := reflections.PendingWindows(app, refl, now); len(got) != 0 {
 		t.Fatalf("pending with a claim open = %+v, want none", got)
 	}
-	series := SeriesWindows(app, refl, now)
+	series := reflections.SeriesWindows(app, refl, now)
 	if len(series) != 2 || !series[0].HasApproved || !series[1].Generating || series[1].ID != grid[1].ID {
 		t.Fatalf("series = %+v, want week one approved and week two generating", series)
 	}
@@ -73,7 +75,7 @@ func TestMaterializeBackfillAlignsWithGrid(t *testing.T) {
 	refl := weeklyReflection(t, app, eff)
 
 	from := eff.Add(-15 * day)
-	windows, err := MaterializeBackfill(app, refl, from, now)
+	windows, err := reflections.MaterializeBackfill(app, refl, from, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +86,7 @@ func TestMaterializeBackfillAlignsWithGrid(t *testing.T) {
 		{eff.Add(-7 * day), eff},
 	})
 
-	again, err := MaterializeBackfill(app, refl, from, now)
+	again, err := reflections.MaterializeBackfill(app, refl, from, now)
 	if err != nil || len(again) != 3 {
 		t.Fatalf("second backfill: %d windows, err %v", len(again), err)
 	}
@@ -93,18 +95,18 @@ func TestMaterializeBackfillAlignsWithGrid(t *testing.T) {
 		t.Fatalf("reflection_window rows = %d, want 3 (idempotent)", len(rows))
 	}
 
-	series := SeriesWindows(app, refl, now)
+	series := reflections.SeriesWindows(app, refl, now)
 	if len(series) != 4 {
 		t.Fatalf("series = %d windows, want 3 backfilled + 1 grid", len(series))
 	}
 	if !series[0].Backfilled || series[3].Backfilled {
 		t.Errorf("backfilled flags wrong: %+v", series)
 	}
-	if got := PendingWindows(app, refl, now); len(got) != 4 {
+	if got := reflections.PendingWindows(app, refl, now); len(got) != 4 {
 		t.Errorf("pending = %d, want all 4", len(got))
 	}
 
-	if _, err := MaterializeBackfill(app, refl, eff.Add(day), now); err != ErrBackfillOutOfRange {
+	if _, err := reflections.MaterializeBackfill(app, refl, eff.Add(day), now); err != reflections.ErrBackfillOutOfRange {
 		t.Errorf("backfill inside the covered range: err = %v, want ErrBackfillOutOfRange", err)
 	}
 }
