@@ -467,11 +467,37 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	}
 
 	st, _ := entityStatus(context.Background(), app, refl.Id)
-	windows, herr := reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateSnapshotRequest{All: true}, st)
+	windows, herr := reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateSnapshotRequest{AllWindows: true}, st)
 	if herr != nil {
 		t.Fatal(herr)
 	}
 	if len(windows) != 2 {
 		t.Fatalf("generate all covers %d windows, want the pending one and the lens-outdated one", len(windows))
+	}
+
+	// Exclusive: specifying both windowId and allWindows must fail.
+	_, herr = reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateSnapshotRequest{
+		WindowID:   "some-window",
+		AllWindows: true,
+	}, st)
+	if herr == nil {
+		t.Fatal("expected error when both windowId and allWindows are specified, got nil")
+	}
+
+	// JSON unmarshaling supports both legacy "all" and "allWindows".
+	var req1 api.GenerateSnapshotRequest
+	if err := json.Unmarshal([]byte(`{"all":true}`), &req1); err != nil {
+		t.Fatalf("unmarshal legacy all: %v", err)
+	}
+	if !req1.AllWindows {
+		t.Fatal("expected AllWindows=true from legacy all=true")
+	}
+
+	var req2 api.GenerateSnapshotRequest
+	if err := json.Unmarshal([]byte(`{"allWindows":true}`), &req2); err != nil {
+		t.Fatalf("unmarshal allWindows: %v", err)
+	}
+	if !req2.AllWindows {
+		t.Fatal("expected AllWindows=true from allWindows=true")
 	}
 }

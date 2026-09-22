@@ -1,6 +1,11 @@
 // UNREVIEWED
 package api
 
+import (
+	"encoding/json"
+	"errors"
+)
+
 type GenerateSnapshotRequest struct {
 	SourceID    string      `json:"sourceId"` // ProjectionID or ReflectionID
 	ChatID      string      `json:"chatId"`
@@ -9,7 +14,31 @@ type GenerateSnapshotRequest struct {
 	Messages    []UIMessage `json:"messages"`
 	Preview     bool        `json:"preview"`
 	WindowID    string      `json:"windowId,omitempty"`
-	All         bool        `json:"all,omitempty"`
+	AllWindows  bool        `json:"allWindows,omitempty"`
+}
+
+func (r GenerateSnapshotRequest) Validate() error {
+	if r.WindowID != "" && r.AllWindows {
+		return errors.New("cannot specify both windowId and allWindows=true")
+	}
+	return nil
+}
+
+// UnmarshalJSON supports both "allWindows" and the legacy "all" JSON key.
+func (r *GenerateSnapshotRequest) UnmarshalJSON(data []byte) error {
+	type rawRequest GenerateSnapshotRequest
+	var raw struct {
+		rawRequest
+		All bool `json:"all"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*r = GenerateSnapshotRequest(raw.rawRequest)
+	if raw.All {
+		r.AllWindows = true
+	}
+	return nil
 }
 
 type GenerateSnapshotResponse struct {

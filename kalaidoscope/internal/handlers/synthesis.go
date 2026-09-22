@@ -56,9 +56,12 @@ func entityStatus(ctx context.Context, app core.App, id string) (api.EntityStatu
 // explicit windowId may name any materialized window (a re-run of history);
 // otherwise the candidates are the windows owed (pending), those gone stale,
 // and those whose snapshot predates the current lens — all of them with
-// all=true; and when nothing is owed, the current window — never a windowless
+// allWindows=true; and when nothing is owed, the current window — never a windowless
 // snapshot for a scheduled reflection.
 func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
+	if err := req.Validate(); err != nil {
+		return nil, e.BadRequestError(err.Error(), err)
+	}
 	now := time.Now()
 	series := engine.SeriesWindows(app, rec, now)
 	if req.WindowID != "" {
@@ -94,14 +97,14 @@ func reflectionWindowsToGenerate(e *core.RequestEvent, app core.App, rec *core.R
 	switch {
 	case len(candidates) == 0:
 		return []*api.Window{engine.DefaultRefinementWindow(rec, now)}, nil
-	case len(candidates) == 1 || req.All:
+	case len(candidates) == 1 || req.AllWindows:
 		out := make([]*api.Window, 0, len(candidates))
 		for i := range candidates {
 			out = append(out, &candidates[i])
 		}
 		return out, nil
 	default:
-		return nil, e.BadRequestError("multiple pending windows; specify windowId or all=true", nil)
+		return nil, e.BadRequestError("multiple pending windows; specify windowId or allWindows=true", nil)
 	}
 }
 
@@ -113,7 +116,12 @@ func handleGenerateSnapshot(app core.App, strat engine.Strategy) func(e *core.Re
 		}
 
 		var req api.GenerateSnapshotRequest
-		_ = e.BindBody(&req) // defaults to empty
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		if err := req.Validate(); err != nil {
+			return e.BadRequestError(err.Error(), err)
+		}
 
 		status := engine.StatusPending
 		if !req.Preview {
