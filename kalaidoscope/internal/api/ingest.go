@@ -67,3 +67,8 @@ type IngestResponse struct {
 	FragmentID string `json:"fragmentId"`
 	Ingested   int    `json:"ingested"`
 }
+
+type ImportsStatus struct {
+	Pending   int    `json:"pending"`
+	LastError string `json:"lastError,omitempty"`
+}
