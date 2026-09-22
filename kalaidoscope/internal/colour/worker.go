@@ -1,3 +1,4 @@
+// UNREVIEWED
 // Package colour keeps colour_fragment in step with each colour's definition.
 // Thing-backed membership is mechanical (match.go); prompt-backed membership
 // is judged by the colour role in a watermark worker (this file): every colour

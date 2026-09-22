@@ -1,3 +1,4 @@
+// UNREVIEWED
 package api
 
 // EntityStatus is one entity's freshness. StaleDependencies and BlockedBy both

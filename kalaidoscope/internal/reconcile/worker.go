@@ -1,3 +1,4 @@
+// UNREVIEWED
 // Package reconcile keeps the candidate set fresh: a speculative generation
 // wave drains the entire stale set in dependency order, each entity generating
 // against its upstreams' latest output whether or not it has been approved

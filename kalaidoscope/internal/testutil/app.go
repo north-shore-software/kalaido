@@ -1,3 +1,4 @@
+// UNREVIEWED
 // Package testutil boots a real PocketBase instance against a temporary directory
 // so tests can exercise code that talks to collections, rather than mocking the
 // database out from under it.
