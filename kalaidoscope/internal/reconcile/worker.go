@@ -39,6 +39,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
 
 // Options tune a Worker.
@@ -69,7 +70,7 @@ type Worker struct {
 	// Buffered by one: a wave requested while one is running coalesces into
 	// a single follow-up wave, which is sound because every wave re-derives
 	// the stale set from scratch.
-	signal chan struct{}
+	signal workerutil.Signal
 
 	autoWave     bool
 	debounceFor  time.Duration
@@ -105,7 +106,7 @@ func NewWorker(app core.App, opts Options) *Worker {
 	return &Worker{
 		app:          app,
 		logger:       logger(app),
-		signal:       make(chan struct{}, 1),
+		signal:       workerutil.NewSignal(),
 		autoWave:     opts.AutoWave,
 		debounceFor:  opts.Debounce,
 		retryBackoff: defaultRetryBackoff,
@@ -187,10 +188,7 @@ func (w *Worker) StartWave() {
 func (w *Worker) OnMapSettled(core.App) { w.EnqueueWave() }
 
 func (w *Worker) signalWave() {
-	select {
-	case w.signal <- struct{}{}:
-	default:
-	}
+	w.signal.Notify()
 }
 
 // Run runs a wave on every signal until ctx is cancelled, then stops the
@@ -199,10 +197,8 @@ func (w *Worker) signalWave() {
 func (w *Worker) Run(ctx context.Context) error {
 	defer w.stopTimers()
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-w.signal:
+		if err := w.signal.Wait(ctx); err != nil {
+			return err
 		}
 		w.stateMu.Lock()
 		w.running, w.lastStarted = true, time.Now()

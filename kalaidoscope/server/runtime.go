@@ -8,14 +8,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -27,10 +24,7 @@ const shutdownGrace = 10 * time.Second
 // work. It builds them at construction, wires their hooks, starts them when
 // the app serves, and drains them when it terminates.
 type runtime struct {
-	colour    *colour.Worker
-	mapping   *mapping.Worker
-	reconcile *reconcile.Worker
-	discover  *discover.Worker
+	workers   *workers.Manager
 	runner    *engine.TrackedRunner
 	scheduler *llmq.Scheduler
 	logger    *slog.Logger
@@ -42,25 +36,16 @@ type runtime struct {
 
 func newRuntime(app core.App, opts Options) *runtime {
 	ctx, cancel := context.WithCancel(context.Background())
+	mgr := workers.New(app, workers.Options{AutoWave: opts.AutoWave})
 	rt := &runtime{
-		colour:    colour.NewWorker(app),
-		mapping:   mapping.NewWorker(app),
-		reconcile: reconcile.NewWorker(app, reconcile.Options{AutoWave: opts.AutoWave}),
+		workers:   mgr,
 		runner:    engine.NewTrackedRunner(ctx),
 		scheduler: llmq.New(llmq.ConfigForProvider(llm.ActiveProviderID())),
 		logger:    logger(app),
 		cancel:    cancel,
 	}
 	app.Store().Set(usage.SchedulerStoreKey, rt.scheduler)
-	rt.discover = discover.NewWorker(app, rt.mapping)
 	rt.group, ctx = errgroup.WithContext(ctx)
-
-	// Order matters: colour recomputes thing-backed membership from the
-	// settled map, then the wave regenerates whatever that membership feeds.
-	rt.mapping.OnSettle(rt.colour.OnMapSettled)
-	rt.mapping.OnSettle(rt.reconcile.OnMapSettled)
-	rt.colour.OnDrained(rt.reconcile.EnqueueWave)
-
 	rt.ctx = ctx
 	return rt
 }
@@ -71,11 +56,8 @@ func (rt *runtime) Scheduler() *llmq.Scheduler {
 
 func (rt *runtime) deps() handlers.Deps {
 	return handlers.Deps{
-		Colour:    rt.colour,
-		Mapping:   rt.mapping,
-		Reconcile: rt.reconcile,
-		Discover:  rt.discover,
-		Runner:    rt.runner,
+		Manager: rt.workers,
+		Runner:  rt.runner,
 	}
 }
 
@@ -97,17 +79,8 @@ func (rt *runtime) bind(app core.App) {
 }
 
 func (rt *runtime) start() {
-	rt.group.Go(func() error { return rt.colour.Run(rt.ctx) })
-	rt.group.Go(func() error { return rt.mapping.Run(rt.ctx) })
-	rt.group.Go(func() error { return rt.reconcile.Run(rt.ctx) })
-	rt.group.Go(func() error { return rt.discover.Run(rt.ctx) })
-
-	// Boot kicks: work left by a crash or an offline provider resumes from
-	// the state in the database.
-	rt.colour.Signal()
-	rt.mapping.KickIfPending()
-	rt.reconcile.LogPolicy()
-	rt.reconcile.EnqueueWave()
+	rt.workers.Start(rt.ctx, rt.group)
+	rt.workers.BootKicks()
 }
 
 // stop cancels every worker and detached task and waits, bounded, for them

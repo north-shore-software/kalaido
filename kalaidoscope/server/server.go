@@ -109,13 +109,13 @@ func RegisterTriggers(app core.App, rt *runtime) {
 	})
 
 	app.OnRecordAfterCreateSuccess("fragment").BindFunc(func(e *core.RecordEvent) error {
-		rt.colour.Signal()
+		rt.workers.Colour.Signal()
 		if e.Record.GetString("ingested_via") != "import" {
-			rt.mapping.SignalAnnotate()
+			rt.workers.Mapping.SignalAnnotate()
 			// A fragment written from the app (a note, a hand edit, a saved
 			// bookmark) is in scope the moment it lands. Imports signal once,
 			// when the whole batch is in (ingest.processIngestRecord).
-			rt.reconcile.EnqueueWave()
+			rt.workers.Reconcile.EnqueueWave()
 		}
 		return e.Next()
 	})
@@ -131,7 +131,7 @@ func RegisterTriggers(app core.App, rt *runtime) {
 	})
 
 	ingest.RegisterHooks(app, ingest.Deps{
-		Mapping: rt.mapping, Reconcile: rt.reconcile, Discover: rt.discover, Runner: rt.runner,
+		Mapping: rt.workers.Mapping, Reconcile: rt.workers.Reconcile, Discover: rt.workers.Discover, Runner: rt.runner,
 	})
 	config.RegisterHooks(app)
 }

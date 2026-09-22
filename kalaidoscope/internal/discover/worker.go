@@ -10,6 +10,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
 
 func logger(app core.App) *slog.Logger {
@@ -25,7 +26,7 @@ type Worker struct {
 	app    core.App
 	logger *slog.Logger
 	maps   *mapping.Worker // a run waits for the map to settle first
-	wake   chan struct{}   // buffered by one: wakes coalesce
+	wake   workerutil.Signal
 
 	pendingMu sync.Mutex
 	pending   map[string]bool
@@ -36,7 +37,7 @@ type Worker struct {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App, maps *mapping.Worker) *Worker {
-	return &Worker{app: app, logger: logger(app), maps: maps, wake: make(chan struct{}, 1), pending: map[string]bool{}}
+	return &Worker{app: app, logger: logger(app), maps: maps, wake: workerutil.NewSignal(), pending: map[string]bool{}}
 }
 
 // Running is the kind currently running, or "".
@@ -77,10 +78,7 @@ func (w *Worker) Signal(kind string) {
 	w.pendingMu.Lock()
 	w.pending[kind] = true
 	w.pendingMu.Unlock()
-	select {
-	case w.wake <- struct{}{}:
-	default:
-	}
+	w.wake.Notify()
 }
 
 // AfterDrain runs fn once the next drain ends, with its last error.
@@ -107,10 +105,8 @@ func (w *Worker) takePending() []string {
 // returns ctx.Err(). A flow in progress finishes its current round first.
 func (w *Worker) Run(ctx context.Context) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-w.wake:
+		if err := w.wake.Wait(ctx); err != nil {
+			return err
 		}
 		active := w.followUps.Take()
 		var last error

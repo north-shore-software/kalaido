@@ -14,6 +14,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -35,7 +36,7 @@ func logger(app core.App) *slog.Logger {
 type Worker struct {
 	app        core.App
 	logger     *slog.Logger
-	signal     chan struct{} // buffered by one: wakes coalesce
+	signal     workerutil.Signal
 	wantSettle atomic.Bool
 	followUps  followup.Queue
 
@@ -55,7 +56,7 @@ type Worker struct {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App) *Worker {
-	return &Worker{app: app, logger: logger(app), signal: make(chan struct{}, 1)}
+	return &Worker{app: app, logger: logger(app), signal: workerutil.NewSignal()}
 }
 
 // Annotating reports whether an annotate drain is in progress.
@@ -88,10 +89,7 @@ func (w *Worker) Signal() {
 // SignalAnnotate asks for an annotate drain only; consolidation waits for
 // the timer. Coalesces.
 func (w *Worker) SignalAnnotate() {
-	select {
-	case w.signal <- struct{}{}:
-	default:
-	}
+	w.signal.Notify()
 }
 
 // AfterDrain runs fn once the next drain ends, with its error.
@@ -123,10 +121,8 @@ func (w *Worker) Run(ctx context.Context) error {
 
 func (w *Worker) annotateLoop(ctx context.Context) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-w.signal:
+		if err := w.signal.Wait(ctx); err != nil {
+			return err
 		}
 		active := w.followUps.Take()
 		full := w.wantSettle.Swap(false)

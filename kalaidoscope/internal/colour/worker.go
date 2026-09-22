@@ -19,6 +19,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -40,22 +41,19 @@ func logger(app core.App) *slog.Logger {
 type Worker struct {
 	app     core.App
 	logger  *slog.Logger
-	signal  chan struct{} // buffered by one: wakes coalesce
+	signal  workerutil.Signal
 	drained []func()
 	settled *settledMark
 }
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App) *Worker {
-	return &Worker{app: app, logger: logger(app), signal: make(chan struct{}, 1), settled: newSettledMark()}
+	return &Worker{app: app, logger: logger(app), signal: workerutil.NewSignal(), settled: newSettledMark()}
 }
 
 // Signal asks the worker to drain. Coalesces.
 func (w *Worker) Signal() {
-	select {
-	case w.signal <- struct{}{}:
-	default:
-	}
+	w.signal.Notify()
 }
 
 // OnDrained registers fn to run after any drain that wrote links. Register
@@ -68,10 +66,8 @@ func (w *Worker) OnDrained(fn func()) {
 // A drain in progress finishes its current colour page first.
 func (w *Worker) Run(ctx context.Context) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-w.signal:
+		if err := w.signal.Wait(ctx); err != nil {
+			return err
 		}
 		wrote, err := drain(ctx, w.app)
 		if err != nil && !errors.Is(err, context.Canceled) {
