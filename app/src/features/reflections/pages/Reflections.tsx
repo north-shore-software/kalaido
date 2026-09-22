@@ -37,7 +37,7 @@ export default function Reflections() {
   const { id, windowId } = useAppParams<"reflections">();
 
   const { records: reflections, isLoading } = useLiveCollection("reflection", {
-    filter: 'name != "" && status = "active"',
+    filter: 'name != "" && status = "active" && deleted_at = ""',
     sort: "-updated",
   });
 

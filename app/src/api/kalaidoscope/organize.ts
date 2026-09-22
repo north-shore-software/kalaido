@@ -59,6 +59,24 @@ export interface OrganizeStatus {
   /** Waves start on their own (KALAIDO_AUTO_WAVE) or only from Start. */
   policy?: { wave: boolean };
   reconcile: ReconcileStatus;
+  colour?: ColourStatus;
+}
+
+export interface ColourStatus {
+  promptColoursCount: number;
+  totalColoursCount: number;
+  unjudgedFragments: number;
+  draining: boolean;
+}
+
+export interface CurrentEntityInfo {
+  id: string;
+  type: string;
+}
+
+export interface WaveProgress {
+  completed: number;
+  total: number;
 }
 
 /**
@@ -73,6 +91,10 @@ export interface ReconcileStatus {
   lastError?: string;
   /** RFC3339; absent until a wave has completed without error. */
   lastCompleted?: string;
+  /** RFC3339; absent unless the most recent wave was cancelled. */
+  lastCancelled?: string;
+  currentEntity?: CurrentEntityInfo;
+  progress?: WaveProgress;
 }
 
 export async function getOrganizeStatus(): Promise<
