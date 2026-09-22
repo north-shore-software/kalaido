@@ -10,13 +10,17 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/organize"
 )
 
-func HandleGetOrganize(app core.App, deps Deps) func(e *core.RequestEvent) error {
+// HandleGetStatus evaluates and returns the full Kaleidoscope system status under GET /api/status.
+func HandleGetStatus(app core.App, deps Deps) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		st, err := organize.Evaluate(e.Request.Context(), app, time.Now(), deps.organizeWorkers())
 		if err != nil {
-			logger(app).Error("organize status evaluation failed", "error", err)
-			return e.InternalServerError("failed to evaluate organize status", err)
+			logger(app).Error("status evaluation failed", "error", err)
+			return e.InternalServerError("failed to evaluate status", err)
 		}
 		return e.JSON(http.StatusOK, st)
 	}
 }
+
+// HandleGetOrganize is an alias for HandleGetStatus under legacy GET /api/organize.
+var HandleGetOrganize = HandleGetStatus

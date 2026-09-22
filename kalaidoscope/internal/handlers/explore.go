@@ -20,7 +20,7 @@ import (
 // HandleExplore handles conversational workspace exploration turns under POST /api/explore.
 func HandleExplore(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		req := api.ChatRequest{}
+		req := api.ExploreRequest{}
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid explore request body", err)
 		}

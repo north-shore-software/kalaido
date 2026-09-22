@@ -96,7 +96,7 @@ func jsonStringChunk(s string) string {
 // reflection refinements under POST /api/refinements/chat.
 func HandleRefinementChat(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		req := api.ChatRequest{}
+		req := api.RefinementChatRequest{}
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid chat request body", err)
 		}
@@ -117,7 +117,7 @@ func HandleRefinementChat(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func HandleChatForRefinement(app core.App, req api.ChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
+func HandleChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		ctx := e.Request.Context()
 

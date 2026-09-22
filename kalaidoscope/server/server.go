@@ -199,7 +199,8 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 
 		se.Router.GET("/api/rotation", handlers.HandleGetRotation(app))
 
-		se.Router.GET("/api/organize", handlers.HandleGetOrganize(app, deps))
+		se.Router.GET("/api/status", handlers.HandleGetStatus(app, deps))
+		se.Router.GET("/api/organize", handlers.HandleGetStatus(app, deps))
 
 		se.Router.POST("/api/reconcile", handlers.HandleReconcile(deps.Reconcile))
 

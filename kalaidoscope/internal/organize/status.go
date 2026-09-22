@@ -23,8 +23,8 @@ type Workers struct {
 	Discover  *discover.Worker
 }
 
-func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.OrganizeStatus, error) {
-	var st api.OrganizeStatus
+func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.KalaidoscopeStatus, error) {
+	var st api.KalaidoscopeStatus
 
 	fragments, err := app.CountRecords(schema.ColFragment.String(), dbx.NewExp("deleted_at = ''"))
 	if err != nil {
@@ -52,9 +52,6 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 		return st, err
 	}
 
-	st.Policy = api.OrganizePolicy{
-		Wave: w.Reconcile.WaveEnabled(),
-	}
 	wave := w.Reconcile.Status()
 	st.Reconcile = api.ReconcileStatus{
 		Running:   wave.Running,
