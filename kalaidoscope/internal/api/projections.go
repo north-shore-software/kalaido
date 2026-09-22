@@ -5,6 +5,35 @@ type ProjectionSnapshotResponse struct {
 	SnapshotID string `json:"snapshotId"`
 }
 
+type GenerateProjectionSnapshotRequest struct {
+	SourceID    string      `json:"sourceId"` // ProjectionID
+	ChatID      string      `json:"chatId"`
+	FragmentIDs []string    `json:"fragmentIds"`
+	ColourIDs   []string    `json:"colourIds"`
+	Messages    []UIMessage `json:"messages"`
+	Preview     bool        `json:"preview"`
+}
+
+type ReviewCandidateRequest struct {
+	SnapshotID string `json:"snapshotId"`
+}
+
+// EditCandidateRequest is the body of
+// POST /api/projections/{id}/candidates/{rid}/edit: replace the one exact
+// occurrence of OldText in the pending candidate's output with NewText. The
+// client sends the raw markdown slice it selected, so the match is verbatim.
+type EditCandidateRequest struct {
+	OldText string `json:"oldText"`
+	NewText string `json:"newText"`
+}
+
+// EditCandidateResponse names the new pending snapshot carrying the edit and
+// the "edit" fragment that records it.
+type EditCandidateResponse struct {
+	SnapshotID string `json:"snapshotId"`
+	FragmentID string `json:"fragmentId"`
+}
+
 type CreateProjectionResponse struct {
 	ProjectionID string `json:"projectionId"`
 }

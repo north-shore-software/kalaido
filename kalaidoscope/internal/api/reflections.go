@@ -1,8 +1,47 @@
-// UNREVIEWED
 package api
+
+import (
+	"encoding/json"
+	"errors"
+)
 
 type ReflectionSnapshotResponse struct {
 	SnapshotIDs []string `json:"snapshotIds"`
+}
+
+type GenerateReflectionSnapshotRequest struct {
+	SourceID    string      `json:"sourceId"` // ReflectionID
+	ChatID      string      `json:"chatId"`
+	FragmentIDs []string    `json:"fragmentIds"`
+	ColourIDs   []string    `json:"colourIds"`
+	Messages    []UIMessage `json:"messages"`
+	Preview     bool        `json:"preview"`
+	WindowID    string      `json:"windowId,omitempty"`
+	AllWindows  bool        `json:"allWindows,omitempty"`
+}
+
+func (r GenerateReflectionSnapshotRequest) Validate() error {
+	if r.WindowID != "" && r.AllWindows {
+		return errors.New("cannot specify both windowId and allWindows=true")
+	}
+	return nil
+}
+
+// UnmarshalJSON supports both "allWindows" and the legacy "all" JSON key.
+func (r *GenerateReflectionSnapshotRequest) UnmarshalJSON(data []byte) error {
+	type rawRequest GenerateReflectionSnapshotRequest
+	var raw struct {
+		rawRequest
+		All bool `json:"all"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*r = GenerateReflectionSnapshotRequest(raw.rawRequest)
+	if raw.All {
+		r.AllWindows = true
+	}
+	return nil
 }
 
 type CreateReflectionResponse struct {
