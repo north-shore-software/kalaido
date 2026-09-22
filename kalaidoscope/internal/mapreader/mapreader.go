@@ -68,16 +68,29 @@ func ChatReadTools() []llm.Tool {
 	}
 }
 
+func (r *Reader) Registry() agent.Registry {
+	tools := ChatReadTools()
+	return agent.Registry{
+		{
+			Tool: tools[0],
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				return r.ReadThings(agent.IDsArg(call)), false, nil
+			},
+		},
+		{
+			Tool: tools[1],
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				return r.ReadFragments(ctx, agent.IDsArg(call)), false, nil
+			},
+		},
+	}
+}
+
 func (r *Reader) Reads() int { return r.reads }
 
 func (r *Reader) Dispatch(ctx context.Context, call llm.ToolCall) (result string, ok bool) {
-	switch call.Name {
-	case prompts.ReadThingToolName:
-		return r.ReadThings(agent.IDsArg(call)), true
-	case prompts.ReadFragmentToolName:
-		return r.ReadFragments(ctx, agent.IDsArg(call)), true
-	}
-	return "", false
+	out, _, handled, _ := r.Registry().Dispatch(ctx, call)
+	return out, handled
 }
 
 func (r *Reader) ReadThings(refs []string) string {

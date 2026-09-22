@@ -36,7 +36,7 @@ func stringArray(description string) string {
 	return agent.StringArraySchema(description)
 }
 
-var readColourTool = idsTool(prompts.ReadColourToolName, prompts.ReadColourToolDescription, prompts.ReadColourParamDescription)
+var readColourTool = agent.IDsTool(prompts.ReadColourToolName, prompts.ReadColourToolDescription, prompts.ReadColourParamDescription)
 
 var proposeProjectionTool = llm.Tool{
 	Name:        prompts.ProposeProjectionToolName,

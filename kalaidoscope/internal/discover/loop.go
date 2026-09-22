@@ -13,25 +13,13 @@ import (
 
 const maxRounds = 30
 
-func idTool(name, description, param, paramDescription string) llm.Tool {
-	return agent.IDTool(name, description, param, paramDescription)
-}
-
-func idsTool(name, description, paramDescription string) llm.Tool {
-	return agent.IDsTool(name, description, paramDescription)
-}
-
-func emptyTool(name, description string) llm.Tool {
-	return agent.EmptyTool(name, description)
-}
-
 func sharedTools() []llm.Tool {
 	return []llm.Tool{
-		idsTool(prompts.ReadThingToolName, prompts.ReadThingToolDescription, prompts.ReadThingParamDescription),
-		idTool(prompts.ReadFragmentToolName, prompts.ReadFragmentToolDescription, "id", prompts.ReadFragmentParamDescription),
-		emptyTool(prompts.ListExistingToolName, prompts.ListExistingToolDescription),
-		emptyTool(prompts.CoverageToolName, prompts.CoverageToolDescription),
-		idTool(prompts.FinishToolName, prompts.FinishToolDescription, "summary", prompts.FinishSummaryParamDescription),
+		agent.IDsTool(prompts.ReadThingToolName, prompts.ReadThingToolDescription, prompts.ReadThingParamDescription),
+		agent.IDTool(prompts.ReadFragmentToolName, prompts.ReadFragmentToolDescription, "id", prompts.ReadFragmentParamDescription),
+		agent.EmptyTool(prompts.ListExistingToolName, prompts.ListExistingToolDescription),
+		agent.EmptyTool(prompts.CoverageToolName, prompts.CoverageToolDescription),
+		agent.IDTool(prompts.FinishToolName, prompts.FinishToolDescription, "summary", prompts.FinishSummaryParamDescription),
 	}
 }
 
@@ -47,6 +35,57 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 	}
 
 	var lastReply string
+	reg := agent.Registry{
+		{
+			Tool: agent.IDsTool(prompts.ReadThingToolName, prompts.ReadThingToolDescription, prompts.ReadThingParamDescription),
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				return c.ReadThings(agent.IDsArg(call)), false, nil
+			},
+		},
+		{
+			Tool: agent.IDTool(prompts.ReadFragmentToolName, prompts.ReadFragmentToolDescription, "id", prompts.ReadFragmentParamDescription),
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				return c.ReadFragment(ctx, agent.IDArg(call)), false, nil
+			},
+		},
+		{
+			Tool: agent.EmptyTool(prompts.ListExistingToolName, prompts.ListExistingToolDescription),
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				var err error
+				existing, err = flow.Existing(c)
+				if err != nil {
+					return "", false, err
+				}
+				return c.listExisting(existing), false, nil
+			},
+		},
+		{
+			Tool: agent.IDsTool(prompts.ReadColourToolName, prompts.ReadColourToolDescription, prompts.ReadColourParamDescription),
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				return c.ReadColours(agent.IDsArg(call)), false, nil
+			},
+		},
+		{
+			Tool: agent.EmptyTool(prompts.CoverageToolName, prompts.CoverageToolDescription),
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				return flow.Coverage(c, existing), false, nil
+			},
+		},
+		{
+			Tool: agent.IDTool(prompts.FinishToolName, prompts.FinishToolDescription, "summary", prompts.FinishSummaryParamDescription),
+			Handler: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+				// Some models put the closing note in the tool call rather than
+				// alongside it; either way it is the run's summary.
+				summary := lastReply
+				if strings.TrimSpace(summary) == "" {
+					summary = agent.StrArg(call, "summary")
+				}
+				c.Run.Set("summary", summary)
+				return "", true, nil
+			},
+		},
+	}
+
 	runner := agent.Runner{
 		MaxRounds: maxRounds,
 		Generate: func(ctx context.Context, curMsgs []llm.Message, round int) (agent.Turn, error) {
@@ -64,43 +103,16 @@ func runLoop(ctx context.Context, c *Context, flow Flow, model string) error {
 			lastReply = reply
 			return agent.Turn{Text: reply, ToolCalls: calls}, nil
 		},
-		Dispatch: func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
-			switch call.Name {
-			case prompts.ReadThingToolName:
-				return c.ReadThings(agent.IDsArg(call)), false, nil
-			case prompts.ReadFragmentToolName:
-				return c.ReadFragment(ctx, agent.IDArg(call)), false, nil
-			case prompts.ListExistingToolName:
-				var err error
-				existing, err = flow.Existing(c)
-				if err != nil {
-					return "", false, err
-				}
-				return c.listExisting(existing), false, nil
-			case prompts.ReadColourToolName:
-				return c.ReadColours(agent.IDsArg(call)), false, nil
-			case prompts.CoverageToolName:
-				return flow.Coverage(c, existing), false, nil
-			case prompts.FinishToolName:
-				// Some models put the closing note in the tool call rather than
-				// alongside it; either way it is the run's summary.
-				summary := lastReply
-				if strings.TrimSpace(summary) == "" {
-					summary = agent.StrArg(call, "summary")
-				}
-				c.Run.Set("summary", summary)
-				return "", true, nil
-			default:
-				text, out, err := flow.Dispatch(ctx, c, call)
-				if err != nil {
-					return "", false, err
-				}
-				if out != nil {
-					c.outputs = append(c.outputs, *out)
-				}
-				return text, false, nil
+		Dispatch: reg.Dispatcher(func(ctx context.Context, call llm.ToolCall) (string, bool, error) {
+			text, out, err := flow.Dispatch(ctx, c, call)
+			if err != nil {
+				return "", false, err
 			}
-		},
+			if out != nil {
+				c.outputs = append(c.outputs, *out)
+			}
+			return text, false, nil
+		}),
 		OnRoundEnd: func(ctx context.Context, round int) {
 			c.saveProgress()
 		},

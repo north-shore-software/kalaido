@@ -39,7 +39,8 @@ func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, m
 	if err != nil {
 		return fmt.Errorf("load map for summaries explore: %w", err)
 	}
-	tools := mapreader.ChatReadTools()
+	reg := reader.Registry()
+	tools := reg.Tools()
 
 	comp, err := usage.Stream(ctx, app, llm.RoleChat, model, msgs, tools)
 	if err != nil {
@@ -82,13 +83,9 @@ func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, m
 			}
 			return agent.Turn{Text: turn.Text, ToolCalls: turn.ToolCalls}, nil
 		},
-		Dispatch: func(ctx context.Context, tc llm.ToolCall) (string, bool, error) {
-			out, ok := reader.Dispatch(ctx, tc)
-			if !ok {
-				out = prompts.DiscoverUnknownTool(tc.Name)
-			}
-			return out, false, nil
-		},
+		Dispatch: reg.Dispatcher(func(ctx context.Context, tc llm.ToolCall) (string, bool, error) {
+			return prompts.DiscoverUnknownTool(tc.Name), false, nil
+		}),
 		OnToolDispatched: func(tc llm.ToolCall, out string) {
 			sse.ToolOutputAvailable(tc.ID, out)
 			if part, ok := chat.ToolResultPart(tc, out); ok {
