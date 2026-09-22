@@ -153,7 +153,7 @@ func pendingFragments(app core.App) ([]*core.Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "", 0, 0, nil)
+	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), schema.NotDeleted(), "", 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

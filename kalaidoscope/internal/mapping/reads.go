@@ -2,6 +2,8 @@
 package mapping
 
 import (
+	"sort"
+
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
@@ -47,11 +49,26 @@ func LoadRows(app core.App) ([]Row, error) {
 	return rows, nil
 }
 
-func ResolveRef(d *mapdoc.Document, ref string) *mapdoc.Thing {
-	if t := d.Find(ref); t != nil {
-		return t
+func fragmentDates(app core.App) (map[string]string, error) {
+	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), schema.NotDeleted(), "", 0, 0, nil)
+	if err != nil {
+		return nil, err
 	}
-	return findByName(d, ref)
+	dates := make(map[string]string, len(recs))
+	for _, r := range recs {
+		if st := r.GetDateTime("occurred_at"); !st.IsZero() {
+			dates[r.Id] = st.Time().Format("2006-01-02")
+		}
+	}
+	return dates, nil
+}
+
+func sortRowsByDate(rows []prompts.AnnotationRow) {
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Date < rows[j].Date })
+}
+
+func ResolveRef(d *mapdoc.Document, ref string) *mapdoc.Thing {
+	return d.Resolve(ref)
 }
 
 func IndexRows(d *mapdoc.Document, rows []Row) map[string][]int {
@@ -63,7 +80,7 @@ func IndexRows(d *mapdoc.Document, rows []Row) map[string][]int {
 			if ref == "" {
 				ref = c.Name
 			}
-			t := ResolveRef(d, ref)
+			t := d.Resolve(ref)
 			if t == nil || seen[t.ID] {
 				continue
 			}

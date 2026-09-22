@@ -111,7 +111,7 @@ func rematch(app core.App, cols []*core.Record) error {
 				}
 			}
 			for _, ref := range ids {
-				t := mapping.ResolveRef(doc, ref)
+				t := doc.Resolve(ref)
 				if t == nil {
 					continue
 				}
@@ -197,7 +197,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 	}
 	wanted := map[string]bool{}
 	for _, ref := range ids {
-		if t := mapping.ResolveRef(doc, ref); t != nil {
+		if t := doc.Resolve(ref); t != nil {
 			wanted[t.ID] = true
 		}
 	}
@@ -206,7 +206,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 		if ref == "" {
 			ref = c.Name
 		}
-		if t := mapping.ResolveRef(doc, ref); t != nil && wanted[t.ID] {
+		if t := doc.Resolve(ref); t != nil && wanted[t.ID] {
 			existing, err := findLink(app, colourID, fragmentID)
 			if err != nil {
 				return err

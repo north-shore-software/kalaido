@@ -64,11 +64,5 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 }
 
 func generate(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message) (string, error) {
-	var reply string
-	err := usage.RetryThrottled(ctx, func() error {
-		var err error
-		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, role, model, nil)
-		return err
-	})
-	return reply, err
+	return usage.GenerateOnceMsgsThrottled(ctx, app, msgs, role, model, nil)
 }

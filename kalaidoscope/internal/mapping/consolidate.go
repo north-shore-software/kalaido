@@ -4,7 +4,6 @@ package mapping
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -122,7 +121,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 	for i := range next.Things {
 		t := &next.Things[i]
 		if t.ID == "" {
-			t.ID = mintID()
+			t.ID = mapdoc.MintID()
 			admits++
 		}
 		kept[t.ID] = true
@@ -142,7 +141,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 	rels := next.Relationships[:0]
 	seen := map[string]bool{}
 	for _, r := range next.Relationships {
-		from, to := ResolveRef(next, r.From), ResolveRef(next, r.To)
+		from, to := next.Resolve(r.From), next.Resolve(r.To)
 		if from == nil || to == nil || from.ID == to.ID {
 			continue
 		}
@@ -161,7 +160,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 			if ref == "" {
 				ref = c.Name
 			}
-			t := ResolveRef(next, ref)
+			t := next.Resolve(ref)
 			if t == nil || bumped[t.ID] {
 				continue
 			}
@@ -181,22 +180,4 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 		}
 	}
 	return admits, merges
-}
-
-func fragmentDates(app core.App) (map[string]string, error) {
-	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "", 0, 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	dates := make(map[string]string, len(recs))
-	for _, r := range recs {
-		if st := r.GetDateTime("occurred_at"); !st.IsZero() {
-			dates[r.Id] = st.Time().Format("2006-01-02")
-		}
-	}
-	return dates, nil
-}
-
-func sortRowsByDate(rows []prompts.AnnotationRow) {
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Date < rows[j].Date })
 }

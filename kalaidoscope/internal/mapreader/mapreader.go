@@ -93,7 +93,7 @@ func (r *Reader) ReadThings(refs []string) string {
 }
 
 func (r *Reader) ReadThing(ref string) string {
-	t := mapping.ResolveRef(r.Doc, ref)
+	t := r.Doc.Resolve(ref)
 	if t == nil {
 		return prompts.DiscoverNoThing(ref)
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -75,7 +74,7 @@ func (f coloursFlow) Dispatch(ctx context.Context, c *Context, call llm.ToolCall
 	ids := make([]string, 0, len(args.ThingIDs))
 	seen := map[string]bool{}
 	for _, ref := range args.ThingIDs {
-		t := mapping.ResolveRef(c.Doc, ref)
+		t := c.Doc.Resolve(ref)
 		if t == nil {
 			return prompts.DiscoverRejected(prompts.DiscoverNoThing(ref)), nil, nil
 		}

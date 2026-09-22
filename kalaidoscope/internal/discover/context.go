@@ -13,7 +13,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapreader"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -76,7 +75,7 @@ func existingEntities(c *Context) ([]Existing, error) {
 		}
 		var names []string
 		for _, id := range colour.ThingIDs(rec) {
-			if t := mapping.ResolveRef(c.Doc, id); t != nil {
+			if t := c.Doc.Resolve(id); t != nil {
 				names = append(names, t.Name)
 			}
 		}
@@ -156,7 +155,7 @@ func (c *Context) loadColours() error {
 		}
 		info := colourInfo{ID: rec.Id, Name: rec.GetString("name"), Members: members, rowSet: map[int]bool{}}
 		for _, id := range colour.ThingIDs(rec) {
-			if t := mapping.ResolveRef(c.Doc, id); t != nil {
+			if t := c.Doc.Resolve(id); t != nil {
 				info.ThingIDs = append(info.ThingIDs, t.ID)
 				info.ThingNames = append(info.ThingNames, t.Name)
 			}
@@ -245,7 +244,7 @@ func (c *Context) resolveThings(refs []string) ([]string, string) {
 		if strings.TrimSpace(ref) == "" {
 			continue
 		}
-		t := mapping.ResolveRef(c.Doc, ref)
+		t := c.Doc.Resolve(ref)
 		if t == nil {
 			return nil, prompts.DiscoverNoThing(ref)
 		}

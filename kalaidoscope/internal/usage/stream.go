@@ -119,6 +119,17 @@ func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, rol
 	return sb.String(), nil
 }
 
+// GenerateOnceMsgsThrottled wraps GenerateOnceMsgs in RetryThrottled for background tasks.
+func GenerateOnceMsgsThrottled(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, model string, tools []llm.Tool) (string, error) {
+	var reply string
+	err := RetryThrottled(ctx, func() error {
+		var genErr error
+		reply, genErr = GenerateOnceMsgs(ctx, app, msgs, role, model, tools)
+		return genErr
+	})
+	return reply, err
+}
+
 // GenerateStreamMsgs is GenerateOnceMsgs with the text deltas additionally
 // forwarded through onDelta as they arrive, for callers relaying the
 // generation into a live stream (the refinement apply). The returned string
