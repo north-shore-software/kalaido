@@ -139,13 +139,12 @@ func RegisterTriggers(app core.App, rt *runtime) {
 func RegisterRoutes(app core.App, deps handlers.Deps) {
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		// Every response names the schema this server speaks, and one route
-		// reports the database's state, so a client (or the cloud proxy) can
-		// tell a version mismatch from any other failure. Nothing is enforced
-		// on requests yet; that is the client-side half, still to come.
+		// reports the database's state.
 		se.Router.BindFunc(func(e *core.RequestEvent) error {
 			e.Response.Header().Set("X-Kalaido-Schema-Version", strconv.Itoa(schema.Version))
 			return e.Next()
 		})
+
 		se.Router.GET("/api/schema", func(e *core.RequestEvent) error {
 			st, err := schema.CurrentStatus(app)
 			if err != nil {
@@ -160,14 +159,13 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 
 		se.Router.POST("/api/context/tokens", handlers.HandleResolveTokens(app))
 
-		// Chat bookmarks: the session's gathered messages and what becomes of them.
+		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
+		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))
+
+		// Chat
 		se.Router.PATCH("/api/chat/conversations/{cid}/messages/{mid}/bookmark", handlers.HandleBookmarkMessage(app))
 		se.Router.POST("/api/chat/conversations/{cid}/bookmarks/save", handlers.HandleSaveBookmarks(app))
 		se.Router.POST("/api/chat/conversations/{cid}/brief", handlers.HandleChatBrief(app))
-
-		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
-
-		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))
 
 		// Projections
 		se.Router.POST("/api/projections", handlers.HandleCreateProjection(app))
@@ -191,19 +189,17 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.POST("/api/reflections/{id}/refinements", handlers.HandleCreateReflectionRefinement(app))
 		se.Router.POST("/api/reflections/{id}/refinements/{rid}/commit", handlers.HandleCommitReflectionRefinement(app, deps))
 
-		// Colour endpoints
+		// Colours
 		se.Router.POST("/api/colours/preview", handlers.HandlePreviewColour(app))
 		se.Router.POST("/api/colours", handlers.HandleCreateColour(app, deps))
 		se.Router.PATCH("/api/colours/{id}", handlers.HandleUpdateColour(app, deps))
 		se.Router.DELETE("/api/colours/{id}", handlers.HandleDeleteColour(app))
 		se.Router.POST("/api/colours/{id}/rematch", handlers.HandleRematchColour(app, deps))
 
-		// Rotation / Staleness endpoint
 		se.Router.GET("/api/rotation", handlers.HandleGetRotation(app))
 
 		se.Router.GET("/api/organize", handlers.HandleGetOrganize(app, deps))
 
-		// Speculative "generate all" wave over the stale set
 		se.Router.POST("/api/reconcile", handlers.HandleReconcile(deps.Reconcile))
 
 		se.Router.POST("/api/map", handlers.HandleMapKick(deps.Mapping))
