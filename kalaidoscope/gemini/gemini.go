@@ -1,4 +1,3 @@
-// UNREVIEWED
 package gemini
 
 import (
@@ -40,76 +39,47 @@ func (p *Provider) ContextWindow() int {
 	return 1_000_000
 }
 
-type geminiContent struct {
-	Role  string       `json:"role,omitempty"`
-	Parts []geminiPart `json:"parts"`
-}
-
-type geminiFunctionCall struct {
-	Name string          `json:"name"`
-	Args json.RawMessage `json:"args"`
-}
-
-type geminiPart struct {
-	Text         string              `json:"text,omitempty"`
-	FunctionCall *geminiFunctionCall `json:"functionCall,omitempty"`
-}
-
-type geminiFunctionDeclaration struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  json.RawMessage `json:"parameters"`
-}
-
-type geminiTool struct {
-	FunctionDeclarations []geminiFunctionDeclaration `json:"functionDeclarations"`
-}
-
-type geminiGenerationConfig struct {
-	Temperature *float64 `json:"temperature,omitempty"`
-}
-
-type geminiRequest struct {
-	Contents          []geminiContent         `json:"contents"`
-	SystemInstruction *geminiContent          `json:"systemInstruction,omitempty"`
-	Tools             []geminiTool            `json:"tools,omitempty"`
-	GenerationConfig  *geminiGenerationConfig `json:"generationConfig,omitempty"`
-	ServiceTier       string                  `json:"service_tier,omitempty"`
-}
-
-type geminiStreamChunk struct {
-	Candidates []struct {
-		Content struct {
-			Parts []geminiPart `json:"parts"`
-		} `json:"content"`
-		// FinishReason arrives on the last chunk of a candidate. Anything but
-		// STOP (MALFORMED_FUNCTION_CALL, SAFETY, MAX_TOKENS, RECITATION, ...)
-		// is the only explanation an otherwise empty stream carries.
-		FinishReason  string `json:"finishReason"`
-		FinishMessage string `json:"finishMessage"`
-	} `json:"candidates"`
-	// PromptFeedback is set instead of candidates when the prompt itself was
-	// blocked; the stream then ends without a single content part.
-	PromptFeedback *struct {
-		BlockReason        string `json:"blockReason"`
-		BlockReasonMessage string `json:"blockReasonMessage"`
-	} `json:"promptFeedback"`
-	UsageMetadata *struct {
-		PromptTokenCount        int    `json:"promptTokenCount"`
-		CandidatesTokenCount    int    `json:"candidatesTokenCount"`
-		TotalTokenCount         int    `json:"totalTokenCount"`
-		CachedContentTokenCount int    `json:"cachedContentTokenCount"`
-		TrafficType             string `json:"trafficType"`
-	} `json:"usageMetadata"`
-}
-
 func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
+	apiKey, err := p.resolveAPIKey()
+	if err != nil {
+		return nil, err
+	}
+
+	body, meta, err := buildRequestBody(messages, tools, opts)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: marshal: %w", err)
+	}
+
+	resp, err := p.sendRequest(ctx, apiKey, body, meta)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan llm.StreamEvent)
+	done := make(chan struct{})
+	var finalUsage *llm.Usage
+	go func() {
+		defer close(done)
+		defer close(ch)
+		defer resp.Body.Close()
+
+		proc := newStreamProcessor(p, ctx, ch)
+		finalUsage = proc.process(resp.Body, meta)
+	}()
+
+	return &llm.Completion{
+		Events: ch,
+		Wait:   func() *llm.Usage { <-done; return finalUsage },
+	}, nil
+}
+
+func (p *Provider) resolveAPIKey() (string, error) {
 	apiKey := p.APIKey
 	if apiKey == "" {
 		apiKey = os.Getenv("GEMINI_API_KEY")
 	}
 	if apiKey == "" {
-		return nil, &llm.ProviderError{
+		return "", &llm.ProviderError{
 			Provider: llm.ProviderGemini,
 			Kind:     llm.ErrKindAuth,
 			Model:    p.Model,
@@ -117,21 +87,21 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		}
 	}
 	if p.Model == "" {
-		return nil, fmt.Errorf("gemini: no model set")
+		return "", fmt.Errorf("gemini: no model set")
 	}
+	return apiKey, nil
+}
 
-	// Only the leading system message is the system instruction. Every
-	// caller puts its prompt there; any later system message is a context
-	// delta from the hydrator (documents added or removed at that point in
-	// the conversation) and rides as a user-turn part in its real position.
-	// Folding those into the instruction did two wrong things: it hoisted a
-	// mid-conversation notice to the top, and it grew the instruction to the
-	// size of the whole context, which Gemini rejects as INVALID_ARGUMENT
-	// once the workspace is large enough (~500k chars observed) — while the
-	// same text as a user turn is accepted, as snapshot generation shows.
-	// Consecutive same-role turns merge into one content with several parts.
+type requestMeta struct {
+	shape  string
+	detail string
+}
+
+func buildRequestBody(messages []llm.Message, tools []llm.Tool, opts llm.GenOptions) ([]byte, requestMeta, error) {
 	contents := make([]geminiContent, 0, len(messages))
+
 	var systemText string
+
 	parts := 0
 	appendPart := func(role, text string) {
 		parts++
@@ -141,6 +111,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		}
 		contents = append(contents, geminiContent{Role: role, Parts: []geminiPart{{Text: text}}})
 	}
+
 	for i, m := range messages {
 		role := m.Role
 		switch role {
@@ -186,18 +157,22 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		GenerationConfig:  genConfig,
 		ServiceTier:       serviceTier,
 	})
+
 	if err != nil {
-		return nil, fmt.Errorf("gemini: marshal: %w", err)
+		return nil, requestMeta{}, err
 	}
 
-	// What the failure log reports besides the generic shape: the wire-level
-	// facts Gemini validates — the tier, the folded system instruction's
-	// size, and the turn count — since its 400s rarely say which one it
-	// objected to.
-	shape := llm.Shape(messages, tools, opts)
-	detail := fmt.Sprintf("tier=%s system_instruction=%dch contents=%d parts=%d body=%dB",
-		serviceTier, len(systemText), len(contents), parts, len(body))
+	meta := requestMeta{
+		shape: llm.Shape(messages, tools, opts),
+		detail: fmt.Sprintf("tier=%s system_instruction=%dch contents=%d parts=%d body=%dB",
+			serviceTier, len(systemText), len(contents), parts, len(body)),
+	}
 
+	return body, meta, nil
+}
+
+func (p *Provider) sendRequest(ctx context.Context, apiKey string, body []byte, meta requestMeta) (*http.Response, error) {
+	// TODO: make this URL pattern congurable (or at least not a magic string)
 	url := fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse", geminiBase, p.model())
 	llm.LogRequest(llm.ProviderGemini, p.model(), url, body)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
@@ -214,7 +189,7 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		llm.LogFailure(llm.ProviderGemini, p.model(), 0, shape, detail, err.Error())
+		llm.LogFailure(llm.ProviderGemini, p.model(), 0, meta.shape, meta.detail, err.Error())
 		return nil, &llm.ProviderError{
 			Provider: llm.ProviderGemini,
 			Kind:     llm.ErrKindTransient,
@@ -225,8 +200,8 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
-		llm.LogFailure(llm.ProviderGemini, p.model(), resp.StatusCode, shape, detail, string(body))
+		_ = resp.Body.Close()
+		llm.LogFailure(llm.ProviderGemini, p.model(), resp.StatusCode, meta.shape, meta.detail, string(body))
 		return nil, &llm.ProviderError{
 			Provider:   llm.ProviderGemini,
 			Kind:       classify(resp.StatusCode, body),
@@ -236,143 +211,175 @@ func (p *Provider) Stream(ctx context.Context, messages []llm.Message, tools []l
 		}
 	}
 
-	ch := make(chan llm.StreamEvent)
-	done := make(chan struct{})
+	return resp, nil
+}
+
+type streamProcessor struct {
+	provider       *Provider
+	ctx            context.Context
+	ch             chan<- llm.StreamEvent
+	usage          llm.Usage
+	sawUsage       bool
+	trafficType    string
+	activeCalls    map[string]string
+	completedCalls map[string]bool
+	// Why the stream ended, and what it carried: written at the end when
+	// the finish was not a plain STOP or nothing reached the caller, so a
+	// silent completion is diagnosable from the log alone.
+	finishReason  string
+	finishMessage string
+	blockReason   string
+	textParts     int
+	toolParts     int
+}
+
+func newStreamProcessor(p *Provider, ctx context.Context, ch chan<- llm.StreamEvent) *streamProcessor {
+	return &streamProcessor{
+		provider:       p,
+		ctx:            ctx,
+		ch:             ch,
+		usage:          llm.Usage{Provider: "gemini", Model: p.model()},
+		activeCalls:    make(map[string]string),
+		completedCalls: make(map[string]bool),
+	}
+}
+
+func (sp *streamProcessor) process(body io.Reader, meta requestMeta) *llm.Usage {
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+		var chunk geminiStreamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue
+		}
+		if !sp.handleChunk(chunk) {
+			return nil
+		}
+	}
+
 	var finalUsage *llm.Usage
-	go func() {
-		defer close(done)
-		defer close(ch)
-		defer resp.Body.Close()
+	if sp.sawUsage {
+		finalUsage = &sp.usage
+		// Priority overflow downgrades silently to the standard tier, so
+		// this line is the only place that shows which tier actually
+		// served the request (ON_DEMAND_PRIORITY vs ON_DEMAND).
+		slog.Default().With("component", "gemini").Debug("traffic type", "traffic_type", sp.trafficType, "model", sp.provider.model())
+	}
 
-		usage := llm.Usage{Provider: "gemini", Model: p.model()}
-		var sawUsage bool
-		var trafficType string
+	if sp.ctx.Err() != nil {
+		return finalUsage
+	}
 
-		activeCalls := make(map[string]string)
-		completedCalls := make(map[string]bool)
+	sp.logCompletion(meta)
+	return finalUsage
+}
 
-		// Why the stream ended, and what it carried: written at the end when
-		// the finish was not a plain STOP or nothing reached the caller, so a
-		// silent completion is diagnosable from the log alone.
-		var finishReason, finishMessage, blockReason string
-		var textParts, toolParts int
+func (sp *streamProcessor) handleChunk(chunk geminiStreamChunk) bool {
+	// usageMetadata is cumulative and present on later chunks; keep the latest.
+	if u := chunk.UsageMetadata; u != nil {
+		sp.usage.PromptTokens = u.PromptTokenCount
+		sp.usage.CompletionTokens = u.CandidatesTokenCount
+		sp.usage.TotalTokens = u.TotalTokenCount
+		sp.usage.CachedTokens = u.CachedContentTokenCount
+		if u.TrafficType != "" {
+			sp.trafficType = u.TrafficType
+		}
+		sp.sawUsage = true
+	}
+	if fb := chunk.PromptFeedback; fb != nil && fb.BlockReason != "" {
+		sp.blockReason = fb.BlockReason
+		if fb.BlockReasonMessage != "" {
+			sp.blockReason += " (" + fb.BlockReasonMessage + ")"
+		}
+	}
+	if len(chunk.Candidates) == 0 {
+		return true
+	}
+	if fr := chunk.Candidates[0].FinishReason; fr != "" {
+		sp.finishReason = fr
+		sp.finishMessage = chunk.Candidates[0].FinishMessage
+	}
+	for _, part := range chunk.Candidates[0].Content.Parts {
+		if !sp.handlePart(part) {
+			return false
+		}
+	}
+	return true
+}
 
-		scanner := bufio.NewScanner(resp.Body)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if !strings.HasPrefix(line, "data: ") {
-				continue
-			}
-			data := strings.TrimPrefix(line, "data: ")
-			if data == "[DONE]" {
-				break
-			}
-			var chunk geminiStreamChunk
-			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-				continue
-			}
-			// usageMetadata is cumulative and present on later chunks; keep the latest.
-			if u := chunk.UsageMetadata; u != nil {
-				usage.PromptTokens = u.PromptTokenCount
-				usage.CompletionTokens = u.CandidatesTokenCount
-				usage.TotalTokens = u.TotalTokenCount
-				usage.CachedTokens = u.CachedContentTokenCount
-				if u.TrafficType != "" {
-					trafficType = u.TrafficType
-				}
-				sawUsage = true
-			}
-			if fb := chunk.PromptFeedback; fb != nil && fb.BlockReason != "" {
-				blockReason = fb.BlockReason
-				if fb.BlockReasonMessage != "" {
-					blockReason += " (" + fb.BlockReasonMessage + ")"
-				}
-			}
-			if len(chunk.Candidates) == 0 {
-				continue
-			}
-			if fr := chunk.Candidates[0].FinishReason; fr != "" {
-				finishReason = fr
-				finishMessage = chunk.Candidates[0].FinishMessage
-			}
-			for _, part := range chunk.Candidates[0].Content.Parts {
-				if part.Text != "" {
-					textParts++
-					select {
-					case ch <- llm.StreamEvent{Kind: llm.EventText, Text: part.Text}:
-					case <-ctx.Done():
-						return
-					}
-				}
-				if part.FunctionCall != nil && part.FunctionCall.Name != "" {
-					name := part.FunctionCall.Name
-					id := activeCalls[name]
-					if id == "" {
-						id = fmt.Sprintf("call-%d", time.Now().UnixNano())
-						activeCalls[name] = id
-						toolParts++
-						select {
-						case ch <- llm.StreamEvent{
-							Kind:       llm.EventToolStart,
-							ToolCallID: id,
-							ToolName:   name,
-						}:
-						case <-ctx.Done():
-							return
-						}
-					}
-					if !completedCalls[name] && len(part.FunctionCall.Args) > 0 {
-						select {
-						case ch <- llm.StreamEvent{
-							Kind:       llm.EventToolEnd,
-							ToolCallID: id,
-							ToolName:   name,
-							Args:       part.FunctionCall.Args,
-						}:
-						case <-ctx.Done():
-							return
-						}
-						completedCalls[name] = true
-					}
-				}
+func (sp *streamProcessor) handlePart(part geminiPart) bool {
+	if part.Text != "" {
+		sp.textParts++
+		select {
+		case sp.ch <- llm.StreamEvent{Kind: llm.EventText, Text: part.Text}:
+		case <-sp.ctx.Done():
+			return false
+		}
+	}
+	if part.FunctionCall != nil && part.FunctionCall.Name != "" {
+		name := part.FunctionCall.Name
+		id := sp.activeCalls[name]
+		if id == "" {
+			id = fmt.Sprintf("call-%d", time.Now().UnixNano())
+			sp.activeCalls[name] = id
+			sp.toolParts++
+			select {
+			case sp.ch <- llm.StreamEvent{
+				Kind:       llm.EventToolStart,
+				ToolCallID: id,
+				ToolName:   name,
+			}:
+			case <-sp.ctx.Done():
+				return false
 			}
 		}
-		if sawUsage {
-			finalUsage = &usage
-			// Priority overflow downgrades silently to the standard tier, so
-			// this line is the only place that shows which tier actually
-			// served the request (ON_DEMAND_PRIORITY vs ON_DEMAND).
-			slog.Default().With("component", "gemini").Debug("traffic type", "traffic_type", trafficType, "model", p.model())
-		}
-		if ctx.Err() != nil {
-			return
-		}
-		// A completion that ended abnormally, or delivered nothing, is
-		// otherwise indistinguishable from a model that had nothing to say:
-		// name the finish reason (MALFORMED_FUNCTION_CALL is the usual one
-		// when the model reaches for a tool that was not advertised), the
-		// block reason, what was emitted, what was spent, and the call's
-		// shape, so one log line explains an empty turn.
-		abnormal := finishReason != "" && finishReason != "STOP"
-		if abnormal || blockReason != "" || (textParts == 0 && toolParts == 0) {
-			if finishReason == "" {
-				finishReason = "none"
+		if !sp.completedCalls[name] && len(part.FunctionCall.Args) > 0 {
+			select {
+			case sp.ch <- llm.StreamEvent{
+				Kind:       llm.EventToolEnd,
+				ToolCallID: id,
+				ToolName:   name,
+				Args:       part.FunctionCall.Args,
+			}:
+			case <-sp.ctx.Done():
+				return false
 			}
-			if finishMessage != "" {
-				finishReason += " (" + finishMessage + ")"
-			}
-			if blockReason == "" {
-				blockReason = "none"
-			}
-			slog.Default().With("component", "gemini").Warn("completion ended",
-				"finish_reason", finishReason, "block_reason", blockReason, "text_parts", textParts, "tool_calls", toolParts,
-				"completion_tokens", usage.CompletionTokens, "model", p.model(), "shape", shape, "detail", detail)
+			sp.completedCalls[name] = true
 		}
-	}()
+	}
+	return true
+}
 
-	return &llm.Completion{
-		Events: ch,
-		Wait:   func() *llm.Usage { <-done; return finalUsage },
-	}, nil
+func (sp *streamProcessor) logCompletion(meta requestMeta) {
+	// A completion that ended abnormally, or delivered nothing, is
+	// otherwise indistinguishable from a model that had nothing to say:
+	// name the finish reason (MALFORMED_FUNCTION_CALL is the usual one
+	// when the model reaches for a tool that was not advertised), the
+	// block reason, what was emitted, what was spent, and the call's
+	// shape, so one log line explains an empty turn.
+	abnormal := sp.finishReason != "" && sp.finishReason != "STOP"
+	if abnormal || sp.blockReason != "" || (sp.textParts == 0 && sp.toolParts == 0) {
+		finishReason := sp.finishReason
+		if finishReason == "" {
+			finishReason = "none"
+		}
+		if sp.finishMessage != "" {
+			finishReason += " (" + sp.finishMessage + ")"
+		}
+		blockReason := sp.blockReason
+		if blockReason == "" {
+			blockReason = "none"
+		}
+		slog.Default().With("component", "gemini").Warn("completion ended",
+			"finish_reason", finishReason, "block_reason", blockReason, "text_parts", sp.textParts, "tool_calls", sp.toolParts,
+			"completion_tokens", sp.usage.CompletionTokens, "model", sp.provider.model(), "shape", meta.shape, "detail", meta.detail)
+	}
 }
