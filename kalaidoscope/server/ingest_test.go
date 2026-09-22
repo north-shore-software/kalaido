@@ -1,4 +1,3 @@
-// UNREVIEWED
 package server_test
 
 import (
