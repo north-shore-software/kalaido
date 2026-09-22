@@ -3,27 +3,18 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"golang.org/x/sync/errgroup"
 )
-
-// previewWorkers bounds how many fragments a preview judges at once; the
-// scheduler still gates the actual model calls.
-const previewWorkers = 20
 
 func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
@@ -32,24 +23,13 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		// RoleColour schedules as idle work by default, but the preview is the
-		// one colour call the user actively watches — make it jump the queue.
-		ctx := queue.WithPriority(e.Request.Context(), queue.Interactive)
-
-		positiveBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.PositiveExamples))
-		negativeBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.NegativeExamples))
-
-		recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "-created", 20, 0, dbx.Params{})
+		session, err := colour.PreparePreview(app)
+		if errors.Is(err, colour.ErrNoModel) {
+			return e.InternalServerError("no model configured for colour matching", err)
+		}
 		if err != nil {
 			logger(app).Error("colour preview: find fragments failed", "error", err)
 			return e.InternalServerError("failed to fetch fragments", err)
-		}
-
-		// Resolved before the SSE stream commits its 200 — past that point an
-		// error can no longer become a status code.
-		model, err := llm.ResolveRole(llm.RoleColour)
-		if err != nil {
-			return e.InternalServerError("no model configured for colour matching", err)
 		}
 
 		w := e.Response
@@ -68,57 +48,21 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
-		results := make(chan *core.Record, len(recs))
-		g := new(errgroup.Group)
-		g.SetLimit(previewWorkers)
-
-		for _, rec := range recs {
-			g.Go(func() error {
-				targetDoc := llmcontext.RenderFragmentRecords([]*core.Record{rec})
-				prompt := prompts.ColourEvalPrompt(req.Prompt, positiveBlock, negativeBlock, targetDoc)
-
-				// Tie the evaluation to the request context so it aborts when the
-				// client disconnects — the live preview deliberately cancels the
-				// prior in-flight request whenever the prompt changes, which
-				// would otherwise leave these LLM calls running for stale input.
-				out, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleColour, model, nil)
-				if err != nil {
-					// A canceled context is the expected outcome of that
-					// superseded request, not a failure worth logging.
-					if ctx.Err() == nil {
-						logger(app).Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
-					}
-					return nil
-				}
-
-				if prompts.ParseYesNo(out) {
-					results <- rec
-				}
-				return nil
-			})
-		}
-
-		go func() {
-			_ = g.Wait()
-			close(results)
-		}()
-
-		for rec := range results {
+		return session.Run(e.Request.Context(), app, req, func(rec *core.Record) error {
 			jsonData, err := json.Marshal(rec)
 			if err != nil {
 				logger(app).Warn("colour preview: marshal fragment failed, skipping", "error", err)
-				continue
+				return nil
 			}
 
 			_, err = fmt.Fprintf(w, "data: %s\n\n", string(jsonData))
 			if err != nil {
 				// Client likely disconnected
-				return nil
+				return err
 			}
 			flusher.Flush()
-		}
-
-		return nil
+			return nil
+		})
 	}
 }
 

@@ -1,11 +1,11 @@
 // UNREVIEWED
-package handlers
+package explore
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 
 	"github.com/pocketbase/pocketbase/core"
 
@@ -19,48 +19,43 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-// exploreTooLargeHint follows the guard's message when a full-mode prompt is too
-// big: summaries mode is the way through.
-const exploreTooLargeHint = ` Switch the scope to "Summaries" in the context bar to chat over it through summaries instead.`
+func logger(app core.App) *slog.Logger {
+	if app == nil {
+		return slog.Default()
+	}
+	return app.Logger().With("component", "explore")
+}
 
 // maxExploreToolRounds caps the model calls in one summaries turn; the last one
 // runs without tools so the turn ends in text.
 const maxExploreToolRounds = 4
 
-// streamSummariesTurn is the explore turn in summaries mode: the model sees rows,
+// StreamSummariesTurn is the explore turn in summaries mode: the model sees rows,
 // not bodies, and may call read_fragment / read_thing; each round's results go
 // back as a user turn and the model is called again, all inside one SSE
 // response (one assistant message on the client). Reads persist with their
 // output so llmcontext.Flatten can replay them on later turns.
-func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, msgs []llm.Message, model, textID string) error {
-	ctx := e.Request.Context()
-
+func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, msgs []llm.Message, model, textID string, w http.ResponseWriter) error {
 	reader, err := discover.NewChatReader(app)
 	if err != nil {
-		return e.InternalServerError("load map for summaries explore", err)
+		return fmt.Errorf("load map for summaries explore: %w", err)
 	}
 	tools := discover.ChatReadTools()
 
 	comp, err := usage.Stream(ctx, app, llm.RoleChat, model, msgs, tools)
-	if errors.Is(err, usage.ErrExhausted) {
-		return usage.WriteExhausted(e, app)
-	}
-	if usage.WriteProviderError(e, err) {
-		return nil
-	}
 	if err != nil {
-		return e.InternalServerError("llm stream failed", err)
+		return err
 	}
 
-	sse := chat.BeginSSE(e.Response, textID)
-	var w *turnWriter
+	sse := chat.BeginSSE(w, textID)
+	var tw *chat.TurnWriter
 	if conv != nil {
-		w = newTurnWriter(ctx, app, conv, textID, model)
+		tw = chat.NewTurnWriter(ctx, app, conv, textID, model)
 	}
 	var parts []api.UIMessagePart
 	persist := func() {
-		if w != nil && len(parts) > 0 {
-			w.write(parts)
+		if tw != nil && len(parts) > 0 {
+			tw.Write(parts)
 		}
 	}
 
@@ -97,7 +92,7 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 		},
 		OnToolDispatched: func(tc llm.ToolCall, out string) {
 			sse.ToolOutputAvailable(tc.ID, out)
-			if part, ok := toolResultPart(tc, out); ok {
+			if part, ok := chat.ToolResultPart(tc, out); ok {
 				parts = append(parts, part)
 			}
 		},
@@ -118,20 +113,4 @@ func streamSummariesTurn(e *core.RequestEvent, app core.App, conv *core.Record, 
 	persist()
 	sse.Finish()
 	return nil
-}
-
-// toolResultPart is toolCallPart with the call's result attached, the shape
-// the AI SDK stores once tool-output-available has arrived.
-func toolResultPart(tc llm.ToolCall, output string) (api.UIMessagePart, bool) {
-	dataBytes, err := json.Marshal(map[string]any{
-		"toolCallId": tc.ID,
-		"toolName":   tc.Name,
-		"input":      tc.Args,
-		"output":     output,
-		"state":      "output-available",
-	})
-	if err != nil {
-		return api.UIMessagePart{}, false
-	}
-	return api.UIMessagePart{Type: "tool-" + tc.Name, Data: dataBytes}, true
 }
