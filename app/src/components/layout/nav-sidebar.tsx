@@ -1,8 +1,10 @@
 import {
+  ActivityIcon,
   ArrowLeftRightIcon,
   FileTextIcon,
   HistoryIcon,
   LayoutDashboardIcon,
+  MapIcon,
   MessagesSquareIcon,
   MoonIcon,
   NotebookPenIcon,
@@ -66,6 +68,11 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
     title: "Reflections",
     transition: navSidebarTransitions.transitions.openReflections,
     icon: HistoryIcon,
+  },
+  {
+    title: "Map",
+    transition: navSidebarTransitions.transitions.openMap,
+    icon: MapIcon,
   },
   {
     title: "Colours",
@@ -135,6 +142,24 @@ function NavConnections() {
         </SidebarMenu>
       </SidebarGroup>
     </>
+  );
+}
+
+function StatusButton() {
+  const pathname = useCurrentPathname();
+  const { go } = useAppNavigate();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Status"
+        isActive={pathname.startsWith(pathFor("status"))}
+        className={NEUTRAL_DEST_CLASS}
+        onClick={() => go(navSidebarTransitions.transitions.openStatus)}
+      >
+        <ActivityIcon />
+        <span>Status</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -210,6 +235,7 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <StatusButton />
           <SettingsButton />
           <ThemeToggleButton />
           <SidebarToggleButton />

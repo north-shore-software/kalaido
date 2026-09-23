@@ -22,6 +22,8 @@ export const navSidebarTransitions = defineChromeTransitions(
       to: "reflections",
       trigger: "Click 'Reflections' in the sidebar",
     },
+    openMap: { to: "map", trigger: "Click 'Map' in the sidebar" },
+    openStatus: { to: "status", trigger: "Click 'Status' in the sidebar" },
     openColours: { to: "colours", trigger: "Click 'Colours' in the sidebar" },
     openFragments: {
       to: "stream",
