@@ -1,8 +1,12 @@
 import { err, ok, type Result } from "neverthrow";
 import { startLocalKalaidoscope } from "@/api/app/local-scopes";
-import { setSetting } from "@/api/app/settings.ts";
+import { deleteSetting, setSetting } from "@/api/app/settings.ts";
 import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
-import { openKalaidoscope, setAppStage } from "@/hooks/app-state-actions.ts";
+import {
+  openKalaidoscope,
+  setAppStage,
+  setAvailableKalaidoscopes,
+} from "@/hooks/app-state-actions.ts";
 import {
   appState,
   type StageEntry,
@@ -76,4 +80,32 @@ export async function switchLocalKalaidoscope(
     }
     return err(toError(error));
   }
+}
+
+export async function removeKalaidoscope(
+  targetId: string,
+): Promise<Result<void, Error>> {
+  const remaining = appState.availableKalaidoscopes.filter(
+    (k) => k.id !== targetId,
+  );
+  setAvailableKalaidoscopes(remaining);
+
+  const persisted = await setSetting("availableKalaidoscopes", remaining);
+  if (persisted.isErr()) {
+    console.error("Failed to persist updated kalaidoscopes:", persisted.error);
+    return err(persisted.error);
+  }
+
+  const currentStage = appState.appStage;
+  const isActive =
+    currentStage.stage === "kalaidoscope_open" &&
+    currentStage.selectedKalaidoscopeId === targetId;
+
+  if (isActive) {
+    setActiveKalaidoscopeClient(null);
+    await deleteSetting("lastOpenedKalaidoscopeId");
+    setAppStage({ stage: "no_kalaidoscopes_available" });
+  }
+
+  return ok(undefined);
 }

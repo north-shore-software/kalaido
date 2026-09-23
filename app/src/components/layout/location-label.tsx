@@ -1,3 +1,5 @@
+import { cn } from "@/lib/css-utils";
+
 export function truncatePath(path: string, maxSegments = 3): string {
   const sep = path.includes("/") ? "/" : "\\";
   const parts = path.split(sep).filter(Boolean);
@@ -9,17 +11,23 @@ interface LocationLabelProps {
   location: string;
   title?: string;
   truncate?: boolean;
+  className?: string;
 }
 
 export function LocationLabel({
   location,
   title,
   truncate = true,
+  className,
 }: LocationLabelProps) {
   const displayLocation = truncate ? truncatePath(location) : location;
   return (
     <span
-      className="min-w-0 truncate font-mono text-mono-sm text-fg-4"
+      className={cn(
+        "min-w-0 font-mono text-mono-sm text-fg-4",
+        truncate ? "truncate" : "break-all",
+        className,
+      )}
       title={title ?? location}
     >
       {displayLocation}
