@@ -31,14 +31,9 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
+import { cn } from "@/lib/css-utils";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { pathFor } from "@/routes/registry";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -88,26 +83,21 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   },
 ];
 
-function HeaderCaptureButton() {
+function CaptureButton() {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => openAddFragmentModal()}
-            className="shrink-0 hover:bg-surface-2 group-data-[collapsible=icon]:size-7 cursor-pointer"
-            aria-label="New Fragment"
-          >
-            <PlusCircleIcon weight="fill" className="size-4 text-cyan" />
-          </Button>
-        }
-      />
-      <TooltipContent side="right" align="center" sideOffset={8}>
-        New Fragment
-      </TooltipContent>
-    </Tooltip>
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="New Fragment"
+        onClick={() => openAddFragmentModal()}
+        className="text-cyan hover:border-l-cyan hover:bg-cyan-wash hover:text-cyan"
+      >
+        <PlusCircleIcon
+          weight="fill"
+          className={cn(RAIL_ICON_CLASS, "text-cyan")}
+        />
+        <span>New Fragment</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -196,17 +186,14 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="pt-4">
-        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
-          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:w-full">
-            <NavKalaidoscopeSwitcher />
-          </div>
-          <HeaderCaptureButton />
-        </div>
+        <NavKalaidoscopeSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarNav items={MAIN_NAV} />
         <SidebarSeparator />
-        <SidebarNav items={WORKSPACE_NAV} />
+        <SidebarNav items={WORKSPACE_NAV}>
+          <CaptureButton />
+        </SidebarNav>
         {isFeatureEnabled("connections") && <NavConnections />}
       </SidebarContent>
       <SidebarFooter>

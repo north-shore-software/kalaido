@@ -1,4 +1,5 @@
 import type { Icon } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -49,7 +50,13 @@ const DEST_ACTIVE_CLASS: Record<SectionId, string> = {
  * A group of sidebar nav links. `/main` is matched exactly (it's the root); the
  * rest match their subtree so detail pages keep their nav item lit.
  */
-export function SidebarNav({ items }: { items: readonly SidebarNavItem[] }) {
+export function SidebarNav({
+  items,
+  children,
+}: {
+  items: readonly SidebarNavItem[];
+  children?: ReactNode;
+}) {
   const pathname = useCurrentPathname();
   const { go } = useAppNavigate();
   const isActive = (transition: TransitionDef) => {
@@ -77,6 +84,7 @@ export function SidebarNav({ items }: { items: readonly SidebarNavItem[] }) {
             </SidebarMenuItem>
           );
         })}
+        {children}
       </SidebarMenu>
     </SidebarGroup>
   );
