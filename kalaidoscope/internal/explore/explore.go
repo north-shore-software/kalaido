@@ -105,7 +105,7 @@ func PrepareLLMPrompt(ctx context.Context, app core.App, conv *core.Record, allM
 	system := prompts.ChatSystemPrompt
 	if ConversationSummaries(allMsgs) {
 		digest := ""
-		if doc, _, err := sourcedata.LoadDocument(app); err == nil {
+		if doc, _, err := sourcedata.LoadMapDocument(app); err == nil {
 			digest = prompts.SummariesMapDigest(doc, prompts.SummariesThingFloor)
 		}
 		system = prompts.ChatSummariesSystemPrompt(digest)

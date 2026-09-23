@@ -144,10 +144,6 @@ func ClaimGeneration(app core.App, strat Strategy, parentID string, window *api.
 	return claimID, nil
 }
 
-func claimGeneration(app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
-	return ClaimGeneration(app, strat, parentID, window)
-}
-
 // releaseClaim deletes an unfilled claim row after a failed generation. A row
 // that already advanced past StatusGenerating is left alone.
 func releaseClaim(app core.App, strat Strategy, claimID string) {
@@ -159,7 +155,7 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 		return
 	}
 	if err := app.Delete(rec); err != nil {
-		logger(app).Error("generation claim release failed", "claim_id", claimID, "error", err)
+		logger().Error("generation claim release failed", "claim_id", claimID, "error", err)
 		return
 	}
 	claims.settle(claimID)
@@ -196,10 +192,28 @@ func SweepGenerationClaims(app core.App) {
 		}
 		for _, r := range recs {
 			if err := app.Delete(r); err != nil {
-				logger(app).Error("generation claim sweep delete failed", "collection", colName, "claim_id", r.Id, "error", err)
+				logger().Error("generation claim sweep delete failed", "collection", colName, "claim_id", r.Id, "error", err)
 			}
 		}
 	}
+}
+
+// GenerateOrJoin generates a snapshot for the target, or, when one is already
+// generating, waits for that run and returns its snapshot. A run that ends
+// without output (its claim was abandoned) is retried once from scratch.
+// Generation runs under ctx; the wait is bounded by joinCtx as well, so a
+// caller can give up on someone else's run (a request whose client left)
+// without cutting off its own.
+func GenerateOrJoin(ctx, joinCtx context.Context, app core.App, strat Strategy, id, status string, w *api.Window) (string, error) {
+	snapID, err := GenerateSnapshot(ctx, app, id, status, strat, w)
+	if !errors.Is(err, ErrGenerationInFlight) {
+		return snapID, err
+	}
+	snapID, err = JoinGeneration(joinCtx, app, strat, id, w)
+	if errors.Is(err, ErrGenerationAbandoned) {
+		return GenerateSnapshot(ctx, app, id, status, strat, w)
+	}
+	return snapID, err
 }
 
 // JoinGeneration waits for the generation already running for the target and
@@ -207,6 +221,6 @@ func SweepGenerationClaims(app core.App) {
 func JoinGeneration(ctx context.Context, app core.App, strat Strategy, id string, w *api.Window) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, GenerationClaimTTL)
 	defer cancel()
-	logger(app).Warn("already generating; joining", "target_type", strat.TargetType(), "id", id)
+	logger().Warn("already generating; joining", "target_type", strat.TargetType(), "id", id)
 	return AwaitGeneration(ctx, app, strat, id, w)
 }

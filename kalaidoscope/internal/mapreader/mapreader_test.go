@@ -23,7 +23,8 @@ func TestReaderBudget(t *testing.T) {
 	r.budget = 1
 
 	args, _ := json.Marshal(map[string][]string{"ids": {f1.Id, f2.Id}})
-	out, ok := r.Dispatch(context.Background(), llm.ToolCall{Name: prompts.ReadFragmentToolName, Args: args})
+	reg := r.Registry()
+	out, _, ok, _ := reg.Dispatch(context.Background(), llm.ToolCall{Name: prompts.ReadFragmentToolName, Args: args})
 	if !ok {
 		t.Fatal("read_fragment was not dispatched")
 	}
@@ -36,7 +37,7 @@ func TestReaderBudget(t *testing.T) {
 	if r.Reads() != 1 {
 		t.Errorf("reads = %d, want 1", r.Reads())
 	}
-	if _, ok := r.Dispatch(context.Background(), llm.ToolCall{Name: "propose_projection"}); ok {
+	if _, _, ok, _ := reg.Dispatch(context.Background(), llm.ToolCall{Name: "propose_projection"}); ok {
 		t.Error("Dispatch claimed a non-read tool")
 	}
 	for _, tool := range ChatReadTools() {

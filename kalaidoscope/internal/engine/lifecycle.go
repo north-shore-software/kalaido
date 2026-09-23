@@ -146,7 +146,7 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 		return discardOtherPending(txApp, strat, parentID, SnapshotWindow(snap), snap.Id)
 	})
 	if err == nil && approvedSeq > 0 {
-		logger(app).Info("snapshot approved",
+		logger().Info("snapshot approved",
 			"target_type", strat.TargetType(), "id", parentID, "snapshot_id", snapshotID, "sequence", approvedSeq)
 	}
 	return err
@@ -197,7 +197,7 @@ func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int,
 // sample, and every window's existing snapshot now reads as produced by an
 // older lens until it is regenerated (Refresh, or one window at a time). The
 // returned snapshot id is therefore empty for reflections.
-func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, _ *api.Window, refinementID, targetCol string) (string, error) {
+func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
 	var newSnapID string
 	var generationTrigger string
 
@@ -218,7 +218,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		// The parent is required now: the commit re-points its lens.
 		parentRec, err := FindLive(tx, strat, parentID)
 		if err != nil {
-			return fmt.Errorf("parent %s %s: %w", targetCol, parentID, err)
+			return fmt.Errorf("parent %s %s: %w", strat.TargetType(), parentID, err)
 		}
 
 		lensCol, err := tx.FindCollectionByNameOrId(strat.LensCollectionName())
@@ -260,55 +260,23 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 	return newSnapID, nil
 }
 
-// ScrubContextSpecs drops one id from the chosen list of every live
-// current_context_spec in the projection and reflection collections, so a deleted
-// colour or a soft-deleted upstream entity leaves no dangling reference behind.
-func ScrubContextSpecs(app core.App, entityType string, id string) error {
-	var selector func(spec *api.ContextSpec) *[]string
-	switch entityType {
-	case "colour":
-		selector = func(spec *api.ContextSpec) *[]string { return &spec.ColourIDs }
-	case "projection":
-		selector = func(spec *api.ContextSpec) *[]string { return &spec.SourceProjectionIDs }
-	case "reflection":
-		selector = func(spec *api.ContextSpec) *[]string { return &spec.SourceReflectionIDs }
-	default:
-		return fmt.Errorf("unknown entity type for context spec scrub: %s", entityType)
-	}
-
-	for _, collection := range []string{schema.ColProjection.String(), schema.ColReflection.String()} {
-		recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": id})
-		if err != nil {
-			return err
-		}
-		for _, rec := range recs {
-			var spec api.ContextSpec
-			if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
-				continue
-			}
-			list := selector(&spec)
-			kept := (*list)[:0]
-			for _, x := range *list {
-				if x != id {
-					kept = append(kept, x)
-				}
-			}
-			if len(kept) == len(*list) {
-				continue
-			}
-			*list = kept
-			rec.Set("current_context_spec", pbutil.JSONObject(spec))
-			if err := app.Save(rec); err != nil {
-				return err
-			}
+// RemoveID is ids without id, in place.
+func RemoveID(ids []string, id string) []string {
+	kept := ids[:0]
+	for _, x := range ids {
+		if x != id {
+			kept = append(kept, x)
 		}
 	}
-	return nil
+	return kept
 }
 
-// ScrubContextSpecsByStrategy drops one id from the appropriate list of every live
-// current_context_spec in the projection and reflection collections using strat.ScrubSpec.
-func ScrubContextSpecsByStrategy(app core.App, strat Strategy, id string) error {
+// ScrubContextSpecs applies scrub to every live current_context_spec in the
+// projection and reflection collections that mentions id, saving the ones it
+// changed, so a deleted colour or a soft-deleted upstream entity leaves no
+// dangling reference behind. A Strategy's ScrubSpec is the scrub for its
+// entity type.
+func ScrubContextSpecs(app core.App, id string, scrub func(spec *api.ContextSpec, id string)) error {
 	for _, collection := range []string{schema.ColProjection.String(), schema.ColReflection.String()} {
 		recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": id})
 		if err != nil {
@@ -319,10 +287,9 @@ func ScrubContextSpecsByStrategy(app core.App, strat Strategy, id string) error 
 			if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
 				continue
 			}
-			before := len(spec.SourceProjectionIDs) + len(spec.SourceReflectionIDs) + len(spec.ColourIDs)
-			strat.ScrubSpec(&spec, id)
-			after := len(spec.SourceProjectionIDs) + len(spec.SourceReflectionIDs) + len(spec.ColourIDs)
-			if before == after {
+			before := len(spec.ColourIDs) + len(spec.SourceProjectionIDs) + len(spec.SourceReflectionIDs)
+			scrub(&spec, id)
+			if len(spec.ColourIDs)+len(spec.SourceProjectionIDs)+len(spec.SourceReflectionIDs) == before {
 				continue
 			}
 			rec.Set("current_context_spec", pbutil.JSONObject(spec))

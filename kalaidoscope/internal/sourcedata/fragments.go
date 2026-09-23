@@ -12,11 +12,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// FindFragmentByID returns a single fragment record by its id, or an error if not found.
-func FindFragmentByID(app core.App, id string) (*core.Record, error) {
-	return app.FindRecordById(schema.ColFragment.String(), id)
-}
-
 // FindFragmentsByIDs loads fragment records for the given ids. If ids is empty,
 // it returns nil, nil without issuing a database query.
 func FindFragmentsByIDs(app core.App, ids []string) ([]*core.Record, error) {

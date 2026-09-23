@@ -41,7 +41,7 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 	}
 	st.Imports = imports
 
-	doc, version, err := sourcedata.LoadDocument(app)
+	doc, version, err := sourcedata.LoadMapDocument(app)
 	if err != nil {
 		return st, err
 	}
@@ -71,6 +71,7 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 
 	if w.Reconcile != nil {
 		st.Reconcile = w.Reconcile.EvaluateStatus()
+		st.Policy.Wave = w.Reconcile.WaveEnabled()
 	}
 
 	return st, nil

@@ -32,10 +32,6 @@ func SetSnapshotWindow(rec *core.Record, w *api.Window) {
 	rec.Set("window_end", end)
 }
 
-func setSnapshotWindow(rec *core.Record, w *api.Window) {
-	SetSnapshotWindow(rec, w)
-}
-
 // SnapshotWindow is the window a snapshot row is filed under, or nil when the
 // row is windowless.
 func SnapshotWindow(rec *core.Record) *api.Window {

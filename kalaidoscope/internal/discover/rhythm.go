@@ -4,9 +4,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 )
 
 // Rhythm detection is the reflections flow's evidence: a reflection is about
@@ -102,7 +102,7 @@ func newRhythmAccumulator(grain string) *rhythmAccumulator {
 	return &rhythmAccumulator{grain: grain, buckets: map[int]*rhythmBucket{}}
 }
 
-func (a *rhythmAccumulator) add(row mapping.Row) {
+func (a *rhythmAccumulator) add(row sourcedata.Row) {
 	a.total++
 	ord, start, ok := bucketOf(row.Date, a.grain)
 	if !ok {

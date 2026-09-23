@@ -12,7 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
-const SchedulerStoreKey = "kalaido.llmq.scheduler"
+const SchedulerStoreKey = "kalaido.llm.queue.scheduler"
 
 // SchedulerForApp returns the queue.Scheduler bound to app, falling back to
 // queue.Default() when unattached or when app is nil (e.g. isolated unit tests).

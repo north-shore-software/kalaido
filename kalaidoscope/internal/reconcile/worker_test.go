@@ -253,7 +253,7 @@ func TestRefiningChainCandidateCarriesTriggerForward(t *testing.T) {
 	_ = g.p1.UnmarshalJSONField("current_context_spec", &spec)
 
 	newSnapID, err := engine.CommitRefinement(ctx, app, projections.Strategy{},
-		g.p1.Id, p1Cand.Id, "EDITED LENS", "EDITED OUTPUT", pinned, spec, nil, "", "projection")
+		g.p1.Id, p1Cand.Id, "EDITED LENS", "EDITED OUTPUT", pinned, spec, "")
 	if err != nil {
 		t.Fatalf("commit refinement: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestRefiningChainCandidateCarriesTriggerForward(t *testing.T) {
 	// Refining an already-approved snapshot publishes a new one just the
 	// same: its dependents have not consumed it.
 	if _, err := engine.CommitRefinement(ctx, app, projections.Strategy{},
-		g.p1.Id, newSnapID, "EDITED LENS AGAIN", "EDITED AGAIN", pinned, spec, nil, "", "projection"); err != nil {
+		g.p1.Id, newSnapID, "EDITED LENS AGAIN", "EDITED AGAIN", pinned, spec, ""); err != nil {
 		t.Fatalf("commit second refinement: %v", err)
 	}
 }

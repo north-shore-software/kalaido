@@ -17,6 +17,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
@@ -308,7 +310,7 @@ func TestReflectionRefinementSeedsCurrentLens(t *testing.T) {
 	for _, p := range assistant.Parts {
 		parts[p.Type] = p.Data
 	}
-	if _, ok := parts[LensSeedPartType]; !ok {
+	if _, ok := parts[refinement.LensSeedPartType]; !ok {
 		t.Error("seed turn lacks the lens_seed marker")
 	}
 	var lensCall struct {
@@ -430,7 +432,7 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 	}
 
 	// A commit now installs the lens; the re-applied window's output is not published.
-	lens, output, _, _, win, err := ExtractDraftedLensAndSpec(app, refRec)
+	lens, output, _, _, win, err := refinement.ExtractDraftedLensAndSpec(app, refRec)
 	if err != nil || lens != "THE CURRENT LENS" || output != "LAST WEEK'S PREVIEW" || win == nil || win.ID != previous.ID {
 		t.Errorf("commit payload = lens %q output %q win %+v (err %v)", lens, output, win, err)
 	}
@@ -466,8 +468,8 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 		t.Fatal("current window missing from the series")
 	}
 
-	st, _ := entityStatus(context.Background(), app, refl.Id)
-	windows, herr := reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateReflectionSnapshotRequest{AllWindows: true}, st)
+	st, _ := reconcile.EvaluateEntity(context.Background(), app, refl.Id)
+	windows, herr := reflections.WindowsToGenerate(app, refl, api.GenerateReflectionSnapshotRequest{AllWindows: true}, st)
 	if herr != nil {
 		t.Fatal(herr)
 	}
@@ -476,7 +478,7 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	}
 
 	// Exclusive: specifying both windowId and allWindows must fail.
-	_, herr = reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateReflectionSnapshotRequest{
+	_, herr = reflections.WindowsToGenerate(app, refl, api.GenerateReflectionSnapshotRequest{
 		WindowID:   "some-window",
 		AllWindows: true,
 	}, st)

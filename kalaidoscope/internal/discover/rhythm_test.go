@@ -6,20 +6,20 @@ import (
 	"time"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapreader"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 )
 
 // rhythmContext builds a run context over rows citing the given things, with
 // one colour per thing (same id, members = the rows citing it), which is what
 // the colours flow would have made.
-func rhythmContext(rows []mapping.Row, things ...string) *Context {
+func rhythmContext(rows []sourcedata.Row, things ...string) *Context {
 	doc := &mapdoc.Document{}
 	for _, id := range things {
 		doc.Things = append(doc.Things, mapdoc.Thing{ID: id, Name: "Thing " + id, Fragments: 99})
 	}
-	byThing := mapping.IndexRows(doc, rows)
+	byThing := sourcedata.IndexRows(doc, rows)
 	c := &Context{Reader: &mapreader.Reader{Doc: doc, Rows: rows, ByThing: byThing}, ByColour: map[string][]int{}, covered: map[string]bool{}}
 	for _, id := range things {
 		info := colourInfo{ID: id, Name: "Colour " + id, ThingIDs: []string{id}, ThingNames: []string{"Thing " + id}, RowIdx: byThing[id], rowSet: map[int]bool{}}
@@ -34,17 +34,17 @@ func rhythmContext(rows []mapping.Row, things ...string) *Context {
 	return c
 }
 
-func row(date string, things ...string) mapping.Row {
-	r := mapping.Row{FragmentID: "f-" + date + "-" + things[0], Date: date, Title: "on " + date}
+func row(date string, things ...string) sourcedata.Row {
+	r := sourcedata.Row{FragmentID: "f-" + date + "-" + things[0], Date: date, Title: "on " + date}
 	for _, t := range things {
 		r.Things = append(r.Things, prompts.ThingCitation{Ref: t})
 	}
 	return r
 }
 
-func weeklyRows(from string, weeks int, things ...string) []mapping.Row {
+func weeklyRows(from string, weeks int, things ...string) []sourcedata.Row {
 	start, _ := time.Parse("2006-01-02", from)
-	var rows []mapping.Row
+	var rows []sourcedata.Row
 	for k := 0; k < weeks; k++ {
 		rows = append(rows, row(start.AddDate(0, 0, 7*k).Format("2006-01-02"), things...))
 	}
@@ -73,7 +73,7 @@ func findRhythm(rs []Rhythm, ids ...string) *Rhythm {
 // grain, and its onset is the start of that run — a stray mention months earlier is
 // neither the onset nor a reason to lower the regularity below the run's.
 func TestThingRhythmOnsetSkipsStrayMention(t *testing.T) {
-	rows := append([]mapping.Row{row("2024-06-05", "t_a")}, weeklyRows("2025-03-03", 10, "t_a")...)
+	rows := append([]sourcedata.Row{row("2024-06-05", "t_a")}, weeklyRows("2025-03-03", 10, "t_a")...)
 	c := rhythmContext(rows, "t_a")
 	r := findRhythm(c.thingRhythms(rhythmGrainWeek, 1, nil), "t_a")
 	if r == nil {
@@ -95,7 +95,7 @@ func TestThingRhythmOnsetSkipsStrayMention(t *testing.T) {
 
 // One burst is not a rhythm: ten fragments in one week are one active bucket.
 func TestBurstIsOneBucket(t *testing.T) {
-	var rows []mapping.Row
+	var rows []sourcedata.Row
 	for i := 0; i < 10; i++ {
 		r := row("2025-03-04", "t_b")
 		r.FragmentID = r.FragmentID + string(rune('a'+i))
@@ -114,7 +114,7 @@ func TestBurstIsOneBucket(t *testing.T) {
 // Month grain buckets by calendar month, with consecutive months adjacent
 // across a year boundary.
 func TestMonthGrainSpansYearBoundary(t *testing.T) {
-	rows := []mapping.Row{row("2024-11-10", "t_c"), row("2024-12-02", "t_c"), row("2025-01-20", "t_c"), row("2025-03-01", "t_c")}
+	rows := []sourcedata.Row{row("2024-11-10", "t_c"), row("2024-12-02", "t_c"), row("2025-01-20", "t_c"), row("2025-03-01", "t_c")}
 	c := rhythmContext(rows, "t_c")
 	r := findRhythm(c.thingRhythms(rhythmGrainMonth, 1, nil), "t_c")
 	if r == nil || r.ActiveBuckets != 4 || r.SpanBuckets != 5 {
@@ -200,7 +200,7 @@ func TestRhythmCoverLine(t *testing.T) {
 	// Pad so nothing is ubiquitous.
 	c.Doc.Things = append(c.Doc.Things, mapdoc.Thing{ID: "t_b", Name: "Thing t_b"}, mapdoc.Thing{ID: "t_c", Name: "Thing t_c"}, mapdoc.Thing{ID: "t_pad", Name: "Pad"})
 	c.Rows = append(c.Rows, weeklyRows("2024-01-01", 120, "t_pad")...)
-	c.ByThing = mapping.IndexRows(c.Doc, c.Rows)
+	c.ByThing = sourcedata.IndexRows(c.Doc, c.Rows)
 
 	if got := c.coverLine(c.rhythmRows([]string{"t_a"}), []string{"t_a"}); got != "covered by: Colour t_a (t_a, built on it) 40 of 40" {
 		t.Fatalf("t_a cover = %q", got)

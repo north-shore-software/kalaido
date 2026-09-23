@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 
@@ -26,11 +25,11 @@ func HandleCreateProjection(app core.App) func(e *core.RequestEvent) error {
 			Description: req.Description,
 		})
 		if err != nil {
-			logger(app).Error("create projection failed", "error", err)
+			logger().Error("create projection failed", "error", err)
 			return e.InternalServerError("create projection failed", err)
 		}
 
-		logger(app).Info("created projection", "id", target.Id)
+		logger().Info("created projection", "id", target.Id)
 		return e.JSON(http.StatusCreated, api.CreateProjectionResponse{ProjectionID: target.Id})
 	}
 }
@@ -62,7 +61,7 @@ func HandleUpdateProjection(app core.App) func(e *core.RequestEvent) error {
 			if errors.Is(err, projections.ErrNotFound) {
 				return e.NotFoundError("projection not found", err)
 			}
-			logger(app).Error("update projection failed", "error", err)
+			logger().Error("update projection failed", "error", err)
 			return e.InternalServerError("update projection failed", err)
 		}
 
@@ -85,7 +84,7 @@ func HandleDeleteProjection(app core.App) func(e *core.RequestEvent) error {
 			case errors.Is(err, engine.ErrGenerationInFlight):
 				return e.Error(http.StatusConflict, "a generation is running for this projection", nil)
 			default:
-				logger(app).Error("delete projection failed", "id", id, "error", err)
+				logger().Error("delete projection failed", "id", id, "error", err)
 				return e.InternalServerError("delete projection failed", err)
 			}
 		}
@@ -106,7 +105,7 @@ func HandleRestoreProjection(app core.App) func(e *core.RequestEvent) error {
 			if errors.Is(err, projections.ErrNotFound) {
 				return e.NotFoundError("projection not found", err)
 			}
-			logger(app).Error("restore projection failed", "id", id, "error", err)
+			logger().Error("restore projection failed", "id", id, "error", err)
 			return e.InternalServerError("restore projection failed", err)
 		}
 		return e.JSON(http.StatusOK, map[string]string{"id": id})
@@ -137,39 +136,16 @@ func HandleGenerateCandidate(app core.App, deps Deps) func(e *core.RequestEvent)
 
 		st, err := reconcile.EvaluateEntity(e.Request.Context(), app, id)
 		if err != nil {
-			logger(app).Warn("staleness check failed", "target_type", "projection", "error", err)
+			logger().Warn("staleness check failed", "target_type", "projection", "error", err)
 		} else if len(st.BlockedBy) > 0 {
 			return e.Error(http.StatusConflict, "upstream dependencies are not up to date; approve them first", nil)
 		}
 
-		genCtx := context.WithoutCancel(e.Request.Context())
-		var snapID string
-		if deps.Manager != nil {
-			snapID, err = deps.Manager.GenerateProjectionSnapshot(genCtx, id, status)
-		} else {
-			snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
-			if errors.Is(err, engine.ErrGenerationInFlight) {
-				snapID, err = engine.JoinGeneration(e.Request.Context(), app, projections.Strategy{}, id, nil)
-				if errors.Is(err, engine.ErrGenerationAbandoned) {
-					snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
-				}
-			}
-		}
-
-		if handled, herr := WriteLLMError(e, app, err); handled {
-			return herr
-		}
-		switch {
-		case errors.Is(err, engine.ErrLensNotReady):
-			return e.Error(http.StatusConflict, "This projection's lens is still being prepared — try again in a moment.", err)
-		case errors.Is(err, engine.ErrGenerationInFlight):
-			return e.Error(http.StatusConflict, "A generation for this projection is already running.", err)
-		case err != nil:
-			logger(app).Error("generate failed", "target_type", "projection", "error", err)
-			if strings.Contains(err.Error(), "not found") {
-				return e.NotFoundError("projection not found", err)
-			}
-			return e.InternalServerError("generate projection failed", err)
+		// The generation outlives the request; only waiting on another run
+		// is bounded by it.
+		snapID, err := deps.GenerateProjectionSnapshot(context.WithoutCancel(e.Request.Context()), e.Request.Context(), id, status)
+		if err != nil {
+			return WriteGenerateError(e, app, err, "projection")
 		}
 
 		return e.JSON(http.StatusOK, api.ProjectionSnapshotResponse{SnapshotID: snapID})
@@ -183,7 +159,7 @@ func HandleApproveCandidate(app core.App, deps Deps) func(e *core.RequestEvent) 
 			return herr
 		}
 		if err := projections.Approve(e.Request.Context(), app, snapID); err != nil {
-			logger(app).Error("approve failed", "target_type", "projection", "error", err)
+			logger().Error("approve failed", "target_type", "projection", "error", err)
 			if errors.Is(err, engine.ErrNotApprovable) {
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
 			}
@@ -210,7 +186,7 @@ func HandleEditCandidate(app core.App) func(e *core.RequestEvent) error {
 		res, err := projections.ApplyEdit(context.WithoutCancel(e.Request.Context()), app,
 			e.Request.PathValue("id"), snapID, req.OldText, req.NewText)
 		if err != nil {
-			logger(app).Error("edit failed", "target_type", "projection", "error", err)
+			logger().Error("edit failed", "target_type", "projection", "error", err)
 			switch {
 			case errors.Is(err, projections.ErrEditNotPending):
 				return e.Error(http.StatusConflict, err.Error(), err)

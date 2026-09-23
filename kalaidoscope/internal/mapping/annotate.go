@@ -89,7 +89,7 @@ func (w *Worker) drain(ctx context.Context, full bool) error {
 				if err == nil {
 					return nil
 				}
-				logger(app).Error("annotate failed", "fragment_id", f.Id, "error", err)
+				logger().Error("annotate failed", "fragment_id", f.Id, "error", err)
 				mu.Lock()
 				failed[f.Id] = true
 				if firstErr == nil {

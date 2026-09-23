@@ -20,10 +20,7 @@ import (
 // the grid already covers.
 var ErrBackfillOutOfRange = errors.New("backfill start must be before the windows already on the grid")
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "reflections")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "reflections")
 }
 
@@ -99,14 +96,14 @@ func RunPendingWindows(r workerutil.Runner, app core.App, reflectionID string) {
 func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID string) {
 	rec, err := app.FindRecordById(schema.ColReflection.String(), reflectionID)
 	if err != nil {
-		logger(app).Error("backfill: load reflection failed", "reflection_id", reflectionID, "error", err)
+		logger().Error("backfill: load reflection failed", "reflection_id", reflectionID, "error", err)
 		return
 	}
 	pending := PendingWindows(app, rec, time.Now())
 	if len(pending) == 0 {
 		return
 	}
-	logger(app).Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
+	logger().Info("backfill pending windows", "reflection_id", reflectionID, "name", rec.GetString("name"), "count", len(pending))
 
 	ctx = queue.WithPriority(ctx, queue.Background)
 	results := GenerateWindows(ctx, app, reflectionID, engine.StatusApproved, pending)
@@ -116,12 +113,12 @@ func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID stri
 		case r.Err == nil:
 			generated++
 		case errors.Is(r.Err, engine.ErrLensNotReady):
-			logger(app).Warn("backfill: no lens yet", "reflection_id", reflectionID)
+			logger().Warn("backfill: no lens yet", "reflection_id", reflectionID)
 		case errors.Is(r.Err, engine.ErrGenerationInFlight):
 			// Someone else is producing this window; leave it to them.
 		default:
-			logger(app).Error("backfill window failed", "reflection_id", reflectionID, "window", WindowKey(pending[i]), "error", r.Err)
+			logger().Error("backfill window failed", "reflection_id", reflectionID, "window", WindowKey(pending[i]), "error", r.Err)
 		}
 	}
-	logger(app).Info("backfill completed", "reflection_id", reflectionID, "generated", generated, "count", len(pending))
+	logger().Info("backfill completed", "reflection_id", reflectionID, "generated", generated, "count", len(pending))
 }

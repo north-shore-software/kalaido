@@ -6,6 +6,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -52,7 +53,7 @@ func Create(app core.App, params CreateParams) (*core.Record, error) {
 
 	for _, fragID := range params.FragmentIDs {
 		if err := SetPromptMatch(app, colourRec.Id, fragID); err != nil {
-			logger(app).Warn("colour create: seeding prompt match failed", "fragment_id", fragID, "error", err)
+			logger().Warn("colour create: seeding prompt match failed", "fragment_id", fragID, "error", err)
 		}
 	}
 
@@ -102,6 +103,11 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, bool, e
 	return colourRec, promptChanged, nil
 }
 
+// scrubSpec drops a colour from a context spec (engine.ScrubContextSpecs).
+func scrubSpec(spec *api.ContextSpec, id string) {
+	spec.ColourIDs = engine.RemoveID(spec.ColourIDs, id)
+}
+
 // Delete removes the colour and drops its id from every live context spec so no
 // projection or reflection keeps a dangling reference.
 func Delete(app core.App, id string) error {
@@ -111,7 +117,7 @@ func Delete(app core.App, id string) error {
 	}
 
 	return app.RunInTransaction(func(tx core.App) error {
-		if err := engine.ScrubContextSpecs(tx, "colour", colourRec.Id); err != nil {
+		if err := engine.ScrubContextSpecs(tx, colourRec.Id, scrubSpec); err != nil {
 			return err
 		}
 		return tx.Delete(colourRec)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -85,7 +86,7 @@ func consolidate(ctx context.Context, app core.App) error {
 	if len(pending) == 0 {
 		return nil
 	}
-	input, err := LoadRows(app)
+	input, err := sourcedata.LoadAnnotationRows(app)
 	if err != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func consolidate(ctx context.Context, app core.App) error {
 		run.Set("status", "error")
 		run.Set("error", err.Error())
 		if serr := app.Save(run); serr != nil {
-			logger(app).Error("save run failed", "error", serr)
+			logger().Error("save run failed", "error", serr)
 		}
 		return err
 	}
@@ -167,7 +168,7 @@ func consolidate(ctx context.Context, app core.App) error {
 	run.Set("merges", merges)
 	run.Set("version_after", d.version+1)
 	if err := app.Save(run); err != nil {
-		logger(app).Error("save run failed", "error", err)
+		logger().Error("save run failed", "error", err)
 	}
 	return nil
 }

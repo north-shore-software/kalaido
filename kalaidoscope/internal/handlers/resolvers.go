@@ -5,7 +5,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
-	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // resolveCandidate extracts the projection id and candidate snapshot id from
@@ -19,7 +18,7 @@ func resolveCandidate(e *core.RequestEvent, app core.App) (string, error) {
 	if rid == "" {
 		return "", e.BadRequestError("candidate id required", nil)
 	}
-	snap, err := sourcedata.FindSnapshotByID(app, schema.ColProjectionSnapshot.String(), rid)
+	snap, err := sourcedata.FindProjectionSnapshotByID(app, rid)
 	if err != nil {
 		return "", e.NotFoundError("candidate not found", err)
 	}

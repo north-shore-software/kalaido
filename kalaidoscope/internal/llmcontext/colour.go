@@ -8,10 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "llmcontext")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "llmcontext")
 }
 
@@ -20,7 +17,7 @@ func logger(app core.App) *slog.Logger {
 func FragmentIDsForColours(ctx stdctx.Context, app core.App, colourIDs []string) []string {
 	ids, err := sourcedata.ColourMemberIDs(app, colourIDs...)
 	if err != nil {
-		logger(app).Error("colour fragment lookup failed", "error", err)
+		logger().Error("colour fragment lookup failed", "error", err)
 		return nil
 	}
 	return ids

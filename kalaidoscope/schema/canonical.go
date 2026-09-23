@@ -462,7 +462,7 @@ var Canonical = []TableDef{
 		// to adjudicate and what it changed, so a bad or failed consolidation
 		// is inspectable after the fact. Created as "running" before the model
 		// is called and finished as "done" or "error"; a process that dies
-		// mid-call leaves it "running", which the organize status reads as
+		// mid-call leaves it "running", which the map status reads as
 		// interrupted. Never pruned.
 		Name:                   "map_run",
 		DisableWriteOperations: true,

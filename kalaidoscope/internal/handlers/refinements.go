@@ -12,15 +12,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// Backward-compatibility aliases for tests.
-const LensSeedPartType = refinement.LensSeedPartType
-
-var (
-	ExtractDraftedLensAndSpec = refinement.ExtractDraftedLensAndSpec
-	SeedLensTurn              = refinement.SeedLensTurn
-	refinementParent          = refinement.Parent
-)
-
 func HandleCreateProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		targetID := e.Request.PathValue("id")
@@ -38,7 +29,7 @@ func HandleCreateProjectionRefinement(app core.App) func(e *core.RequestEvent) e
 
 		refID, seeded, err := refinement.CreateProjectionRefinement(app, req.ClientID, targetID, req.SnapshotID, req.ContextSpec)
 		if err != nil {
-			logger(app).Error("refinement create failed", "error", err)
+			logger().Error("refinement create failed", "error", err)
 			return e.InternalServerError("failed to create refinement", err)
 		}
 
@@ -66,7 +57,7 @@ func HandleCreateReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 
 		refID, seeded, err := refinement.CreateReflectionRefinement(app, req.ClientID, targetID, req.Window, req.ContextSpec)
 		if err != nil {
-			logger(app).Error("refinement create failed", "error", err)
+			logger().Error("refinement create failed", "error", err)
 			return e.InternalServerError("failed to create refinement", err)
 		}
 

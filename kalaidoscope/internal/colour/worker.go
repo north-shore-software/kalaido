@@ -32,10 +32,7 @@ const (
 	exampleLimit = 20
 )
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "colour")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "colour")
 }
 
@@ -88,7 +85,7 @@ func (w *Worker) setCurrentColourID(id string) {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App) *Worker {
-	return &Worker{app: app, logger: logger(app), signal: workerutil.NewSignal(), settled: newSettledMark()}
+	return &Worker{app: app, logger: logger(), signal: workerutil.NewSignal(), settled: newSettledMark()}
 }
 
 // Signal asks the worker to drain. Coalesces.
@@ -119,11 +116,14 @@ func (w *Worker) Run(ctx context.Context) error {
 
 		w.stateMu.Lock()
 		w.currentColourID = ""
-		if err != nil && !errors.Is(err, context.Canceled) {
-			w.lastError = err.Error()
-		} else {
+		switch {
+		case err == nil:
+			w.lastError, w.lastCompleted = "", time.Now()
+		case errors.Is(err, context.Canceled):
+			// Cut short, not completed: the next drain resumes from the watermark.
 			w.lastError = ""
-			w.lastCompleted = time.Now()
+		default:
+			w.lastError = err.Error()
 		}
 		w.stateMu.Unlock()
 
@@ -232,13 +232,7 @@ func EvaluateStatus(app core.App, col *Worker) (api.ColourStatus, error) {
 
 	unjudged := 0
 	for _, c := range promptCols {
-		wm := c.GetString("prompt_match_completed_up_to_fragment_id")
-		filter := "deleted_at = ''"
-		params := dbx.Params{}
-		if wm != "" {
-			filter += " && id > {:wm}"
-			params["wm"] = wm
-		}
+		filter, params := pastWatermarkFilter(app, c.GetString("prompt_match_completed_up_to_fragment_id"))
 		count, err := app.CountRecords(schema.ColFragment.String(), dbx.NewExp(filter, params))
 		if err != nil {
 			return out, err
@@ -300,7 +294,15 @@ func drainColour(ctx context.Context, app core.App, model string, c *core.Record
 // the watermark fragment. Ordering on the pair makes same-millisecond imports
 // safe; a watermark whose fragment is gone starts over.
 func pastWatermark(app core.App, watermark string) ([]*core.Record, error) {
-	filter := "deleted_at = ''"
+	filter, params := pastWatermarkFilter(app, watermark)
+	return app.FindRecordsByFilter(schema.ColFragment.String(), filter, "created,id", pageSize, 0, params)
+}
+
+// pastWatermarkFilter selects the live fragments after the watermark fragment
+// in (created, id) order — the drain's order, so a count under it is the
+// drain's remaining work.
+func pastWatermarkFilter(app core.App, watermark string) (string, dbx.Params) {
+	filter := schema.NotDeleted()
 	params := dbx.Params{}
 	if watermark != "" {
 		wm, err := app.FindRecordById(schema.ColFragment.String(), watermark)
@@ -310,7 +312,7 @@ func pastWatermark(app core.App, watermark string) ([]*core.Record, error) {
 			params["id"] = wm.Id
 		}
 	}
-	return app.FindRecordsByFilter(schema.ColFragment.String(), filter, "created,id", pageSize, 0, params)
+	return filter, params
 }
 
 func linkedFragmentIDs(app core.App, colourID string, frags []*core.Record) (map[string]bool, error) {
@@ -385,7 +387,7 @@ func recordProviderErrorKind(app core.App, colourRec *core.Record, err error) {
 	}
 	colourRec.Set("last_provider_error_kind", string(perr.Kind))
 	if err := app.Save(colourRec); err != nil {
-		logger(app).Error("record provider error kind failed", "error", err)
+		logger().Error("record provider error kind failed", "error", err)
 	}
 }
 
@@ -395,6 +397,6 @@ func clearProviderErrorKind(app core.App, colourRec *core.Record) {
 	}
 	colourRec.Set("last_provider_error_kind", "")
 	if err := app.Save(colourRec); err != nil {
-		logger(app).Error("clear provider error kind failed", "error", err)
+		logger().Error("clear provider error kind failed", "error", err)
 	}
 }

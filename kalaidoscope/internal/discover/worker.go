@@ -13,10 +13,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "discover")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "discover")
 }
 
@@ -50,7 +47,7 @@ func (w *Worker) CurrentStarted() time.Time {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App, maps *mapping.Worker) *Worker {
-	return &Worker{app: app, logger: logger(app), maps: maps, wake: workerutil.NewSignal(), pending: map[string]bool{}}
+	return &Worker{app: app, logger: logger(), maps: maps, wake: workerutil.NewSignal(), pending: map[string]bool{}}
 }
 
 // Running is the kind currently running, or "".

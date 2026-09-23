@@ -11,11 +11,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-func chatLogger(app core.App) *slog.Logger {
-	if app == nil {
-		return slog.Default()
-	}
-	return app.Logger().With("component", "chat")
+func logger() *slog.Logger {
+	return slog.Default().With("component", "chat")
 }
 
 // ToolCallPart translates an LLM tool call into the UIMessage part the AI SDK
@@ -25,7 +22,6 @@ func ToolCallPart(tc llm.ToolCall) (api.UIMessagePart, bool) {
 		"toolCallId": tc.ID,
 		"toolName":   tc.Name,
 		"input":      tc.Args,
-		"state":      "call",
 	})
 	if err != nil {
 		return api.UIMessagePart{}, false
@@ -71,13 +67,13 @@ func (w *TurnWriter) Write(parts []api.UIMessagePart) {
 	msg := api.UIMessage{ID: w.id, Role: "assistant", Parts: parts}
 	if w.rec != nil {
 		if err := RewriteMessage(w.app, w.rec, msg); err != nil {
-			chatLogger(w.app).Error("persist assistant message rewrite failed", "message_id", w.id, "error", err)
+			logger().Error("persist assistant message rewrite failed", "message_id", w.id, "error", err)
 		}
 		return
 	}
 	rec, err := PersistMessage(w.ctx, w.app, w.conv, msg, w.model)
 	if err != nil {
-		chatLogger(w.app).Error("persist assistant message insert failed", "message_id", w.id, "error", err)
+		logger().Error("persist assistant message insert failed", "message_id", w.id, "error", err)
 		return
 	}
 	w.rec = rec

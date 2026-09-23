@@ -84,11 +84,6 @@ func (r *Reader) Registry() agent.Registry {
 
 func (r *Reader) Reads() int { return r.reads }
 
-func (r *Reader) Dispatch(ctx context.Context, call llm.ToolCall) (result string, ok bool) {
-	out, _, handled, _ := r.Registry().Dispatch(ctx, call)
-	return out, handled
-}
-
 func (r *Reader) ReadThings(refs []string) string {
 	var parts []string
 	if len(refs) > prompts.DiscoverReadThingLimit {

@@ -29,7 +29,7 @@ func HandleIngest(app core.App) func(e *core.RequestEvent) error {
 
 		id, err := ingest.IngestSingle(app, msg)
 		if err != nil {
-			logger(app).Error("ingest failed", "error", err)
+			logger().Error("ingest failed", "error", err)
 			return e.InternalServerError("ingest failed", err)
 		}
 
@@ -40,9 +40,9 @@ func HandleIngest(app core.App) func(e *core.RequestEvent) error {
 			if fragType == "" {
 				fragType = "note"
 			}
-			logger(app).Info("ingested fragment", "fragment_id", id, "fragment_type", fragType, "content", contentPreview(msg.Content))
+			logger().Info("ingested fragment", "fragment_id", id, "fragment_type", fragType, "content", contentPreview(msg.Content))
 		} else {
-			logger(app).Warn("duplicate entry skipped", "content", contentPreview(msg.Content))
+			logger().Warn("duplicate entry skipped", "content", contentPreview(msg.Content))
 		}
 		return e.JSON(http.StatusOK, api.IngestResponse{
 			FragmentID: id,

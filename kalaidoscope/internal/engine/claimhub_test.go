@@ -18,7 +18,7 @@ func TestAwaitGenerationWakesOnSettleWithoutPolling(t *testing.T) {
 
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
-	claimID, err := claimGeneration(app, strat, proj.Id, nil)
+	claimID, err := ClaimGeneration(app, strat, proj.Id, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

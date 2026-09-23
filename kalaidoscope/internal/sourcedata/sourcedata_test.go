@@ -40,12 +40,6 @@ func TestFragments(t *testing.T) {
 		"deleted_at": "2025-01-11 10:00:00.000Z",
 	})
 
-	// FindFragmentByID
-	rec, err := sourcedata.FindFragmentByID(app, f1.Id)
-	if err != nil || rec == nil || rec.Id != f1.Id {
-		t.Fatalf("FindFragmentByID failed: %v, rec: %v", err, rec)
-	}
-
 	// FindFragmentsByIDs
 	multi, err := sourcedata.FindFragmentsByIDs(app, []string{f1.Id, f2.Id})
 	if err != nil || len(multi) != 2 {
@@ -144,24 +138,91 @@ func TestColours(t *testing.T) {
 		t.Fatalf("expected c2 to have 2 members, got %v", mMap[c2.Id])
 	}
 
-	// FindColourByID and FindAllColours
-	cRec, err := sourcedata.FindColourByID(app, c1.Id)
-	if err != nil || cRec.Id != c1.Id {
-		t.Fatalf("FindColourByID failed: %v", err)
+	// ColourMembersMap over every colour (the discover path)
+	all, err := sourcedata.ColourMembersMap(app, nil)
+	if err != nil {
+		t.Fatalf("ColourMembersMap(nil) failed: %v", err)
 	}
+	if len(all) != 2 || len(all[c1.Id]) != 1 || len(all[c2.Id]) != 2 {
+		t.Fatalf("ColourMembersMap(nil) = %v, want both colours with the manual_negative link excluded", all)
+	}
+
 	allCols, err := sourcedata.FindAllColours(app)
-	if err != nil || len(allCols) != 2 {
-		t.Fatalf("FindAllColours failed: %v", err)
+	if err != nil || len(allCols) != 2 || allCols[0].Id != c1.Id {
+		t.Fatalf("FindAllColours expected [c1, c2] by created, got %v (err: %v)", allCols, err)
+	}
+}
+
+func TestPendingAnnotationOrder(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	late := testutil.NewRecord(t, app, schema.ColFragment.String(), map[string]any{
+		"type": "note", "content": "late app note", "occurred_at": "2025-03-02 00:00:00.000Z",
+	})
+	early := testutil.NewRecord(t, app, schema.ColFragment.String(), map[string]any{
+		"type": "note", "content": "early app note", "occurred_at": "2025-03-01 00:00:00.000Z",
+	})
+	imported := testutil.NewRecord(t, app, schema.ColFragment.String(), map[string]any{
+		"type": "email", "content": "imported", "ingested_via": "import", "occurred_at": "2025-01-01 00:00:00.000Z",
+	})
+	done := testutil.NewRecord(t, app, schema.ColFragment.String(), map[string]any{
+		"type": "note", "content": "annotated", "occurred_at": "2025-01-01 00:00:00.000Z",
+	})
+	testutil.NewRecord(t, app, schema.ColFragmentAnnotation.String(), map[string]any{
+		"fragment_id": done.Id, "title": "t", "summary": "s",
+	})
+
+	pending, err := sourcedata.PendingAnnotationFragments(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, r := range pending {
+		got = append(got, r.Id)
+	}
+	want := []string{early.Id, late.Id, imported.Id}
+	if len(got) != len(want) {
+		t.Fatalf("pending = %v, want %v (app fragments first by occurred_at, imports last)", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("pending = %v, want %v (app fragments first by occurred_at, imports last)", got, want)
+		}
+	}
+}
+
+func TestWindowClause(t *testing.T) {
+	if clause, params := sourcedata.WindowClause(nil); clause != "" || len(params) != 0 {
+		t.Errorf("nil window: clause %q params %v", clause, params)
+	}
+	if clause, _ := sourcedata.WindowClause(&api.Window{Start: "not a date", End: "2025-01-02 00:00:00.000Z"}); clause != "" {
+		t.Errorf("invalid window should produce no clause, got %q", clause)
+	}
+	clause, params := sourcedata.WindowClause(&api.Window{Start: "2025-01-01 00:00:00.000Z", End: "2025-01-02 00:00:00.000Z"})
+	if clause == "" || params["ws"] == nil || params["we"] == nil {
+		t.Errorf("valid window: clause %q params %v", clause, params)
 	}
 }
 
 func TestMapAndAnnotations(t *testing.T) {
 	app := testutil.NewApp(t)
 
-	// LoadDocument when absent creates initial doc with version 0
-	doc, version, err := sourcedata.LoadDocument(app)
-	if err != nil || doc == nil || version != 0 {
-		t.Fatalf("LoadDocument initial failed: %v, version: %d", err, version)
+	// LoadMapDocument before any map has been written: empty, version 0,
+	// and nothing written (the read layer never creates the row).
+	doc, version, err := sourcedata.LoadMapDocument(app)
+	if err != nil || doc == nil || version != 0 || len(doc.Things) != 0 {
+		t.Fatalf("LoadMapDocument initial failed: %v, version: %d, doc: %+v", err, version, doc)
+	}
+	if rec, err := sourcedata.FindMapRecord(app); err != nil || rec != nil {
+		t.Fatalf("read layer must not create the map row: rec=%v err=%v", rec, err)
+	}
+	testutil.NewRecord(t, app, schema.ColKalaidoscopeMap.String(), map[string]any{
+		"version": 3,
+		"body":    `{"things":[{"id":"t_alpha","name":"Alpha Project"}]}`,
+	})
+	doc, version, err = sourcedata.LoadMapDocument(app)
+	if err != nil || version != 3 || len(doc.Things) != 1 {
+		t.Fatalf("LoadMapDocument populated failed: %v, version: %d, doc: %+v", err, version, doc)
 	}
 
 	// Seed fragment and annotation
@@ -226,28 +287,16 @@ func TestSnapshots(t *testing.T) {
 		"status":                   "approved",
 		"approval_sequence_number": 1,
 	})
-	s3 := testutil.NewRecord(t, app, schema.ColProjectionSnapshot.String(), map[string]any{
-		"projection_id":            proj.Id,
-		"output":                   "Approved 2",
-		"status":                   "approved",
-		"approval_sequence_number": 2,
-	})
 
-	// FindSnapshotByID
-	rec, err := sourcedata.FindSnapshotByID(app, schema.ColProjectionSnapshot.String(), s1.Id)
+	// FindProjectionSnapshotByID
+	rec, err := sourcedata.FindProjectionSnapshotByID(app, s1.Id)
 	if err != nil || rec == nil || rec.Id != s1.Id {
-		t.Fatalf("FindSnapshotByID failed: %v", err)
+		t.Fatalf("FindProjectionSnapshotByID failed: %v", err)
 	}
 
 	// FindProjectionSnapshotsByIDs
 	snaps, err := sourcedata.FindProjectionSnapshotsByIDs(app, []string{s1.Id, s2.Id})
 	if err != nil || len(snaps) != 2 {
 		t.Fatalf("FindProjectionSnapshotsByIDs failed: %v", err)
-	}
-
-	// LatestApprovedSnapshot should return s3 (approval_sequence_number = 2)
-	latest, err := sourcedata.LatestApprovedSnapshot(app, schema.ColProjectionSnapshot.String(), "projection_id", proj.Id)
-	if err != nil || latest == nil || latest.Id != s3.Id {
-		t.Fatalf("LatestApprovedSnapshot expected s3, got %v (err: %v)", latest, err)
 	}
 }

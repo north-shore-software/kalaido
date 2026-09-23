@@ -13,13 +13,13 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// colour_fragment.match_type values. One row per (colour, fragment); when a
-// pair could carry several reasons the higher one wins, in this order.
+// colour_fragment.match_type values (schema.Match*), named here for the
+// package's own readers.
 const (
-	MatchManualNegative = "manual_negative"
-	MatchManualPositive = "manual_positive"
-	MatchThing          = "thing"
-	MatchPrompt         = "prompt"
+	MatchManualNegative = schema.MatchManualNegative
+	MatchManualPositive = schema.MatchManualPositive
+	MatchThing          = schema.MatchThing
+	MatchPrompt         = schema.MatchPrompt
 )
 
 // rematchMu serialises the mechanical writers: the map-settle hook and the
@@ -51,7 +51,7 @@ func ThingIDs(rec *core.Record) []string {
 // annotate drain and consolidate, thing-backed membership is recomputed from
 // the citations, unless nothing changed.
 func (w *Worker) OnMapSettled(app core.App) {
-	_, version, err := sourcedata.LoadDocument(app)
+	_, version, err := sourcedata.LoadMapDocument(app)
 	if err != nil {
 		w.logger.Error("load map version failed", "error", err)
 		return
@@ -76,7 +76,7 @@ func (w *Worker) OnMapSettled(app core.App) {
 // RematchThings recomputes the "thing" rows of every colour from the current
 // map and annotations.
 func RematchThings(app core.App) error {
-	cols, err := app.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
+	cols, err := sourcedata.FindAllColours(app)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 	if err := anns[0].UnmarshalJSONField("things", &cites); err != nil {
 		return nil
 	}
-	doc, _, err := sourcedata.LoadDocument(app)
+	doc, _, err := sourcedata.LoadMapDocument(app)
 	if err != nil {
 		return err
 	}

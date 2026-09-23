@@ -59,7 +59,7 @@ func TestGenerateSnapshotInFlightGuard(t *testing.T) {
 	}}
 	script.install(t)
 
-	claimID, err := claimGeneration(app, strat, proj.Id, nil)
+	claimID, err := ClaimGeneration(app, strat, proj.Id, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

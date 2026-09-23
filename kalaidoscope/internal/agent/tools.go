@@ -36,13 +36,12 @@ func (r Registry) Tools() []llm.Tool {
 }
 
 // Dispatch executes the handler for call.Name if found in the registry.
-// It returns handled=true if a matching tool was found and executed.
+// It returns handled=true if a matching tool was found and executed. A tool
+// bound without a handler is declared but not handled: the call falls
+// through like an unknown tool rather than answering with nothing.
 func (r Registry) Dispatch(ctx context.Context, call llm.ToolCall) (output string, done bool, handled bool, err error) {
 	for _, bt := range r {
-		if bt.Tool.Name == call.Name {
-			if bt.Handler == nil {
-				return "", false, true, nil
-			}
+		if bt.Tool.Name == call.Name && bt.Handler != nil {
 			out, d, err := bt.Handler(ctx, call)
 			return out, d, true, err
 		}

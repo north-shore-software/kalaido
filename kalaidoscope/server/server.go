@@ -23,10 +23,7 @@ import (
 	_ "github.com/north-shore-software/kalaido/kalaidoscope/schema/deltas"
 )
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "server")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "server")
 }
 
@@ -208,7 +205,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 
 func EnsureReady() {
 	if !llm.Ready() {
-		logger(nil).Error("no LLM provider registered", "hint", "call llm.SetProviderFactory before EnsureReady")
+		logger().Error("no LLM provider registered", "hint", "register a provider (llm/providers/*) before EnsureReady")
 		os.Exit(1)
 	}
 }

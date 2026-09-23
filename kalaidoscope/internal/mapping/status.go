@@ -7,6 +7,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -22,7 +23,7 @@ func EvaluateStatus(app core.App, maps *Worker, version, fragments int) (api.Map
 	if err != nil {
 		return out, err
 	}
-	pending, err := PendingCount(app)
+	pending, err := sourcedata.PendingAnnotationCount(app)
 	if err != nil {
 		return out, err
 	}
@@ -35,12 +36,13 @@ func EvaluateStatus(app core.App, maps *Worker, version, fragments int) (api.Map
 	out.Annotated = int(annotated)
 	out.Unconsolidated = int(unconsolidated)
 	out.PendingAnnotation = pending
-	out.LastDrainError = maps.LastDrainError()
+	var consolidating, annotating bool
 	if maps != nil {
+		out.LastDrainError = maps.LastDrainError()
 		out.WantSettle = maps.WantSettle()
+		consolidating = maps.Consolidating()
+		annotating = maps.Annotating()
 	}
-
-	consolidating := maps.Consolidating()
 	if len(runs) > 0 {
 		info := runInfo(runs[0])
 		info.Interrupted = info.Status == "running" && !consolidating
@@ -52,7 +54,7 @@ func EvaluateStatus(app core.App, maps *Worker, version, fragments int) (api.Map
 		out.State = api.MapStateEmpty
 	case consolidating:
 		out.State = api.MapStateConsolidating
-	case pending > 0 && maps.Annotating():
+	case pending > 0 && annotating:
 		out.State = api.MapStateAnnotating
 	case pending > 0:
 		out.State = api.MapStateUnannotated

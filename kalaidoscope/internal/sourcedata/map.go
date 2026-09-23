@@ -23,26 +23,28 @@ type MapIndex struct {
 	ByThing map[string][]int
 }
 
-// LoadDocument loads the workspace map document and its version.
-// If no map record exists yet, it creates the initial record with version 0 and an empty body.
-func LoadDocument(app core.App) (*mapdoc.Document, int, error) {
+// FindMapRecord is the workspace's one kalaidoscope_map row, or nil when
+// none has been written yet (mapping creates it on its first write).
+func FindMapRecord(app core.App) (*core.Record, error) {
 	recs, err := app.FindRecordsByFilter(schema.ColKalaidoscopeMap.String(), "1=1", "", 1, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(recs) == 0 {
+		return nil, nil
+	}
+	return recs[0], nil
+}
+
+// LoadMapDocument is the workspace map document and its version: an empty
+// document at version 0 when none has been written yet.
+func LoadMapDocument(app core.App) (*mapdoc.Document, int, error) {
+	rec, err := FindMapRecord(app)
 	if err != nil {
 		return nil, 0, err
 	}
-	var rec *core.Record
-	if len(recs) > 0 {
-		rec = recs[0]
-	} else {
-		col, err := app.FindCollectionByNameOrId(schema.ColKalaidoscopeMap.String())
-		if err != nil {
-			return nil, 0, err
-		}
-		rec = core.NewRecord(col)
-		rec.Set("version", 0)
-		if err := app.Save(rec); err != nil {
-			return nil, 0, err
-		}
+	if rec == nil {
+		return &mapdoc.Document{}, 0, nil
 	}
 	doc, _ := mapdoc.Parse(pbutil.RawJSONField(rec, "body"))
 	return doc, rec.GetInt("version"), nil
@@ -117,7 +119,7 @@ func ResolveRef(d *mapdoc.Document, ref string) *mapdoc.Thing {
 
 // LoadMapIndex loads the document, annotation rows, and Thing index in a single operation.
 func LoadMapIndex(app core.App) (*MapIndex, error) {
-	doc, version, err := LoadDocument(app)
+	doc, version, err := LoadMapDocument(app)
 	if err != nil {
 		return nil, err
 	}

@@ -18,10 +18,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "ingest")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "ingest")
 }
 
@@ -42,7 +39,7 @@ func RegisterHooks(app core.App, deps Deps) {
 	app.OnRecordCreate("ingest").BindFunc(func(e *core.RecordEvent) error {
 		files, err := readUnsavedFiles(e.Record)
 		if err != nil {
-			logger(app).Error("read uploads failed", "error", err)
+			logger().Error("read uploads failed", "error", err)
 		}
 		cfg := readConfig(e.Record)
 
@@ -168,14 +165,14 @@ func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID str
 		total += n
 		if err != nil {
 			ingestErr = err
-			logger(app).Error("processing file failed", "file", uf.name, "error", err)
+			logger().Error("processing file failed", "file", uf.name, "error", err)
 			break
 		}
 	}
 
 	rec, err := app.FindRecordById(schema.ColIngest.String(), recID)
 	if err != nil {
-		logger(app).Error("reload record failed", "record_id", recID, "error", err)
+		logger().Error("reload record failed", "record_id", recID, "error", err)
 		return
 	}
 	rec.Set("ingested", total)
@@ -186,9 +183,9 @@ func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID str
 		rec.Set("status", "done")
 	}
 	if err := app.Save(rec); err != nil {
-		logger(app).Error("save status failed", "record_id", recID, "error", err)
+		logger().Error("save status failed", "record_id", recID, "error", err)
 	}
-	logger(app).Info("completed record", "record_id", recID, "fragments", total, "files", len(files))
+	logger().Info("completed record", "record_id", recID, "fragments", total, "files", len(files))
 	// The batch is in: every lens over these fragments can now be
 	// regenerated ahead of the user. Colour and map follow-ups re-request
 	// the wave as they change membership; each re-run skips what is current.

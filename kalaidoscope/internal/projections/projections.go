@@ -56,13 +56,7 @@ func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, par
 	return newSnapID, nil
 }
 func (s Strategy) ScrubSpec(spec *api.ContextSpec, id string) {
-	kept := spec.SourceProjectionIDs[:0]
-	for _, x := range spec.SourceProjectionIDs {
-		if x != id {
-			kept = append(kept, x)
-		}
-	}
-	spec.SourceProjectionIDs = kept
+	spec.SourceProjectionIDs = engine.RemoveID(spec.SourceProjectionIDs, id)
 }
 
 // FindLive loads a projection that is not soft-deleted.
@@ -120,7 +114,7 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, error) 
 		rec.Set("name", *params.Name)
 	}
 	if params.GenerateWithModel != nil {
-		rec.Set("generate_with_model", *params.GenerateWithModel)
+		rec.Set("generate_with_model", strings.TrimSpace(*params.GenerateWithModel))
 	}
 	if params.Pinned != nil && params.AuthID != "" {
 		pbutil.TogglePinnedBy(rec, params.AuthID, *params.Pinned)
@@ -149,7 +143,7 @@ func Delete(app core.App, id string) error {
 		return engine.ErrGenerationInFlight
 	}
 	return app.RunInTransaction(func(tx core.App) error {
-		if err := engine.ScrubContextSpecsByStrategy(tx, Strategy{}, id); err != nil {
+		if err := engine.ScrubContextSpecs(tx, id, Strategy{}.ScrubSpec); err != nil {
 			return err
 		}
 		return engine.SoftDelete(tx, rec)

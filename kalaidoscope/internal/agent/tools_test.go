@@ -61,6 +61,13 @@ func TestRegistry_ToolsAndDispatch(t *testing.T) {
 	if err != nil || handled || done || out != "" {
 		t.Errorf("unexpected result for unknown tool: out=%q, done=%v, handled=%v, err=%v", out, done, handled, err)
 	}
+
+	// 5. Declared without a handler: falls through like an unknown tool
+	reg = append(reg, agent.BoundTool{Tool: agent.EmptyTool("tool_3", "no handler")})
+	out, done, handled, err = reg.Dispatch(ctx, llm.ToolCall{Name: "tool_3"})
+	if err != nil || handled || done || out != "" {
+		t.Errorf("a nil handler must not count as handled: out=%q, done=%v, handled=%v, err=%v", out, done, handled, err)
+	}
 }
 
 func TestRegistry_Dispatcher(t *testing.T) {

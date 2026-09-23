@@ -44,7 +44,7 @@ func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
 				w.seen[sha256.Sum256([]byte(r.GetString("content")))] = struct{}{}
 			}
 		} else {
-			logger(app).Warn("preload existing fragments for dedupe failed", "error", err)
+			logger().Warn("preload existing fragments for dedupe failed", "error", err)
 		}
 	}
 	return w, nil

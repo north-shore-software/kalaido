@@ -32,6 +32,15 @@ const (
 // String lets a Collection be passed where PocketBase wants a plain name.
 func (c Collection) String() string { return string(c) }
 
+// colour_fragment.match_type values. One row per (colour, fragment); when a
+// pair could carry several reasons the higher one wins, in this order.
+const (
+	MatchManualNegative = "manual_negative"
+	MatchManualPositive = "manual_positive"
+	MatchThing          = "thing"
+	MatchPrompt         = "prompt"
+)
+
 // NotDeleted is the filter clause selecting live rows of a soft-deleting
 // collection. Soft-deleted rows carry a timestamp in deleted_at; live rows
 // carry the empty string, never NULL, so this is the whole test.

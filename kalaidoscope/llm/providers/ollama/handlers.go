@@ -30,10 +30,7 @@ func Register(app core.App) {
 	RegisterPreload(app)
 }
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "ollama")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "ollama")
 }
 
@@ -47,7 +44,7 @@ func RegisterRoutes(app core.App) {
 
 func RegisterPreload(app core.App) {
 	ctx, cancel := context.WithCancel(context.Background())
-	log := logger(app)
+	log := logger()
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		go preloadDefaultModel(ctx, log)
 		return se.Next()

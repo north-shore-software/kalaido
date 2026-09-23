@@ -4,10 +4,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -17,45 +18,45 @@ var ErrMessagesRequired = errors.New("messages required")
 // ErrNoModel indicates no model was configured for refinement.
 var ErrNoModel = errors.New("no model configured for refinement")
 
-// ErrNotFound indicates the refinement conversation could not be located.
-var ErrNotFound = errors.New("refinement conversation not found")
-
-func logger(app core.App) *slog.Logger {
-	if app == nil {
-		return slog.Default()
-	}
-	return app.Logger().With("component", "refinement")
+func logger() *slog.Logger {
+	return slog.Default().With("component", "refinement")
 }
 
-// Find locates a projection or reflection refinement record by its external conversation id.
-func Find(app core.App, clientID string) (*core.Record, error) {
-	if r, err := app.FindFirstRecordByFilter(schema.ColProjectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": clientID}); err == nil {
-		return r, nil
-	}
-	if r, err := app.FindFirstRecordByFilter(schema.ColReflectionRefinement.String(), "external_conversation_id = {:id}", dbx.Params{"id": clientID}); err == nil {
-		return r, nil
-	}
-	return nil, ErrNotFound
-}
-
-// Parent resolves the parent projection or reflection entity record for the refinement.
-func Parent(app core.App, refRec *core.Record) *core.Record {
-	targetCol, snapshotField := "projection", "projection_snapshot_id"
+// strategyFor is the engine strategy of the entity type a refinement refines.
+func strategyFor(refRec *core.Record) engine.Strategy {
 	if refRec.Collection().Name == schema.ColReflectionRefinement.String() {
-		targetCol, snapshotField = "reflection", "reflection_snapshot_id"
+		return reflections.Strategy{}
 	}
-	parentID := refRec.GetString(targetCol + "_id")
-	if parentID == "" {
-		if snapID := refRec.GetString(snapshotField); snapID != "" {
-			if snap, err := app.FindRecordById(targetCol+"_snapshot", snapID); err == nil {
-				parentID = snap.GetString(targetCol + "_id")
-			}
-		}
+	return projections.Strategy{}
+}
+
+// parentID is the id of the entity a refinement refines: its parent column,
+// or, for a row that predates that column, the parent of the snapshot it
+// was opened on.
+func parentID(app core.App, refRec *core.Record, strat engine.Strategy) string {
+	if id := refRec.GetString(strat.ForeignKeyCol()); id != "" {
+		return id
 	}
-	if parentID == "" {
+	snapID := refRec.GetString(strat.TargetType() + "_snapshot_id")
+	if snapID == "" {
+		return ""
+	}
+	snap, err := app.FindRecordById(strat.SnapshotCollectionName(), snapID)
+	if err != nil {
+		return ""
+	}
+	return snap.GetString(strat.ForeignKeyCol())
+}
+
+// Parent resolves the live projection or reflection a refinement refines,
+// or nil when it has none (or it has been deleted).
+func Parent(app core.App, refRec *core.Record) *core.Record {
+	strat := strategyFor(refRec)
+	id := parentID(app, refRec, strat)
+	if id == "" {
 		return nil
 	}
-	rec, err := app.FindRecordById(targetCol, parentID)
+	rec, err := app.FindRecordById(strat.CollectionName(), id)
 	if err != nil || engine.IsDeleted(rec) {
 		return nil
 	}
