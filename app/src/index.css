@@ -586,6 +586,15 @@
   --section-ink: var(--lime-base);
 }
 
+[data-section="map"] {
+  --section: var(--cyan-base);
+  --section-wash: var(--cyan-wash);
+  --section-edge: var(--cyan-edge);
+  --section-veil: var(--cyan-veil);
+  --section-ink: var(--cyan-base);
+}
+
+[data-section="status"],
 [data-section="connections"],
 [data-section="settings"] {
   --section: var(--fg-2);

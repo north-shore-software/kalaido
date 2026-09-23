@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { StatusKind } from "@/components/kalaido";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 
 export interface WorkspaceEvent {
@@ -8,7 +9,7 @@ export interface WorkspaceEvent {
   subtitle?: string;
   status?: string;
   timestamp: string;
-  badgeTone: "muted" | "primary" | "critical" | "stable";
+  statusKind: StatusKind;
 }
 
 export function useEventLog(): WorkspaceEvent[] {
@@ -45,7 +46,7 @@ export function useEventLog(): WorkspaceEvent[] {
         subtitle: snap.generated_by_model ? `Model: ${snap.generated_by_model}` : undefined,
         status: snap.status,
         timestamp: snap.created,
-        badgeTone: snap.status === "approved" ? "stable" : snap.status === "generating" ? "primary" : "muted",
+        statusKind: snap.status === "approved" ? "stable" : snap.status === "generating" ? "cyan" : "neutral",
       });
     }
 
@@ -58,7 +59,7 @@ export function useEventLog(): WorkspaceEvent[] {
         subtitle: snap.generated_by_model ? `Model: ${snap.generated_by_model}` : undefined,
         status: snap.status,
         timestamp: snap.created,
-        badgeTone: snap.status === "approved" ? "stable" : snap.status === "generating" ? "primary" : "muted",
+        statusKind: snap.status === "approved" ? "stable" : snap.status === "generating" ? "cyan" : "neutral",
       });
     }
 
@@ -70,7 +71,7 @@ export function useEventLog(): WorkspaceEvent[] {
         subtitle: `${run.admits ?? 0} added, ${run.merges ?? 0} folded${run.generated_by_model ? ` · ${run.generated_by_model}` : ""}`,
         status: run.status,
         timestamp: run.created,
-        badgeTone: run.status === "done" ? "stable" : run.status === "running" ? "primary" : run.status === "error" ? "critical" : "muted",
+        statusKind: run.status === "done" ? "stable" : run.status === "running" ? "cyan" : run.status === "error" ? "critical" : "neutral",
       });
     }
 
@@ -82,7 +83,7 @@ export function useEventLog(): WorkspaceEvent[] {
         subtitle: run.summary || `${run.rounds ?? 0} rounds, ${run.fragment_reads ?? 0} reads`,
         status: run.status,
         timestamp: run.created,
-        badgeTone: run.status === "done" ? "stable" : run.status === "running" ? "primary" : run.status === "error" ? "critical" : "muted",
+        statusKind: run.status === "done" ? "stable" : run.status === "running" ? "cyan" : run.status === "error" ? "critical" : "neutral",
       });
     }
 
@@ -90,11 +91,11 @@ export function useEventLog(): WorkspaceEvent[] {
       events.push({
         id: `ing-${ing.id}`,
         type: "ingest",
-        title: `Import: ${ing.title || ing.source || "Fragments"}`,
-        subtitle: ing.error ? `Error: ${ing.error}` : undefined,
+        title: ing.format ? `Import (${ing.format})` : "Import",
+        subtitle: ing.ingested !== undefined ? `${ing.ingested} fragments ingested` : ing.error ? `Error: ${ing.error}` : undefined,
         status: ing.status,
         timestamp: ing.created,
-        badgeTone: ing.status === "complete" ? "stable" : ing.status === "pending" ? "primary" : ing.status === "error" ? "critical" : "muted",
+        statusKind: ing.status === "done" ? "stable" : ing.status === "pending" ? "cyan" : ing.status === "error" ? "critical" : "neutral",
       });
     }
 
