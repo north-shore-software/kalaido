@@ -166,6 +166,7 @@ export default function MapPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {relationships.map((rel, i) => (
                     <div
+                      // biome-ignore lint/suspicious/noArrayIndexKey: rows are a pure derivation of the map document
                       key={`${rel.from}-${rel.to}-${i}`}
                       className="flex items-center gap-2 border border-line bg-surface-2 px-3 py-2 font-mono text-mono-sm"
                     >

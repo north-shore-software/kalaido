@@ -67,13 +67,15 @@ export default function Explore() {
   const { go } = useAppNavigate();
 
   const seed = useAppRouteState<"explore">();
-  const canRestore =
-    !seed?.initialPrompt &&
-    lastExploreSession !== null &&
-    lastExploreSession.baseURL === client.baseURL;
+  // The session to pick up where the last visit left off — only read by the
+  // one-shot state/ref initialisers below, so it is deliberately not reactive.
+  const restored =
+    !seed?.initialPrompt && lastExploreSession?.baseURL === client.baseURL
+      ? lastExploreSession
+      : null;
 
-  const [context, setContext] = useState<ContextItem[]>(() =>
-    canRestore ? lastExploreSession!.context : [WHOLE_SCOPE_ITEM],
+  const [context, setContext] = useState<ContextItem[]>(
+    () => restored?.context ?? [WHOLE_SCOPE_ITEM],
   );
   const initialPromptRef = useRef(seed?.initialPrompt);
 
@@ -83,22 +85,20 @@ export default function Explore() {
     id: string;
     clientId: string;
     messages: UIMessage[];
-  } | null>(() => (canRestore ? lastExploreSession!.selected : null));
-  const [newChatId, setNewChatId] = useState(() =>
-    canRestore ? lastExploreSession!.newChatId : generateId(),
+  } | null>(() => restored?.selected ?? null);
+  const [newChatId, setNewChatId] = useState(
+    () => restored?.newChatId ?? generateId(),
   );
   const firstChatIdRef = useRef(newChatId);
 
   const initialMessagesRef = useRef<UIMessage[]>(
-    canRestore
-      ? (lastExploreSession!.selected?.messages ?? lastExploreSession!.messages)
-      : [],
+    restored ? (restored.selected?.messages ?? restored.messages) : [],
   );
 
   const { items: historyContext, ready: historyContextReady } =
     useActiveContext(selected?.messages ?? []);
-  const [syncedClientId, setSyncedClientId] = useState<string | null>(() =>
-    canRestore ? (lastExploreSession!.selected?.clientId ?? null) : null,
+  const [syncedClientId, setSyncedClientId] = useState<string | null>(
+    () => restored?.selected?.clientId ?? null,
   );
 
   useEffect(() => {
@@ -144,9 +144,7 @@ export default function Explore() {
 
   const bookmarks = useBookmarks(activeClientId);
   const [liveMessages, setLiveMessages] = useState<UIMessage[]>(() =>
-    canRestore
-      ? (lastExploreSession!.selected?.messages ?? lastExploreSession!.messages)
-      : [],
+    restored ? (restored.selected?.messages ?? restored.messages) : [],
   );
 
   useEffect(() => {

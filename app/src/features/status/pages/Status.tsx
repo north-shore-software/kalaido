@@ -306,6 +306,7 @@ export default function StatusPage() {
                   <div className="flex flex-col gap-1.5">
                     {runningTasks.map((t, idx) => (
                       <div
+                        // biome-ignore lint/suspicious/noArrayIndexKey: rows are a pure derivation of the queue status document
                         key={`${t.role}-${t.started}-${idx}`}
                         className="flex items-center justify-between border border-line bg-surface-2 px-3 py-2 font-mono text-mono-sm"
                       >
