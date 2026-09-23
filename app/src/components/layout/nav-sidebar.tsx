@@ -6,12 +6,10 @@ import {
   LayoutDashboardIcon,
   MapIcon,
   MessagesSquareIcon,
-  MoonIcon,
   NotebookPenIcon,
   PaletteIcon,
   PanelLeftIcon,
   SettingsIcon,
-  SunIcon,
   WavesIcon,
 } from "lucide-react";
 import type { ComponentProps } from "react";
@@ -36,8 +34,6 @@ import {
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { resolveTheme } from "@/lib/theme";
-import { useTheme } from "@/providers/theme-provider";
 import { pathFor } from "@/routes/registry";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useCurrentPathname } from "@/routes/use-current-pathname";
@@ -181,31 +177,6 @@ function SettingsButton() {
   );
 }
 
-function ThemeToggleButton() {
-  const { theme, setTheme } = useTheme();
-  const current = resolveTheme(theme);
-  const isDark = current === "dark";
-  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
-
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        tooltip={label}
-        className={NEUTRAL_DEST_CLASS}
-        onClick={() => setTheme(isDark ? "light" : "dark")}
-      >
-        {isDark ? <SunIcon /> : <MoonIcon />}
-        <span>{label}</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  );
-}
-
-/**
- * The rail opens collapsed, so this is the only visible way back to the labels
- * — it has to stay on screen, and its label has to describe what the click
- * does rather than what the sidebar currently is.
- */
 function SidebarToggleButton() {
   const { toggleSidebar, state } = useSidebar();
   const label = state === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
@@ -237,7 +208,6 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <StatusButton />
           <SettingsButton />
-          <ThemeToggleButton />
           <SidebarToggleButton />
         </SidebarMenu>
       </SidebarFooter>

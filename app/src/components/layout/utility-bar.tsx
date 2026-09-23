@@ -1,8 +1,10 @@
 import {
   CompassIcon,
+  MoonIcon,
   PaletteIcon,
   RefreshCwIcon,
   SparklesIcon,
+  SunIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
@@ -18,6 +20,8 @@ import { appState } from "@/hooks/use-app-state.ts";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { useOrganizeStatus } from "@/hooks/use-organize-status";
 import { cn } from "@/lib/css-utils";
+import { resolveTheme } from "@/lib/theme";
+import { useTheme } from "@/providers/theme-provider";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
 import { utilityBarTransitions } from "./utility-bar.transitions";
@@ -68,7 +72,9 @@ export function UtilityBar() {
       {currentKalaidoscope ? (
         <QueueStatusLine isLocal={isLocal} sidecarStatus={sidecarStatus} />
       ) : (
-        <div />
+        <div className="ml-auto flex items-center">
+          <ThemeToggleMicroButton />
+        </div>
       )}
     </div>
   );
@@ -325,9 +331,31 @@ function QueueStatusLine({
         )}
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <WorkerCluster />
+        <div className="h-3.5 w-px bg-line" />
+        <ThemeToggleMicroButton />
       </div>
     </>
+  );
+}
+
+function ThemeToggleMicroButton() {
+  const { theme, setTheme } = useTheme();
+  const isDark = resolveTheme(theme) === "dark";
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="flex items-center px-1 py-0.5 text-fg-5 transition-colors hover:text-fg-2 cursor-pointer"
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {isDark ? (
+        <SunIcon className="size-3.5" />
+      ) : (
+        <MoonIcon className="size-3.5" />
+      )}
+    </button>
   );
 }
