@@ -18,6 +18,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { appState } from "@/hooks/use-app-state.ts";
+import { cn } from "@/lib/css-utils";
+import { kalaidoscopeTypeLabel } from "@/lib/labels";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { switcherTransitions } from "./nav-kalaidoscope-switcher.transitions";
@@ -68,46 +70,65 @@ export function NavKalaidoscopeSwitcher() {
             }
           />
           <DropdownMenuContent
-            className="w-64"
+            className="w-72"
             align="start"
             side={isMobile ? "bottom" : "right"}
-            sideOffset={4}
+            sideOffset={8}
           >
             <DropdownMenuGroup>
               <DropdownMenuLabel className="text-label uppercase text-muted-foreground">
                 Kalaidoscopes
               </DropdownMenuLabel>
-              {kalaidoscopes.map((kalaidoscope, index) => (
-                <DropdownMenuItem
-                  key={kalaidoscope.id}
-                  onClick={() => void handleSelect(kalaidoscope.id)}
-                  disabled={switching}
-                  className="gap-2 p-2"
-                >
-                  <div className="flex size-6 items-center justify-center rounded-none border">
-                    <span className="text-meta font-medium">
-                      {kalaidoscope.displayName.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  {kalaidoscope.displayName}
-                  {index < 9 && (
-                    <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
-                  )}
-                </DropdownMenuItem>
-              ))}
+              {kalaidoscopes.map((kalaidoscope, index) => {
+                const isActive = kalaidoscope.id === currentKalaidoscopeId;
+                return (
+                  <DropdownMenuItem
+                    key={kalaidoscope.id}
+                    onClick={() => void handleSelect(kalaidoscope.id)}
+                    disabled={switching}
+                    className="h-[60px] cursor-pointer gap-3 px-3 normal-case tracking-normal hover:bg-cyan-wash hover:text-cyan focus:bg-cyan-wash focus:text-cyan data-[highlighted]:bg-cyan-wash data-[highlighted]:text-cyan"
+                  >
+                    <div
+                      className={cn(
+                        "flex size-8 shrink-0 items-center justify-center rounded-none border transition-colors",
+                        isActive
+                          ? "border-cyan-edge bg-cyan-veil text-cyan font-semibold"
+                          : "border-line bg-surface-1 font-semibold text-fg-1 group-hover/dropdown-menu-item:border-cyan-edge group-hover/dropdown-menu-item:text-cyan group-data-[highlighted]/dropdown-menu-item:border-cyan-edge group-data-[highlighted]/dropdown-menu-item:text-cyan",
+                      )}
+                    >
+                      <span className="text-item">
+                        {kalaidoscope.displayName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col justify-center leading-tight">
+                      <span className="truncate text-item font-semibold text-fg-1 transition-colors group-hover/dropdown-menu-item:text-cyan group-data-[highlighted]/dropdown-menu-item:text-cyan">
+                        {kalaidoscope.displayName}
+                      </span>
+                      <span className="truncate text-meta text-fg-4 transition-colors group-hover/dropdown-menu-item:text-cyan/70 group-data-[highlighted]/dropdown-menu-item:text-cyan/70">
+                        {kalaidoscopeTypeLabel(kalaidoscope.type)}
+                      </span>
+                    </div>
+                    {index < 9 && (
+                      <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="gap-2 p-2"
+              className="h-[60px] cursor-pointer gap-3 px-3 normal-case tracking-normal hover:bg-cyan-wash hover:text-cyan focus:bg-cyan-wash focus:text-cyan data-[highlighted]:bg-cyan-wash data-[highlighted]:text-cyan"
               onClick={() =>
                 go(switcherTransitions.transitions.newKalaidoscope)
               }
             >
-              <div className="flex size-6 items-center justify-center rounded-none border bg-background">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-none border border-dashed border-line bg-surface-1 text-fg-3 transition-colors group-hover/dropdown-menu-item:border-cyan-edge group-hover/dropdown-menu-item:text-cyan group-data-[highlighted]/dropdown-menu-item:border-cyan-edge group-data-[highlighted]/dropdown-menu-item:text-cyan">
                 <PlusIcon className="size-4" />
               </div>
-              <div className="font-medium text-muted-foreground">
-                New kalaidoscope
+              <div className="flex flex-col justify-center leading-tight">
+                <span className="text-item font-medium text-fg-2 transition-colors group-hover/dropdown-menu-item:text-cyan group-data-[highlighted]/dropdown-menu-item:text-cyan">
+                  New kalaidoscope
+                </span>
               </div>
             </DropdownMenuItem>
           </DropdownMenuContent>
