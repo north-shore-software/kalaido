@@ -1,6 +1,6 @@
 import { defineTransitions } from "@/routes/route-kit";
 
-export const chatTransitions = defineTransitions({
+export const exploreTransitions = defineTransitions({
   /**
    * The session's gathered turns stop being stepping stones and become the
    * inputs of a living document, opened with the brief the chat arrived at.

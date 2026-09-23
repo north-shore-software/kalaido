@@ -546,7 +546,7 @@
   --section-ink: var(--cyan-base);
 }
 
-[data-section="chat"] {
+[data-section="explore"] {
   --section: var(--yellow-base);
   --section-wash: var(--yellow-wash);
   --section-edge: var(--yellow-line);

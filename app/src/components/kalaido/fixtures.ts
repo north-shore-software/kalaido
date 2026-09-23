@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import type { TimelineItem } from "./timeline";
 
 export interface MockDocument {
@@ -167,5 +168,48 @@ export const TIMELINE_STABLE_FIXTURES: TimelineItem[] = [
     id: "stable-3",
     label: "Evaluation warning",
     note: "Detected drifting confidence on note classification",
+  },
+];
+
+export const fixtureMessages: UIMessage[] = [
+  {
+    id: "msg-0",
+    role: "system",
+    parts: [
+      {
+        type: "text",
+        text: "This is a system prompt or a context_spec that should be filtered out",
+      },
+    ],
+  },
+  {
+    id: "msg-1",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "What does kalaido stand for?",
+      },
+    ],
+  },
+  {
+    id: "msg-2",
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: "Kalaido stands for kaleidoscope, reflecting the vibrant and changing facets of your projects.",
+      },
+    ],
+  },
+  {
+    id: "msg-3",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "That sounds awesome! Can you help me organize my thoughts?",
+      },
+    ],
   },
 ];

@@ -2,7 +2,7 @@ import type { Story } from "@ladle/react";
 import type { UIMessage } from "ai";
 import { BookmarkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { fixtureMessages } from "../../features/chat/fixtures";
+import { fixtureMessages } from "./fixtures";
 import { ChatMessages } from "./chat-messages";
 
 export default { title: "Kalaido / ChatMessages" };

@@ -1,6 +1,6 @@
 import { bootErrorRoute } from "@/features/boot/pages/BootError";
 import { splashRoute } from "@/features/boot/pages/Splash";
-import { chatRoute } from "@/features/chat/pages/Chat";
+import { exploreRoute } from "@/features/explore/pages/Explore";
 import { coloursRoute } from "@/features/colours/pages/Colours";
 import { connectionsRoute } from "@/features/connections/pages/Connections";
 import { kalaidoscopeSetupRoute } from "@/features/create-kalaidoscope/pages/KalaidoscopeSetup";
@@ -50,7 +50,7 @@ export const appRoutes: RouteDef[] = [
   coloursRoute,
   connectionsRoute,
   rotationRoute,
-  chatRoute,
+  exploreRoute,
 ];
 
 const byId = new Map(appRoutes.map((r) => [r.id, r]));
@@ -79,7 +79,7 @@ export function pathFor<Id extends RouteId>(
 
 export type SectionId =
   | "dashboard"
-  | "chat"
+  | "explore"
   | "projections"
   | "reflections"
   | "colours"
@@ -92,8 +92,8 @@ export function sectionForRoute(id: RouteId): SectionId {
   switch (id) {
     case "main":
       return "dashboard";
-    case "chat":
-      return "chat";
+    case "explore":
+      return "explore";
     case "projections":
     case "projection-detail":
     case "projection-review":

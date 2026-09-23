@@ -194,7 +194,7 @@ a hue by name.
 | Onboarding · boot (pre-workspace) | brand cyan `#22d3ee` | `--cyan-base` |
 | Capture (shell action) | brand cyan `#22d3ee` | `--cyan-base` |
 | Dashboard | cyan `#22d3ee` | `--cyan-base` |
-| Chat | yellow `#f5d90a` | `--yellow-base` |
+| Explore | yellow `#f5d90a` | `--yellow-base` |
 | Projections (incl. review, rotation) | green `#4ade80` | `--green-base` |
 | Reflections | violet `#c084fc` | `--violet-base` |
 | Colours | blush `#fda4af` | `--blush-base` |
@@ -243,7 +243,7 @@ never do.
 **The section accent is position and state.** Each section owns a hue (map in §3). On
 that section's screens the hue does everything one accent used to do: the active rail
 item, the selected row, the active settings entry, the armed send button, state pills,
-the hero card, the focus ring, text selection. Walking from Chat to Projections, the
+the hero card, the focus ring, text selection. Walking from Explore to Projections, the
 accent walks from yellow to violet — the page itself reminds you where you are. The
 section accent is reassurance — it reports, it does not ask.
 
@@ -481,7 +481,7 @@ chamfered, `drop-shadow-magenta`. Hover drops to `opacity: 0.86`.
 Solid section accent fill (`bg-section`), borderless, `#121315` text, weight 700, zero
 radius at rest; on hover it chamfers (`clip-chamfer`) and drops to `opacity: 0.86` —
 the cut corner, elsewhere the mark of *the* committed action, appears as a preview of
-commitment. Its sanctioned companion (Chat's History button) is the *washed* form:
+commitment. Its sanctioned companion (Explore's History button) is the *washed* form:
 `section-edge` border, static `section-wash` fill, `section-ink` text — hover promotes
 the border to the solid accent, the fill never changes.
 

@@ -4,7 +4,7 @@ export const navSidebarTransitions = defineChromeTransitions(
   "chrome:nav-sidebar",
   "Navigation Sidebar",
   {
-    openChat: { to: "chat", trigger: "Click 'Chat' in the sidebar" },
+    openExplore: { to: "explore", trigger: "Click 'Explore' in the sidebar" },
     openConnections: {
       to: "connections",
       trigger: "Click 'Connections' in the sidebar",

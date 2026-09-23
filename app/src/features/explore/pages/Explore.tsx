@@ -1,5 +1,5 @@
 import { generateId, type UIMessage } from "ai";
-import { BookmarkIcon, HistoryIcon, SquarePenIcon } from "lucide-react";
+import { BookmarkIcon, HistoryIcon, SquarePenIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type Conversation,
@@ -16,34 +16,29 @@ import {
   PageCard,
   PageHeader,
   PageLayout,
+  PaneHeader,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import {
   type BookmarkRow,
   BookmarksTray,
   ChatMessageActions,
   ConversationList,
-} from "@/features/chat";
+} from "@/features/explore";
 import {
   BookmarkActions,
   type ProjectionStart,
-} from "@/features/chat/components/bookmark-actions";
-import { useBookmarkActions } from "@/features/chat/hooks/use-bookmark-actions";
-import { useBookmarks } from "@/features/chat/hooks/use-bookmarks";
-import { useConversations } from "@/features/chat/hooks/use-conversations.ts";
+} from "@/features/explore/components/bookmark-actions";
+import { useBookmarkActions } from "@/features/explore/hooks/use-bookmark-actions";
+import { useBookmarks } from "@/features/explore/hooks/use-bookmarks";
+import { useConversations } from "@/features/explore/hooks/use-conversations.ts";
 import { useActiveContext } from "@/hooks/use-active-context";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { withContextItem } from "@/lib/mentions";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppRouteState } from "@/routes/use-app-route-state";
-import { chatTransitions } from "./Chat.transitions";
+import { exploreTransitions } from "./Explore.transitions";
 
 /** The text a turn shows — what a bookmark of it keeps. */
 function messageText(msg: UIMessage): string {
@@ -53,34 +48,58 @@ function messageText(msg: UIMessage): string {
     .join("\n\n");
 }
 
-export default function Chat() {
+interface ExploreSessionState {
+  baseURL: string;
+  selected: {
+    id: string;
+    clientId: string;
+    messages: UIMessage[];
+  } | null;
+  newChatId: string;
+  messages: UIMessage[];
+  context: ContextItem[];
+}
+
+let lastExploreSession: ExploreSessionState | null = null;
+
+export default function Explore() {
   const client = useKalaidoscopeClient();
   const { go } = useAppNavigate();
 
-  // A conversation can be seeded from another page (e.g. Home's composer):
-  // `initialPrompt` is auto-sent on mount.
-  const seed = useAppRouteState<"chat">();
-  // The active context selection, owned here and mirrored to the backend by
-  // ChatPanel as `context_spec` stream messages. Starts as the whole scope in
-  // full; the bar downgrades to summaries itself if that does not fit.
-  const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
-  const initialPromptRef = useRef(seed.initialPrompt);
+  const seed = useAppRouteState<"explore">();
+  const canRestore =
+    !seed?.initialPrompt &&
+    lastExploreSession !== null &&
+    lastExploreSession.baseURL === client.baseURL;
 
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [context, setContext] = useState<ContextItem[]>(() =>
+    canRestore ? lastExploreSession!.context : [WHOLE_SCOPE_ITEM],
+  );
+  const initialPromptRef = useRef(seed?.initialPrompt);
+
+  const [historyOpen, setHistoryOpen] = useState(true);
   const { conversations, loading: loadingList, refresh } = useConversations();
   const [selected, setSelected] = useState<{
-    id: string; // PocketBase record id — unique, used as the panel remount key
+    id: string;
     clientId: string;
     messages: UIMessage[];
-  } | null>(null);
-  const [newChatId, setNewChatId] = useState(() => generateId());
-  // The mount-time chat id — only this pristine chat receives the seeded prompt,
-  // so starting/resuming another conversation never replays it.
+  } | null>(() => (canRestore ? lastExploreSession!.selected : null));
+  const [newChatId, setNewChatId] = useState(() =>
+    canRestore ? lastExploreSession!.newChatId : generateId(),
+  );
   const firstChatIdRef = useRef(newChatId);
+
+  const initialMessagesRef = useRef<UIMessage[]>(
+    canRestore
+      ? (lastExploreSession!.selected?.messages ?? lastExploreSession!.messages)
+      : [],
+  );
 
   const { items: historyContext, ready: historyContextReady } =
     useActiveContext(selected?.messages ?? []);
-  const [syncedClientId, setSyncedClientId] = useState<string | null>(null);
+  const [syncedClientId, setSyncedClientId] = useState<string | null>(() =>
+    canRestore ? (lastExploreSession!.selected?.clientId ?? null) : null,
+  );
 
   useEffect(() => {
     if (
@@ -97,32 +116,50 @@ export default function Chat() {
     try {
       const messages = await getConversationMessages(client, conv.id);
       setSelected({ id: conv.id, clientId: conv.clientId, messages });
-      setHistoryOpen(false);
+      setLiveMessages(messages);
     } catch (err) {
       console.error(err);
     }
   }
 
   function handleNew() {
+    const nextChatId = generateId();
+    initialMessagesRef.current = [];
     setSelected(null);
-    setNewChatId(generateId());
+    setNewChatId(nextChatId);
+    setLiveMessages([]);
     setContext([WHOLE_SCOPE_ITEM]);
     setSyncedClientId(null);
-    setHistoryOpen(false);
+    lastExploreSession = {
+      baseURL: client.baseURL,
+      selected: null,
+      newChatId: nextChatId,
+      messages: [],
+      context: [WHOLE_SCOPE_ITEM],
+    };
   }
 
-  // The AI SDK chat id: a resumed conversation's client id (to resume it
-  // server-side), or the pending new chat's id.
   const activeClientId = selected?.clientId ?? newChatId;
-  // The panel's remount key. Keyed on the unique PocketBase record id rather
-  // than the client id: legacy conversations can share an empty client_id,
-  // which would collapse to one key and leak useChat state between chats.
   const activeChatKey = selected?.id ?? newChatId;
 
-  // The session's gathered turns. Marks live on the server rows; the live
-  // transcript supplies the order and text.
   const bookmarks = useBookmarks(activeClientId);
-  const [liveMessages, setLiveMessages] = useState<UIMessage[]>([]);
+  const [liveMessages, setLiveMessages] = useState<UIMessage[]>(() =>
+    canRestore
+      ? (lastExploreSession!.selected?.messages ?? lastExploreSession!.messages)
+      : [],
+  );
+
+  useEffect(() => {
+    lastExploreSession = {
+      baseURL: client.baseURL,
+      selected: selected
+        ? { ...selected, messages: liveMessages }
+        : null,
+      newChatId,
+      messages: liveMessages,
+      context,
+    };
+  }, [client.baseURL, selected, newChatId, liveMessages, context]);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const bookmarkRows = useMemo<BookmarkRow[]>(
     () =>
@@ -152,7 +189,7 @@ export default function Chat() {
     const ids = await actions.saveAll();
     if (!ids || ids.length === 0) return;
     setBookmarksOpen(false);
-    go(chatTransitions.newColourFromBookmarks, {
+    go(exploreTransitions.newColourFromBookmarks, {
       state: { seed: { positiveExamples: ids } },
     });
   }
@@ -178,7 +215,7 @@ export default function Chat() {
       fragmentIds: [...new Set([...(pins.fragmentIds ?? []), ...fragmentIds])],
     };
     setBookmarksOpen(false);
-    go(chatTransitions.graduateToProjection, {
+    go(exploreTransitions.graduateToProjection, {
       state: {
         seed: {
           name,
@@ -194,7 +231,7 @@ export default function Chat() {
   return (
     <PageLayout>
       <PageHeader
-        title="Chat"
+        title="Explore"
         actions={
           <>
             <Button variant="section" onClick={handleNew}>
@@ -212,7 +249,7 @@ export default function Chat() {
             </Button>
             <Button
               className="border-section-edge bg-section-wash text-section-ink hover:border-section hover:bg-section-wash hover:text-section-ink"
-              onClick={() => setHistoryOpen(true)}
+              onClick={() => setHistoryOpen((v) => !v)}
             >
               <HistoryIcon />
               History
@@ -227,9 +264,13 @@ export default function Chat() {
               flat
               key={activeChatKey}
               chatId={activeClientId}
-              initialMessages={selected?.messages ?? []}
+              initialMessages={
+                selected?.messages ?? initialMessagesRef.current
+              }
               initialPrompt={
-                selected == null && activeClientId === firstChatIdRef.current
+                selected == null &&
+                activeClientId === firstChatIdRef.current &&
+                initialMessagesRef.current.length === 0
                   ? initialPromptRef.current
                   : undefined
               }
@@ -261,6 +302,30 @@ export default function Chat() {
               }}
             />
           </PanelErrorBoundary>
+
+          {historyOpen && (
+            <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-surface-1">
+              <PaneHeader
+                label="History"
+                status={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setHistoryOpen(false)}
+                    aria-label="Close history"
+                  >
+                    <XIcon className="size-3.5" />
+                  </Button>
+                }
+              />
+              <ConversationList
+                conversations={conversations}
+                selectedClientId={selected?.clientId}
+                loading={loadingList}
+                onSelect={handleSelect}
+              />
+            </aside>
+          )}
         </div>
       </PageCard>
 
@@ -283,29 +348,16 @@ export default function Chat() {
           />
         }
       />
-
-      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
-        <SheetContent side="right" className="w-80 p-0 sm:max-w-sm">
-          <SheetHeader className="p-4">
-            <SheetTitle>History</SheetTitle>
-          </SheetHeader>
-          <ConversationList
-            conversations={conversations}
-            selectedClientId={selected?.clientId}
-            loading={loadingList}
-            onSelect={handleSelect}
-          />
-        </SheetContent>
-      </Sheet>
     </PageLayout>
   );
 }
 
-export const chatRoute = defineRoute({
-  id: "chat",
-  path: "/chat",
-  feature: "Chat",
+export const exploreRoute = defineRoute({
+  id: "explore",
+  path: "/explore",
+  aliases: ["/chat"],
+  feature: "Explore",
   requiredScope: ["kalaidoscope"],
-  transitions: chatTransitions,
-  Component: Chat,
+  transitions: exploreTransitions,
+  Component: Explore,
 });

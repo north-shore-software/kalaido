@@ -27,7 +27,8 @@ export const NEUTRAL_DEST_CLASS =
 const DEST_ACTIVE_CLASS: Record<SectionId, string> = {
   dashboard:
     "hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 data-active:border-l-cyan data-active:text-cyan-ink data-active:hover:text-cyan-ink",
-  chat: "hover:border-l-yellow hover:bg-yellow-wash hover:text-fg-2 data-active:border-l-yellow data-active:text-yellow-ink data-active:hover:text-yellow-ink",
+  explore:
+    "hover:border-l-yellow hover:bg-yellow-wash hover:text-fg-2 data-active:border-l-yellow data-active:text-yellow-ink data-active:hover:text-yellow-ink",
   projections:
     "hover:border-l-green hover:bg-green-wash hover:text-fg-2 data-active:border-l-green data-active:text-green-ink data-active:hover:text-green-ink",
   reflections:

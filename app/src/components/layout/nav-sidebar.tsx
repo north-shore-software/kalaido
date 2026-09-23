@@ -49,8 +49,8 @@ const MAIN_NAV: readonly SidebarNavItem[] = [
     icon: LayoutDashboardIcon,
   },
   {
-    title: "Chat",
-    transition: navSidebarTransitions.transitions.openChat,
+    title: "Explore",
+    transition: navSidebarTransitions.transitions.openExplore,
     icon: MessagesSquareIcon,
   },
 ];
