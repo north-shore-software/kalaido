@@ -12,7 +12,13 @@ import { useSnapshot } from "valtio/react";
 import { type DiscoverKind, startDiscover } from "@/api/kalaidoscope/discover";
 import { startMap } from "@/api/kalaidoscope/map";
 import { startReconcile } from "@/api/kalaidoscope/reconcile";
-import { EmptyState, Label, Pill, StatusPill, SurfaceCard } from "@/components/kalaido";
+import {
+  EmptyState,
+  Label,
+  Pill,
+  StatusPill,
+  SurfaceCard,
+} from "@/components/kalaido";
 import {
   PageCard,
   PageHeader,
@@ -48,8 +54,10 @@ export default function StatusPage() {
 
   const queueDoc = queueRecords[0];
   const isQueueActive = queueDoc?.state === "active";
-  const runningTasks = ((isQueueActive ? queueDoc?.running : []) ?? []) as QueueTask[];
-  const waitingCounts = ((isQueueActive ? queueDoc?.waiting : {}) ?? {}) as Record<string, number>;
+  const runningTasks = ((isQueueActive ? queueDoc?.running : []) ??
+    []) as QueueTask[];
+  const waitingCounts = ((isQueueActive ? queueDoc?.waiting : {}) ??
+    {}) as Record<string, number>;
   const totalWaiting = Object.values(waitingCounts).reduce((a, b) => a + b, 0);
   const heldReason = queueDoc?.held ? String(queueDoc.held) : undefined;
 
@@ -94,7 +102,8 @@ export default function StatusPage() {
                 </span>
                 <Pill
                   tone={
-                    organize?.map.state === "consolidating" || organize?.map.state === "annotating"
+                    organize?.map.state === "consolidating" ||
+                    organize?.map.state === "annotating"
                       ? "primary"
                       : "muted"
                   }
@@ -103,8 +112,13 @@ export default function StatusPage() {
                 </Pill>
               </div>
               <div className="mt-1 flex flex-col gap-1 font-mono text-mono-sm text-fg-4">
-                <span>Annotated: {organize?.map.annotated ?? 0} / {organize?.fragments ?? 0}</span>
-                <span>Pending annotation: {organize?.map.pendingAnnotation ?? 0}</span>
+                <span>
+                  Annotated: {organize?.map.annotated ?? 0} /{" "}
+                  {organize?.fragments ?? 0}
+                </span>
+                <span>
+                  Pending annotation: {organize?.map.pendingAnnotation ?? 0}
+                </span>
                 <span>Unconsolidated: {organize?.map.unconsolidated ?? 0}</span>
               </div>
               {organize?.map.lastDrainError && (
@@ -116,10 +130,16 @@ export default function StatusPage() {
                 size="sm"
                 variant="outline"
                 className="mt-auto justify-center"
-                disabled={startingMap || organize?.map.state === "consolidating"}
+                disabled={
+                  startingMap || organize?.map.state === "consolidating"
+                }
                 onClick={handleStartMap}
               >
-                {startingMap ? <Spinner /> : <PlayIcon className="mr-1.5 size-3.5" />}
+                {startingMap ? (
+                  <Spinner />
+                ) : (
+                  <PlayIcon className="mr-1.5 size-3.5" />
+                )}
                 Run map
               </Button>
             </SurfaceCard>
@@ -130,13 +150,19 @@ export default function StatusPage() {
                   <SparklesIcon className="size-4" />
                   Discover
                 </span>
-                <Pill tone={organize?.discover.state === "running" ? "primary" : "muted"}>
+                <Pill
+                  tone={
+                    organize?.discover.state === "running" ? "primary" : "muted"
+                  }
+                >
                   {organize?.discover.state ?? "idle"}
                 </Pill>
               </div>
               <div className="mt-1 flex flex-col gap-1 font-mono text-mono-sm text-fg-4">
                 <span>Running: {organize?.discover.running || "none"}</span>
-                <span>Pending: {organize?.discover.pending?.join(", ") || "none"}</span>
+                <span>
+                  Pending: {organize?.discover.pending?.join(", ") || "none"}
+                </span>
                 <span>Due: {organize?.discover.due?.join(", ") || "none"}</span>
               </div>
               <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
@@ -144,7 +170,10 @@ export default function StatusPage() {
                   size="sm"
                   variant="outline"
                   className="flex-1"
-                  disabled={startingDiscover !== null || organize?.discover.state === "running"}
+                  disabled={
+                    startingDiscover !== null ||
+                    organize?.discover.state === "running"
+                  }
                   onClick={() => handleStartDiscover("colours")}
                 >
                   {startingDiscover === "colours" ? <Spinner /> : null}
@@ -154,7 +183,10 @@ export default function StatusPage() {
                   size="sm"
                   variant="outline"
                   className="flex-1"
-                  disabled={startingDiscover !== null || organize?.discover.state === "running"}
+                  disabled={
+                    startingDiscover !== null ||
+                    organize?.discover.state === "running"
+                  }
                   onClick={() => handleStartDiscover("projections")}
                 >
                   {startingDiscover === "projections" ? <Spinner /> : null}
@@ -164,7 +196,10 @@ export default function StatusPage() {
                   size="sm"
                   variant="outline"
                   className="flex-1"
-                  disabled={startingDiscover !== null || organize?.discover.state === "running"}
+                  disabled={
+                    startingDiscover !== null ||
+                    organize?.discover.state === "running"
+                  }
                   onClick={() => handleStartDiscover("reflections")}
                 >
                   {startingDiscover === "reflections" ? <Spinner /> : null}
@@ -184,9 +219,15 @@ export default function StatusPage() {
                 </Pill>
               </div>
               <div className="mt-1 flex flex-col gap-1 font-mono text-mono-sm text-fg-4">
-                <span>Unjudged: {organize?.colour?.unjudgedFragments ?? 0}</span>
-                <span>Total colours: {organize?.colour?.totalColoursCount ?? 0}</span>
-                <span>Prompt colours: {organize?.colour?.promptColoursCount ?? 0}</span>
+                <span>
+                  Unjudged: {organize?.colour?.unjudgedFragments ?? 0}
+                </span>
+                <span>
+                  Total colours: {organize?.colour?.totalColoursCount ?? 0}
+                </span>
+                <span>
+                  Prompt colours: {organize?.colour?.promptColoursCount ?? 0}
+                </span>
               </div>
             </SurfaceCard>
 
@@ -201,11 +242,15 @@ export default function StatusPage() {
                 </Pill>
               </div>
               <div className="mt-1 flex flex-col gap-1 font-mono text-mono-sm text-fg-4">
-                <span>Wave: {organize?.reconcile.running ? "active" : "dormant"}</span>
+                <span>
+                  Wave: {organize?.reconcile.running ? "active" : "dormant"}
+                </span>
                 <span>
                   Started:{" "}
                   {organize?.reconcile.lastStarted
-                    ? new Date(organize.reconcile.lastStarted).toLocaleTimeString()
+                    ? new Date(
+                        organize.reconcile.lastStarted,
+                      ).toLocaleTimeString()
                     : "never"}
                 </span>
               </div>
@@ -221,7 +266,11 @@ export default function StatusPage() {
                 disabled={startingReconcile || organize?.reconcile.running}
                 onClick={handleStartReconcile}
               >
-                {startingReconcile ? <Spinner /> : <RefreshCwIcon className="mr-1.5 size-3.5" />}
+                {startingReconcile ? (
+                  <Spinner />
+                ) : (
+                  <RefreshCwIcon className="mr-1.5 size-3.5" />
+                )}
                 Reconcile
               </Button>
             </SurfaceCard>
@@ -235,7 +284,10 @@ export default function StatusPage() {
                   <Label>LLM Queue Telemetry</Label>
                 </div>
                 <div className="flex items-center gap-2 font-mono text-mono-sm">
-                  <Pill tone={isQueueActive ? "primary" : "muted"} dot={isQueueActive}>
+                  <Pill
+                    tone={isQueueActive ? "primary" : "muted"}
+                    dot={isQueueActive}
+                  >
                     {queueDoc?.state ?? "idle"}
                   </Pill>
                   {latestInferenceRate && (
@@ -248,7 +300,9 @@ export default function StatusPage() {
 
               {runningTasks.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  <span className="text-meta font-mono text-fg-4">Running Tasks</span>
+                  <span className="text-meta font-mono text-fg-4">
+                    Running Tasks
+                  </span>
                   <div className="flex flex-col gap-1.5">
                     {runningTasks.map((t, idx) => (
                       <div
@@ -301,11 +355,17 @@ export default function StatusPage() {
                       className="flex shrink-0 items-center justify-between gap-4 bg-surface-2 px-3 py-2 font-mono text-mono-sm"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <StatusPill kind={evt.statusKind}>{evt.status ?? "event"}</StatusPill>
+                        <StatusPill kind={evt.statusKind}>
+                          {evt.status ?? "event"}
+                        </StatusPill>
                         <div className="flex min-w-0 flex-col">
-                          <span className="truncate font-medium text-fg-1">{evt.title}</span>
+                          <span className="truncate font-medium text-fg-1">
+                            {evt.title}
+                          </span>
                           {evt.subtitle && (
-                            <span className="truncate text-meta text-fg-4">{evt.subtitle}</span>
+                            <span className="truncate text-meta text-fg-4">
+                              {evt.subtitle}
+                            </span>
                           )}
                         </div>
                       </div>

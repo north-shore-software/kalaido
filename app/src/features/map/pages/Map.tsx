@@ -85,12 +85,15 @@ export default function MapPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-card-title font-bold">Workspace Map</span>
                 <Pill tone="muted">v{map.version}</Pill>
-                <Pill tone={organize?.map.state === "settled" ? "muted" : "primary"}>
+                <Pill
+                  tone={organize?.map.state === "settled" ? "muted" : "primary"}
+                >
                   {organize?.map.state ?? "ready"}
                 </Pill>
                 <div className="flex-1" />
                 <span className="font-mono text-mono-sm text-fg-4">
-                  {organize?.map.annotated ?? 0} / {organize?.fragments ?? 0} fragments annotated
+                  {organize?.map.annotated ?? 0} / {organize?.fragments ?? 0}{" "}
+                  fragments annotated
                 </span>
                 <span className="font-mono text-mono-sm text-fg-4">
                   {map.consolidated_at
@@ -166,10 +169,14 @@ export default function MapPage() {
                       key={`${rel.from}-${rel.to}-${i}`}
                       className="flex items-center gap-2 border border-line bg-surface-2 px-3 py-2 font-mono text-mono-sm"
                     >
-                      <span className="text-fg-1 font-medium truncate">{rel.from}</span>
+                      <span className="text-fg-1 font-medium truncate">
+                        {rel.from}
+                      </span>
                       <Pill tone="muted">{rel.kind}</Pill>
                       <span className="text-fg-4">→</span>
-                      <span className="text-fg-1 font-medium truncate">{rel.to}</span>
+                      <span className="text-fg-1 font-medium truncate">
+                        {rel.to}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -178,7 +185,8 @@ export default function MapPage() {
           </>
         ) : (
           <EmptyState centered className="py-12">
-            No map document yet. Import fragments and click &ldquo;Run map&rdquo; to build one.
+            No map document yet. Import fragments and click &ldquo;Run
+            map&rdquo; to build one.
           </EmptyState>
         )}
       </PageBody>

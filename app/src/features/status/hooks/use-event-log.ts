@@ -4,7 +4,12 @@ import { useLiveCollection } from "@/hooks/use-live-collection";
 
 export interface WorkspaceEvent {
   id: string;
-  type: "projection_snapshot" | "reflection_snapshot" | "map_run" | "discover_run" | "ingest";
+  type:
+    | "projection_snapshot"
+    | "reflection_snapshot"
+    | "map_run"
+    | "discover_run"
+    | "ingest";
   title: string;
   subtitle?: string;
   status?: string;
@@ -32,34 +37,56 @@ export function useEventLog(): WorkspaceEvent[] {
   });
 
   return useMemo(() => {
-    const projMap = new Map((projections ?? []).map((p) => [p.id, p.name ?? "Untitled Projection"]));
-    const reflMap = new Map((reflections ?? []).map((r) => [r.id, r.name ?? "Untitled Reflection"]));
+    const projMap = new Map(
+      (projections ?? []).map((p) => [p.id, p.name ?? "Untitled Projection"]),
+    );
+    const reflMap = new Map(
+      (reflections ?? []).map((r) => [r.id, r.name ?? "Untitled Reflection"]),
+    );
 
     const events: WorkspaceEvent[] = [];
 
     for (const snap of (projSnapshots ?? []).slice(0, 20)) {
-      const projName = snap.projection_id ? projMap.get(snap.projection_id) ?? "Projection" : "Projection";
+      const projName = snap.projection_id
+        ? (projMap.get(snap.projection_id) ?? "Projection")
+        : "Projection";
       events.push({
         id: `proj-${snap.id}`,
         type: "projection_snapshot",
         title: `Projection Snapshot: ${projName}`,
-        subtitle: snap.generated_by_model ? `Model: ${snap.generated_by_model}` : undefined,
+        subtitle: snap.generated_by_model
+          ? `Model: ${snap.generated_by_model}`
+          : undefined,
         status: snap.status,
         timestamp: snap.created,
-        statusKind: snap.status === "approved" ? "stable" : snap.status === "generating" ? "cyan" : "neutral",
+        statusKind:
+          snap.status === "approved"
+            ? "stable"
+            : snap.status === "generating"
+              ? "cyan"
+              : "neutral",
       });
     }
 
     for (const snap of (reflSnapshots ?? []).slice(0, 20)) {
-      const reflName = snap.reflection_id ? reflMap.get(snap.reflection_id) ?? "Reflection" : "Reflection";
+      const reflName = snap.reflection_id
+        ? (reflMap.get(snap.reflection_id) ?? "Reflection")
+        : "Reflection";
       events.push({
         id: `refl-${snap.id}`,
         type: "reflection_snapshot",
         title: `Reflection Snapshot: ${reflName}`,
-        subtitle: snap.generated_by_model ? `Model: ${snap.generated_by_model}` : undefined,
+        subtitle: snap.generated_by_model
+          ? `Model: ${snap.generated_by_model}`
+          : undefined,
         status: snap.status,
         timestamp: snap.created,
-        statusKind: snap.status === "approved" ? "stable" : snap.status === "generating" ? "cyan" : "neutral",
+        statusKind:
+          snap.status === "approved"
+            ? "stable"
+            : snap.status === "generating"
+              ? "cyan"
+              : "neutral",
       });
     }
 
@@ -71,7 +98,14 @@ export function useEventLog(): WorkspaceEvent[] {
         subtitle: `${run.admits ?? 0} added, ${run.merges ?? 0} folded${run.generated_by_model ? ` · ${run.generated_by_model}` : ""}`,
         status: run.status,
         timestamp: run.created,
-        statusKind: run.status === "done" ? "stable" : run.status === "running" ? "cyan" : run.status === "error" ? "critical" : "neutral",
+        statusKind:
+          run.status === "done"
+            ? "stable"
+            : run.status === "running"
+              ? "cyan"
+              : run.status === "error"
+                ? "critical"
+                : "neutral",
       });
     }
 
@@ -80,10 +114,19 @@ export function useEventLog(): WorkspaceEvent[] {
         id: `disc-${run.id}`,
         type: "discover_run",
         title: `Discover ${run.kind ?? ""}`,
-        subtitle: run.summary || `${run.rounds ?? 0} rounds, ${run.fragment_reads ?? 0} reads`,
+        subtitle:
+          run.summary ||
+          `${run.rounds ?? 0} rounds, ${run.fragment_reads ?? 0} reads`,
         status: run.status,
         timestamp: run.created,
-        statusKind: run.status === "done" ? "stable" : run.status === "running" ? "cyan" : run.status === "error" ? "critical" : "neutral",
+        statusKind:
+          run.status === "done"
+            ? "stable"
+            : run.status === "running"
+              ? "cyan"
+              : run.status === "error"
+                ? "critical"
+                : "neutral",
       });
     }
 
@@ -92,14 +135,37 @@ export function useEventLog(): WorkspaceEvent[] {
         id: `ing-${ing.id}`,
         type: "ingest",
         title: ing.format ? `Import (${ing.format})` : "Import",
-        subtitle: ing.ingested !== undefined ? `${ing.ingested} fragments ingested` : ing.error ? `Error: ${ing.error}` : undefined,
+        subtitle:
+          ing.ingested !== undefined
+            ? `${ing.ingested} fragments ingested`
+            : ing.error
+              ? `Error: ${ing.error}`
+              : undefined,
         status: ing.status,
         timestamp: ing.created,
-        statusKind: ing.status === "done" ? "stable" : ing.status === "pending" ? "cyan" : ing.status === "error" ? "critical" : "neutral",
+        statusKind:
+          ing.status === "done"
+            ? "stable"
+            : ing.status === "pending"
+              ? "cyan"
+              : ing.status === "error"
+                ? "critical"
+                : "neutral",
       });
     }
 
-    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    events.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
     return events.slice(0, 50);
-  }, [projSnapshots, projections, reflSnapshots, reflections, mapRuns, discoverRuns, ingests]);
+  }, [
+    projSnapshots,
+    projections,
+    reflSnapshots,
+    reflections,
+    mapRuns,
+    discoverRuns,
+    ingests,
+  ]);
 }

@@ -152,9 +152,7 @@ export default function Explore() {
   useEffect(() => {
     lastExploreSession = {
       baseURL: client.baseURL,
-      selected: selected
-        ? { ...selected, messages: liveMessages }
-        : null,
+      selected: selected ? { ...selected, messages: liveMessages } : null,
       newChatId,
       messages: liveMessages,
       context,
@@ -264,9 +262,7 @@ export default function Explore() {
               flat
               key={activeChatKey}
               chatId={activeClientId}
-              initialMessages={
-                selected?.messages ?? initialMessagesRef.current
-              }
+              initialMessages={selected?.messages ?? initialMessagesRef.current}
               initialPrompt={
                 selected == null &&
                 activeClientId === firstChatIdRef.current &&
