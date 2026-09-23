@@ -59,11 +59,6 @@ import type {
 import { useStartRitual } from "../use-start-ritual";
 import { mainTransitions } from "./Main.transitions";
 
-/** Projections and reflections share an id space only by accident; key on both. */
-function itemKey(it: { kind: EntityKind; id: string }): string {
-  return `${it.kind}:${it.id}`;
-}
-
 export default function Main() {
   const { go } = useAppNavigate();
   const contextSources = useContextSources();
@@ -210,15 +205,15 @@ export default function Main() {
   // A row leaves the screen the moment it is acted on. The live collections
   // catch up behind it — or, if the call failed, React drops the optimistic
   // value and the row is back, with a toast saying why.
-  const [visibleProposed, hideProposed] = useOptimistic(
+  const [visibleProposed, hideProposed] = useOptimistic<ProposedItem[], string>(
     proposed,
     (items: ProposedItem[], key: string) =>
-      items.filter((it) => itemKey(it) !== key),
+      items.filter((item) => `${item.kind}:${item.id}` !== key),
   );
-  const [visiblePinned, hidePinned] = useOptimistic(
+  const [visiblePinned, hidePinned] = useOptimistic<PinItem[], string>(
     pinned,
     (items: PinItem[], key: string) =>
-      items.filter((it) => itemKey(it) !== key),
+      items.filter((item) => `${item.kind}:${item.id}` !== key),
   );
 
   const summary = useMemo(
@@ -226,7 +221,6 @@ export default function Main() {
     [statuses, candidateByProjection, nameById],
   );
   const hasFragments = fragments.records.length > 0;
-  const cardLayout = hasFragments ? "row" : "hero";
 
   const recent = useMemo<RecentFragment[]>(
     () =>
@@ -300,35 +294,37 @@ export default function Main() {
     });
   }
 
-  function dismissProposal(it: ProposedItem) {
+  function dismissProposal(item: ProposedItem) {
+    const key = `${item.kind}:${item.id}`;
     startTransition(async () => {
-      hideProposed(itemKey(it));
+      hideProposed(key);
       const res =
-        it.kind === "projection"
-          ? await deleteProjection(it.id)
-          : await deleteReflection(it.id);
+        item.kind === "projection"
+          ? await deleteProjection(item.id)
+          : await deleteReflection(item.id);
       if (res.isErr()) {
         toast.error("Failed to dismiss", { description: res.error.message });
         return;
       }
       // Hold the optimistic row-less list until the live list agrees, so the
       // row never flashes back between the call and the realtime revalidation.
-      await revalidate(it.kind);
+      await revalidate(item.kind);
     });
   }
 
-  function unpin(it: PinItem) {
+  function unpin(item: PinItem) {
+    const key = `${item.kind}:${item.id}`;
     startTransition(async () => {
-      hidePinned(itemKey(it));
+      hidePinned(key);
       const res =
-        it.kind === "projection"
-          ? await updateProjection(it.id, { pinned: false })
-          : await updateReflection(it.id, { pinned: false });
+        item.kind === "projection"
+          ? await updateProjection(item.id, { pinned: false })
+          : await updateReflection(item.id, { pinned: false });
       if (res.isErr()) {
         toast.error("Failed to unpin", { description: res.error.message });
         return;
       }
-      await revalidate(it.kind);
+      await revalidate(item.kind);
     });
   }
 
@@ -352,26 +348,22 @@ export default function Main() {
               />
             )}
 
-            <div
-              className={
-                hasFragments
-                  ? "grid grid-cols-1 gap-3 sm:grid-cols-3"
-                  : "flex flex-wrap items-stretch gap-4"
-              }
-            >
-              <ImportNotesCard
-                layout={cardLayout}
-                onClick={() => setImportDialogOpen(true)}
-              />
-              <CaptureFragmentCard
-                layout={cardLayout}
-                onClick={() => openAddFragmentModal()}
-              />
-              <ExploreCard
-                layout={cardLayout}
-                onClick={() => go(mainTransitions.openExplore)}
-              />
-            </div>
+            {!hasFragments && (
+              <div className="flex flex-wrap items-stretch gap-4">
+                <ImportNotesCard
+                  layout="hero"
+                  onClick={() => setImportDialogOpen(true)}
+                />
+                <CaptureFragmentCard
+                  layout="hero"
+                  onClick={() => openAddFragmentModal()}
+                />
+                <ExploreCard
+                  layout="hero"
+                  onClick={() => go(mainTransitions.openExplore)}
+                />
+              </div>
+            )}
 
             <ProposedSection
               items={visibleProposed}
