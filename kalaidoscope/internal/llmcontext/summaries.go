@@ -6,8 +6,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 )
 
 // hydrateSummaries renders fragments as annotation rows: one per fragment, or
@@ -16,16 +16,16 @@ import (
 // filter clause.
 func hydrateSummaries(ctx stdctx.Context, app core.App, fragmentIDs []string) (string, error) {
 	var sb strings.Builder
-	rows, err := mapping.LoadRows(app)
+	rows, err := sourcedata.LoadAnnotationRows(app)
 	if err != nil {
 		return "", err
 	}
-	byFragment := make(map[string]mapping.Row, len(rows))
+	byFragment := make(map[string]sourcedata.Row, len(rows))
 	for _, r := range rows {
 		byFragment[r.FragmentID] = r
 	}
 	names := map[string]string{}
-	if doc, _, err := mapping.LoadDocument(app); err == nil {
+	if doc, _, err := sourcedata.LoadDocument(app); err == nil {
 		for _, t := range doc.Things {
 			names[t.ID] = t.Name
 		}

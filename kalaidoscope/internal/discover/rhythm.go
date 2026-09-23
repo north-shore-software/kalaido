@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
@@ -329,7 +330,7 @@ func (c *Context) rhythmCards(rs []Rhythm) []prompts.DiscoverRhythm {
 		for i := range idxs {
 			idxs[i] = i
 		}
-		for _, i := range sampleEvenly(idxs, rhythmBucketSample) {
+		for _, i := range pbutil.SampleEvenly(idxs, rhythmBucketSample) {
 			b := r.buckets[i]
 			card.Buckets = append(card.Buckets, prompts.DiscoverBucket{
 				Start: b.start.Format("2006-01-02"), Count: b.count, Title: b.title,

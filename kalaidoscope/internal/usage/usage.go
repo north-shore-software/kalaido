@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -11,10 +12,16 @@ import (
 	"github.com/pocketbase/pocketbase/tools/dbutils"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
-	"github.com/north-shore-software/kalaido/kalaidoscope/quota"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/quota"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
-	"github.com/north-shore-software/kalaido/kalaidoscope/timeutil"
 )
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "usage")
+	}
+	return slog.Default().With("component", "usage")
+}
 
 var ErrExhausted = errors.New("quota exhausted")
 
@@ -39,7 +46,7 @@ func requireUsagePeriodIndex(app core.App) error {
 }
 
 func currentPeriodUsed(app core.App) int64 {
-	rec, err := app.FindFirstRecordByData(schema.ColUsage.String(), "period", timeutil.PeriodKey(time.Now()))
+	rec, err := app.FindFirstRecordByData(schema.ColUsage.String(), "period", UsagePeriodKey(time.Now()))
 	if err != nil {
 		return 0
 	}
@@ -61,7 +68,7 @@ func Record(ctx context.Context, app core.App, u *llm.Usage) {
 	if u == nil || u.TotalTokens == 0 {
 		return
 	}
-	period := timeutil.PeriodKey(time.Now())
+	period := UsagePeriodKey(time.Now())
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
 		lastErr = app.RunInTransaction(func(txApp core.App) error {
@@ -85,7 +92,7 @@ func Record(ctx context.Context, app core.App, u *llm.Usage) {
 		}
 	}
 	if lastErr != nil {
-		logger().Error("record usage failed", "period", period, "error", lastErr)
+		logger(app).Error("record usage failed", "period", period, "error", lastErr)
 	}
 	if a := quota.Get(); a != nil {
 		a.Record(ctx, app, int64(u.TotalTokens))
@@ -94,7 +101,7 @@ func Record(ctx context.Context, app core.App, u *llm.Usage) {
 func WriteExhausted(e *core.RequestEvent, app core.App) error {
 	return e.JSON(http.StatusPaymentRequired, map[string]any{
 		"error":  "quota_exhausted",
-		"period": timeutil.PeriodKey(time.Now()),
+		"period": UsagePeriodKey(time.Now()),
 		"used":   currentPeriodUsed(app),
 	})
 }

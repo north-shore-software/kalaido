@@ -7,9 +7,9 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 // RegisterHooks guards the config singleton: model_set stays superuser-only,
@@ -90,7 +90,7 @@ func RegisterHooks(app core.App) {
 		// A provider change also changes how calls should be scheduled
 		// (concurrency 1 for a local model vs. rate-limited parallelism for a
 		// hosted API).
-		usage.SchedulerForApp(e.App).Reconfigure(llmq.ConfigForProvider(llm.ActiveProviderID()))
+		usage.SchedulerForApp(e.App).Reconfigure(queue.ConfigForProvider(llm.ActiveProviderID()))
 		return nil
 	})
 }

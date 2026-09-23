@@ -3,15 +3,115 @@ package mapping
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"github.com/pocketbase/pocketbase/core"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
+
+const (
+	annotateWorkers = 100
+)
+
+func (w *Worker) annotateLoop(ctx context.Context) error {
+	for {
+		if err := w.signal.Wait(ctx); err != nil {
+			return err
+		}
+		active := w.followUps.Detach()
+		full := w.wantSettle.Swap(false)
+		w.annotating.Store(true)
+		err := w.drain(ctx, full)
+		w.annotating.Store(false)
+		w.setLastDrainError(err)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			w.logger.Error("drain failed", "error", err)
+		}
+		active.Invoke(err)
+	}
+}
+
+func pendingFragments(app core.App) ([]*core.Record, error) {
+	return sourcedata.PendingAnnotationFragments(app)
+}
+
+func pendingCount(app core.App) (int, error) {
+	return sourcedata.PendingAnnotationCount(app)
+}
+
+// drain annotates every pending fragment, annotateWorkers at a time, until
+// none is left or the quota is exhausted; a fragment that fails is skipped
+// for the rest of this drain. With full, the map is then consolidated.
+func (w *Worker) drain(ctx context.Context, full bool) error {
+	app := w.app
+	model, err := llm.ResolveRole(llm.RoleAnnotate)
+	if err != nil {
+		return err
+	}
+	failed := map[string]bool{}
+	var firstErr error
+	var mu sync.Mutex
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		frags, err := pendingFragments(app)
+		if err != nil {
+			return err
+		}
+		var todo []*core.Record
+		for _, f := range frags {
+			if !failed[f.Id] {
+				todo = append(todo, f)
+			}
+		}
+		if len(todo) == 0 {
+			break
+		}
+		var exhausted atomic.Bool
+		g := new(errgroup.Group)
+		g.SetLimit(annotateWorkers)
+		for _, f := range todo {
+			if exhausted.Load() || ctx.Err() != nil {
+				break
+			}
+			g.Go(func() error {
+				err := annotateOne(ctx, app, model, f)
+				if err == nil {
+					return nil
+				}
+				logger(app).Error("annotate failed", "fragment_id", f.Id, "error", err)
+				mu.Lock()
+				failed[f.Id] = true
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				if errors.Is(err, usage.ErrExhausted) {
+					exhausted.Store(true)
+				}
+				return nil // recorded above; one failure must not stop the others
+			})
+		}
+		_ = g.Wait()
+		if exhausted.Load() {
+			break
+		}
+	}
+	if full && ctx.Err() == nil {
+		w.settle(ctx)
+	}
+	return firstErr
+}
 
 func annotateOne(ctx context.Context, app core.App, model string, frag *core.Record) error {
 	d, err := loadDocument(app)
@@ -63,11 +163,5 @@ func annotateOne(ctx context.Context, app core.App, model string, frag *core.Rec
 }
 
 func generate(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message) (string, error) {
-	var reply string
-	err := usage.RetryThrottled(ctx, func() error {
-		var err error
-		reply, err = usage.GenerateOnceMsgs(ctx, app, msgs, role, model, nil)
-		return err
-	})
-	return reply, err
+	return usage.GenerateOnceMsgsThrottled(ctx, app, msgs, role, model, nil)
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
@@ -46,7 +47,7 @@ func TestHydrateDeltaHistoryUsesCurrentMode(t *testing.T) {
 	if len(msgs) != 2 || !strings.Contains(msgs[0].Content, "THE FULL BODY") {
 		t.Fatalf("full mode = %+v", msgs)
 	}
-	if ConversationSummaries(history) {
+	if _, spec, _ := llmcontext.LatestPinnedAndSpec(history); spec.WholeScope == api.WholeScopeSummaries {
 		t.Fatal("full-mode transcript reports summaries")
 	}
 
@@ -60,12 +61,8 @@ func TestHydrateDeltaHistoryUsesCurrentMode(t *testing.T) {
 	if strings.Contains(msgs[0].Content, "THE FULL BODY") || !strings.Contains(msgs[0].Content, "A note") {
 		t.Errorf("summaries mode did not re-render the earlier delta as rows: %q", msgs[0].Content)
 	}
-	if !ConversationSummaries(history) {
+	if _, spec, _ := llmcontext.LatestPinnedAndSpec(history); spec.WholeScope != api.WholeScopeSummaries {
 		t.Error("summaries transcript not reported")
-	}
-	prompt := PrepareLLMPrompt(ctx, app, nil, history)
-	if !strings.Contains(prompt[0].Content, prompts.ChatSummariesLegend) {
-		t.Error("PrepareLLMPrompt did not pick the summaries system prompt")
 	}
 
 	// Off again: bodies come back.
@@ -73,10 +70,6 @@ func TestHydrateDeltaHistoryUsesCurrentMode(t *testing.T) {
 	msgs = HydrateDeltaHistory(ctx, app, history)
 	if !strings.Contains(msgs[0].Content, "THE FULL BODY") {
 		t.Errorf("full mode did not come back: %q", msgs[0].Content)
-	}
-	prompt = PrepareLLMPrompt(ctx, app, nil, history)
-	if prompt[0].Content != prompts.ChatSystemPrompt {
-		t.Error("PrepareLLMPrompt did not fall back to the plain system prompt")
 	}
 }
 
@@ -142,7 +135,7 @@ func TestHydrateDeltaHistoryOmitsTransientScope(t *testing.T) {
 	if !strings.Contains(last, prompts.OmittedRemovedLine(3)) || strings.Contains(last, "Fragment ID:") {
 		t.Errorf("narrowing should close the omitted count and list nothing shown: %q", last)
 	}
-	if ConversationSummaries(history) {
+	if _, spec, _ := llmcontext.LatestPinnedAndSpec(history); spec.WholeScope == api.WholeScopeSummaries {
 		t.Error("final mode is off, not summaries")
 	}
 }

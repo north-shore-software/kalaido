@@ -7,8 +7,8 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 // Retry policy for RetryThrottled. Variables so tests can shorten them.
@@ -21,7 +21,7 @@ var (
 // RetryThrottled runs a background model call until it succeeds, fails for
 // good, or the retry budget runs out.
 //
-// A call the scheduler preempted (llmq.ErrPreempted) is re-entered at once:
+// A call the scheduler preempted (queue.ErrPreempted) is re-entered at once:
 // it lost its slot to an interactive request and simply queues again. A
 // provider throttle or transient fault (llm.ErrKindQuota, ErrKindTransient)
 // is retried with exponential backoff and jitter, so a 429 storm from one
@@ -40,7 +40,7 @@ func RetryThrottled(ctx context.Context, f func() error) error {
 				return backoff.Permanent(err)
 			}
 			err = f()
-			if !errors.Is(err, llmq.ErrPreempted) {
+			if !errors.Is(err, queue.ErrPreempted) {
 				break
 			}
 		}

@@ -1,5 +1,10 @@
 package api
 
+import (
+	"errors"
+	"time"
+)
+
 type WholeScopeMode string
 
 const (
@@ -34,6 +39,28 @@ type WindowSpec struct {
 	EndTime   string `json:"endTime,omitempty"`
 	Period    string `json:"period"`
 	Duration  string `json:"duration"`
+}
+
+// Validate rejects a schedule the grid could not evaluate. An empty
+// spec (unscheduled) is valid.
+func (spec WindowSpec) Validate() error {
+	if spec.Period == "" && spec.Duration == "" && spec.StartTime == "" {
+		return nil
+	}
+	if p, err := time.ParseDuration(spec.Period); err != nil || p <= 0 {
+		return errors.New("windowSpec.period must be a positive duration such as \"168h\"")
+	}
+	if spec.Duration != "" {
+		if d, err := time.ParseDuration(spec.Duration); err != nil || d <= 0 {
+			return errors.New("windowSpec.duration must be a positive duration such as \"168h\"")
+		}
+	}
+	if spec.StartTime != "" {
+		if _, err := time.Parse(time.RFC3339, spec.StartTime); err != nil {
+			return errors.New("windowSpec.startTime must be RFC3339")
+		}
+	}
+	return nil
 }
 
 type WindowSpecVersion struct {

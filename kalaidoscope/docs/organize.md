@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Organize — Generated Audit Snapshot
 
 > **Generated:** 2026-09-17, from source at commit `895984c`.

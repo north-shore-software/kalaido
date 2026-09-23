@@ -8,23 +8,23 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 const SchedulerStoreKey = "kalaido.llmq.scheduler"
 
-// SchedulerForApp returns the llmq.Scheduler bound to app, falling back to
-// llmq.Default() when unattached or when app is nil (e.g. isolated unit tests).
-func SchedulerForApp(app core.App) *llmq.Scheduler {
+// SchedulerForApp returns the queue.Scheduler bound to app, falling back to
+// queue.Default() when unattached or when app is nil (e.g. isolated unit tests).
+func SchedulerForApp(app core.App) *queue.Scheduler {
 	if app != nil {
 		if v := app.Store().Get(SchedulerStoreKey); v != nil {
-			if s, ok := v.(*llmq.Scheduler); ok && s != nil {
+			if s, ok := v.(*queue.Scheduler); ok && s != nil {
 				return s
 			}
 		}
 	}
-	return llmq.Default()
+	return queue.Default()
 }
 
 func Stream(ctx context.Context, app core.App, role llm.Role, model string, msgs []llm.Message, tools []llm.Tool) (*llm.Completion, error) {
@@ -48,8 +48,8 @@ func stream(ctx context.Context, app core.App, role llm.Role, model string, msgs
 	}
 
 	sched := SchedulerForApp(app)
-	prio := llmq.PriorityFromContext(ctx, llmq.DefaultPriorityForRole(role))
-	runCtx, release, err := sched.Acquire(ctx, llmq.Request{Priority: prio, Role: role, Model: model})
+	prio := queue.PriorityFromContext(ctx, queue.DefaultPriorityForRole(role))
+	runCtx, release, err := sched.Acquire(ctx, queue.Request{Priority: prio, Role: role, Model: model})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,8 +105,8 @@ func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, rol
 	}
 	// A preempted call ends as an ordinary early channel close; without this
 	// check the partial text would be returned as if it were the whole answer.
-	if cause := context.Cause(runCtx); errors.Is(cause, llmq.ErrPreempted) {
-		return "", llmq.ErrPreempted
+	if cause := context.Cause(runCtx); errors.Is(cause, queue.ErrPreempted) {
+		return "", queue.ErrPreempted
 	}
 	// So does a call whose caller's context died mid-stream (the provider
 	// aborts and the channel drains early): never return a truncation as if it
@@ -116,6 +116,17 @@ func GenerateOnceMsgs(ctx context.Context, app core.App, msgs []llm.Message, rol
 		return "", fmt.Errorf("stream interrupted: %w", context.Cause(ctx))
 	}
 	return sb.String(), nil
+}
+
+// GenerateOnceMsgsThrottled wraps GenerateOnceMsgs in RetryThrottled for background tasks.
+func GenerateOnceMsgsThrottled(ctx context.Context, app core.App, msgs []llm.Message, role llm.Role, model string, tools []llm.Tool) (string, error) {
+	var reply string
+	err := RetryThrottled(ctx, func() error {
+		var genErr error
+		reply, genErr = GenerateOnceMsgs(ctx, app, msgs, role, model, tools)
+		return genErr
+	})
+	return reply, err
 }
 
 // GenerateStreamMsgs is GenerateOnceMsgs with the text deltas additionally
@@ -137,8 +148,8 @@ func GenerateStreamMsgs(ctx context.Context, app core.App, msgs []llm.Message, r
 			}
 		}
 	}
-	if cause := context.Cause(runCtx); errors.Is(cause, llmq.ErrPreempted) {
-		return "", llmq.ErrPreempted
+	if cause := context.Cause(runCtx); errors.Is(cause, queue.ErrPreempted) {
+		return "", queue.ErrPreempted
 	}
 	if ctx.Err() != nil {
 		return "", fmt.Errorf("stream interrupted: %w", context.Cause(ctx))
@@ -161,8 +172,8 @@ func GenerateWithToolCalls(ctx context.Context, app core.App, msgs []llm.Message
 			calls = append(calls, llm.ToolCall{ID: ev.ToolCallID, Name: ev.ToolName, Args: ev.Args})
 		}
 	}
-	if cause := context.Cause(runCtx); errors.Is(cause, llmq.ErrPreempted) {
-		return "", nil, llmq.ErrPreempted
+	if cause := context.Cause(runCtx); errors.Is(cause, queue.ErrPreempted) {
+		return "", nil, queue.ErrPreempted
 	}
 	if ctx.Err() != nil {
 		return "", nil, fmt.Errorf("stream interrupted: %w", context.Cause(ctx))

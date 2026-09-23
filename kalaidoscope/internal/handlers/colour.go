@@ -2,27 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"golang.org/x/sync/errgroup"
 )
-
-// previewWorkers bounds how many fragments a preview judges at once; the
-// scheduler still gates the actual model calls.
-const previewWorkers = 20
 
 func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
@@ -31,24 +20,13 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		// RoleColour schedules as idle work by default, but the preview is the
-		// one colour call the user actively watches — make it jump the queue.
-		ctx := llmq.WithPriority(e.Request.Context(), llmq.Interactive)
-
-		positiveBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.PositiveExamples))
-		negativeBlock := llmcontext.RenderFragmentRecords(llmcontext.LoadFragmentsByIDs(ctx, app, req.NegativeExamples))
-
-		recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "-created", 20, 0, dbx.Params{})
-		if err != nil {
-			logger().Error("colour preview: find fragments failed", "error", err)
-			return e.InternalServerError("failed to fetch fragments", err)
-		}
-
-		// Resolved before the SSE stream commits its 200 — past that point an
-		// error can no longer become a status code.
-		model, err := llm.ResolveRole(llm.RoleColour)
-		if err != nil {
+		session, err := colour.PreparePreview(app)
+		if errors.Is(err, colour.ErrNoModel) {
 			return e.InternalServerError("no model configured for colour matching", err)
+		}
+		if err != nil {
+			logger(app).Error("colour preview: find fragments failed", "error", err)
+			return e.InternalServerError("failed to fetch fragments", err)
 		}
 
 		w := e.Response
@@ -67,57 +45,21 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
-		results := make(chan *core.Record, len(recs))
-		g := new(errgroup.Group)
-		g.SetLimit(previewWorkers)
-
-		for _, rec := range recs {
-			g.Go(func() error {
-				targetDoc := llmcontext.RenderFragmentRecords([]*core.Record{rec})
-				prompt := prompts.ColourEvalPrompt(req.Prompt, positiveBlock, negativeBlock, targetDoc)
-
-				// Tie the evaluation to the request context so it aborts when the
-				// client disconnects — the live preview deliberately cancels the
-				// prior in-flight request whenever the prompt changes, which
-				// would otherwise leave these LLM calls running for stale input.
-				out, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleColour, model, nil)
-				if err != nil {
-					// A canceled context is the expected outcome of that
-					// superseded request, not a failure worth logging.
-					if ctx.Err() == nil {
-						logger().Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
-					}
-					return nil
-				}
-
-				if prompts.ParseYesNo(out) {
-					results <- rec
-				}
-				return nil
-			})
-		}
-
-		go func() {
-			_ = g.Wait()
-			close(results)
-		}()
-
-		for rec := range results {
+		return session.Run(e.Request.Context(), app, req, func(rec *core.Record) error {
 			jsonData, err := json.Marshal(rec)
 			if err != nil {
-				logger().Warn("colour preview: marshal fragment failed, skipping", "error", err)
-				continue
+				logger(app).Warn("colour preview: marshal fragment failed, skipping", "error", err)
+				return nil
 			}
 
 			_, err = fmt.Fprintf(w, "data: %s\n\n", string(jsonData))
 			if err != nil {
 				// Client likely disconnected
-				return nil
+				return err
 			}
 			flusher.Flush()
-		}
-
-		return nil
+			return nil
+		})
 	}
 }
 
@@ -131,33 +73,17 @@ func HandleCreateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 			return e.BadRequestError("name is required", nil)
 		}
 
-		collection, err := app.FindCollectionByNameOrId(schema.ColColour.String())
+		colourRec, err := colour.Create(app, colour.CreateParams{
+			Name:             req.Name,
+			Prompt:           req.Prompt,
+			FragmentIDs:      req.FragmentIDs,
+			PositiveExamples: req.PositiveExamples,
+			NegativeExamples: req.NegativeExamples,
+		})
 		if err != nil {
-			return e.InternalServerError("colour collection", err)
-		}
-		swatch, err := colour.NextSwatch(app)
-		if err != nil {
-			return e.InternalServerError("colour swatch", err)
-		}
-		colourRec := core.NewRecord(collection)
-		colourRec.Set("name", strings.TrimSpace(req.Name))
-		colourRec.Set("prompt", strings.TrimSpace(req.Prompt))
-		colourRec.Set("swatch", swatch)
-		if err := app.Save(colourRec); err != nil {
-			return e.InternalServerError("failed to save colour", err)
+			return e.InternalServerError("failed to create colour", err)
 		}
 
-		// The preview's matches were judged by this prompt already: record
-		// them so the colour has members the moment it appears. The worker
-		// skips pairs that hold a row, so they are not judged twice.
-		for _, fragID := range req.FragmentIDs {
-			if err := colour.SetPromptMatch(app, colourRec.Id, fragID); err != nil {
-				logger().Warn("colour create: seeding prompt match failed", "fragment_id", fragID, "error", err)
-			}
-		}
-		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, nil); err != nil {
-			return e.InternalServerError("failed to save examples", err)
-		}
 		if colourRec.GetString("prompt") != "" {
 			deps.Colour.Signal()
 		}
@@ -179,33 +105,28 @@ func HandleUpdateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 			return e.BadRequestError("invalid request body", err)
 		}
 
-		if err := applyExamples(app, colourRec.Id, req.PositiveExamples, req.NegativeExamples, req.ClearExamples); err != nil {
-			return e.InternalServerError("failed to save examples", err)
+		updatedRec, promptChanged, err := colour.Update(app, colourRec.Id, colour.UpdateParams{
+			Name:             req.Name,
+			Prompt:           req.Prompt,
+			PositiveExamples: req.PositiveExamples,
+			NegativeExamples: req.NegativeExamples,
+			ClearExamples:    req.ClearExamples,
+		})
+		if err != nil {
+			return e.InternalServerError("failed to update colour", err)
 		}
 
-		if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
-			colourRec.Set("name", strings.TrimSpace(*req.Name))
-		}
-		promptChanged := false
-		if req.Prompt != nil {
-			next := strings.TrimSpace(*req.Prompt)
-			promptChanged = next != colourRec.GetString("prompt")
-			colourRec.Set("prompt", next)
-		}
-		if err := app.Save(colourRec); err != nil {
-			return e.InternalServerError("failed to save colour", err)
-		}
 		if promptChanged {
-			if err := deps.Colour.Rematch(colourRec.Id); err != nil {
+			if err := deps.Colour.Rematch(updatedRec.Id); err != nil {
 				return e.InternalServerError("failed to restart matching", err)
 			}
 			deps.Reconcile.EnqueueWave()
 		}
 
 		return e.JSON(http.StatusOK, api.UpdateColourResponse{
-			ColourID: colourRec.Id,
-			Name:     colourRec.GetString("name"),
-			Prompt:   colourRec.GetString("prompt"),
+			ColourID: updatedRec.Id,
+			Name:     updatedRec.GetString("name"),
+			Prompt:   updatedRec.GetString("prompt"),
 		})
 	}
 }
@@ -235,15 +156,7 @@ func HandleDeleteColour(app core.App) func(e *core.RequestEvent) error {
 		if err != nil {
 			return err
 		}
-		err = app.RunInTransaction(func(tx core.App) error {
-			for _, collection := range []string{"projection", "reflection"} {
-				if err := scrubIDFromSpecs(tx, collection, colourIDs, colourRec.Id); err != nil {
-					return err
-				}
-			}
-			return tx.Delete(colourRec)
-		})
-		if err != nil {
+		if err := colour.Delete(app, colourRec.Id); err != nil {
 			return e.InternalServerError("failed to delete colour", err)
 		}
 		return e.NoContent(http.StatusNoContent)
@@ -260,65 +173,4 @@ func findColour(app core.App, e *core.RequestEvent) (*core.Record, error) {
 		return nil, e.NotFoundError("colour not found", err)
 	}
 	return rec, nil
-}
-
-// applyExamples writes manual rows. Negatives first, then positives, so a
-// fragment named in both ends up pinned; clears run last and re-derive the
-// pair mechanically.
-func applyExamples(app core.App, colourID string, positive, negative, clear []string) error {
-	for _, fragID := range negative {
-		if err := colour.SetManual(app, colourID, fragID, colour.MatchManualNegative); err != nil {
-			return err
-		}
-	}
-	for _, fragID := range positive {
-		if err := colour.SetManual(app, colourID, fragID, colour.MatchManualPositive); err != nil {
-			return err
-		}
-	}
-	for _, fragID := range clear {
-		if err := colour.ClearManual(app, colourID, fragID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// specIDs selects one id list of a context spec, for scrubbing.
-type specIDs func(spec *api.ContextSpec) *[]string
-
-func colourIDs(spec *api.ContextSpec) *[]string           { return &spec.ColourIDs }
-func sourceProjectionIDs(spec *api.ContextSpec) *[]string { return &spec.SourceProjectionIDs }
-func sourceReflectionIDs(spec *api.ContextSpec) *[]string { return &spec.SourceReflectionIDs }
-
-// scrubIDFromSpecs drops one id from the chosen list of every live
-// current_context_spec in the collection, so a deleted colour or a
-// soft-deleted upstream entity leaves no dangling reference behind.
-func scrubIDFromSpecs(app core.App, collection string, field specIDs, id string) error {
-	recs, err := app.FindRecordsByFilter(collection, "current_context_spec ~ {:id}", "", 0, 0, dbx.Params{"id": id})
-	if err != nil {
-		return err
-	}
-	for _, rec := range recs {
-		var spec api.ContextSpec
-		if err := rec.UnmarshalJSONField("current_context_spec", &spec); err != nil {
-			continue
-		}
-		list := field(&spec)
-		kept := (*list)[:0]
-		for _, x := range *list {
-			if x != id {
-				kept = append(kept, x)
-			}
-		}
-		if len(kept) == len(*list) {
-			continue
-		}
-		*list = kept
-		rec.Set("current_context_spec", pbutil.JSONObject(spec))
-		if err := app.Save(rec); err != nil {
-			return err
-		}
-	}
-	return nil
 }

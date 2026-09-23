@@ -8,8 +8,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -51,14 +51,14 @@ func ThingIDs(rec *core.Record) []string {
 // annotate drain and consolidate, thing-backed membership is recomputed from
 // the citations, unless nothing changed.
 func (w *Worker) OnMapSettled(app core.App) {
-	_, version, err := mapping.LoadDocument(app)
+	_, version, err := sourcedata.LoadDocument(app)
 	if err != nil {
-		logger().Error("load map version failed", "error", err)
+		w.logger.Error("load map version failed", "error", err)
 		return
 	}
 	annotated, err := app.CountRecords(schema.ColFragmentAnnotation.String())
 	if err != nil {
-		logger().Error("annotation count failed", "error", err)
+		w.logger.Error("annotation count failed", "error", err)
 		return
 	}
 	w.settled.mu.Lock()
@@ -69,7 +69,7 @@ func (w *Worker) OnMapSettled(app core.App) {
 		return
 	}
 	if err := RematchThings(app); err != nil {
-		logger().Error("rematch things failed", "error", err)
+		w.logger.Error("rematch things failed", "error", err)
 	}
 }
 
@@ -97,7 +97,7 @@ func rematch(app core.App, cols []*core.Record) error {
 	defer rematchMu.Unlock()
 
 	var doc *mapdoc.Document
-	var rows []mapping.Row
+	var rows []sourcedata.Row
 	var byThing map[string][]int
 	for _, c := range cols {
 		want := map[string]bool{}
@@ -110,7 +110,7 @@ func rematch(app core.App, cols []*core.Record) error {
 				}
 			}
 			for _, ref := range ids {
-				t := mapping.ResolveRef(doc, ref)
+				t := doc.Resolve(ref)
 				if t == nil {
 					continue
 				}
@@ -126,16 +126,12 @@ func rematch(app core.App, cols []*core.Record) error {
 	return nil
 }
 
-func loadIndex(app core.App) (*mapdoc.Document, []mapping.Row, map[string][]int, error) {
-	doc, _, err := mapping.LoadDocument(app)
+func loadIndex(app core.App) (*mapdoc.Document, []sourcedata.Row, map[string][]int, error) {
+	idx, err := sourcedata.LoadMapIndex(app)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	rows, err := mapping.LoadRows(app)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return doc, rows, mapping.IndexRows(doc, rows), nil
+	return idx.Doc, idx.Rows, idx.ByThing, nil
 }
 
 // applyThingRows diffs the colour's existing rows against the fragments its
@@ -190,13 +186,13 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 	if err := anns[0].UnmarshalJSONField("things", &cites); err != nil {
 		return nil
 	}
-	doc, _, err := mapping.LoadDocument(app)
+	doc, _, err := sourcedata.LoadDocument(app)
 	if err != nil {
 		return err
 	}
 	wanted := map[string]bool{}
 	for _, ref := range ids {
-		if t := mapping.ResolveRef(doc, ref); t != nil {
+		if t := doc.Resolve(ref); t != nil {
 			wanted[t.ID] = true
 		}
 	}
@@ -205,7 +201,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 		if ref == "" {
 			ref = c.Name
 		}
-		if t := mapping.ResolveRef(doc, ref); t != nil && wanted[t.ID] {
+		if t := doc.Resolve(ref); t != nil && wanted[t.ID] {
 			existing, err := findLink(app, colourID, fragmentID)
 			if err != nil {
 				return err
@@ -222,15 +218,7 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 // MemberIDs returns the fragments a colour currently holds: every row except
 // the exclusions.
 func MemberIDs(app core.App, colourID string) ([]string, error) {
-	recs, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), "colour_id = {:c} && match_type != {:neg}", "", 0, 0, dbx.Params{"c": colourID, "neg": MatchManualNegative})
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, 0, len(recs))
-	for _, r := range recs {
-		ids = append(ids, r.GetString("fragment_id"))
-	}
-	return ids, nil
+	return sourcedata.ColourMemberIDs(app, colourID)
 }
 
 func findLink(app core.App, colourID, fragmentID string) (*core.Record, error) {

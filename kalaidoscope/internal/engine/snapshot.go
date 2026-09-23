@@ -13,17 +13,17 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 func GenerateOutput(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window) (string, error) {
 	start, end := WindowBounds(win)
 	prompt := prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)
-	if err := CheckPromptFits(model, len(prompt)); err != nil {
+	if err := llm.CheckPromptFits(model, len(prompt)); err != nil {
 		return "", err
 	}
 	output, err := usage.GenerateOnce(ctx, app, prompt, llm.RoleSnapshot, model, nil)
@@ -80,7 +80,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 	}
 
 	started := time.Now()
-	logger().Info("generating snapshot",
+	logger(app).Info("generating snapshot",
 		"target_type", strat.TargetType(), "id", rec.Id, "name", rec.GetString("name"), "model", model,
 		"fragments", len(pinnedCtx.FragmentIDs), "snapshots", len(pinnedCtx.SnapshotIDs))
 
@@ -99,24 +99,24 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		// and shape are not this lens's to preserve — the minimal-diff rewrite
 		// would erase exactly the changes the new lens exists to make — so the
 		// raw candidate is the snapshot, as for a first generation.
-		logger().Info("lens changed since last approval; generating from scratch", "target_type", strat.TargetType(), "id", rec.Id)
+		logger(app).Info("lens changed since last approval; generating from scratch", "target_type", strat.TargetType(), "id", rec.Id)
 	case strings.TrimSpace(prev) == "":
 		// First generation for this target (and window): nothing to anchor to.
 	case outputStr == prev:
-		logger().Info("candidate matches the approved output byte-for-byte; nothing to rewrite", "target_type", strat.TargetType(), "id", rec.Id)
+		logger(app).Info("candidate matches the approved output byte-for-byte; nothing to rewrite", "target_type", strat.TargetType(), "id", rec.Id)
 		unchanged = true
 	default:
 		merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, window, prev, outputStr)
 		switch {
 		case err == nil:
 			if merged == prev {
-				logger().Info("delta reported no semantic change; republishing the approved output verbatim", "target_type", strat.TargetType(), "id", rec.Id)
+				logger(app).Info("delta reported no semantic change; republishing the approved output verbatim", "target_type", strat.TargetType(), "id", rec.Id)
 				unchanged = true
 			} else {
-				logger().Info("stored minimal-diff rewrite of the candidate", "target_type", strat.TargetType(), "id", rec.Id)
+				logger(app).Info("stored minimal-diff rewrite of the candidate", "target_type", strat.TargetType(), "id", rec.Id)
 			}
 			outputStr = merged
-		case errors.Is(err, llmq.ErrPreempted):
+		case errors.Is(err, queue.ErrPreempted):
 			// The same contract as a preempted GenerateOutput: the caller
 			// (the reconcile worker) retries the whole generation rather
 			// than publishing a half-processed candidate.
@@ -128,7 +128,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		default:
 			// The polish steps failing must not fail the generation; the
 			// raw candidate is correct, just noisier to diff.
-			logger().Warn("minimal-diff rewrite failed, keeping raw candidate", "target_type", strat.TargetType(), "id", rec.Id, "error", err)
+			logger(app).Warn("minimal-diff rewrite failed, keeping raw candidate", "target_type", strat.TargetType(), "id", rec.Id, "error", err)
 		}
 	}
 
@@ -152,7 +152,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 			return "", fmt.Errorf("settle in place: %w", err)
 		}
 		if settledID != "" {
-			logger().Info("snapshot unchanged; approved snapshot now records the current context",
+			logger(app).Info("snapshot unchanged; approved snapshot now records the current context",
 				"target_type", strat.TargetType(), "id", rec.Id, "name", rec.GetString("name"),
 				"snapshot_id", settledID, "duration", time.Since(started).Round(time.Millisecond))
 			return settledID, nil
@@ -174,7 +174,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("snapshot save: %w", err)
 	}
 	completed = true
-	logger().Info("stored snapshot",
+	logger(app).Info("stored snapshot",
 		"target_type", strat.TargetType(), "id", rec.Id, "name", rec.GetString("name"), "status", status,
 		"snapshot_id", claimID, "chars", len(outputStr), "duration", time.Since(started).Round(time.Millisecond))
 

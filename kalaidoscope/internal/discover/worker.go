@@ -2,31 +2,55 @@ package discover
 
 import (
 	"context"
+	"log/slog"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/followup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
+
+func logger(app core.App) *slog.Logger {
+	if app != nil {
+		return app.Logger().With("component", "discover")
+	}
+	return slog.Default().With("component", "discover")
+}
 
 // Worker runs the discover flows: Signal marks a kind pending, Run drains the
 // pending kinds in pipeline order. One per process, owned by the server.
 type Worker struct {
-	app  core.App
-	maps *mapping.Worker // a run waits for the map to settle first
-	wake chan struct{}   // buffered by one: wakes coalesce
+	app    core.App
+	logger *slog.Logger
+	maps   *mapping.Worker // a run waits for the map to settle first
+	wake   workerutil.Signal
 
 	pendingMu sync.Mutex
 	pending   map[string]bool
-	followUps followup.Queue
-	runningMu sync.Mutex
-	running   string
+	followUps workerutil.Callbacks
+
+	runningMu      sync.Mutex
+	running        string
+	currentStarted time.Time
+	waitingOnMap   atomic.Bool
+}
+
+func (w *Worker) WaitingOnMap() bool {
+	return w.waitingOnMap.Load()
+}
+
+func (w *Worker) CurrentStarted() time.Time {
+	w.runningMu.Lock()
+	defer w.runningMu.Unlock()
+	return w.currentStarted
 }
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App, maps *mapping.Worker) *Worker {
-	return &Worker{app: app, maps: maps, wake: make(chan struct{}, 1), pending: map[string]bool{}}
+	return &Worker{app: app, logger: logger(app), maps: maps, wake: workerutil.NewSignal(), pending: map[string]bool{}}
 }
 
 // Running is the kind currently running, or "".
@@ -39,6 +63,11 @@ func (w *Worker) Running() string {
 func (w *Worker) setRunning(kind string) {
 	w.runningMu.Lock()
 	w.running = kind
+	if kind != "" {
+		w.currentStarted = time.Now()
+	} else {
+		w.currentStarted = time.Time{}
+	}
 	w.runningMu.Unlock()
 }
 
@@ -67,10 +96,7 @@ func (w *Worker) Signal(kind string) {
 	w.pendingMu.Lock()
 	w.pending[kind] = true
 	w.pendingMu.Unlock()
-	select {
-	case w.wake <- struct{}{}:
-	default:
-	}
+	w.wake.Notify()
 }
 
 // AfterDrain runs fn once the next drain ends, with its last error.
@@ -97,12 +123,10 @@ func (w *Worker) takePending() []string {
 // returns ctx.Err(). A flow in progress finishes its current round first.
 func (w *Worker) Run(ctx context.Context) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-w.wake:
+		if err := w.wake.Wait(ctx); err != nil {
+			return err
 		}
-		active := w.followUps.Take()
+		active := w.followUps.Detach()
 		var last error
 		for _, kind := range w.takePending() {
 			if ctx.Err() != nil {
@@ -112,10 +136,10 @@ func (w *Worker) Run(ctx context.Context) error {
 			err := w.run(ctx, flows[kind])
 			w.setRunning("")
 			if err != nil {
-				logger().Error("flow run failed", "kind", kind, "error", err)
+				w.logger.Error("flow run failed", "kind", kind, "error", err)
 				last = err
 			}
 		}
-		followup.Run(active, last)
+		active.Invoke(last)
 	}
 }

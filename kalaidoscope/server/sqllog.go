@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -12,11 +13,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// registerWriteEcho logs every SQL statement that changes persistent state.
-// It replaces PocketBase's --dev firehose (which echoes every read too) for
-// normal dev runs: reads are silent, and churn tables are excluded. Launch the
-// sidecar with --dev (KALAIDO_PB_DEV=1 in the Tauri wrapper) to get the full
-// unfiltered echo back — in that mode this hook installs nothing.
+// registerWriteEcho logs every SQL statement that changes persistent state (excluding to llm_queue_status).
+// It is an alternative to PocketBase's --dev logging, which is too verbose most of the time (echoes every read, no tables excluded).
 func registerWriteEcho(app core.App) {
 	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
 		if err := e.Next(); err != nil {
@@ -25,18 +23,23 @@ func registerWriteEcho(app core.App) {
 		if app.IsDev() {
 			return nil
 		}
+		log := logger(app)
+		execLogger := func(ctx context.Context, d time.Duration, sqlStr string, res sql.Result, err error) {
+			echoWrite(log, ctx, d, sqlStr, res, err)
+		}
 		for _, b := range []dbx.Builder{app.DB(), app.NonconcurrentDB()} {
 			if db, ok := b.(*dbx.DB); ok {
-				db.ExecLogFunc = echoWrite
+				db.ExecLogFunc = execLogger
 			}
 		}
 		return nil
 	})
 }
 
-// The queue status row is rewritten several times a second while anything
-// runs; it is ephemeral coordination state, not user data.
+// Don't log writes to these tables.
 var writeEchoSkip = map[string]bool{
+	// The queue status row is rewritten several times a second while anything
+	// runs; it is ephemeral coordination state, not user data.
 	"llm_queue_status": true,
 }
 
@@ -46,7 +49,7 @@ var writeVerb = regexp.MustCompile("(?i)^\\s*(?:INSERT INTO|UPDATE|DELETE FROM)\
 
 const writeEchoMaxRunes = 500
 
-func echoWrite(_ context.Context, _ time.Duration, sqlStr string, _ sql.Result, err error) {
+func echoWrite(log *slog.Logger, _ context.Context, _ time.Duration, sqlStr string, _ sql.Result, err error) {
 	m := writeVerb.FindStringSubmatch(sqlStr)
 	if m == nil {
 		return
@@ -61,8 +64,8 @@ func echoWrite(_ context.Context, _ time.Duration, sqlStr string, _ sql.Result, 
 		line = string(r[:writeEchoMaxRunes]) + fmt.Sprintf("… (+%d chars)", len(r)-writeEchoMaxRunes)
 	}
 	if err != nil {
-		logger().Error("db write failed", "sql", line, "error", err)
+		log.Error("db write failed", "sql", line, "error", err)
 		return
 	}
-	logger().Debug("db write", "sql", line)
+	log.Debug("db write", "sql", line)
 }

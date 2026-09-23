@@ -80,6 +80,9 @@ func ProviderFor(model string) (ProviderID, error) {
 }
 
 func CredentialEnv(p ProviderID) string {
+	if d, ok := Descriptor(p); ok {
+		return d.CredentialEnv
+	}
 	return credentialEnv[p]
 }
 
@@ -88,6 +91,9 @@ func CredentialEnv(p ProviderID) string {
 // provider stays a one-place change. Providers without one (Ollama, a local
 // service) are never key-validated.
 func RequiresCredential(p ProviderID) bool {
+	if d, ok := Descriptor(p); ok {
+		return d.RequiresKey
+	}
 	return credentialEnv[p] != ""
 }
 

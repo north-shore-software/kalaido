@@ -370,20 +370,22 @@ export function diffContextSpecs(
 
 export function createKalaidoChatTransport(options: {
   baseURL: string;
+  api?: string;
   prepareSendMessagesRequest?: PrepareSendMessagesRequest<UIMessage>;
 }): DefaultChatTransport<UIMessage> {
+  const apiPath = options.api ?? "/api/explore";
   return new DefaultChatTransport<UIMessage>({
     // api is overridden by the custom fetch below — it always targets the
     // ACTIVE kalaidoscope (local sidecar or <cloud gateway>/<cloudId>) and
     // attaches the cloud JWT, so chat works on cloud kalaidoscopes and is metered.
-    api: "/api/chat",
+    api: apiPath,
     prepareSendMessagesRequest: options.prepareSendMessagesRequest,
     fetch: async (_url, init) => {
       const headers = {
         ...(init?.headers as Record<string, string> | undefined),
         ...(await kalaidoscopeAuthHeaders(options.baseURL)),
       };
-      const res = await fetch(`${options.baseURL}/api/chat`, {
+      const res = await fetch(`${options.baseURL}${apiPath}`, {
         ...init,
         headers,
       });
@@ -491,7 +493,7 @@ export async function setBookmark(
 ): Promise<Result<MessageMark, Error>> {
   return withActiveClient((client) =>
     client.send<MessageMark>(
-      `/api/chat/conversations/${encodeURIComponent(clientId)}/messages/${encodeURIComponent(messageId)}/bookmark`,
+      `/api/explore/conversations/${encodeURIComponent(clientId)}/messages/${encodeURIComponent(messageId)}/bookmark`,
       { method: "PATCH", body: { bookmarked } },
     ),
   );
@@ -513,7 +515,7 @@ export async function saveBookmarks(
 ): Promise<Result<{ saved: SavedBookmark[] }, Error>> {
   return withActiveClient((client) =>
     client.send<{ saved: SavedBookmark[] }>(
-      `/api/chat/conversations/${encodeURIComponent(clientId)}/bookmarks/save`,
+      `/api/explore/conversations/${encodeURIComponent(clientId)}/bookmarks/save`,
       { method: "POST", requestKey: null },
     ),
   );
@@ -534,7 +536,7 @@ export async function generateBrief(
 ): Promise<Result<ChatBrief, Error>> {
   return withActiveClient((client) =>
     client.send<ChatBrief>(
-      `/api/chat/conversations/${encodeURIComponent(clientId)}/brief`,
+      `/api/explore/conversations/${encodeURIComponent(clientId)}/brief`,
       { method: "POST", requestKey: null },
     ),
   );

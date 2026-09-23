@@ -12,6 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -86,7 +87,7 @@ func TestEditCandidateRoute(t *testing.T) {
 	}
 
 	// Approve the source; it is no longer editable: 409.
-	if err := engine.ApproveSnapshot(t.Context(), app, engine.ProjectionStrategy{}, src.Id); err != nil {
+	if err := engine.ApproveSnapshot(t.Context(), app, projections.Strategy{}, src.Id); err != nil {
 		t.Fatal(err)
 	}
 	_, err = callJSON(t, app, HandleEditCandidate(app), http.MethodPost, path,

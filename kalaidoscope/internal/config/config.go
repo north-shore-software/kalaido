@@ -8,6 +8,7 @@ package config
 
 import (
 	"encoding/json"
+	"log/slog"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -37,7 +38,7 @@ func Read(rec *core.Record) llm.WorkspaceConfig {
 		if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
 			// A corrupt override map shouldn't take generation down — fall back
 			// to the default model and say so.
-			logger().Warn("ignoring unreadable role_models", "error", err)
+			slog.Default().With("component", "config").Warn("ignoring unreadable role_models", "error", err)
 		} else if len(decoded) > 0 {
 			cfg.RoleModels = make(map[llm.Role]string, len(decoded))
 			for k, v := range decoded {
@@ -75,7 +76,7 @@ func LoadAtBoot(a *pocketbase.PocketBase) {
 			return se.Next()
 		}
 		llm.SetWorkspaceConfig(cfg)
-		logger().Info("provider loaded", "provider", cfg.Provider, "model", cfg.DefaultModel, "role_overrides", len(cfg.RoleModels))
+		slog.Default().With("component", "config").Info("provider loaded", "provider", cfg.Provider, "model", cfg.DefaultModel, "role_overrides", len(cfg.RoleModels))
 		return se.Next()
 	})
 }

@@ -9,10 +9,9 @@ import (
 	"context"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -30,7 +29,7 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 	lens := newLens(t, app)
 	// Weekly window, created ~3 weeks ago -> 3 pending windows.
 	created := time.Now().Add(-21 * 24 * time.Hour)
-	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h"}, created)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h"}, created)
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name":                 "R",
 		"current_context_spec": pbutil.JSONObject(spec),
@@ -44,7 +43,7 @@ func TestWaveSettlesScheduledReflectionWindows(t *testing.T) {
 	}
 
 	report := func(label string) []api.Window {
-		statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
+		statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 		if err != nil {
 			t.Fatalf("evaluate: %v", err)
 		}

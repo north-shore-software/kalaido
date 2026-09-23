@@ -1,32 +1,32 @@
 package api
 
-// EntityStatus is one entity's freshness. StaleDependencies and BlockedBy both
-// name upstream entities, but they mean opposite things for the caller:
-// StaleDependencies is work that can be done now, BlockedBy is work that can't.
-type EntityStatus struct {
-	ID                 string   `json:"id"`
-	Type               string   `json:"type"` // "projection" or "reflection"
-	UpToDateSnapshotID string   `json:"upToDateSnapshotId,omitempty"`
-	NewFragmentIDs     []string `json:"newFragmentIds,omitempty"`
-	// Upstreams that have published a newer approved snapshot than the one the
-	// live snapshot consumed. Regenerating now would pick up their new output.
-	StaleDependencies []string `json:"staleDependencies,omitempty"`
-	// Upstreams that are not themselves up to date. Regenerating now would
-	// consume output that is about to be superseded, so this entity should wait.
-	BlockedBy []string `json:"blockedBy,omitempty"`
-	// Reflections: materialized windows with no approved snapshot yet.
-	PendingWindows []Window `json:"pendingWindows,omitempty"`
-	// Reflections: windows whose approved snapshot predates fragments that
-	// now fall inside them (a backdated import, a late-arriving email).
-	StaleWindows []Window `json:"staleWindows,omitempty"`
+type KalaidoscopeStatus struct {
+	Fragments int             `json:"fragments"`
+	Imports   ImportsStatus   `json:"imports"`
+	Map       MapStatus       `json:"map"`
+	Discover  DiscoverStatus  `json:"discover"`
+	Reconcile ReconcileStatus `json:"reconcile"`
+	Colour    ColourStatus    `json:"colour"`
 }
 
-type Window struct {
-	ID    string `json:"id"`
-	Start string `json:"start"`
-	End   string `json:"end"`
+type ColourStatus struct {
+	Draining           bool   `json:"draining"`
+	CurrentColourID    string `json:"currentColourId,omitempty"`
+	LastStarted        string `json:"lastStarted,omitempty"`
+	LastCompleted      string `json:"lastCompleted,omitempty"`
+	LastError          string `json:"lastError,omitempty"`
+	PromptColoursCount int    `json:"promptColoursCount"`
+	TotalColoursCount  int    `json:"totalColoursCount"`
+	UnjudgedFragments  int    `json:"unjudgedFragments"`
 }
 
-type StatusResponse struct {
-	Statuses []EntityStatus `json:"statuses"`
+type RunInfo struct {
+	ID          string `json:"id"`
+	Status      string `json:"status"`
+	Error       string `json:"error,omitempty"`
+	Model       string `json:"model,omitempty"`
+	Rounds      int    `json:"rounds,omitempty"`
+	MapVersion  int    `json:"mapVersion,omitempty"`
+	Finished    string `json:"finished"`
+	Interrupted bool   `json:"interrupted,omitempty"`
 }

@@ -1,8 +1,11 @@
 package mapdoc
 
 import (
+	"crypto/rand"
+	"encoding/base32"
 	"encoding/json"
 	"strings"
+	"unicode"
 )
 
 var Kinds = []string{"person", "organisation", "place", "project", "topic", "other"}
@@ -76,4 +79,50 @@ func NormalizeKind(kind string) string {
 		}
 	}
 	return "other"
+}
+
+var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
+
+// MintID mints a new server-side thing ID: "t_" + 8 lower-case unpadded base32 chars.
+func MintID() string {
+	var b [5]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(err)
+	}
+	return "t_" + strings.ToLower(idEncoding.EncodeToString(b[:]))
+}
+
+// NormalizeName strips trailing punctuation, collapses internal whitespace, and lowercases.
+func NormalizeName(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.Join(strings.Fields(s), " ")
+	return strings.TrimRightFunc(s, unicode.IsPunct)
+}
+
+// FindByName finds a thing by normalized name or alias.
+func (d *Document) FindByName(name string) *Thing {
+	want := NormalizeName(name)
+	if want == "" {
+		return nil
+	}
+	for i := range d.Things {
+		t := &d.Things[i]
+		if NormalizeName(t.Name) == want {
+			return t
+		}
+		for _, a := range t.Aliases {
+			if NormalizeName(a) == want {
+				return t
+			}
+		}
+	}
+	return nil
+}
+
+// Resolve looks up a thing by exact ID (Find), then by normalized name or alias (FindByName).
+func (d *Document) Resolve(ref string) *Thing {
+	if t := d.Find(ref); t != nil {
+		return t
+	}
+	return d.FindByName(ref)
 }

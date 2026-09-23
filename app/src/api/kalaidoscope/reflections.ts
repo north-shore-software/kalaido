@@ -117,13 +117,13 @@ export async function updateReflection(
  * backend derives status from `preview` (preview=true → pending).
  *
  * Returns one snapshot id per generated window. When a scheduled reflection has
- * multiple pending windows the backend requires `windowId` or `all` — pass `all`
- * to generate every pending window in one call.
+ * multiple pending windows the backend requires `windowId` or `allWindows` — pass `allWindows`
+ * (or legacy `all`) to generate every pending window in one call.
  */
 export async function regenerateReflection(
   reflectionId: string,
   autoApprove = true,
-  opts?: { all?: boolean; windowId?: string },
+  opts?: { all?: boolean; allWindows?: boolean; windowId?: string },
 ): Promise<Result<RegenerateReflectionResult, Error>> {
   return withActiveClient((client) =>
     client.send<RegenerateReflectionResult>(
@@ -132,7 +132,7 @@ export async function regenerateReflection(
         method: "POST",
         body: {
           preview: !autoApprove,
-          ...(opts?.all ? { all: true } : {}),
+          ...(opts?.allWindows || opts?.all ? { allWindows: true } : {}),
           ...(opts?.windowId ? { windowId: opts.windowId } : {}),
         },
       },

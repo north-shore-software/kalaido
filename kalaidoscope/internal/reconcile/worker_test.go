@@ -12,7 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -212,14 +212,14 @@ func TestApprovingAsIsSettlesChainWithoutRegeneration(t *testing.T) {
 	ctx := context.Background()
 	p1Cand := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p1.Id)[0]
 	p2Cand := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p2.Id)[0]
-	if err := engine.ApproveSnapshot(ctx, app, engine.ProjectionStrategy{}, p1Cand.Id); err != nil {
+	if err := engine.ApproveSnapshot(ctx, app, projections.Strategy{}, p1Cand.Id); err != nil {
 		t.Fatalf("approve p1: %v", err)
 	}
-	if err := engine.ApproveSnapshot(ctx, app, engine.ProjectionStrategy{}, p2Cand.Id); err != nil {
+	if err := engine.ApproveSnapshot(ctx, app, projections.Strategy{}, p2Cand.Id); err != nil {
 		t.Fatalf("approve p2: %v", err)
 	}
 
-	statuses, err := status.NewEvaluator(app, time.Now()).EvaluateAll(ctx)
+	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
 		t.Fatalf("evaluate: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestRefiningChainCandidateCarriesTriggerForward(t *testing.T) {
 	var spec api.ContextSpec
 	_ = g.p1.UnmarshalJSONField("current_context_spec", &spec)
 
-	newSnapID, err := engine.CommitRefinement(ctx, app, engine.ProjectionStrategy{},
+	newSnapID, err := engine.CommitRefinement(ctx, app, projections.Strategy{},
 		g.p1.Id, p1Cand.Id, "EDITED LENS", "EDITED OUTPUT", pinned, spec, nil, "", "projection")
 	if err != nil {
 		t.Fatalf("commit refinement: %v", err)
@@ -267,7 +267,7 @@ func TestRefiningChainCandidateCarriesTriggerForward(t *testing.T) {
 
 	// Refining an already-approved snapshot publishes a new one just the
 	// same: its dependents have not consumed it.
-	if _, err := engine.CommitRefinement(ctx, app, engine.ProjectionStrategy{},
+	if _, err := engine.CommitRefinement(ctx, app, projections.Strategy{},
 		g.p1.Id, newSnapID, "EDITED LENS AGAIN", "EDITED AGAIN", pinned, spec, nil, "", "projection"); err != nil {
 		t.Fatalf("commit second refinement: %v", err)
 	}

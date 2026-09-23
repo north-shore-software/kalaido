@@ -7,6 +7,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapreader"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 )
 
@@ -19,7 +20,7 @@ func rhythmContext(rows []mapping.Row, things ...string) *Context {
 		doc.Things = append(doc.Things, mapdoc.Thing{ID: id, Name: "Thing " + id, Fragments: 99})
 	}
 	byThing := mapping.IndexRows(doc, rows)
-	c := &Context{Reader: &Reader{Doc: doc, Rows: rows, ByThing: byThing}, ByColour: map[string][]int{}, covered: map[string]bool{}}
+	c := &Context{Reader: &mapreader.Reader{Doc: doc, Rows: rows, ByThing: byThing}, ByColour: map[string][]int{}, covered: map[string]bool{}}
 	for _, id := range things {
 		info := colourInfo{ID: id, Name: "Colour " + id, ThingIDs: []string{id}, ThingNames: []string{"Thing " + id}, RowIdx: byThing[id], rowSet: map[int]bool{}}
 		for _, i := range info.RowIdx {

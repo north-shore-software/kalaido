@@ -41,7 +41,7 @@ export async function resolveContextTokens(
     ...(window ? { window: { start: window.start, end: window.end } } : {}),
     ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
   };
-  const res = await fetch(`${baseURL}/api/context/tokens`, {
+  const res = await fetch(`${baseURL}/api/llm/count-tokens`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

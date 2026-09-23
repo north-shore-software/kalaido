@@ -70,6 +70,6 @@ export function isActionable(s: EntityStatus): boolean {
  */
 export async function getRotation(): Promise<Result<StatusResponse, Error>> {
   return withActiveClient((client) =>
-    client.send<StatusResponse>("/api/rotation", { method: "GET" }),
+    client.send<StatusResponse>("/api/reconcile", { method: "GET" }),
   );
 }

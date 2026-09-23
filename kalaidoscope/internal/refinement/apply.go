@@ -1,0 +1,47 @@
+package refinement
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/pocketbase/pocketbase/core"
+
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+)
+
+// ApplyDraftLens executes a drafted lens against the hydrated sources — the
+// exact call a future regeneration under a new lens makes, so what the user
+// previews is what the lens actually reproduces.
+//
+// The preview is always generated from scratch. A drafted lens is by
+// definition a changed lens, and the minimal-diff rewrite production
+// regeneration applies (minimizeAgainstPrevious) is only valid when the same
+// lens is re-run over new sources: its delta/merge prompts deliberately
+// discard wording, ordering and formatting differences, which are precisely
+// what a lens iteration is meant to change.
+//
+// Raw candidate text streams through onDelta as it generates; the returned
+// string is the trimmed final output.
+func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window, onDelta func(string)) (string, error) {
+	start, end := engine.WindowBounds(win)
+	prompt := prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)
+	if err := llm.CheckPromptFits(model, len(prompt)); err != nil {
+		return "", fmt.Errorf("apply lens: %w", err)
+	}
+	candidate, err := usage.GenerateStreamMsgs(ctx, app,
+		[]llm.Message{{Role: "user", Content: prompt}},
+		llm.RoleSnapshot, model, onDelta)
+	if err != nil {
+		return "", fmt.Errorf("apply lens: %w", err)
+	}
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return "", fmt.Errorf("apply lens: model returned empty output")
+	}
+	return candidate, nil
+}

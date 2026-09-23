@@ -30,6 +30,10 @@ import {
  *   when re-targeting, e.g. after a reflection commit promotes a new snapshot).
  */
 export interface RefineSession {
+  /** Target entity type being refined. */
+  target: "projection" | "reflection";
+  /** Parent entity id if known. */
+  parentId: string | null;
   /** AI SDK chat id — pass to {@link ChatPanel}'s `chatId`. */
   clientId: string;
   /** Null until a refinement is opened/adopted; `started` mirrors this. */
@@ -90,6 +94,7 @@ export interface RefineSession {
   }) => Promise<boolean>;
   /** Adopt an already-persisted refinement, seeding the chat with its history. */
   resume: (args: {
+    parentId?: string;
     clientId: string;
     refinementId: string;
     messages?: UIMessage[];
@@ -111,6 +116,7 @@ export function useRefineSession({
   target: "projection" | "reflection";
   onCommitted?: (snapshotId: string) => void;
 }): RefineSession {
+  const [parentId, setParentId] = useState<string | null>(null);
   const [clientId, setClientId] = useState(() => generateId());
   const [refinementId, setRefinementId] = useState<string | null>(null);
   const [firstPrompt, setFirstPrompt] = useState<string | null>(null);
@@ -160,6 +166,7 @@ export function useRefineSession({
         ? normalizeRefinementMessages(seeded)
         : undefined;
       setClientId(newClientId);
+      setParentId(parentId);
       setInitialMessages(history);
       setMessages(history ?? []);
       setFirstPrompt(prompt ?? null);
@@ -172,6 +179,7 @@ export function useRefineSession({
   const resume = useCallback<RefineSession["resume"]>((args) => {
     setClientId(args.clientId);
     setRefinementId(args.refinementId);
+    if (args.parentId) setParentId(args.parentId);
     setInitialMessages(args.messages);
     setMessages(args.messages ?? []);
     setFirstPrompt(null);
@@ -179,6 +187,7 @@ export function useRefineSession({
 
   const reset = useCallback<RefineSession["reset"]>(() => {
     setClientId(generateId());
+    setParentId(null);
     setRefinementId(null);
     setFirstPrompt(null);
     setInitialMessages(undefined);
@@ -202,6 +211,8 @@ export function useRefineSession({
   );
 
   return {
+    target,
+    parentId,
     clientId,
     refinementId,
     firstPrompt,

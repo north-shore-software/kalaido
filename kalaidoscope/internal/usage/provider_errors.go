@@ -25,7 +25,7 @@ func WriteProviderError(e *core.RequestEvent, err error) bool {
 	}
 	// The provider already logged the call's shape and the response body;
 	// this line ties that failure to the route the user was on.
-	logger().Warn("provider error surfaced to client", "method", e.Request.Method, "path", e.Request.URL.Path, "error", err)
+	logger(e.App).Warn("provider error surfaced to client", "method", e.Request.Method, "path", e.Request.URL.Path, "error", err)
 
 	status, code := http.StatusBadGateway, "provider_error"
 	switch perr.Kind {

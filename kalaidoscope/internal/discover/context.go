@@ -1,20 +1,24 @@
 package discover
 
 import (
+	"context"
 	"slices"
 	"sort"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/colour"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapreader"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 )
 
 type Context struct {
-	*Reader
+	*mapreader.Reader
 	Run *core.Record
 
 	// Colours is the workspace as colours, in created order, read from the
@@ -54,6 +58,65 @@ type Existing struct {
 	FragmentIDs []string
 }
 
+// existingEntities lists every colour, projection and reflection, made by a
+// person or by a run, with the fragments each holds. Every flow uses it: a
+// proposal must not restate what is there, and projections scope by colour id.
+func existingEntities(c *Context) ([]Existing, error) {
+	var out []Existing
+	colours, err := sourcedata.FindAllColours(c.App)
+	if err != nil {
+		return nil, err
+	}
+	membersMap, err := sourcedata.ColourMembersMap(c.App, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, rec := range colours {
+		members := membersMap[rec.Id]
+		var names []string
+		for _, id := range colour.ThingIDs(rec) {
+			if t := c.Doc.Resolve(id); t != nil {
+				names = append(names, t.Name)
+			}
+		}
+		out = append(out, Existing{
+			Kind:        "colour",
+			ID:          rec.Id,
+			Name:        rec.GetString("name"),
+			Description: prompts.DiscoverColourDescription(rec.GetString("prompt"), names),
+			FragmentIDs: members,
+		})
+	}
+	for _, col := range []string{"projection", "reflection"} {
+		recs, err := c.App.FindRecordsByFilter(col, engine.LiveFilter, "created", 0, 0, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range recs {
+			var spec api.ContextSpec
+			_ = rec.UnmarshalJSONField("current_context_spec", &spec)
+			pinned, _ := llmcontext.ResolveSpecToIDs(context.Background(), c.App, spec, nil)
+			note := ""
+			if rec.GetString("status") == engine.EntityProposed {
+				if c.Run != nil && rec.GetString("created_by_discover_run_id") == c.Run.Id {
+					note = prompts.DiscoverNoteProposedThisRun
+				} else {
+					note = prompts.DiscoverNoteProposedEarlier
+				}
+			}
+			out = append(out, Existing{
+				Kind:        col,
+				ID:          rec.Id,
+				Name:        rec.GetString("name"),
+				Description: rec.GetString("description"),
+				Note:        note,
+				FragmentIDs: pinned.FragmentIDs,
+			})
+		}
+	}
+	return out, nil
+}
+
 type Output struct {
 	Kind   string `json:"kind"`
 	ID     string `json:"id"`
@@ -62,7 +125,7 @@ type Output struct {
 }
 
 func newContext(app core.App, run *core.Record) (*Context, error) {
-	r, err := NewReader(app, maxFragmentReads)
+	r, err := mapreader.New(app, maxFragmentReads)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +138,11 @@ func newContext(app core.App, run *core.Record) (*Context, error) {
 
 // loadColours indexes every colour's membership against the annotation rows.
 func (c *Context) loadColours() error {
-	recs, err := c.App.FindRecordsByFilter(schema.ColColour.String(), "1=1", "created", 0, 0, nil)
+	recs, err := sourcedata.FindAllColours(c.App)
+	if err != nil {
+		return err
+	}
+	membersMap, err := sourcedata.ColourMembersMap(c.App, nil)
 	if err != nil {
 		return err
 	}
@@ -86,13 +153,10 @@ func (c *Context) loadColours() error {
 	c.Colours = nil
 	c.ByColour = map[string][]int{}
 	for _, rec := range recs {
-		members, err := colour.MemberIDs(c.App, rec.Id)
-		if err != nil {
-			return err
-		}
+		members := membersMap[rec.Id]
 		info := colourInfo{ID: rec.Id, Name: rec.GetString("name"), Members: members, rowSet: map[int]bool{}}
 		for _, id := range colour.ThingIDs(rec) {
-			if t := mapping.ResolveRef(c.Doc, id); t != nil {
+			if t := c.Doc.Resolve(id); t != nil {
 				info.ThingIDs = append(info.ThingIDs, t.ID)
 				info.ThingNames = append(info.ThingNames, t.Name)
 			}
@@ -181,7 +245,7 @@ func (c *Context) resolveThings(refs []string) ([]string, string) {
 		if strings.TrimSpace(ref) == "" {
 			continue
 		}
-		t := mapping.ResolveRef(c.Doc, ref)
+		t := c.Doc.Resolve(ref)
 		if t == nil {
 			return nil, prompts.DiscoverNoThing(ref)
 		}

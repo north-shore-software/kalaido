@@ -3,7 +3,7 @@ package mapping
 import (
 	"context"
 	"fmt"
-	"sort"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -13,6 +13,65 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
+
+const (
+	consolidatePendingFloor = 50
+	consolidateStaleAge     = time.Minute
+	consolidateTick         = 10 * time.Second
+)
+
+func (w *Worker) consolidateLoop(ctx context.Context) error {
+	ticker := time.NewTicker(consolidateTick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+		due, err := consolidateDue(w.app, time.Now())
+		if err != nil {
+			w.logger.Error("consolidate check failed", "error", err)
+			continue
+		}
+		if due {
+			w.cycle(ctx)
+		}
+	}
+}
+
+func consolidateDue(app core.App, now time.Time) (bool, error) {
+	rows, err := app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "consolidated_at = ''", "-created", 0, 0, nil)
+	if err != nil || len(rows) == 0 {
+		return false, err
+	}
+	if len(rows) > consolidatePendingFloor {
+		return true, nil
+	}
+	newest := rows[0].GetDateTime("created").Time()
+	return now.Sub(newest) > consolidateStaleAge, nil
+}
+
+func (w *Worker) settle(ctx context.Context) {
+	w.cycle(ctx)
+}
+
+func (w *Worker) cycle(ctx context.Context) {
+	w.integrate(ctx)
+	for _, fn := range w.settleHooks {
+		fn(w.app)
+	}
+}
+
+func (w *Worker) integrate(ctx context.Context) {
+	w.consolidateMu.Lock()
+	defer w.consolidateMu.Unlock()
+	w.consolidating.Store(true)
+	defer w.consolidating.Store(false)
+	if err := consolidate(ctx, w.app); err != nil {
+		w.logger.Error("consolidate failed", "error", err)
+	}
+}
 
 func unintegratedRows(app core.App) ([]*core.Record, error) {
 	return app.FindRecordsByFilter(schema.ColFragmentAnnotation.String(), "consolidated_at = ''", "created", 0, 0, nil)
@@ -59,7 +118,7 @@ func consolidate(ctx context.Context, app core.App) error {
 		run.Set("status", "error")
 		run.Set("error", err.Error())
 		if serr := app.Save(run); serr != nil {
-			logger().Error("save run failed", "error", serr)
+			logger(app).Error("save run failed", "error", serr)
 		}
 		return err
 	}
@@ -108,7 +167,7 @@ func consolidate(ctx context.Context, app core.App) error {
 	run.Set("merges", merges)
 	run.Set("version_after", d.version+1)
 	if err := app.Save(run); err != nil {
-		logger().Error("save run failed", "error", err)
+		logger(app).Error("save run failed", "error", err)
 	}
 	return nil
 }
@@ -121,7 +180,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 	for i := range next.Things {
 		t := &next.Things[i]
 		if t.ID == "" {
-			t.ID = mintID()
+			t.ID = mapdoc.MintID()
 			admits++
 		}
 		kept[t.ID] = true
@@ -141,7 +200,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 	rels := next.Relationships[:0]
 	seen := map[string]bool{}
 	for _, r := range next.Relationships {
-		from, to := ResolveRef(next, r.From), ResolveRef(next, r.To)
+		from, to := next.Resolve(r.From), next.Resolve(r.To)
 		if from == nil || to == nil || from.ID == to.ID {
 			continue
 		}
@@ -160,7 +219,7 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 			if ref == "" {
 				ref = c.Name
 			}
-			t := ResolveRef(next, ref)
+			t := next.Resolve(ref)
 			if t == nil || bumped[t.ID] {
 				continue
 			}
@@ -180,22 +239,4 @@ func finishDocument(prev, next *mapdoc.Document, rows []prompts.AnnotationRow, c
 		}
 	}
 	return admits, merges
-}
-
-func fragmentDates(app core.App) (map[string]string, error) {
-	recs, err := app.FindRecordsByFilter(schema.ColFragment.String(), "deleted_at = ''", "", 0, 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	dates := make(map[string]string, len(recs))
-	for _, r := range recs {
-		if st := r.GetDateTime("occurred_at"); !st.IsZero() {
-			dates[r.Id] = st.Time().Format("2006-01-02")
-		}
-	}
-	return dates, nil
-}
-
-func sortRowsByDate(rows []prompts.AnnotationRow) {
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Date < rows[j].Date })
 }

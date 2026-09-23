@@ -1,15 +1,12 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/explore"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
@@ -44,7 +41,7 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 		}
 
 		if spec.WholeScope != "" {
-			add("WholeScope", countTokensForSpec(ctx, app, api.ContextSpec{WholeScope: spec.WholeScope}, win))
+			add("WholeScope", explore.CountTokensForSpec(ctx, app, api.ContextSpec{WholeScope: spec.WholeScope}, win))
 		}
 
 		// Pins render in full whatever the mode. Under whole scope in full
@@ -53,25 +50,25 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 		countFragmentPins := spec.WholeScope == "" || spec.WholeScope == api.WholeScopeSummaries
 		if countFragmentPins {
 			for _, fid := range spec.FragmentIDs {
-				add("Fragment:"+fid, countTokensForSpec(ctx, app, api.ContextSpec{FragmentIDs: []string{fid}}, win))
+				add("Fragment:"+fid, explore.CountTokensForSpec(ctx, app, api.ContextSpec{FragmentIDs: []string{fid}}, win))
 			}
 			for _, ft := range spec.FragmentTypes {
-				add("Type:"+ft, countTokensForSpec(ctx, app, api.ContextSpec{FragmentTypes: []string{ft}}, win))
+				add("Type:"+ft, explore.CountTokensForSpec(ctx, app, api.ContextSpec{FragmentTypes: []string{ft}}, win))
 			}
 			for _, cid := range spec.ColourIDs {
-				add("Colour:"+cid, countTokensForSpec(ctx, app, api.ContextSpec{ColourIDs: []string{cid}}, win))
+				add("Colour:"+cid, explore.CountTokensForSpec(ctx, app, api.ContextSpec{ColourIDs: []string{cid}}, win))
 			}
 		}
 		for _, pid := range spec.SourceProjectionIDs {
-			add("Projection:"+pid, countTokensForSpec(ctx, app, api.ContextSpec{SourceProjectionIDs: []string{pid}}, win))
+			add("Projection:"+pid, explore.CountTokensForSpec(ctx, app, api.ContextSpec{SourceProjectionIDs: []string{pid}}, win))
 		}
 		for _, rid := range spec.SourceReflectionIDs {
-			add("Reflection:"+rid, countTokensForSpec(ctx, app, api.ContextSpec{SourceReflectionIDs: []string{rid}}, win))
+			add("Reflection:"+rid, explore.CountTokensForSpec(ctx, app, api.ContextSpec{SourceReflectionIDs: []string{rid}}, win))
 		}
 
 		if model, err := llm.ResolveRoleFor(llm.RoleChat, ""); err == nil {
 			res.Model = model
-			res.Limit = engine.PromptBudget(model)
+			res.Limit = llm.PromptBudget(model)
 		}
 		res.Fits = res.Limit <= 0 || res.TotalTokens <= res.Limit
 
@@ -83,7 +80,7 @@ func HandleResolveTokens(app core.App) func(e *core.RequestEvent) error {
 // split into what the transcript is made of. The conversation's own model
 // override wins here, as it does on the turn itself.
 func resolvePromptTokens(e *core.RequestEvent, app core.App, clientID string, spec api.ContextSpec, win *api.Window) error {
-	est, err := chat.EstimatePrompt(e.Request.Context(), app, clientID, &spec, win)
+	est, err := explore.EstimatePrompt(e.Request.Context(), app, clientID, &spec, win)
 	if err != nil {
 		return e.InternalServerError("estimate failed", err)
 	}
@@ -97,19 +94,8 @@ func resolvePromptTokens(e *core.RequestEvent, app core.App, clientID string, sp
 	}
 	if model, err := llm.ResolveRoleFor(llm.RoleChat, est.Model); err == nil {
 		res.Model = model
-		res.Limit = engine.PromptBudget(model)
+		res.Limit = llm.PromptBudget(model)
 	}
 	res.Fits = res.Limit <= 0 || res.TotalTokens <= res.Limit
 	return e.JSON(http.StatusOK, res)
-}
-
-// countTokensForSpec is the estimate for one spec rendered as a fresh context,
-// with the same chars/4 the guard uses.
-func countTokensForSpec(ctx context.Context, app core.App, spec api.ContextSpec, win *api.Window) int {
-	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, spec, win)
-	if err != nil {
-		return 0
-	}
-	text, _ := llmcontext.HydrateDeltaToText(ctx, app, pinned, llmcontext.PinnedIDs{}, spec.WholeScope == api.WholeScopeSummaries)
-	return engine.EstimateTokens(len(text))
 }

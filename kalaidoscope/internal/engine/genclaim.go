@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 const (
@@ -101,11 +102,11 @@ func AwaitGeneration(ctx context.Context, app core.App, strat Strategy, parentID
 // generation takes it over instead of blocking forever.
 const GenerationClaimTTL = 10 * time.Minute
 
-// claimGeneration takes the per-target generation lock by inserting the
+// ClaimGeneration takes the per-target generation lock by inserting the
 // status='generating' claim row. PocketBase funnels writes through a single
 // non-concurrent SQLite connection, so the check-then-insert inside one
 // transaction cannot race a concurrent claim.
-func claimGeneration(app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
+func ClaimGeneration(app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
 	var claimID string
 	err := app.RunInTransaction(func(tx core.App) error {
 		filter, params := statusSnapshotFilter(strat, parentID, window, StatusGenerating)
@@ -128,8 +129,8 @@ func claimGeneration(app core.App, strat Strategy, parentID string, window *api.
 		claim := core.NewRecord(col)
 		claim.Set(strat.ForeignKeyCol(), parentID)
 		claim.Set("status", StatusGenerating)
-		if strat.TargetType() == "reflection" {
-			setSnapshotWindow(claim, window)
+		if window != nil {
+			SetSnapshotWindow(claim, window)
 		}
 		if err := tx.Save(claim); err != nil {
 			return err
@@ -143,6 +144,10 @@ func claimGeneration(app core.App, strat Strategy, parentID string, window *api.
 	return claimID, nil
 }
 
+func claimGeneration(app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
+	return ClaimGeneration(app, strat, parentID, window)
+}
+
 // releaseClaim deletes an unfilled claim row after a failed generation. A row
 // that already advanced past StatusGenerating is left alone.
 func releaseClaim(app core.App, strat Strategy, claimID string) {
@@ -154,7 +159,7 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 		return
 	}
 	if err := app.Delete(rec); err != nil {
-		logger().Error("generation claim release failed", "claim_id", claimID, "error", err)
+		logger(app).Error("generation claim release failed", "claim_id", claimID, "error", err)
 		return
 	}
 	claims.settle(claimID)
@@ -183,16 +188,25 @@ func discardOtherPending(tx core.App, strat Strategy, parentID string, window *a
 // can only be live while its generation goroutine runs in this process, so
 // anything found at boot belongs to a crashed run.
 func SweepGenerationClaims(app core.App) {
-	for _, strat := range []Strategy{ProjectionStrategy{}, ReflectionStrategy{}} {
-		recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(),
+	for _, colName := range []string{schema.ColProjectionSnapshot.String(), schema.ColReflectionSnapshot.String()} {
+		recs, err := app.FindRecordsByFilter(colName,
 			"status = {:status}", "", 0, 0, map[string]any{"status": StatusGenerating})
 		if err != nil {
 			continue
 		}
 		for _, r := range recs {
 			if err := app.Delete(r); err != nil {
-				logger().Error("generation claim sweep delete failed", "target_type", strat.TargetType(), "claim_id", r.Id, "error", err)
+				logger(app).Error("generation claim sweep delete failed", "collection", colName, "claim_id", r.Id, "error", err)
 			}
 		}
 	}
+}
+
+// JoinGeneration waits for the generation already running for the target and
+// returns its snapshot. Interactive callers pay at most the claim TTL.
+func JoinGeneration(ctx context.Context, app core.App, strat Strategy, id string, w *api.Window) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, GenerationClaimTTL)
+	defer cancel()
+	logger(app).Warn("already generating; joining", "target_type", strat.TargetType(), "id", id)
+	return AwaitGeneration(ctx, app, strat, id, w)
 }

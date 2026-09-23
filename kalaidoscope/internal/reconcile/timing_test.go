@@ -21,7 +21,7 @@ func timingWorker(t *testing.T, auto bool, debounce time.Duration) *Worker {
 func signalled(t *testing.T, w *Worker, within time.Duration) bool {
 	t.Helper()
 	select {
-	case <-w.signal:
+	case <-w.signal.C():
 		return true
 	case <-time.After(within):
 		return false

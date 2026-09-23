@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Ollama's default listen address. Matches the Go sidecar's fallback in
-/// `kalaidoscope/internal/ollama/ollama.go`.
+/// `kalaidoscope/llm/providers/ollama/ollama.go`.
 const OLLAMA_BASE: &str = "http://127.0.0.1:11434";
 
 /// Short enough that a wrong answer costs the user no real time — this runs on
@@ -199,7 +199,7 @@ struct GeminiErrorDetail {
 }
 
 /// Maps a failed Gemini response onto a kind, mirroring `classify` in
-/// `kalaidoscope/gemini/errors.go`.
+/// `kalaidoscope/llm/providers/gemini/errors.go`.
 ///
 /// The status line alone is not enough: Gemini reports an invalid or revoked
 /// API key as HTTP 400 INVALID_ARGUMENT with an API_KEY_INVALID reason rather

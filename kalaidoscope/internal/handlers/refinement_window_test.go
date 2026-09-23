@@ -17,6 +17,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -30,7 +31,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	effective := time.Now().Add(-15 * day).UTC()
 	// Weekly, tumbling, effective 15 days ago: two completed windows; the
 	// current one is [eff+7d, eff+14d).
-	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name":                 "weekly",
 		"status":               engine.EntityActive,
@@ -57,7 +58,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	if err := HandleCreateReflectionRefinement(app)(e); err != nil {
 		t.Fatalf("create refinement: %v", err)
 	}
-	var created api.CreateRefinementResponse
+	var created api.CreateReflectionRefinementResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
 	}
@@ -130,7 +131,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	if len(snaps) != 0 {
 		t.Fatalf("commit published %d snapshots, want none", len(snaps))
 	}
-	if pending := engine.PendingWindows(app, refl, time.Now()); len(pending) != 2 {
+	if pending := reflections.PendingWindows(app, refl, time.Now()); len(pending) != 2 {
 		t.Errorf("pending after commit = %d, want both grid windows", len(pending))
 	}
 
@@ -236,14 +237,14 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": "THE CURRENT LENS",
 	})
-	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, effective)
 	refl = testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "weekly", "status": engine.EntityActive,
 		"current_context_spec": pbutil.JSONObject(spec),
 		"current_lens_id":      lens.Id,
 		"window_spec_versions": pbutil.JSONObject(versions),
 	})
-	grid := engine.CurrentGridWindows(refl, time.Now())
+	grid := reflections.CurrentGridWindows(refl, time.Now())
 	current = grid[len(grid)-1]
 	testutil.NewRecord(t, app, "reflection_snapshot", map[string]any{
 		"reflection_id": refl.Id, "status": engine.StatusApproved, "approval_sequence_number": 1,
@@ -253,7 +254,7 @@ func scheduledReflection(t *testing.T, app core.App) (refl *core.Record, current
 	return refl, current
 }
 
-func openRefinement(t *testing.T, app core.App, reflID, body string) (api.CreateRefinementResponse, *core.Record) {
+func openRefinement(t *testing.T, app core.App, reflID, body string) (api.CreateReflectionRefinementResponse, *core.Record) {
 	t.Helper()
 	rec := httptest.NewRecorder()
 	e := &core.RequestEvent{App: app}
@@ -264,7 +265,7 @@ func openRefinement(t *testing.T, app core.App, reflID, body string) (api.Create
 	if err := HandleCreateReflectionRefinement(app)(e); err != nil {
 		t.Fatalf("create refinement: %v", err)
 	}
-	var created api.CreateRefinementResponse
+	var created api.CreateReflectionRefinementResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
 	}
@@ -339,7 +340,7 @@ func TestReflectionRefinementSeedsCurrentLens(t *testing.T) {
 // A brand-new reflection has no lens to seed: the first turn drafts it.
 func TestNewReflectionRefinementSeedsNoLens(t *testing.T) {
 	app := testutil.NewApp(t)
-	versions := engine.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, time.Now())
+	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, time.Now())
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "fresh", "status": engine.EntityActive, "window_spec_versions": pbutil.JSONObject(versions),
 	})
@@ -361,7 +362,7 @@ func TestNewReflectionRefinementSeedsNoLens(t *testing.T) {
 func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 	app := testutil.NewApp(t)
 	refl, current := scheduledReflection(t, app)
-	grid := engine.CurrentGridWindows(refl, time.Now())
+	grid := reflections.CurrentGridWindows(refl, time.Now())
 	previous := grid[0]
 	day := 24 * time.Hour
 	eff, _ := time.Parse(time.RFC3339, previous.Start)
@@ -466,11 +467,37 @@ func TestLensCommitMarksWindowsOutdated(t *testing.T) {
 	}
 
 	st, _ := entityStatus(context.Background(), app, refl.Id)
-	windows, herr := reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateSnapshotRequest{All: true}, st)
+	windows, herr := reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateReflectionSnapshotRequest{AllWindows: true}, st)
 	if herr != nil {
 		t.Fatal(herr)
 	}
 	if len(windows) != 2 {
 		t.Fatalf("generate all covers %d windows, want the pending one and the lens-outdated one", len(windows))
+	}
+
+	// Exclusive: specifying both windowId and allWindows must fail.
+	_, herr = reflectionWindowsToGenerate(&core.RequestEvent{App: app}, app, refl, api.GenerateReflectionSnapshotRequest{
+		WindowID:   "some-window",
+		AllWindows: true,
+	}, st)
+	if herr == nil {
+		t.Fatal("expected error when both windowId and allWindows are specified, got nil")
+	}
+
+	// JSON unmarshaling supports both legacy "all" and "allWindows".
+	var req1 api.GenerateReflectionSnapshotRequest
+	if err := json.Unmarshal([]byte(`{"all":true}`), &req1); err != nil {
+		t.Fatalf("unmarshal legacy all: %v", err)
+	}
+	if !req1.AllWindows {
+		t.Fatal("expected AllWindows=true from legacy all=true")
+	}
+
+	var req2 api.GenerateReflectionSnapshotRequest
+	if err := json.Unmarshal([]byte(`{"allWindows":true}`), &req2); err != nil {
+		t.Fatalf("unmarshal allWindows: %v", err)
+	}
+	if !req2.AllWindows {
+		t.Fatal("expected AllWindows=true from allWindows=true")
 	}
 }

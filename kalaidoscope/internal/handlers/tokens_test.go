@@ -36,7 +36,7 @@ func TestResolveTokensReportsFit(t *testing.T) {
 	app := testutil.NewApp(t)
 	big := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": strings.Repeat("word ", 200)})
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": strings.Repeat("more ", 200)})
-	script := &chatScript{window: 400}
+	script := &exploreScript{window: 400}
 	script.install(t)
 
 	whole := resolveTokens(t, app, `{"wholeScope":"full"}`)
@@ -74,7 +74,7 @@ func TestResolveTokensReportsFit(t *testing.T) {
 func TestResolveTokensForConversation(t *testing.T) {
 	app := testutil.NewApp(t)
 	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": strings.Repeat("word ", 50)})
-	script := &chatScript{window: 4000}
+	script := &exploreScript{window: 4000}
 	script.install(t)
 
 	fresh := resolveTokens(t, app, `{"conversationId":"conv-none","wholeScope":"full"}`)
@@ -85,7 +85,7 @@ func TestResolveTokensForConversation(t *testing.T) {
 		t.Errorf("limit/model = %d/%q, want 3500 and a model", fresh.Limit, fresh.Model)
 	}
 
-	if _, err := runChatTurn(t, app, "conv-est", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hello there"); err != nil {
+	if _, err := runExploreTurn(t, app, "conv-est", &api.ContextSpec{WholeScope: api.WholeScopeFull}, "hello there"); err != nil {
 		t.Fatal(err)
 	}
 	after := resolveTokens(t, app, `{"conversationId":"conv-est","wholeScope":"full"}`)

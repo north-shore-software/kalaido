@@ -11,7 +11,7 @@ import (
 
 func HandleDiscoverKick(disc *discover.Worker) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		var req api.DiscoverKickRequest
+		var req api.StartDiscoverRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
 		}
@@ -28,3 +28,6 @@ func HandleDiscoverKick(disc *discover.Worker) func(e *core.RequestEvent) error 
 		return e.NoContent(http.StatusAccepted)
 	}
 }
+
+// HandleStartDiscover is an alias for HandleDiscoverKick matching api.StartDiscoverRequest.
+var HandleStartDiscover = HandleDiscoverKick

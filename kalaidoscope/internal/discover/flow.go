@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmq"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 )
 
 type Flow interface {
@@ -50,10 +50,9 @@ func (w *Worker) run(ctx context.Context, flow Flow) error {
 	if err != nil {
 		return err
 	}
-	// A kick that lands while the map is still consolidating must not read the
-	// half-integrated version: the things the last batch introduced would be
-	// missing and every row citing them would resolve to nothing.
+	w.waitingOnMap.Store(true)
 	w.maps.WaitSettled()
+	w.waitingOnMap.Store(false)
 	c, err := newContext(app, nil)
 	if err != nil {
 		return err
@@ -69,7 +68,7 @@ func (w *Worker) run(ctx context.Context, flow Flow) error {
 		return err
 	}
 	c.Run = run
-	ctx = llmq.WithPriority(ctx, llmq.Background)
+	ctx = queue.WithPriority(ctx, queue.Background)
 	err = runLoop(ctx, c, flow, model)
 	finishRun(c, err)
 	return err

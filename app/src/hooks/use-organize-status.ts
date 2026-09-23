@@ -20,6 +20,8 @@ const WATCHED: CollectionName[] = [
   "fragment_annotation",
   "projection_snapshot",
   "reflection_snapshot",
+  "colour",
+  "colour_fragment",
 ];
 
 /**
