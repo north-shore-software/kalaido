@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { WarningIcon } from "@phosphor-icons/react";
 import type { FileEntry } from "@/api/app/ingest-file";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -64,7 +64,7 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
               </span>
               {e.kind === "other" ? (
                 <span className="flex shrink-0 items-center gap-1 text-meta text-destructive">
-                  <TriangleAlert className="size-3.5" />
+                  <WarningIcon className="size-3.5" />
                   Unsupported
                 </span>
               ) : (

@@ -1,4 +1,8 @@
-import { CheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react";
+import {
+  ArrowsClockwiseIcon,
+  CheckIcon,
+  ClockIcon,
+} from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Label, Timeline, type TimelineItem } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
@@ -43,7 +47,7 @@ export function ProjectionSideRail({
     freshnessCard = (
       <div className="rounded-none border border-line p-3.5">
         <div className="mb-2 flex items-center gap-2.5">
-          <RefreshCwIcon className="size-4 animate-spin text-fg-3" />
+          <ArrowsClockwiseIcon className="size-4 animate-spin text-fg-3" />
           <span className="text-item font-semibold">Generating…</span>
         </div>
         <p className="text-body-sm leading-relaxed text-fg-2">
@@ -122,7 +126,7 @@ export function ProjectionSideRail({
     freshnessCard = (
       <div className="rounded-none border border-drifting/45 bg-drifting-wash p-3.5">
         <div className="mb-2 flex items-center gap-2.5">
-          <RefreshCwIcon className="size-4 text-drifting-ink" />
+          <ArrowsClockwiseIcon className="size-4 text-drifting-ink" />
           <span className="text-item font-semibold text-fg-1">Refresh</span>
         </div>
         <p className="mb-3 text-body-sm leading-relaxed text-fg-2">

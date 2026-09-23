@@ -1,5 +1,10 @@
+import {
+  ArrowRightIcon,
+  PaperPlaneTiltIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import type { Story } from "@ladle/react";
-import { ArrowRightIcon, PlusIcon, SendIcon, TrashIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default { title: "Kalaido / Button" };
@@ -67,7 +72,7 @@ export const AllSizes: Story = () => (
           Default Primary
         </Button>
         <Button size="icon" variant="default">
-          <SendIcon />
+          <PaperPlaneTiltIcon />
         </Button>
       </div>
 
@@ -84,7 +89,7 @@ export const AllSizes: Story = () => (
           Small Primary
         </Button>
         <Button size="icon-sm" variant="default">
-          <SendIcon />
+          <PaperPlaneTiltIcon />
         </Button>
       </div>
 
@@ -101,7 +106,7 @@ export const AllSizes: Story = () => (
           XS Outline
         </Button>
         <Button size="icon-xs" variant="default">
-          <SendIcon />
+          <PaperPlaneTiltIcon />
         </Button>
       </div>
     </div>

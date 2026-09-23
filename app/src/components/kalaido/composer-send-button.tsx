@@ -1,4 +1,4 @@
-import { SendIcon } from "lucide-react";
+import { PaperPlaneTiltIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
 
@@ -25,7 +25,7 @@ export function ComposerSendButton({
           : "border-transparent bg-section text-section-foreground hover:opacity-[0.86]",
       )}
     >
-      <SendIcon />
+      <PaperPlaneTiltIcon />
     </Button>
   );
 }

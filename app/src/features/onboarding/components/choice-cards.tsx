@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
 export interface ChoiceProps {
@@ -30,7 +30,7 @@ export function PrimaryChoice({
         <span className="text-card-title font-bold">{title}</span>
         <span className="text-[15px] text-fg-3">{description}</span>
       </div>
-      <ArrowRight className="size-5 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
+      <ArrowRightIcon className="size-5 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
     </button>
   );
 }
@@ -54,7 +54,7 @@ export function SecondaryChoice({
         <span className="truncate text-card-title font-semibold">{title}</span>
         <span className="text-[15px] text-fg-3">{description}</span>
       </div>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
+      <ArrowRightIcon className="size-4 shrink-0 text-muted-foreground transition-[color,transform] group-hover:translate-x-0.5 group-hover:text-cyan" />
     </button>
   );
 }

@@ -1,4 +1,4 @@
-import { UploadIcon } from "lucide-react";
+import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -75,7 +75,7 @@ export function ImportNotesDialog({
             disabled={!picker.path || submitting}
             onClick={() => void submit(picker.path)}
           >
-            <UploadIcon />
+            <UploadSimpleIcon />
             {submitting ? "Uploading…" : "Import"}
           </Button>
         </DialogFooter>

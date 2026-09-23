@@ -1,4 +1,4 @@
-import { SlidersHorizontalIcon } from "lucide-react";
+import { SlidersHorizontalIcon } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import {
   GEMINI_SUGGESTED_MODELS,

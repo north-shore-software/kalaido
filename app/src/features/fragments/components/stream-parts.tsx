@@ -1,4 +1,4 @@
-import { ArrowRightIcon, InboxIcon } from "lucide-react";
+import { ArrowRightIcon, TrayIcon } from "@phosphor-icons/react";
 import { FragmentCard } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,7 +88,7 @@ export function StreamEmptyState({ onImport }: StreamEmptyStateProps) {
           variant="icon"
           className="rounded-none bg-section-wash text-section-ink"
         >
-          <InboxIcon className="size-5 text-section-ink" />
+          <TrayIcon className="size-5 text-section-ink" />
         </EmptyMedia>
         <EmptyTitle>No fragments found</EmptyTitle>
         <EmptyDescription>

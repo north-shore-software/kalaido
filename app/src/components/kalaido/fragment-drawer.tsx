@@ -1,5 +1,4 @@
-import { CaretRight } from "@phosphor-icons/react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { CaretRightIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { updateColour } from "@/api/kalaidoscope/colours";
@@ -239,7 +238,7 @@ function FragmentSummary({ fragmentId }: { fragmentId: string }) {
   return (
     <Collapsible defaultOpen className="flex flex-col gap-1.5 pt-1">
       <CollapsibleTrigger className="group flex w-fit items-center gap-1 font-mono text-meta text-fg-4 hover:text-fg-2 cursor-pointer">
-        <CaretRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
+        <CaretRightIcon className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
         <span>Summary</span>
       </CollapsibleTrigger>
       <CollapsibleContent>

@@ -1,4 +1,7 @@
-import { RefreshCwIcon, SlidersHorizontalIcon } from "lucide-react";
+import {
+  ArrowsClockwiseIcon,
+  SlidersHorizontalIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { regenerateReflection } from "@/api/kalaidoscope/reflections";
@@ -131,7 +134,7 @@ export function ReflectionSeriesPanel({
               disabled={busy !== null || windows.length === 0}
               onClick={() => void refreshAll()}
             >
-              <RefreshCwIcon />
+              <ArrowsClockwiseIcon />
               {busy === "all"
                 ? "Refreshing…"
                 : needsWork > 0

@@ -1,5 +1,10 @@
+import {
+  BookmarkSimpleIcon,
+  ClockCounterClockwiseIcon,
+  NotePencilIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { generateId, type UIMessage } from "ai";
-import { BookmarkIcon, HistoryIcon, SquarePenIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type Conversation,
@@ -231,7 +236,7 @@ export default function Explore() {
         actions={
           <>
             <Button variant="section" onClick={handleNew}>
-              <SquarePenIcon />
+              <NotePencilIcon />
               New
             </Button>
             <Button
@@ -239,7 +244,7 @@ export default function Explore() {
               onClick={() => setBookmarksOpen(true)}
               disabled={bookmarkRows.length === 0}
             >
-              <BookmarkIcon />
+              <BookmarkSimpleIcon />
               Bookmarks
               {bookmarkRows.length > 0 && ` · ${bookmarkRows.length}`}
             </Button>
@@ -247,7 +252,7 @@ export default function Explore() {
               className="border-section-edge bg-section-wash text-section-ink hover:border-section hover:bg-section-wash hover:text-section-ink"
               onClick={() => setHistoryOpen((v) => !v)}
             >
-              <HistoryIcon />
+              <ClockCounterClockwiseIcon />
               History
             </Button>
           </>

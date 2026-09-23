@@ -1,13 +1,14 @@
 import {
-  BotIcon,
+  ArrowsClockwiseIcon,
   CompassIcon,
-  LayersIcon,
   PaletteIcon,
   PlayIcon,
-  RefreshCwIcon,
-  SparklesIcon,
-} from "lucide-react";
+  RobotIcon,
+  SparkleIcon,
+  StackIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useSnapshot } from "valtio/react";
 import { type DiscoverKind, startDiscover } from "@/api/kalaidoscope/discover";
 import { startMap } from "@/api/kalaidoscope/map";
@@ -24,6 +25,7 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
+import { queueHeldLabels } from "@/components/layout/utility-bar";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { appState } from "@/hooks/use-app-state";
@@ -59,12 +61,17 @@ export default function StatusPage() {
   const waitingCounts = ((isQueueActive ? queueDoc?.waiting : {}) ??
     {}) as Record<string, number>;
   const totalWaiting = Object.values(waitingCounts).reduce((a, b) => a + b, 0);
-  const heldReason = queueDoc?.held ? String(queueDoc.held) : undefined;
+  // `held` is the scheduler's `{ reason, until? }` object, not a string.
+  const held = queueDoc?.held as { reason?: string } | null | undefined;
+  const heldReason = held?.reason
+    ? (queueHeldLabels[held.reason] ?? held.reason)
+    : undefined;
 
   async function handleStartMap() {
     setStartingMap(true);
     try {
-      await startMap();
+      const res = await startMap();
+      if (res.isErr()) toast.error(`Map failed to start: ${res.error.message}`);
     } finally {
       setStartingMap(false);
     }
@@ -73,7 +80,10 @@ export default function StatusPage() {
   async function handleStartDiscover(kind: DiscoverKind) {
     setStartingDiscover(kind);
     try {
-      await startDiscover(kind);
+      const res = await startDiscover(kind);
+      if (res.isErr()) {
+        toast.error(`Discover failed to start: ${res.error.message}`);
+      }
     } finally {
       setStartingDiscover(null);
     }
@@ -82,7 +92,10 @@ export default function StatusPage() {
   async function handleStartReconcile() {
     setStartingReconcile(true);
     try {
-      await startReconcile();
+      const res = await startReconcile();
+      if (res.isErr()) {
+        toast.error(`Reconcile failed to start: ${res.error.message}`);
+      }
     } finally {
       setStartingReconcile(false);
     }
@@ -147,7 +160,7 @@ export default function StatusPage() {
             <SurfaceCard className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-meta font-medium text-fg-3">
-                  <SparklesIcon className="size-4" />
+                  <SparkleIcon className="size-4" />
                   Discover
                 </span>
                 <Pill
@@ -234,7 +247,7 @@ export default function StatusPage() {
             <SurfaceCard className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-meta font-medium text-fg-3">
-                  <RefreshCwIcon className="size-4" />
+                  <ArrowsClockwiseIcon className="size-4" />
                   Reconcile
                 </span>
                 <Pill tone={organize?.reconcile.running ? "primary" : "muted"}>
@@ -269,7 +282,7 @@ export default function StatusPage() {
                 {startingReconcile ? (
                   <Spinner />
                 ) : (
-                  <RefreshCwIcon className="mr-1.5 size-3.5" />
+                  <ArrowsClockwiseIcon className="mr-1.5 size-3.5" />
                 )}
                 Reconcile
               </Button>
@@ -280,7 +293,7 @@ export default function StatusPage() {
             <SurfaceCard className="flex shrink-0 flex-col gap-3">
               <div className="flex items-center justify-between border-b border-line pb-2.5">
                 <div className="flex items-center gap-2">
-                  <BotIcon className="size-4 text-fg-3" />
+                  <RobotIcon className="size-4 text-fg-3" />
                   <Label>LLM Queue Telemetry</Label>
                 </div>
                 <div className="flex items-center gap-2 font-mono text-mono-sm">
@@ -340,7 +353,7 @@ export default function StatusPage() {
             <SurfaceCard className="flex flex-1 min-h-0 flex-col gap-3">
               <div className="flex shrink-0 items-center justify-between border-b border-line pb-2.5">
                 <div className="flex items-center gap-2">
-                  <LayersIcon className="size-4 text-fg-3" />
+                  <StackIcon className="size-4 text-fg-3" />
                   <Label>Event Log</Label>
                 </div>
                 <span className="font-mono text-mono-sm text-fg-4">

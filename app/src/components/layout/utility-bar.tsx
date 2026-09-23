@@ -1,11 +1,11 @@
 import {
+  ArrowsClockwiseIcon,
   CompassIcon,
   MoonIcon,
   PaletteIcon,
-  RefreshCwIcon,
-  SparklesIcon,
+  SparkleIcon,
   SunIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
 import {
@@ -27,8 +27,9 @@ import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
 import { utilityBarTransitions } from "./utility-bar.transitions";
 
 /**
- * Status only — the bar reports what the workspace is doing and holds no
- * controls (appearance moved to Settings › Appearance).
+ * Reports what the workspace is doing. Its only controls are the theme toggle
+ * and the worker cluster, which is a shortcut to the Status page rather than a
+ * way to act on the pipeline.
  */
 export function UtilityBar() {
   const currentKalaidoscope = useActiveKalaidoscope();
@@ -89,7 +90,7 @@ type QueueTask = {
   tokens_per_second?: number;
 };
 
-const queueHeldLabels: Record<string, string> = {
+export const queueHeldLabels: Record<string, string> = {
   backoff: "provider back-off",
   idle_blocked: "waiting for quiet",
   idle_quiet: "waiting for quiet",
@@ -242,7 +243,7 @@ function WorkerCluster() {
           isDiscoverActive ? "text-fg-1 animate-pulse" : "text-fg-5",
         )}
       >
-        <SparklesIcon className="size-3.5" />
+        <SparkleIcon className="size-3.5" />
       </span>
       <span
         title={colourTitle}
@@ -260,7 +261,7 @@ function WorkerCluster() {
           isReconcileActive ? "text-fg-1 animate-spin" : "text-fg-5",
         )}
       >
-        <RefreshCwIcon className="size-3.5" />
+        <ArrowsClockwiseIcon className="size-3.5" />
       </span>
     </button>
   );

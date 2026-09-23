@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { parseContextSpec } from "@/api/kalaidoscope/chat";

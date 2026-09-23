@@ -1,16 +1,16 @@
 import {
-  ArrowsLeftRight,
-  Chats,
-  ClockCounterClockwise,
-  FileText,
-  Gear,
-  MapTrifold,
-  Palette,
-  PlusCircle,
-  Pulse,
-  SidebarSimple,
-  SquaresFour,
-  Waves,
+  ArrowsLeftRightIcon,
+  ChatsIcon,
+  ClockCounterClockwiseIcon,
+  FileTextIcon,
+  GearIcon,
+  MapTrifoldIcon,
+  PaletteIcon,
+  PlusCircleIcon,
+  PulseIcon,
+  SidebarSimpleIcon,
+  SquaresFourIcon,
+  WavesIcon,
 } from "@phosphor-icons/react";
 import type { ComponentProps } from "react";
 import {
@@ -50,12 +50,12 @@ const MAIN_NAV: readonly SidebarNavItem[] = [
   {
     title: "Dashboard",
     transition: navSidebarTransitions.transitions.openDashboard,
-    icon: SquaresFour,
+    icon: SquaresFourIcon,
   },
   {
     title: "Explore",
     transition: navSidebarTransitions.transitions.openExplore,
-    icon: Chats,
+    icon: ChatsIcon,
   },
 ];
 
@@ -64,27 +64,27 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   {
     title: "Projections",
     transition: navSidebarTransitions.transitions.openProjections,
-    icon: FileText,
+    icon: FileTextIcon,
   },
   {
     title: "Reflections",
     transition: navSidebarTransitions.transitions.openReflections,
-    icon: ClockCounterClockwise,
+    icon: ClockCounterClockwiseIcon,
   },
   {
     title: "Map",
     transition: navSidebarTransitions.transitions.openMap,
-    icon: MapTrifold,
+    icon: MapTrifoldIcon,
   },
   {
     title: "Colours",
     transition: navSidebarTransitions.transitions.openColours,
-    icon: Palette,
+    icon: PaletteIcon,
   },
   {
     title: "Fragments",
     transition: navSidebarTransitions.transitions.openFragments,
-    icon: Waves,
+    icon: WavesIcon,
   },
 ];
 
@@ -100,7 +100,7 @@ function HeaderCaptureButton() {
             className="shrink-0 hover:bg-surface-2 group-data-[collapsible=icon]:size-7 cursor-pointer"
             aria-label="New Fragment"
           >
-            <PlusCircle weight="fill" className="size-4 text-cyan" />
+            <PlusCircleIcon weight="fill" className="size-4 text-cyan" />
           </Button>
         }
       />
@@ -133,7 +133,7 @@ function NavConnections() {
                 go(navSidebarTransitions.transitions.openConnections)
               }
             >
-              <ArrowsLeftRight className={RAIL_ICON_CLASS} />
+              <ArrowsLeftRightIcon className={RAIL_ICON_CLASS} />
               <span>Connections</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -154,7 +154,7 @@ function StatusButton() {
         className={NEUTRAL_DEST_CLASS}
         onClick={() => go(navSidebarTransitions.transitions.openStatus)}
       >
-        <Pulse />
+        <PulseIcon />
         <span>Status</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -172,7 +172,7 @@ function SettingsButton() {
         className={NEUTRAL_DEST_CLASS}
         onClick={() => go(navSidebarTransitions.transitions.openSettings)}
       >
-        <Gear />
+        <GearIcon />
         <span>Settings</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -185,7 +185,7 @@ function SidebarToggleButton() {
   return (
     <SidebarMenuItem data-sidebar-control="toggle">
       <SidebarMenuButton onClick={toggleSidebar} tooltip={label}>
-        <SidebarSimple />
+        <SidebarSimpleIcon />
         <span>{label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>

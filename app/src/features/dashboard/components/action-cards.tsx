@@ -1,8 +1,8 @@
 import {
-  FolderInputIcon,
-  type LucideIcon,
-  NotebookPenIcon,
-} from "lucide-react";
+  FolderPlusIcon,
+  type Icon,
+  NotePencilIcon,
+} from "@phosphor-icons/react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
 
@@ -38,7 +38,7 @@ interface Copy {
 interface ActionCardProps {
   layout: ActionCardLayout;
   tone: Tone;
-  icon: LucideIcon;
+  icon: Icon;
   copy: Record<ActionCardLayout, Copy>;
   action: string;
   onClick: () => void;
@@ -127,7 +127,7 @@ export function CaptureFragmentCard({
     <ActionCard
       layout={layout}
       tone="section"
-      icon={NotebookPenIcon}
+      icon={NotePencilIcon}
       copy={CAPTURE_COPY}
       action="Capture"
       onClick={onClick}
@@ -153,7 +153,7 @@ export function ImportNotesCard({ layout, onClick }: DashboardActionCardProps) {
     <ActionCard
       layout={layout}
       tone="commit"
-      icon={FolderInputIcon}
+      icon={FolderPlusIcon}
       copy={IMPORT_COPY}
       action="Import"
       onClick={onClick}

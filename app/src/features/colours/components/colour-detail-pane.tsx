@@ -1,4 +1,9 @@
-import { PinIcon, PlusIcon, Undo2Icon, XIcon } from "lucide-react";
+import {
+  ArrowUUpLeftIcon,
+  PlusIcon,
+  PushPinIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -299,7 +304,7 @@ export function ColourDetailPane({
                           void example({ clearExamples: [m.fragment_id] })
                         }
                       >
-                        <Undo2Icon className="size-3.5" />
+                        <ArrowUUpLeftIcon className="size-3.5" />
                       </CardAction>
                     ) : (
                       <>
@@ -309,7 +314,7 @@ export function ColourDetailPane({
                             void example({ positiveExamples: [m.fragment_id] })
                           }
                         >
-                          <PinIcon className="size-3.5" />
+                          <PushPinIcon className="size-3.5" />
                         </CardAction>
                         <CardAction
                           title="Exclude"

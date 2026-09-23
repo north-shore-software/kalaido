@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { Fragment as F, useMemo } from "react";
 import type { FragmentTypeOptions } from "@/api/kalaidoscope/types.ts";
 import { FragmentDrawer, Mono, Pill } from "@/components/kalaido";

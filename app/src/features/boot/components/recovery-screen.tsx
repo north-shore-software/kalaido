@@ -1,4 +1,9 @@
-import { CheckIcon, ChevronRight, CopyIcon, TriangleAlert } from "lucide-react";
+import {
+  CaretRightIcon,
+  CheckIcon,
+  CopyIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
@@ -60,7 +65,7 @@ export function RecoveryScreen({
       <div className="flex flex-1 items-center justify-center p-8">
         <div className="flex w-full max-w-lg flex-col gap-5">
           <div className="flex items-center gap-3">
-            <TriangleAlert className="size-6 shrink-0 text-destructive" />
+            <WarningIcon className="size-6 shrink-0 text-destructive" />
             <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           </div>
 
@@ -148,7 +153,7 @@ function ErrorDetails({ error }: { error: StageError }) {
   return (
     <Collapsible className="flex flex-col gap-2">
       <CollapsibleTrigger className="group flex w-fit items-center gap-1 text-meta text-muted-foreground hover:text-foreground">
-        <ChevronRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
+        <CaretRightIcon className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
         Error details
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col items-start gap-2">

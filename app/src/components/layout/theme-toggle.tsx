@@ -1,4 +1,4 @@
-import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
 import { useId } from "react";
 import { cn } from "@/lib/css-utils";
 import type { Theme } from "@/lib/theme";

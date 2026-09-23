@@ -8,7 +8,7 @@ const mockKalaidoscope = {
   type: "local_file" as const,
   locator: "/Users/louis/kalaidoscopes/personal",
   displayName: "My Personal Journal",
-  icon: "lucide:book-open",
+  icon: "BookOpenIcon",
 };
 
 export const Active: Story = () => {

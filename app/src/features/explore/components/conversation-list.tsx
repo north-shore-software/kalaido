@@ -1,4 +1,4 @@
-import { MessageCircleIcon } from "lucide-react";
+import { ChatCircleIcon } from "@phosphor-icons/react";
 import type { Conversation } from "@/api/kalaidoscope/chat";
 import {
   Empty,
@@ -38,7 +38,7 @@ export function ConversationList({
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <MessageCircleIcon />
+                <ChatCircleIcon />
               </EmptyMedia>
               <EmptyTitle>No conversations yet</EmptyTitle>
               <EmptyDescription>

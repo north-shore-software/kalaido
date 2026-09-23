@@ -1,5 +1,5 @@
+import { ArchiveIcon, CloudIcon, PlusIcon } from "@phosphor-icons/react";
 import type { Story } from "@ladle/react";
-import { ArchiveIcon, CloudIcon, PlusIcon } from "lucide-react";
 import { PrimaryChoice, SecondaryChoice } from "./choice-cards";
 
 export default { title: "Onboarding / Choice cards" };

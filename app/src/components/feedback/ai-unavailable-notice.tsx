@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { settingsTransitions } from "@/features/settings/pages/Settings.transitions";
 import { cn } from "@/lib/css-utils";
 import { RouteLink } from "@/routes/route-link";
@@ -11,7 +11,7 @@ export function AiUnavailableNotice({ className }: { className?: string }) {
         className,
       )}
     >
-      <TriangleAlert className="size-3.5 shrink-0 text-destructive" />
+      <WarningIcon className="size-3.5 shrink-0 text-destructive" />
       <span>Local AI is unavailable.</span>
       <RouteLink
         transition={settingsTransitions.selectSection}

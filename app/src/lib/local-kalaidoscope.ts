@@ -1,5 +1,8 @@
 import { err, ok, type Result } from "neverthrow";
-import { startLocalKalaidoscope } from "@/api/app/local-scopes";
+import {
+  startLocalKalaidoscope,
+  stopLocalKalaidoscope,
+} from "@/api/app/local-scopes";
 import { deleteSetting, setSetting } from "@/api/app/settings.ts";
 import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
 import {
@@ -82,9 +85,16 @@ export async function switchLocalKalaidoscope(
   }
 }
 
+/**
+ * Forget a kalaidoscope on this device. The registration goes; a local
+ * workspace's files on disk stay. Any sidecar for it is stopped — switching
+ * away never stops one, so a local workspace may still be running even when
+ * it is not the open one.
+ */
 export async function removeKalaidoscope(
   targetId: string,
 ): Promise<Result<void, Error>> {
+  const meta = appState.availableKalaidoscopes.find((k) => k.id === targetId);
   const remaining = appState.availableKalaidoscopes.filter(
     (k) => k.id !== targetId,
   );
@@ -105,6 +115,15 @@ export async function removeKalaidoscope(
     setActiveKalaidoscopeClient(null);
     await deleteSetting("lastOpenedKalaidoscopeId");
     setAppStage({ stage: "no_kalaidoscopes_available" });
+  }
+
+  if (meta?.type === "local_file") {
+    // A no-op when nothing is running for this id; only a sidecar still
+    // starting up refuses, and that one exits with the app.
+    const stopped = await stopLocalKalaidoscope(targetId);
+    if (stopped.isErr()) {
+      console.error("Failed to stop removed kalaidoscope:", stopped.error);
+    }
   }
 
   return ok(undefined);

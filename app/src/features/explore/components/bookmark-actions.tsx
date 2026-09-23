@@ -1,4 +1,4 @@
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { FileTextIcon, PlusIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Label } from "@/components/kalaido/text";
 import { ItemPicker } from "@/components/kalaido/context-picker/item-picker";

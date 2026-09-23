@@ -1,4 +1,4 @@
-import { GitForkIcon, Trash2Icon } from "lucide-react";
+import { GitForkIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { ContextSpec } from "@/api/kalaidoscope/chat";
@@ -376,7 +376,7 @@ export default function ProjectionDetail() {
                   variant="destructive"
                   onClick={() => setConfirmDelete(true)}
                 >
-                  <Trash2Icon />
+                  <TrashIcon />
                   Delete projection
                 </DropdownMenuItem>
               </DropdownMenuContent>

@@ -1,4 +1,9 @@
-import { ArchiveIcon, CloudIcon, PlusIcon, TriangleAlert } from "lucide-react";
+import {
+  ArchiveIcon,
+  CloudIcon,
+  PlusIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
@@ -81,7 +86,7 @@ export default function OnboardingLanding() {
       >
         {restoreError && (
           <div className="flex items-start gap-3 rounded-none border border-destructive/40 bg-destructive/5 p-3">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <WarningIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
             <p className="flex-1 text-meta text-destructive">{restoreError}</p>
             <Button
               variant="ghost"

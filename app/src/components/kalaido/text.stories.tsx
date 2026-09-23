@@ -1,5 +1,5 @@
+import { PlusIcon } from "@phosphor-icons/react";
 import type { Story } from "@ladle/react";
-import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default { title: "Kalaido / Typography" };

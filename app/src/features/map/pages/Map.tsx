@@ -1,5 +1,6 @@
-import { PlayIcon } from "lucide-react";
+import { PlayIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { startMap } from "@/api/kalaidoscope/map";
 import { EmptyState, Label, Pill, SurfaceCard } from "@/components/kalaido";
 import {
@@ -47,7 +48,8 @@ export default function MapPage() {
   async function handleRunMap() {
     setRunning(true);
     try {
-      await startMap();
+      const res = await startMap();
+      if (res.isErr()) toast.error(`Map failed to start: ${res.error.message}`);
     } finally {
       setRunning(false);
     }
@@ -57,6 +59,9 @@ export default function MapPage() {
     (a, b) => (b.fragments ?? 0) - (a.fragments ?? 0),
   );
   const relationships = body?.relationships ?? [];
+  // Consolidation rewrites relationship endpoints to thing ids; show names.
+  const thingNames = new Map(things.map((t) => [t.id, t.name]));
+  const thingName = (id: string) => thingNames.get(id) ?? id;
 
   return (
     <PageLayout>
@@ -171,12 +176,12 @@ export default function MapPage() {
                       className="flex items-center gap-2 border border-line bg-surface-2 px-3 py-2 font-mono text-mono-sm"
                     >
                       <span className="text-fg-1 font-medium truncate">
-                        {rel.from}
+                        {thingName(rel.from)}
                       </span>
                       <Pill tone="muted">{rel.kind}</Pill>
                       <span className="text-fg-4">→</span>
                       <span className="text-fg-1 font-medium truncate">
-                        {rel.to}
+                        {thingName(rel.to)}
                       </span>
                     </div>
                   ))}

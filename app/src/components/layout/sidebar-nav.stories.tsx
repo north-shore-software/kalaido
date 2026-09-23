@@ -1,11 +1,11 @@
-import type { Story } from "@ladle/react";
 import {
-  ClockCounterClockwise,
-  FileText,
-  Palette,
-  SquaresFour,
-  Waves,
+  ClockCounterClockwiseIcon,
+  FileTextIcon,
+  PaletteIcon,
+  SquaresFourIcon,
+  WavesIcon,
 } from "@phosphor-icons/react";
+import type { Story } from "@ladle/react";
 import { SidebarProvider } from "@/components/ui/sidebar.tsx";
 import { navSidebarTransitions } from "./nav-sidebar.transitions.ts";
 import { SidebarNav, type SidebarNavItem } from "./sidebar-nav.tsx";
@@ -16,27 +16,27 @@ const mockItems: readonly SidebarNavItem[] = [
   {
     title: "Dashboard",
     transition: navSidebarTransitions.transitions.openDashboard,
-    icon: SquaresFour,
+    icon: SquaresFourIcon,
   },
   {
     title: "Projections",
     transition: navSidebarTransitions.transitions.openProjections,
-    icon: FileText,
+    icon: FileTextIcon,
   },
   {
     title: "Reflections",
     transition: navSidebarTransitions.transitions.openReflections,
-    icon: ClockCounterClockwise,
+    icon: ClockCounterClockwiseIcon,
   },
   {
     title: "Colours",
     transition: navSidebarTransitions.transitions.openColours,
-    icon: Palette,
+    icon: PaletteIcon,
   },
   {
     title: "Fragments",
     transition: navSidebarTransitions.transitions.openFragments,
-    icon: Waves,
+    icon: WavesIcon,
   },
 ];
 

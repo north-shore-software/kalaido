@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createColour } from "@/api/kalaidoscope/colours";

@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { defineRoute } from "@/routes/route-kit";
 import { RouteLink } from "@/routes/route-link";

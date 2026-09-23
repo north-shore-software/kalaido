@@ -1,4 +1,4 @@
-import { ClockIcon, FileTextIcon, XIcon } from "lucide-react";
+import { ClockIcon, FileTextIcon, XIcon } from "@phosphor-icons/react";
 import {
   DocumentCard,
   Label,

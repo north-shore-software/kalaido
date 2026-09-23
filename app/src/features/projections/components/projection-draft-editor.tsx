@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import {
