@@ -57,7 +57,7 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
               className="flex items-center justify-between gap-3 px-3 py-1.5"
             >
               <span
-                className="min-w-0 truncate font-mono text-mono-sm text-fg-1"
+                className="block min-w-0 flex-1 truncate font-mono text-mono-sm text-fg-1"
                 title={e.path}
               >
                 {entryName(e.path)}
