@@ -35,16 +35,11 @@ export function ModelDownloadCard({
           </span>
         </div>
         {pulling ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onCancel}
-            className="shrink-0"
-          >
+          <Button variant="ghost" onClick={onCancel} className="shrink-0">
             Cancel
           </Button>
         ) : (
-          <Button size="sm" onClick={onDownload} className="shrink-0">
+          <Button onClick={onDownload} className="shrink-0">
             <DownloadSimpleIcon />
             Download
           </Button>

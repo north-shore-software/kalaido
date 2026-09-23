@@ -10,8 +10,8 @@ interface SectionHeaderProps {
  */
 export function SectionHeader({ title, description }: SectionHeaderProps) {
   return (
-    <div>
-      <h2 className="mb-1 text-card-title font-bold">{title}</h2>
+    <div className="flex flex-col gap-1">
+      <h2 className="text-card-title font-bold text-fg-1">{title}</h2>
       {description && <p className="text-body-sm text-fg-3">{description}</p>}
     </div>
   );

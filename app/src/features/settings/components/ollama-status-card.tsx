@@ -34,12 +34,7 @@ export function OllamaStatusCard({
           </span>
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onRefresh}
-        className="shrink-0"
-      >
+      <Button variant="ghost" onClick={onRefresh} className="shrink-0">
         <ArrowsClockwiseIcon />
         Refresh
       </Button>

@@ -16,7 +16,7 @@ export function AccountCard({ name, email, onSignOut }: AccountCardProps) {
     .toUpperCase();
 
   return (
-    <SurfaceCard className="flex max-w-sm items-center gap-4">
+    <SurfaceCard className="flex w-full items-center gap-4">
       <div className="flex size-10 shrink-0 items-center justify-center rounded-none bg-surface-2 text-item font-semibold text-fg-1">
         {initials}
       </div>
@@ -28,12 +28,7 @@ export function AccountCard({ name, email, onSignOut }: AccountCardProps) {
         )}
         <span className="text-meta text-fg-3 truncate">{email}</span>
       </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="ml-auto shrink-0"
-        onClick={onSignOut}
-      >
+      <Button variant="ghost" className="ml-auto shrink-0" onClick={onSignOut}>
         Sign out
       </Button>
     </SurfaceCard>

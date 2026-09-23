@@ -46,7 +46,6 @@ export function KalaidoscopeRow({
         <div className="flex-1" />
         {!isActive && (
           <Button
-            size="sm"
             disabled={switching || removing}
             onClick={() => void switchLocalKalaidoscope(kalaidoscope.id)}
           >
@@ -56,7 +55,6 @@ export function KalaidoscopeRow({
         {confirming ? (
           <>
             <Button
-              size="sm"
               variant="destructive"
               disabled={removing}
               onClick={async () => {
@@ -68,10 +66,9 @@ export function KalaidoscopeRow({
                 }
               }}
             >
-              {removing ? <Spinner /> : "Confirm"}
+              {removing ? <Spinner /> : "Yes, remove"}
             </Button>
             <Button
-              size="sm"
               variant="ghost"
               disabled={removing}
               onClick={() => setConfirming(false)}
@@ -81,8 +78,7 @@ export function KalaidoscopeRow({
           </>
         ) : (
           <Button
-            size="sm"
-            variant="ghost"
+            variant="destructive"
             disabled={switching || removing}
             onClick={() => setConfirming(true)}
           >
