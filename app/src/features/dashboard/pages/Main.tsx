@@ -22,6 +22,10 @@ import { FragmentDrawer } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { resolveSources } from "@/features/projections/sources";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
+import {
+  resolveSwatches,
+  useColourSwatches,
+} from "@/hooks/use-colour-swatches";
 import { useContextSources } from "@/hooks/use-context-sources";
 import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import {
@@ -37,6 +41,7 @@ import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import {
   CaptureFragmentCard,
+  ExploreCard,
   ImportNotesCard,
 } from "../components/action-cards";
 import { ImportNotesDialog } from "../components/import-notes-dialog";
@@ -45,18 +50,14 @@ import { ProposedSection } from "../components/proposed-section";
 import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 import { ReconcileCard } from "../components/reconcile-card";
 import { summarizeReconcile } from "../reconcile-summary";
-import { useStartRitual } from "../use-start-ritual";
 import type {
   EntityKind,
   PinItem,
   ProposedItem,
   RecentFragment,
 } from "../types";
+import { useStartRitual } from "../use-start-ritual";
 import { mainTransitions } from "./Main.transitions";
-import {
-  resolveSwatches,
-  useColourSwatches,
-} from "@/hooks/use-colour-swatches";
 
 /** Projections and reflections share an id space only by accident; key on both. */
 function itemKey(it: { kind: EntityKind; id: string }): string {
@@ -354,7 +355,7 @@ export default function Main() {
             <div
               className={
                 hasFragments
-                  ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+                  ? "grid grid-cols-1 gap-3 sm:grid-cols-3"
                   : "flex flex-wrap items-stretch gap-4"
               }
             >
@@ -365,6 +366,10 @@ export default function Main() {
               <CaptureFragmentCard
                 layout={cardLayout}
                 onClick={() => openAddFragmentModal()}
+              />
+              <ExploreCard
+                layout={cardLayout}
+                onClick={() => go(mainTransitions.openExplore)}
               />
             </div>
 
