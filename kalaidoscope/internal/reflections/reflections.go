@@ -17,7 +17,11 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-var ErrNotFound = errors.New("reflection not found")
+var (
+	ErrNotFound = errors.New("reflection not found")
+	// ErrInvalidWindowSpec wraps a schedule the grid could not evaluate.
+	ErrInvalidWindowSpec = errors.New("invalid window spec")
+)
 
 // Strategy implements engine.Strategy for reflections.
 type Strategy struct{}
@@ -47,13 +51,7 @@ func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, par
 	return "", nil
 }
 func (s Strategy) ScrubSpec(spec *api.ContextSpec, id string) {
-	kept := spec.SourceReflectionIDs[:0]
-	for _, x := range spec.SourceReflectionIDs {
-		if x != id {
-			kept = append(kept, x)
-		}
-	}
-	spec.SourceReflectionIDs = kept
+	spec.SourceReflectionIDs = engine.RemoveID(spec.SourceReflectionIDs, id)
 }
 
 // FindLive loads a reflection that is not soft-deleted.
@@ -72,7 +70,7 @@ type CreateParams struct {
 func Create(app core.App, params CreateParams) (*core.Record, error) {
 	if params.WindowSpec != nil {
 		if err := params.WindowSpec.Validate(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrInvalidWindowSpec, err)
 		}
 	}
 
@@ -114,7 +112,6 @@ func Create(app core.App, params CreateParams) (*core.Record, error) {
 // UpdateParams defines fields that can be updated on a reflection.
 type UpdateParams struct {
 	Name              *string
-	Description       *string
 	GenerateWithModel *string
 	WindowSpec        *api.WindowSpec
 	Pinned            *bool
@@ -130,18 +127,15 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, error) 
 
 	if params.WindowSpec != nil {
 		if err := params.WindowSpec.Validate(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrInvalidWindowSpec, err)
 		}
 	}
 
 	if params.Name != nil {
 		rec.Set("name", *params.Name)
 	}
-	if params.Description != nil {
-		rec.Set("description", *params.Description)
-	}
 	if params.GenerateWithModel != nil {
-		rec.Set("generate_with_model", *params.GenerateWithModel)
+		rec.Set("generate_with_model", strings.TrimSpace(*params.GenerateWithModel))
 	}
 	if params.WindowSpec != nil {
 		spec := *params.WindowSpec
@@ -182,7 +176,7 @@ func Delete(app core.App, id string) error {
 		return engine.ErrGenerationInFlight
 	}
 	return app.RunInTransaction(func(tx core.App) error {
-		if err := engine.ScrubContextSpecsByStrategy(tx, Strategy{}, id); err != nil {
+		if err := engine.ScrubContextSpecs(tx, id, Strategy{}.ScrubSpec); err != nil {
 			return err
 		}
 		return engine.SoftDelete(tx, rec)

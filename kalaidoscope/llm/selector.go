@@ -196,7 +196,7 @@ func SelectedProviderForConfig(model string, cfg WorkspaceConfig) Provider {
 	defer descriptorsMu.RUnlock()
 
 	if len(descriptors) == 0 {
-		panic("llm: no provider registered; register providers or call llm.SetProviderFactory at startup")
+		panic("llm: no provider registered; call a provider's Register (llm/providers/*) at startup")
 	}
 
 	target := cfg.Provider

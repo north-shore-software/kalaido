@@ -41,7 +41,7 @@ func newRuntime(app core.App, opts Options) *runtime {
 		workers:   mgr,
 		runner:    workerutil.NewTrackedRunner(ctx),
 		scheduler: queue.New(queue.ConfigForProvider(llm.ActiveProviderID())),
-		logger:    logger(app),
+		logger:    logger(),
 		cancel:    cancel,
 	}
 	app.Store().Set(usage.SchedulerStoreKey, rt.scheduler)

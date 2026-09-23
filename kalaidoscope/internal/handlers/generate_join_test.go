@@ -32,7 +32,7 @@ func TestGenerateCandidateJoinsInFlightGeneration(t *testing.T) {
 		_ = app.Save(rec)
 	}()
 
-	rec, err := callJSON(t, app, HandleGenerateCandidate(app, Deps{}), http.MethodPost,
+	rec, err := callJSON(t, app, HandleGenerateCandidate(app, testDeps(app)), http.MethodPost,
 		"/api/projections/"+proj.Id+"/candidates", `{"preview":true}`, map[string]string{"id": proj.Id})
 	if err != nil {
 		t.Fatalf("generate: %v", err)

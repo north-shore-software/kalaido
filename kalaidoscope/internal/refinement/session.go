@@ -132,7 +132,7 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 			scanned = append(scanned, m.Role+"/"+p.Type)
 		}
 	}
-	logger(app).Warn("refinement extract: no drafted lens",
+	logger().Warn("refinement extract: no drafted lens",
 		"refinement_id", refRec.Id, "count", len(msgs), "scanned", strings.Join(scanned, ", "))
 
 	return "", "", pinned, spec, win, nil
@@ -297,7 +297,7 @@ func CreateReflectionRefinement(app core.App, clientID, targetID string, reqWind
 
 // Commit installs the refinement's latest drafted lens as the plan of record.
 func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedParentID string, runner workerutil.Runner, enqueueWave func()) (string, error) {
-	lens, output, pinned, spec, win, err := ExtractDraftedLensAndSpec(app, refRec)
+	lens, output, pinned, spec, _, err := ExtractDraftedLensAndSpec(app, refRec)
 	if err != nil {
 		return "", err
 	}
@@ -308,41 +308,19 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 		return "", ErrNoPreviewOutput
 	}
 
-	targetCol := "projection"
-	snapshotField := "projection_snapshot_id"
-	parentID := refRec.GetString("projection_id")
-	if refRec.Collection().Name == schema.ColReflectionRefinement.String() {
-		targetCol = "reflection"
-		snapshotField = "reflection_snapshot_id"
-		parentID = refRec.GetString("reflection_id")
-	}
-
-	if parentID == "" {
-		if snapID := refRec.GetString(snapshotField); snapID != "" {
-			if snap, err := app.FindRecordById(targetCol+"_snapshot", snapID); err == nil {
-				parentID = snap.GetString(targetCol + "_id")
-			}
-		}
-	}
-	if parentID == "" {
+	strat := strategyFor(refRec)
+	parent := parentID(app, refRec, strat)
+	if parent == "" {
 		return "", ErrMissingParentID
 	}
-
-	if expectedParentID != "" && expectedParentID != parentID {
+	if expectedParentID != "" && expectedParentID != parent {
 		return "", ErrParentMismatch
 	}
 
-	var strat engine.Strategy
-	if targetCol == "projection" {
-		strat = projections.Strategy{}
-	} else {
-		strat = reflections.Strategy{}
-	}
-
-	sourceSnapID := refRec.GetString(snapshotField)
-	newSnapID, err := engine.CommitRefinement(ctx, app, strat, parentID, sourceSnapID, lens, output, pinned, spec, win, refRec.Id, targetCol)
+	sourceSnapID := refRec.GetString(strat.TargetType() + "_snapshot_id")
+	newSnapID, err := engine.CommitRefinement(ctx, app, strat, parent, sourceSnapID, lens, output, pinned, spec, refRec.Id)
 	if err != nil {
-		logger(app).Error("refinement commit failed", "error", err)
+		logger().Error("refinement commit failed", "error", err)
 		return "", err
 	}
 
@@ -350,13 +328,13 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 		enqueueWave()
 	}
 
-	if targetCol == "reflection" {
-		logger(app).Info("refinement installed a new lens", "target_type", "reflection", "reflection_id", parentID, "refinement_id", refRec.Id)
+	if _, isReflection := strat.(reflections.Strategy); isReflection {
+		logger().Info("refinement installed a new lens", "target_type", strat.TargetType(), "reflection_id", parent, "refinement_id", refRec.Id)
 		if runner != nil {
-			reflections.RunPendingWindows(runner, app, parentID)
+			reflections.RunPendingWindows(runner, app, parent)
 		}
 	} else {
-		logger(app).Info("refinement committed", "target_type", targetCol, "id", parentID, "refinement_id", refRec.Id, "snapshot_id", newSnapID)
+		logger().Info("refinement committed", "target_type", strat.TargetType(), "id", parent, "refinement_id", refRec.Id, "snapshot_id", newSnapID)
 	}
 
 	return newSnapID, nil

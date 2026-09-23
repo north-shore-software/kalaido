@@ -25,7 +25,7 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 			return e.InternalServerError("no model configured for colour matching", err)
 		}
 		if err != nil {
-			logger(app).Error("colour preview: find fragments failed", "error", err)
+			logger().Error("colour preview: find fragments failed", "error", err)
 			return e.InternalServerError("failed to fetch fragments", err)
 		}
 
@@ -45,21 +45,23 @@ func HandlePreviewColour(app core.App) func(e *core.RequestEvent) error {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
-		return session.Run(e.Request.Context(), app, req, func(rec *core.Record) error {
+		// The 200 is already on the wire: a failed write means the client went
+		// away, which ends the stream but is not an error to report.
+		_ = session.Run(e.Request.Context(), app, req, func(rec *core.Record) error {
 			jsonData, err := json.Marshal(rec)
 			if err != nil {
-				logger(app).Warn("colour preview: marshal fragment failed, skipping", "error", err)
+				logger().Warn("colour preview: marshal fragment failed, skipping", "error", err)
 				return nil
 			}
 
 			_, err = fmt.Fprintf(w, "data: %s\n\n", string(jsonData))
 			if err != nil {
-				// Client likely disconnected
 				return err
 			}
 			flusher.Flush()
 			return nil
 		})
+		return nil
 	}
 }
 

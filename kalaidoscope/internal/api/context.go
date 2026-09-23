@@ -84,7 +84,7 @@ type TokenResolutionResponse struct {
 	Fits  bool   `json:"fits"`
 }
 
-// TokenResolutionRequest is the body of POST /api/context/tokens: the spec's
+// TokenResolutionRequest is the body of POST /api/llm/count-tokens: the spec's
 // own fields plus an optional window (a reflection's context bar counts only
 // what falls inside its target window). With a ConversationID the estimate
 // is that chat's whole next turn instead.

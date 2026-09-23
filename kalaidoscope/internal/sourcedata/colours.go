@@ -10,8 +10,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-const MatchManualNegative = "manual_negative"
-
 // ColourMemberIDs returns the fragment IDs held by the specified colours.
 // It includes all colour_fragment links except manual_negative exclusions.
 // The resulting fragment IDs are deduplicated in order of appearance.
@@ -34,7 +32,7 @@ func ColourMemberIDs(app core.App, colourIDs ...string) ([]string, error) {
 		ors = append(ors, "colour_id = {:"+key+"}")
 		params[key] = id
 	}
-	params["neg"] = MatchManualNegative
+	params["neg"] = schema.MatchManualNegative
 
 	filter := "(" + strings.Join(ors, " || ") + ") && match_type != {:neg}"
 	recs, err := app.FindRecordsByFilter(schema.ColColourFragment.String(), filter, "", 0, 0, params)
@@ -67,7 +65,7 @@ func ColourMembersMap(app core.App, colourIDs []string) (map[string][]string, er
 		}
 	}
 
-	params := dbx.Params{"neg": MatchManualNegative}
+	params := dbx.Params{"neg": schema.MatchManualNegative}
 	filter := "match_type != {:neg}"
 	if len(valid) > 0 {
 		ors := make([]string, 0, len(valid))
@@ -106,11 +104,6 @@ func ColourMembersMap(app core.App, colourIDs []string) (map[string][]string, er
 	}
 
 	return out, nil
-}
-
-// FindColourByID returns a single colour record by ID.
-func FindColourByID(app core.App, id string) (*core.Record, error) {
-	return app.FindRecordById(schema.ColColour.String(), id)
 }
 
 // FindAllColours returns all colour records ordered by created time.

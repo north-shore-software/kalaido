@@ -1,13 +1,9 @@
 package api
 
-// EntityStatus is one entity's freshness as served by GET /api/rotation.
+// EntityStatus is one entity's freshness as served by GET /api/reconcile.
 // Projections populate the base fields; reflections additionally populate
 // PendingWindows and StaleWindows.
 type EntityStatus = ReflectionStatus
-
-type StatusResponse struct {
-	Statuses []EntityStatus `json:"statuses"`
-}
 
 type CurrentEntityInfo struct {
 	ID   string `json:"id"`
@@ -29,6 +25,8 @@ type ReconcileStatus struct {
 	Progress      *WaveProgress      `json:"progress,omitempty"`
 }
 
+// ReconcilePlanResponse is the body of GET /api/reconcile: the wave's state
+// beside every entity's freshness, dependencies before dependents.
 type ReconcilePlanResponse struct {
 	ReconcileStatus
 	Statuses []EntityStatus `json:"statuses"`

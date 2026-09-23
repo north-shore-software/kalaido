@@ -95,23 +95,26 @@ type Worker struct {
 	waveCancel    context.CancelFunc
 }
 
-func (w *Worker) CancelWave() {
+// CancelWave aborts the wave in progress, if any, after its current entity
+// and reports whether there was one. The entities the wave had not reached
+// stay as they were; the caller that pre-empted it is expected to ask for a
+// new wave once its own work is done.
+func (w *Worker) CancelWave() bool {
 	w.stateMu.Lock()
 	cancel := w.waveCancel
 	w.waveCancel = nil
-	if w.running {
+	cancelled := cancel != nil && w.running
+	if cancelled {
 		w.lastCancelled = time.Now()
 	}
 	w.stateMu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
+	return cancelled
 }
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "reconcile")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "reconcile")
 }
 
@@ -122,7 +125,7 @@ func NewWorker(app core.App, opts Options) *Worker {
 	}
 	return &Worker{
 		app:          app,
-		logger:       logger(app),
+		logger:       logger(),
 		signal:       workerutil.NewSignal(),
 		autoWave:     opts.AutoWave,
 		debounceFor:  opts.Debounce,
@@ -140,7 +143,7 @@ func (w *Worker) LogPolicy() {
 }
 
 // WaveEnabled reports whether waves start on their own (KALAIDO_AUTO_WAVE).
-// Surfaced to clients as the organize status policy.
+// Surfaced to clients as the status policy (GET /api/status).
 func (w *Worker) WaveEnabled() bool { return w.autoWave }
 
 type State struct {
@@ -317,7 +320,7 @@ func runWave(ctx context.Context, app core.App) error {
 }
 
 func runWaveWithWorker(ctx context.Context, app core.App, w *Worker) error {
-	log := logger(app)
+	log := logger()
 	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
 	if err != nil {
 		log.Error("wave evaluate failed", "error", err)
@@ -372,7 +375,7 @@ func needsWork(s api.EntityStatus) bool {
 }
 
 func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error {
-	log := logger(app)
+	log := logger()
 	var strat engine.Strategy
 	var genStatus string
 	if s.Type == "reflection" {

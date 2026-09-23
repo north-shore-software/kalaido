@@ -18,17 +18,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-// The parameter schemas are assembled by concatenation so the descriptions can
-// live in the prompts package; a wording change there must not break the JSON.
-func TestRefinementToolParametersAreValidJSON(t *testing.T) {
-	if !json.Valid(updateLensTool.Parameters) {
-		t.Fatalf("updateLensTool.Parameters is not valid JSON: %s", updateLensTool.Parameters)
-	}
-	if !json.Valid(suggestNameTool.Parameters) {
-		t.Fatalf("suggestNameTool.Parameters is not valid JSON: %s", suggestNameTool.Parameters)
-	}
-}
-
 // refineScript answers the turn's calls: the chat leg (its transcript opens
 // with RefinementSystemPrompt) replies with a scripted tool call or plain
 // text; every other call is the stateless apply leg.

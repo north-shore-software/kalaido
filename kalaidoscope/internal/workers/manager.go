@@ -2,7 +2,6 @@ package workers
 
 import (
 	"context"
-	"errors"
 
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/sync/errgroup"
@@ -69,58 +68,62 @@ func (m *Manager) BootKicks() {
 	m.Reconcile.EnqueueWave()
 }
 
-func (m *Manager) CancelWave() {
-	m.Reconcile.CancelWave()
+// yieldWave cancels a running background wave so an interactive generation
+// for an entity the wave is not already producing gets the provider to
+// itself. It reports whether a wave was cut short.
+func (m *Manager) yieldWave(strat engine.Strategy, id string) bool {
+	if live, _ := engine.HasLiveClaim(m.app, strat, id); live {
+		// The wave (or another request) is producing this very entity; the
+		// caller joins that run instead of pre-empting it.
+		return false
+	}
+	return m.Reconcile.CancelWave()
 }
 
-func (m *Manager) GenerateProjectionSnapshot(ctx context.Context, id, status string) (string, error) {
-	if live, _ := engine.HasLiveClaim(m.app, projections.Strategy{}, id); !live {
-		m.CancelWave()
-	}
-	snapID, err := engine.GenerateSnapshot(ctx, m.app, id, status, projections.Strategy{}, nil)
-	if errors.Is(err, engine.ErrGenerationInFlight) {
-		snapID, err = engine.JoinGeneration(ctx, m.app, projections.Strategy{}, id, nil)
-		if errors.Is(err, engine.ErrGenerationAbandoned) {
-			snapID, err = engine.GenerateSnapshot(ctx, m.app, id, status, projections.Strategy{}, nil)
-		}
-	}
-	if err == nil && status == engine.StatusApproved {
+// afterGenerate asks for a wave when the generation moved the entity on (an
+// approved snapshot its dependents have not consumed) or when it cut a wave
+// short, so the stale set that wave had not reached is picked up again.
+// Whether the request runs is the reconcile worker's policy (AutoWave).
+func (m *Manager) afterGenerate(status string, produced bool, yielded bool) {
+	if yielded || (produced && status == engine.StatusApproved) {
 		m.Reconcile.EnqueueWave()
 	}
+}
+
+// GenerateProjectionSnapshot generates (or joins the running generation of)
+// a projection snapshot on behalf of a request. The generation outlives the
+// request (ctx); waiting on someone else's run does not (joinCtx).
+func (m *Manager) GenerateProjectionSnapshot(ctx, joinCtx context.Context, id, status string) (string, error) {
+	strat := projections.Strategy{}
+	yielded := m.yieldWave(strat, id)
+	snapID, err := engine.GenerateOrJoin(ctx, joinCtx, m.app, strat, id, status, nil)
+	m.afterGenerate(status, err == nil, yielded)
 	return snapID, err
 }
 
-func (m *Manager) GenerateReflectionSnapshot(ctx context.Context, id, status string, window *api.Window) (string, error) {
-	if live, _ := engine.HasLiveClaim(m.app, reflections.Strategy{}, id); !live {
-		m.CancelWave()
-	}
-	snapID, err := engine.GenerateSnapshot(ctx, m.app, id, status, reflections.Strategy{}, window)
-	if errors.Is(err, engine.ErrGenerationInFlight) {
-		snapID, err = engine.JoinGeneration(ctx, m.app, reflections.Strategy{}, id, window)
-		if errors.Is(err, engine.ErrGenerationAbandoned) {
-			snapID, err = engine.GenerateSnapshot(ctx, m.app, id, status, reflections.Strategy{}, window)
-		}
-	}
-	if err == nil && status == engine.StatusApproved {
-		m.Reconcile.EnqueueWave()
-	}
+// GenerateReflectionSnapshot generates (or joins the running generation of)
+// one reflection window on behalf of a request; ctx and joinCtx as for
+// GenerateProjectionSnapshot.
+func (m *Manager) GenerateReflectionSnapshot(ctx, joinCtx context.Context, id, status string, window *api.Window) (string, error) {
+	strat := reflections.Strategy{}
+	yielded := m.yieldWave(strat, id)
+	snapID, err := engine.GenerateOrJoin(ctx, joinCtx, m.app, strat, id, status, window)
+	m.afterGenerate(status, err == nil, yielded)
 	return snapID, err
 }
 
+// GenerateReflectionWindows generates several reflection windows at once on
+// behalf of a request; see reflections.GenerateWindows.
 func (m *Manager) GenerateReflectionWindows(ctx context.Context, id, status string, windows []api.Window) []reflections.WindowResult {
-	if live, _ := engine.HasLiveClaim(m.app, reflections.Strategy{}, id); !live {
-		m.CancelWave()
-	}
+	yielded := m.yieldWave(reflections.Strategy{}, id)
 	results := reflections.GenerateWindows(ctx, m.app, id, status, windows)
-	hasApproved := false
+	produced := false
 	for _, r := range results {
-		if r.Err == nil && status == engine.StatusApproved {
-			hasApproved = true
+		if r.Err == nil {
+			produced = true
 			break
 		}
 	}
-	if hasApproved {
-		m.Reconcile.EnqueueWave()
-	}
+	m.afterGenerate(status, produced, yielded)
 	return results
 }

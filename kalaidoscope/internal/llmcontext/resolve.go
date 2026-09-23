@@ -8,7 +8,6 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
@@ -63,23 +62,6 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, wi
 	return pinned, nil
 }
 
-// windowClause is the fragment-level time filter for a window. The event date
-// is occurred_at (when the email was sent, the note written); a fragment that
-// arrived without one falls back to its import time, so nothing silently drops
-// out of every window. Empty clause and no params for a nil window.
-func windowClause(win *api.Window) (string, dbx.Params) {
-	if win == nil || win.Start == "" || win.End == "" {
-		return "", dbx.Params{}
-	}
-	start, err1 := types.ParseDateTime(win.Start)
-	end, err2 := types.ParseDateTime(win.End)
-	if err1 != nil || err2 != nil || start.IsZero() || end.IsZero() {
-		return "", dbx.Params{}
-	}
-	return " && ((occurred_at != '' && occurred_at >= {:ws} && occurred_at < {:we}) || (occurred_at = '' && created >= {:ws} && created < {:we}))",
-		dbx.Params{"ws": start, "we": end}
-}
-
 // resolveWholeScope is every live fragment, windowed.
 func resolveWholeScope(app core.App, win *api.Window) ([]string, error) {
 	return sourcedata.FindLiveFragmentIDs(app, win)
@@ -89,7 +71,7 @@ func resolveWholeScope(app core.App, win *api.Window) ([]string, error) {
 // explicit ids, legacy types, and colour members — windowed and live.
 func resolvePinnedFragments(ctx stdctx.Context, app core.App, spec api.ContextSpec, win *api.Window) ([]string, error) {
 	var ids []string
-	winClause, winParams := windowClause(win)
+	winClause, winParams := sourcedata.WindowClause(win)
 
 	var ors []string
 	params := dbx.Params{}

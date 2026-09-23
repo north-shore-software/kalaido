@@ -28,6 +28,3 @@ func HandleDiscoverKick(disc *discover.Worker) func(e *core.RequestEvent) error 
 		return e.NoContent(http.StatusAccepted)
 	}
 }
-
-// HandleStartDiscover is an alias for HandleDiscoverKick matching api.StartDiscoverRequest.
-var HandleStartDiscover = HandleDiscoverKick

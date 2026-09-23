@@ -196,7 +196,7 @@ func (c *Context) span(idxs []int) (first, last string) {
 }
 
 // colourByRef resolves a colour by id or exact name (case-insensitive), the
-// way mapping.ResolveRef does for things: the model may pass either.
+// way mapdoc.Document.Resolve does for things: the model may pass either.
 func (c *Context) colourByRef(ref string) *colourInfo {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {

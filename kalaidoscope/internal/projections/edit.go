@@ -37,10 +37,7 @@ type EditResult struct {
 	FragmentID string
 }
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "projections")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "projections")
 }
 
@@ -136,7 +133,7 @@ func ApplyEdit(ctx context.Context, app core.App, parentID, sourceSnapshotID, ol
 	if err != nil {
 		return EditResult{}, err
 	}
-	logger(app).Info("candidate edited by hand",
+	logger().Info("candidate edited by hand",
 		"target_type", "projection", "id", parentID, "source_snapshot_id", sourceSnapshotID,
 		"snapshot_id", res.SnapshotID, "fragment_id", res.FragmentID)
 	return res, nil

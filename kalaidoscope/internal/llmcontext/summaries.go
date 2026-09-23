@@ -25,7 +25,7 @@ func hydrateSummaries(ctx stdctx.Context, app core.App, fragmentIDs []string) (s
 		byFragment[r.FragmentID] = r
 	}
 	names := map[string]string{}
-	if doc, _, err := sourcedata.LoadDocument(app); err == nil {
+	if doc, _, err := sourcedata.LoadMapDocument(app); err == nil {
 		for _, t := range doc.Things {
 			names[t.ID] = t.Name
 		}

@@ -91,7 +91,7 @@ func writeQueueStatus(app core.App, st queue.Status) {
 	} else {
 		col, err := app.FindCollectionByNameOrId(queueStatusCollection)
 		if err != nil {
-			logger(app).Error("queue status collection unavailable", "error", err)
+			logger().Error("queue status collection unavailable", "error", err)
 			return
 		}
 		rec = core.NewRecord(col)
@@ -116,6 +116,6 @@ func writeQueueStatus(app core.App, st queue.Status) {
 	rec.Set("waiting", string(waiting))
 	rec.Set("held", string(held))
 	if err := app.Save(rec); err != nil {
-		logger(app).Error("queue status save failed", "error", err)
+		logger().Error("queue status save failed", "error", err)
 	}
 }

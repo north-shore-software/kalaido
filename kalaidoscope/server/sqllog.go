@@ -23,7 +23,7 @@ func registerWriteEcho(app core.App) {
 		if app.IsDev() {
 			return nil
 		}
-		log := logger(app)
+		log := logger()
 		execLogger := func(ctx context.Context, d time.Duration, sqlStr string, res sql.Result, err error) {
 			echoWrite(log, ctx, d, sqlStr, res, err)
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -15,11 +14,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
-
-// reflectionWindowsToGenerate is kept as an alias for tests in the handlers package.
-var reflectionWindowsToGenerate = func(e *core.RequestEvent, app core.App, rec *core.Record, req api.GenerateReflectionSnapshotRequest, st api.EntityStatus) ([]*api.Window, error) {
-	return reflections.WindowsToGenerate(app, rec, req, st)
-}
 
 // HandleBackfillReflection materializes the grid windows between `from` and
 // the point the schedule already covers, then generates them in the
@@ -48,7 +42,7 @@ func HandleBackfillReflection(app core.App, runner workerutil.Runner) func(e *co
 		case errors.Is(err, reflections.ErrBackfillOutOfRange):
 			return e.BadRequestError(err.Error(), err)
 		case err != nil:
-			logger(app).Error("reflection backfill failed", "reflection_id", id, "error", err)
+			logger().Error("reflection backfill failed", "reflection_id", id, "error", err)
 			return e.InternalServerError("backfill failed", err)
 		}
 		reflections.RunPendingWindows(runner, app, id)
@@ -110,14 +104,14 @@ func HandleCreateReflection(app core.App) func(e *core.RequestEvent) error {
 			WindowSpec:  req.WindowSpec,
 		})
 		if err != nil {
-			if req.WindowSpec != nil && req.WindowSpec.Validate() != nil {
+			if errors.Is(err, reflections.ErrInvalidWindowSpec) {
 				return e.BadRequestError(err.Error(), err)
 			}
-			logger(app).Error("create reflection failed", "error", err)
+			logger().Error("create reflection failed", "error", err)
 			return e.InternalServerError("create reflection failed", err)
 		}
 
-		logger(app).Info("created reflection", "id", target.Id)
+		logger().Info("created reflection", "id", target.Id)
 		return e.JSON(http.StatusCreated, api.CreateReflectionResponse{ReflectionID: target.Id})
 	}
 }
@@ -150,10 +144,10 @@ func HandleUpdateReflection(app core.App) func(e *core.RequestEvent) error {
 			if errors.Is(err, reflections.ErrNotFound) {
 				return e.NotFoundError("reflection not found", err)
 			}
-			if req.WindowSpec != nil && req.WindowSpec.Validate() != nil {
+			if errors.Is(err, reflections.ErrInvalidWindowSpec) {
 				return e.BadRequestError(err.Error(), err)
 			}
-			logger(app).Error("update reflection failed", "error", err)
+			logger().Error("update reflection failed", "error", err)
 			return e.InternalServerError("update reflection failed", err)
 		}
 
@@ -176,7 +170,7 @@ func HandleDeleteReflection(app core.App) func(e *core.RequestEvent) error {
 			case errors.Is(err, engine.ErrGenerationInFlight):
 				return e.Error(http.StatusConflict, "a generation is running for this reflection", nil)
 			default:
-				logger(app).Error("delete reflection failed", "id", id, "error", err)
+				logger().Error("delete reflection failed", "id", id, "error", err)
 				return e.InternalServerError("delete reflection failed", err)
 			}
 		}
@@ -197,7 +191,7 @@ func HandleRestoreReflection(app core.App) func(e *core.RequestEvent) error {
 			if errors.Is(err, reflections.ErrNotFound) {
 				return e.NotFoundError("reflection not found", err)
 			}
-			logger(app).Error("restore reflection failed", "id", id, "error", err)
+			logger().Error("restore reflection failed", "id", id, "error", err)
 			return e.InternalServerError("restore reflection failed", err)
 		}
 		return e.JSON(http.StatusOK, map[string]string{"id": id})
@@ -228,7 +222,7 @@ func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.Requ
 
 		st, err := reconcile.EvaluateEntity(e.Request.Context(), app, id)
 		if err != nil {
-			logger(app).Warn("staleness check failed", "target_type", "reflection", "error", err)
+			logger().Warn("staleness check failed", "target_type", "reflection", "error", err)
 		} else if len(st.BlockedBy) > 0 {
 			return e.Error(http.StatusConflict, "upstream dependencies are not up to date; approve them first", nil)
 		}
@@ -238,22 +232,23 @@ func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.Requ
 			return e.BadRequestError(err.Error(), err)
 		}
 
+		// The generation outlives the request; only waiting on another run
+		// is bounded by it.
 		genCtx := context.WithoutCancel(e.Request.Context())
 		var snapIDs []string
 		var firstErr error
-
-		if len(windowsToGenerate) > 1 {
+		if len(windowsToGenerate) == 1 {
+			snapID, err := deps.GenerateReflectionSnapshot(genCtx, e.Request.Context(), id, status, windowsToGenerate[0])
+			if err != nil {
+				return WriteGenerateError(e, app, err, "reflection")
+			}
+			snapIDs = append(snapIDs, snapID)
+		} else {
 			plain := make([]api.Window, 0, len(windowsToGenerate))
 			for _, w := range windowsToGenerate {
 				plain = append(plain, *w)
 			}
-			var results []reflections.WindowResult
-			if deps.Manager != nil {
-				results = deps.Manager.GenerateReflectionWindows(genCtx, id, status, plain)
-			} else {
-				results = reflections.GenerateWindows(genCtx, app, id, status, plain)
-			}
-			for _, r := range results {
+			for _, r := range deps.GenerateReflectionWindows(genCtx, id, status, plain) {
 				if r.Err != nil {
 					if firstErr == nil {
 						firstErr = r.Err
@@ -262,61 +257,15 @@ func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.Requ
 				}
 				snapIDs = append(snapIDs, r.SnapshotID)
 			}
-			windowsToGenerate = nil
-		}
-		for _, w := range windowsToGenerate {
-			var snapID string
-			var err error
-			if deps.Manager != nil {
-				snapID, err = deps.Manager.GenerateReflectionSnapshot(genCtx, id, status, w)
-			} else {
-				snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
-				if errors.Is(err, engine.ErrGenerationInFlight) {
-					snapID, err = engine.JoinGeneration(e.Request.Context(), app, reflections.Strategy{}, id, w)
-					if errors.Is(err, engine.ErrGenerationAbandoned) {
-						snapID, err = engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, w)
-					}
-				}
-			}
-			if err != nil {
-				firstErr = err
-			}
-			if handled, herr := WriteLLMError(e, app, err); handled {
-				return herr
-			}
-			switch {
-			case errors.Is(err, engine.ErrLensNotReady):
-				return e.Error(http.StatusConflict, "This reflection's lens is still being prepared — try again in a moment.", err)
-			case errors.Is(err, engine.ErrGenerationInFlight):
-				return e.Error(http.StatusConflict, "A generation for this reflection is already running.", err)
-			case err != nil:
-				logger(app).Error("generate failed", "target_type", "reflection", "error", err)
-				if strings.Contains(err.Error(), "not found") {
-					return e.NotFoundError("reflection not found", err)
-				}
-				return e.InternalServerError("generate reflection failed", err)
-			}
-			if snapID != "" {
-				snapIDs = append(snapIDs, snapID)
-			}
 		}
 
+		// Windows fail independently: the response carries whichever
+		// generated, and only a total failure is an error.
 		if firstErr != nil && len(snapIDs) == 0 {
-			err := firstErr
-			if handled, herr := WriteLLMError(e, app, err); handled {
-				return herr
-			}
-			switch {
-			case errors.Is(err, engine.ErrLensNotReady):
-				return e.Error(http.StatusConflict, "This reflection's lens is still being prepared — try again in a moment.", err)
-			case errors.Is(err, engine.ErrGenerationInFlight):
-				return e.Error(http.StatusConflict, "A generation for this reflection is already running.", err)
-			default:
-				logger(app).Error("generate failed", "target_type", "reflection", "error", err)
-				return e.InternalServerError("generate reflection failed", err)
-			}
-		} else if firstErr != nil {
-			logger(app).Warn("generate: some windows failed", "target_type", "reflection", "succeeded", len(snapIDs), "error", firstErr)
+			return WriteGenerateError(e, app, firstErr, "reflection")
+		}
+		if firstErr != nil {
+			logger().Warn("generate: some windows failed", "target_type", "reflection", "succeeded", len(snapIDs), "error", firstErr)
 		}
 
 		return e.JSON(http.StatusOK, api.ReflectionSnapshotResponse{SnapshotIDs: snapIDs})

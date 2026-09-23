@@ -12,10 +12,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "mapping")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "mapping")
 }
 
@@ -45,7 +42,7 @@ type Worker struct {
 
 // NewWorker builds the worker over app. Nothing runs until Run.
 func NewWorker(app core.App) *Worker {
-	return &Worker{app: app, logger: logger(app), signal: workerutil.NewSignal()}
+	return &Worker{app: app, logger: logger(), signal: workerutil.NewSignal()}
 }
 
 // Annotating reports whether an annotate drain is in progress.

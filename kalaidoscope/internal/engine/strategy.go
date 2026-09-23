@@ -11,10 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 )
 
-func logger(app core.App) *slog.Logger {
-	if app != nil {
-		return app.Logger().With("component", "engine")
-	}
+func logger() *slog.Logger {
 	return slog.Default().With("component", "engine")
 }
 

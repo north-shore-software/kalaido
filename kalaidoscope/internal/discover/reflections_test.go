@@ -8,8 +8,8 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -53,7 +53,7 @@ func TestBuildReflectionSpec(t *testing.T) {
 func TestProposeReflectionWritesScheduleFromOnset(t *testing.T) {
 	app := testutil.NewApp(t)
 	run := testutil.NewRecord(t, app, "discover_run", map[string]any{"kind": "reflections", "status": "running"})
-	var rows []mapping.Row
+	var rows []sourcedata.Row
 	for _, r := range weeklyRows("2026-06-01", 12, "t_news") {
 		frag := testutil.NewRecord(t, app, "fragment", map[string]any{"content": r.Title, "type": "email"})
 		r.FragmentID = frag.Id

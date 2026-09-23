@@ -30,7 +30,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 
 	for _, m := range newMsgs {
 		if _, err := chat.PersistMessage(ctx, app, refRec, m, ""); err != nil {
-			logger(app).Error("refinement persist message failed", "message_id", m.ID, "error", err)
+			logger().Error("refinement persist message failed", "message_id", m.ID, "error", err)
 		}
 	}
 
@@ -67,7 +67,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 	// Refuse before the call, with a message the user can act on, rather
 	// than let the provider reject an oversized prompt as a bare 400.
 	if err := llm.CheckPromptFits(assistantModel, llm.MessagesChars(hydratedMsgs)); err != nil {
-		logger(app).Warn("refinement chat prompt too large", "refinement_id", refRec.Id, "error", err)
+		logger().Warn("refinement chat prompt too large", "refinement_id", refRec.Id, "error", err)
 		return err
 	}
 
@@ -112,7 +112,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 			parts = append(parts, api.UIMessagePart{Type: "text", Text: text})
 			turnWriter.Write(parts)
 		} else {
-			logger(app).Warn("refinement chat: name-only turn produced no text on continuation", "refinement_id", refRec.Id)
+			logger().Warn("refinement chat: name-only turn produced no text on continuation", "refinement_id", refRec.Id)
 		}
 	}
 
@@ -134,7 +134,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 	if match := LensCountPin(lens); match != "" {
 		// Surfaced, not auto-redrafted: the user sees that the lens pinned
 		// a count; the apply still runs so they can judge the result.
-		logger(app).Warn("refinement chat: drafted lens pins a count", "refinement_id", refRec.Id, "match", match)
+		logger().Warn("refinement chat: drafted lens pins a count", "refinement_id", refRec.Id, "match", match)
 		if data, err := json.Marshal(map[string]string{"match": match}); err == nil {
 			sse.DataPart("refine_lint", json.RawMessage(data), false)
 			parts = append(parts, api.UIMessagePart{Type: "data-refine_lint", Data: data})
@@ -161,12 +161,12 @@ func StreamNameOnlyContinuation(ctx context.Context, app core.App, sse *chat.SSE
 		llm.Message{Role: "assistant", Content: strings.TrimSpace(prompts.DiscoverEchoToolCalls(names))},
 		llm.Message{Role: "user", Content: prompts.NameRecordedContinue})
 	if err := llm.CheckPromptFits(model, llm.MessagesChars(msgs)); err != nil {
-		logger(app).Warn("refinement continuation prompt too large", "error", err)
+		logger().Warn("refinement continuation prompt too large", "error", err)
 		return ""
 	}
 	comp, err := usage.Stream(ctx, app, llm.RoleRefinement, model, msgs, nil)
 	if err != nil {
-		logger(app).Error("refinement continuation failed", "error", err)
+		logger().Error("refinement continuation failed", "error", err)
 		return ""
 	}
 	return sse.StreamTurn(comp, textID+"-c1", nil).Text
@@ -297,7 +297,7 @@ func StreamApplyLeg(ctx context.Context, app core.App, sse *chat.SSE, refRec *co
 		sse.ToolInputDelta(applyID, JSONStringChunk(chunk))
 	})
 	if err != nil {
-		logger(app).Error("refinement chat apply failed", "refinement_id", refRec.Id, "error", err)
+		logger().Error("refinement chat apply failed", "refinement_id", refRec.Id, "error", err)
 		kind := "apply_failed"
 		message := "generating the preview failed — send another message to retry"
 		var tooLarge *llm.ContextTooLargeError

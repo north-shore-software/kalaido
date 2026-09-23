@@ -49,7 +49,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 			conv = c
 			dbMsgs, _ = chat.LoadMessages(ctx, app, conv)
 		} else {
-			logger(app).Error("explore persist: find or create conversation failed", "conversation_id", req.ID, "error", err)
+			logger().Error("explore persist: find or create conversation failed", "conversation_id", req.ID, "error", err)
 		}
 	}
 
@@ -62,7 +62,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 	if conv != nil {
 		for _, m := range newMsgs {
 			if _, err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
-				logger(app).Error("explore persist message failed", "message_id", m.ID, "error", err)
+				logger().Error("explore persist message failed", "message_id", m.ID, "error", err)
 			}
 		}
 	}
@@ -91,7 +91,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 	// Refuse before the call, with a message the user can act on, rather
 	// than let the provider reject an oversized prompt as a bare 400.
 	if err := llm.CheckPromptFits(assistantModel, llm.MessagesChars(hydratedMsgs)); err != nil {
-		logger(app).Warn("explore prompt too large", "conversation_id", req.ID, "error", err)
+		logger().Warn("explore prompt too large", "conversation_id", req.ID, "error", err)
 		text := err.Error()
 		if !summaries {
 			text += ExploreTooLargeHint
@@ -130,7 +130,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 				Parts: parts,
 			}
 			if _, err := chat.PersistMessage(ctx, app, conv, aMsg, assistantModel); err != nil {
-				logger(app).Error("explore persist assistant message failed", "error", err)
+				logger().Error("explore persist assistant message failed", "error", err)
 			}
 		}
 	}

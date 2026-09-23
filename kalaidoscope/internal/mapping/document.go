@@ -7,6 +7,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapdoc"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -19,14 +20,11 @@ type document struct {
 }
 
 func loadDocument(app core.App) (*document, error) {
-	recs, err := app.FindRecordsByFilter(schema.ColKalaidoscopeMap.String(), "1=1", "", 1, 0, nil)
+	rec, err := sourcedata.FindMapRecord(app)
 	if err != nil {
 		return nil, err
 	}
-	var rec *core.Record
-	if len(recs) > 0 {
-		rec = recs[0]
-	} else {
+	if rec == nil {
 		col, err := app.FindCollectionByNameOrId(schema.ColKalaidoscopeMap.String())
 		if err != nil {
 			return nil, err

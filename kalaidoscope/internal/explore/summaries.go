@@ -17,11 +17,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-func logger(app core.App) *slog.Logger {
-	if app == nil {
-		return slog.Default()
-	}
-	return app.Logger().With("component", "explore")
+func logger() *slog.Logger {
+	return slog.Default().With("component", "explore")
 }
 
 // maxExploreToolRounds caps the model calls in one summaries turn; the last one
@@ -71,7 +68,7 @@ func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, m
 				var err error
 				currentComp, err = usage.Stream(ctx, app, llm.RoleChat, model, curMsgs, next)
 				if err != nil {
-					logger(app).Error("explore summaries stream failed", "text_id", textID, "round", round, "error", err)
+					logger().Error("explore summaries stream failed", "text_id", textID, "round", round, "error", err)
 					sse.Error(err.Error())
 					return agent.Turn{}, err
 				}
@@ -93,7 +90,7 @@ func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, m
 		},
 		PromptGuard: func(updatedMsgs []llm.Message) error {
 			if err := llm.CheckPromptFits(model, llm.MessagesChars(updatedMsgs)); err != nil {
-				logger(app).Warn("explore summaries prompt too large", "text_id", textID, "error", err)
+				logger().Warn("explore summaries prompt too large", "text_id", textID, "error", err)
 				sse.Error(err.Error())
 				return err
 			}

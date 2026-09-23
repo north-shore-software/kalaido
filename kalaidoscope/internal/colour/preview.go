@@ -41,13 +41,14 @@ func PreparePreview(app core.App) (*PreviewSession, error) {
 
 	model, err := llm.ResolveRole(llm.RoleColour)
 	if err != nil {
-		return nil, ErrNoModel
+		return nil, fmt.Errorf("%w: %w", ErrNoModel, err)
 	}
 
 	return &PreviewSession{recs: recs, model: model}, nil
 }
 
 // Run executes the parallel judgments and streams matching records to emit.
+// The only error it returns is one emit returned, which stops the stream.
 func (s *PreviewSession) Run(ctx context.Context, app core.App, req api.PreviewColourRequest, emit func(*core.Record) error) error {
 	// RoleColour schedules as idle work by default, but the preview is the
 	// one colour call the user actively watches — make it jump the queue.
@@ -74,7 +75,7 @@ func (s *PreviewSession) Run(ctx context.Context, app core.App, req api.PreviewC
 				// A canceled context is the expected outcome of that
 				// superseded request, not a failure worth logging.
 				if evalCtx.Err() == nil {
-					logger(app).Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
+					logger().Error("colour preview evaluation failed", "fragment_id", rec.Id, "error", err)
 				}
 				return nil
 			}
