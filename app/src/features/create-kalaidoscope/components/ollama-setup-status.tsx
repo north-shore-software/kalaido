@@ -1,4 +1,4 @@
-import { CheckIcon, RefreshCwIcon } from "lucide-react";
+import { ArrowsClockwiseIcon, CheckIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { checkOllamaStatus } from "@/api/app/ollama-status.ts";
 import { openSystemBrowser } from "@/api/app/os-integrations.ts";
@@ -85,7 +85,7 @@ export function OllamaSetupStatus() {
           </>
         ) : (
           <>
-            <RefreshCwIcon className="size-3.5" />
+            <ArrowsClockwiseIcon className="size-3.5" />
             Recheck
           </>
         )}

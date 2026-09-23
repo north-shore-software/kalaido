@@ -1,4 +1,4 @@
-import { Eye, EyeOff } from "lucide-react";
+import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 
 export interface RevealToggleProps {
   shown: boolean;
@@ -20,7 +20,11 @@ export function RevealToggle({ shown, onToggle, subject }: RevealToggleProps) {
       aria-label={`${shown ? "Hide" : "Show"} ${subject}`}
       className="absolute right-2 flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground outline-none"
     >
-      {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      {shown ? (
+        <EyeSlashIcon className="size-4" />
+      ) : (
+        <EyeIcon className="size-4" />
+      )}
     </button>
   );
 }

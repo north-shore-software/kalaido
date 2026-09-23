@@ -1,17 +1,17 @@
 import {
-  ArrowLeftRightIcon,
+  ArrowsLeftRightIcon,
+  ChatsIcon,
+  ClockCounterClockwiseIcon,
   FileTextIcon,
-  HistoryIcon,
-  LayoutDashboardIcon,
-  MessagesSquareIcon,
-  MoonIcon,
-  NotebookPenIcon,
+  GearIcon,
+  MapTrifoldIcon,
   PaletteIcon,
-  PanelLeftIcon,
-  SettingsIcon,
-  SunIcon,
+  PlusCircleIcon,
+  PulseIcon,
+  SidebarSimpleIcon,
+  SquaresFourIcon,
   WavesIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import type { ComponentProps } from "react";
 import {
   NEUTRAL_DEST_CLASS,
@@ -31,11 +31,15 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { resolveTheme } from "@/lib/theme";
-import { useTheme } from "@/providers/theme-provider";
 import { pathFor } from "@/routes/registry";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useCurrentPathname } from "@/routes/use-current-pathname";
@@ -46,12 +50,12 @@ const MAIN_NAV: readonly SidebarNavItem[] = [
   {
     title: "Dashboard",
     transition: navSidebarTransitions.transitions.openDashboard,
-    icon: LayoutDashboardIcon,
+    icon: SquaresFourIcon,
   },
   {
-    title: "Chat",
-    transition: navSidebarTransitions.transitions.openChat,
-    icon: MessagesSquareIcon,
+    title: "Explore",
+    transition: navSidebarTransitions.transitions.openExplore,
+    icon: ChatsIcon,
   },
 ];
 
@@ -65,7 +69,12 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   {
     title: "Reflections",
     transition: navSidebarTransitions.transitions.openReflections,
-    icon: HistoryIcon,
+    icon: ClockCounterClockwiseIcon,
+  },
+  {
+    title: "Map",
+    transition: navSidebarTransitions.transitions.openMap,
+    icon: MapTrifoldIcon,
   },
   {
     title: "Colours",
@@ -79,30 +88,26 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   },
 ];
 
-const ACTION_CLASS =
-  "text-fg-2 hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 active:bg-cyan-wash active:text-fg-2 data-active:border-l-cyan data-active:bg-cyan-wash data-active:text-fg-2";
-
-/**
- * Capture sits above the navigation and alone in its zone — getting a thought
- * out of your head is the shell's first job, and it must not read as a
- * destination.
- */
-function NavCapture() {
+function HeaderCaptureButton() {
   return (
-    <SidebarGroup className="py-1">
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            tooltip="Capture"
-            className={ACTION_CLASS}
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => openAddFragmentModal()}
+            className="shrink-0 hover:bg-surface-2 group-data-[collapsible=icon]:size-7 cursor-pointer"
+            aria-label="New Fragment"
           >
-            <NotebookPenIcon className={RAIL_ICON_CLASS} />
-            <span>Capture</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    </SidebarGroup>
+            <PlusCircleIcon weight="fill" className="size-4 text-cyan" />
+          </Button>
+        }
+      />
+      <TooltipContent side="right" align="center" sideOffset={8}>
+        New Fragment
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -128,13 +133,31 @@ function NavConnections() {
                 go(navSidebarTransitions.transitions.openConnections)
               }
             >
-              <ArrowLeftRightIcon className={RAIL_ICON_CLASS} />
+              <ArrowsLeftRightIcon className={RAIL_ICON_CLASS} />
               <span>Connections</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroup>
     </>
+  );
+}
+
+function StatusButton() {
+  const pathname = useCurrentPathname();
+  const { go } = useAppNavigate();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Status"
+        isActive={pathname.startsWith(pathFor("status"))}
+        className={NEUTRAL_DEST_CLASS}
+        onClick={() => go(navSidebarTransitions.transitions.openStatus)}
+      >
+        <PulseIcon />
+        <span>Status</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -149,45 +172,20 @@ function SettingsButton() {
         className={NEUTRAL_DEST_CLASS}
         onClick={() => go(navSidebarTransitions.transitions.openSettings)}
       >
-        <SettingsIcon />
+        <GearIcon />
         <span>Settings</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
 
-function ThemeToggleButton() {
-  const { theme, setTheme } = useTheme();
-  const current = resolveTheme(theme);
-  const isDark = current === "dark";
-  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
-
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        tooltip={label}
-        className={NEUTRAL_DEST_CLASS}
-        onClick={() => setTheme(isDark ? "light" : "dark")}
-      >
-        {isDark ? <SunIcon /> : <MoonIcon />}
-        <span>{label}</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  );
-}
-
-/**
- * The rail opens collapsed, so this is the only visible way back to the labels
- * — it has to stay on screen, and its label has to describe what the click
- * does rather than what the sidebar currently is.
- */
 function SidebarToggleButton() {
   const { toggleSidebar, state } = useSidebar();
   const label = state === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
   return (
     <SidebarMenuItem data-sidebar-control="toggle">
       <SidebarMenuButton onClick={toggleSidebar} tooltip={label}>
-        <PanelLeftIcon />
+        <SidebarSimpleIcon />
         <span>{label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -197,12 +195,15 @@ function SidebarToggleButton() {
 export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader className="gap-2.5 pt-4">
-        <NavKalaidoscopeSwitcher />
+      <SidebarHeader className="pt-4">
+        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:w-full">
+            <NavKalaidoscopeSwitcher />
+          </div>
+          <HeaderCaptureButton />
+        </div>
       </SidebarHeader>
       <SidebarContent>
-        <NavCapture />
-        <SidebarSeparator />
         <SidebarNav items={MAIN_NAV} />
         <SidebarSeparator />
         <SidebarNav items={WORKSPACE_NAV} />
@@ -210,8 +211,8 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <StatusButton />
           <SettingsButton />
-          <ThemeToggleButton />
           <SidebarToggleButton />
         </SidebarMenu>
       </SidebarFooter>

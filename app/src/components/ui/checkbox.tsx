@@ -1,5 +1,5 @@
+import { CheckIcon } from "@phosphor-icons/react";
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
-import { CheckIcon } from "lucide-react";
 import { cn } from "../../lib/css-utils";
 
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {

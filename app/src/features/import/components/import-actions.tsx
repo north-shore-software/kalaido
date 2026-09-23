@@ -1,4 +1,4 @@
-import { FileIcon, UploadIcon } from "lucide-react";
+import { FileIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import type { IngestPhase } from "@/api/kalaidoscope/ingest";
 import { Button } from "@/components/ui/button";
 
@@ -42,7 +42,7 @@ export function ImportActions({
           onClick={onImport}
           disabled={disabledImport}
         >
-          <UploadIcon />
+          <UploadSimpleIcon />
           Import
         </Button>
       )}

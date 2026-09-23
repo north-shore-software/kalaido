@@ -31,7 +31,7 @@ export type RouteContracts = {
   "kalaidoscope-setup": { state: KalaidoscopeSetupState };
   "new-projection": { state: { seed?: ProjectionSeed } };
   colours: { state: { seed?: ColourSeed } };
-  chat: { state: { initialPrompt?: string } };
+  explore: { state: { initialPrompt?: string } };
 };
 
 type ContractOf<Id extends RouteId> = Id extends keyof RouteContracts

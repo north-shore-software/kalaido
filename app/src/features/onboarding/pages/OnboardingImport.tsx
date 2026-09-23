@@ -1,4 +1,4 @@
-import { UploadIcon } from "lucide-react";
+import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ImportFields } from "@/features/import/components/import-fields";
@@ -47,7 +47,7 @@ export default function OnboardingImport() {
           disabled={!picker.path || submitting}
           onClick={() => void submit(picker.path)}
         >
-          <UploadIcon />
+          <UploadSimpleIcon />
           {submitting ? "Uploading…" : "Import"}
         </Button>
       </div>

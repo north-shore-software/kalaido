@@ -7,7 +7,7 @@ export const mockKalaidoscopes: KalaidoscopeMeta[] = [
     type: "local_file",
     locator: "/Users/louis/kalaidoscopes/personal",
     displayName: "Personal Journal",
-    icon: "lucide:book-open",
+    icon: "BookOpenIcon",
   },
   {
     id: "k-research",
@@ -20,7 +20,7 @@ export const mockKalaidoscopes: KalaidoscopeMeta[] = [
     type: "cloud",
     locator: "north-shore/team",
     displayName: "Team Workspace",
-    icon: "lucide:users",
+    icon: "UsersIcon",
   },
 ];
 

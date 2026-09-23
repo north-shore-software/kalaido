@@ -1,11 +1,11 @@
-import type { Story } from "@ladle/react";
 import {
+  ClockCounterClockwiseIcon,
   FileTextIcon,
-  HistoryIcon,
-  LayoutDashboardIcon,
   PaletteIcon,
+  SquaresFourIcon,
   WavesIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
+import type { Story } from "@ladle/react";
 import { SidebarProvider } from "@/components/ui/sidebar.tsx";
 import { navSidebarTransitions } from "./nav-sidebar.transitions.ts";
 import { SidebarNav, type SidebarNavItem } from "./sidebar-nav.tsx";
@@ -16,7 +16,7 @@ const mockItems: readonly SidebarNavItem[] = [
   {
     title: "Dashboard",
     transition: navSidebarTransitions.transitions.openDashboard,
-    icon: LayoutDashboardIcon,
+    icon: SquaresFourIcon,
   },
   {
     title: "Projections",
@@ -26,7 +26,7 @@ const mockItems: readonly SidebarNavItem[] = [
   {
     title: "Reflections",
     transition: navSidebarTransitions.transitions.openReflections,
-    icon: HistoryIcon,
+    icon: ClockCounterClockwiseIcon,
   },
   {
     title: "Colours",

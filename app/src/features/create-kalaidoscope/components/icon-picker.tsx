@@ -1,6 +1,5 @@
-import type { LucideProps } from "lucide-react";
-import * as Icons from "lucide-react";
-import { SmileIcon, Trash2Icon } from "lucide-react";
+import * as Icons from "@phosphor-icons/react";
+import { type IconProps, SmileyIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +12,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/css-utils";
 
-type IconComponent = React.ComponentType<LucideProps>;
+type IconComponent = React.ComponentType<IconProps>;
 
-const ALL_ICON_NAMES: string[] = Object.keys(Icons).filter(
-  (k) => /^[A-Z]/.test(k) && !k.endsWith("Icon") && k !== "LucideProvider",
+// Phosphor exports every icon twice — `Check` (deprecated) and `CheckIcon` —
+// so keep only the canonical `*Icon` names; that is also what gets persisted.
+const ALL_ICON_NAMES: string[] = Object.keys(Icons).filter((k) =>
+  /^[A-Z].*Icon$/.test(k),
 );
 
 function getIcon(name: string): IconComponent | null {
@@ -107,7 +108,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
             )}
           />
         ) : (
-          <SmileIcon className="size-5 text-muted-foreground" />
+          <SmileyIcon className="size-5 text-muted-foreground" />
         )}
       </button>
 
@@ -127,7 +128,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
                 {SelectedIcon ? (
                   <SelectedIcon className="size-6 text-fg-1 dark:text-white" />
                 ) : (
-                  <SmileIcon className="size-6 text-muted-foreground" />
+                  <SmileyIcon className="size-6 text-muted-foreground" />
                 )}
               </div>
               <DialogTitle className="text-card-title font-semibold">
@@ -189,7 +190,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
                   onClick={handleRemove}
                   className="h-[25px] gap-1.5 font-mono text-btn-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-surface-2 hover:text-foreground"
                 >
-                  <Trash2Icon className="size-3.5" />
+                  <TrashIcon className="size-3.5" />
                   Remove icon
                 </Button>
               )}

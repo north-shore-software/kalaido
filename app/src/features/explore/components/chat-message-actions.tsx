@@ -1,4 +1,4 @@
-import { BookmarkIcon, CheckIcon } from "lucide-react";
+import { BookmarkSimpleIcon, CheckIcon } from "@phosphor-icons/react";
 import { Pill } from "@/components/kalaido/pill";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
@@ -35,7 +35,7 @@ export function ChatMessageActions({
         title={pending ? "Wait for the reply to finish" : undefined}
         aria-pressed={bookmarked}
       >
-        <BookmarkIcon className={cn(bookmarked && "fill-current")} />
+        <BookmarkSimpleIcon className={cn(bookmarked && "fill-current")} />
         {bookmarked ? "Bookmarked" : "Bookmark"}
       </Button>
       {fragmentId && (

@@ -1,4 +1,4 @@
-import { PencilLineIcon } from "lucide-react";
+import { PencilLineIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/css-utils";
 

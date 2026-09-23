@@ -1,4 +1,4 @@
-import { CheckIcon, TriangleAlert } from "lucide-react";
+import { CheckIcon, WarningIcon } from "@phosphor-icons/react";
 import type { IngestPhase } from "@/api/kalaidoscope/ingest";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -37,7 +37,7 @@ export function ImportStatus({ phase, imported, errorMsg }: ImportStatusProps) {
 
       {phase === "error" && (
         <p className="flex items-center gap-2 break-words text-body-sm text-destructive">
-          <TriangleAlert className="size-4 shrink-0" />
+          <WarningIcon className="size-4 shrink-0" />
           {errorMsg}
         </p>
       )}

@@ -1,4 +1,4 @@
-import { PencilLineIcon } from "lucide-react";
+import { PencilLineIcon } from "@phosphor-icons/react";
 import {
   Fragment,
   useDeferredValue,

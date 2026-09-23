@@ -1,4 +1,4 @@
-import { CloudIcon } from "lucide-react";
+import { CloudIcon } from "@phosphor-icons/react";
 import { SurfaceCard } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 

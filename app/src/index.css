@@ -514,17 +514,6 @@
   * {
     @apply border-border outline-ring/50;
   }
-  svg.lucide {
-    stroke-width: 1.5;
-  }
-  svg.lucide.lucide-check,
-  svg.lucide.lucide-circle-check,
-  svg.lucide.lucide-chevron-right,
-  svg.lucide.lucide-chevron-down,
-  svg.lucide.lucide-chevron-up,
-  svg.lucide.lucide-chevron-left {
-    stroke-width: 2;
-  }
   body {
     @apply bg-background text-foreground;
     padding-top: var(--titlebar-height);
@@ -546,7 +535,7 @@
   --section-ink: var(--cyan-base);
 }
 
-[data-section="chat"] {
+[data-section="explore"] {
   --section: var(--yellow-base);
   --section-wash: var(--yellow-wash);
   --section-edge: var(--yellow-line);
@@ -586,6 +575,15 @@
   --section-ink: var(--lime-base);
 }
 
+[data-section="map"] {
+  --section: var(--cyan-base);
+  --section-wash: var(--cyan-wash);
+  --section-edge: var(--cyan-edge);
+  --section-veil: var(--cyan-veil);
+  --section-ink: var(--cyan-base);
+}
+
+[data-section="status"],
 [data-section="connections"],
 [data-section="settings"] {
   --section: var(--fg-2);
@@ -620,9 +618,6 @@
 }
 .rounded {
   border-radius: 0;
-}
-[data-settings-section="appearance"] {
-  display: none;
 }
 [data-sidebar-control="toggle"] {
   display: none;

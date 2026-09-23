@@ -1,4 +1,4 @@
-import { ClockIcon } from "lucide-react";
+import { ClockIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Chip, Label, Mono } from "@/components/kalaido";
 import { FREQ, WIN } from "@/features/reflections/schedule";

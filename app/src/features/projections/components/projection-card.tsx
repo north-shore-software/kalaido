@@ -1,4 +1,4 @@
-import { RefreshCwIcon } from "lucide-react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import type { ProjectionResponse } from "@/api/kalaidoscope/types";
 import {
   DocumentCard,
@@ -74,7 +74,7 @@ export function ProjCard({
           onReview(p.id, candidateId);
         }}
       >
-        <RefreshCwIcon />
+        <ArrowsClockwiseIcon />
         Review candidate
       </Button>
       {newSinceCandidate > 0 && (

@@ -1,4 +1,4 @@
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
 import { Label, type StatusKind, StatusPill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { joinNames, type ReconcileSummary } from "../reconcile-summary";

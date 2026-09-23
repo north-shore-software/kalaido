@@ -1,4 +1,4 @@
-import { RefreshCwIcon } from "lucide-react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import { SurfaceCard } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
@@ -40,7 +40,7 @@ export function OllamaStatusCard({
         onClick={onRefresh}
         className="shrink-0"
       >
-        <RefreshCwIcon />
+        <ArrowsClockwiseIcon />
         Refresh
       </Button>
     </SurfaceCard>

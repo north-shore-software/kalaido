@@ -1,4 +1,8 @@
-import { ClockIcon, FileTextIcon, PinOffIcon } from "lucide-react";
+import {
+  ClockIcon,
+  FileTextIcon,
+  PushPinSlashIcon,
+} from "@phosphor-icons/react";
 import { DocumentCard, StatusPill } from "@/components/kalaido";
 import type { EntityKind, PinItem } from "../types";
 
@@ -59,7 +63,7 @@ export function PinCard({ item, onOpen, onUnpin }: PinCardProps) {
               onUnpin(item);
             }}
           >
-            <PinOffIcon className="size-3.5" />
+            <PushPinSlashIcon className="size-3.5" />
           </button>
         </>
       }

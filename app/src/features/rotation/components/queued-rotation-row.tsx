@@ -1,4 +1,4 @@
-import { CheckIcon, ClockIcon } from "lucide-react";
+import { CheckIcon, ClockIcon } from "@phosphor-icons/react";
 import { Mono } from "@/components/kalaido";
 import { cn } from "@/lib/css-utils";
 

@@ -1,4 +1,4 @@
-import { BookmarkIcon, XIcon } from "lucide-react";
+import { BookmarkSimpleIcon, XIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Pill } from "@/components/kalaido/pill";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ export function BookmarksTray({
             <Empty>
               <EmptyHeader>
                 <EmptyMedia variant="icon">
-                  <BookmarkIcon />
+                  <BookmarkSimpleIcon />
                 </EmptyMedia>
                 <EmptyTitle>Nothing bookmarked yet</EmptyTitle>
                 <EmptyDescription>

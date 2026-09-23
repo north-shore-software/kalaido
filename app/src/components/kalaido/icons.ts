@@ -1,19 +1,19 @@
 import {
+  ChatCircleIcon,
+  EnvelopeIcon,
   FileTextIcon,
-  type LucideIcon,
-  MailIcon,
-  MessageCircleIcon,
+  type Icon,
+  KanbanIcon,
+  NoteIcon,
   PencilLineIcon,
-  SquareKanbanIcon,
-  StickyNoteIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 
-export function fragmentTypeIcon(type: string): LucideIcon {
+export function fragmentTypeIcon(type: string): Icon {
   const t = type.toLowerCase();
-  if (t.includes("email") || t.includes("mail")) return MailIcon;
-  if (t.includes("message")) return MessageCircleIcon;
-  if (t.includes("linear")) return SquareKanbanIcon;
-  if (t.includes("note")) return StickyNoteIcon;
+  if (t.includes("email") || t.includes("mail")) return EnvelopeIcon;
+  if (t.includes("message")) return ChatCircleIcon;
+  if (t.includes("linear")) return KanbanIcon;
+  if (t.includes("note")) return NoteIcon;
   if (t.includes("edit")) return PencilLineIcon;
   return FileTextIcon; // doc, google doc, and the catch-all
 }

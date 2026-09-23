@@ -1,4 +1,4 @@
-import { PlusIcon, TriangleAlert } from "lucide-react";
+import { PlusIcon, WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { Mark } from "@/components/kalaido";
@@ -100,7 +100,7 @@ export default function CloudWorkspaces() {
 
         {banner && (
           <div className="flex items-start gap-3 rounded-none border border-destructive/40 bg-destructive/5 p-3">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <WarningIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
             <p className="flex-1 text-meta text-destructive">{banner}</p>
             {listError && (
               <Button

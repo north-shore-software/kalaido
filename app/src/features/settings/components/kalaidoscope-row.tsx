@@ -1,11 +1,15 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { Pill, StatusPill, SurfaceCard } from "@/components/kalaido";
 import { LocationLabel } from "@/components/layout/location-label";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/css-utils";
 import { kalaidoscopeTypeLabel } from "@/lib/labels";
-import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
+import {
+  removeKalaidoscope,
+  switchLocalKalaidoscope,
+} from "@/lib/local-kalaidoscope.ts";
 
 export function KalaidoscopeRow({
   kalaidoscope,
@@ -18,6 +22,9 @@ export function KalaidoscopeRow({
   switching?: boolean;
   children?: ReactNode;
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
   return (
     <SurfaceCard
       className={cn(
@@ -40,14 +47,50 @@ export function KalaidoscopeRow({
         {!isActive && (
           <Button
             size="sm"
-            disabled={switching}
+            disabled={switching || removing}
             onClick={() => void switchLocalKalaidoscope(kalaidoscope.id)}
           >
             Switch to
           </Button>
         )}
+        {confirming ? (
+          <>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={removing}
+              onClick={async () => {
+                setRemoving(true);
+                const res = await removeKalaidoscope(kalaidoscope.id);
+                if (res.isErr()) {
+                  setRemoving(false);
+                  setConfirming(false);
+                }
+              }}
+            >
+              {removing ? <Spinner /> : "Confirm"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={removing}
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={switching || removing}
+            onClick={() => setConfirming(true)}
+          >
+            Remove
+          </Button>
+        )}
       </div>
-      <LocationLabel location={kalaidoscope.locator} />
+      <LocationLabel location={kalaidoscope.locator} truncate={false} />
       {children}
     </SurfaceCard>
   );

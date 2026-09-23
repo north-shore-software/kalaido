@@ -1,4 +1,4 @@
-import { ClockIcon, PlusIcon } from "lucide-react";
+import { ClockIcon, PlusIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { updateReflection } from "@/api/kalaidoscope/reflections";
 import type { ReflectionResponse } from "@/api/kalaidoscope/types";

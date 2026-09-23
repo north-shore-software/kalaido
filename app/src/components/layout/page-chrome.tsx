@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "lucide-react";
+import { CaretRightIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { EditableText } from "@/components/kalaido/editable-text";
 import { Label } from "@/components/kalaido/text";
@@ -60,7 +60,7 @@ export function PageHeader({
                 .map((seg) => (
                   <span key={seg.key} className="flex items-center gap-1.5">
                     {seg.i > 0 && (
-                      <ChevronRightIcon className="size-2.5 text-fg-5" />
+                      <CaretRightIcon className="size-2.5 text-fg-5" />
                     )}
                     <span
                       className={cn(

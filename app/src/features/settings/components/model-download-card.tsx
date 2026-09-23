@@ -1,4 +1,4 @@
-import { DownloadIcon } from "lucide-react";
+import { DownloadSimpleIcon } from "@phosphor-icons/react";
 import { SurfaceCard } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -45,7 +45,7 @@ export function ModelDownloadCard({
           </Button>
         ) : (
           <Button size="sm" onClick={onDownload} className="shrink-0">
-            <DownloadIcon />
+            <DownloadSimpleIcon />
             Download
           </Button>
         )}

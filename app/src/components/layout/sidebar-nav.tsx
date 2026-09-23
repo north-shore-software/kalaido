@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { Icon } from "@phosphor-icons/react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -13,7 +13,7 @@ import { useCurrentPathname } from "@/routes/use-current-pathname";
 export interface SidebarNavItem {
   title: string;
   transition: TransitionDef;
-  icon: LucideIcon;
+  icon: Icon;
 }
 
 export const RAIL_ICON_CLASS =
@@ -27,16 +27,19 @@ export const NEUTRAL_DEST_CLASS =
 const DEST_ACTIVE_CLASS: Record<SectionId, string> = {
   dashboard:
     "hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 data-active:border-l-cyan data-active:text-cyan-ink data-active:hover:text-cyan-ink",
-  chat: "hover:border-l-yellow hover:bg-yellow-wash hover:text-fg-2 data-active:border-l-yellow data-active:text-yellow-ink data-active:hover:text-yellow-ink",
+  explore:
+    "hover:border-l-yellow hover:bg-yellow-wash hover:text-fg-2 data-active:border-l-yellow data-active:text-yellow-ink data-active:hover:text-yellow-ink",
   projections:
     "hover:border-l-green hover:bg-green-wash hover:text-fg-2 data-active:border-l-green data-active:text-green-ink data-active:hover:text-green-ink",
   reflections:
     "hover:border-l-violet hover:bg-violet-wash hover:text-fg-2 data-active:border-l-violet data-active:text-violet-ink data-active:hover:text-violet-ink",
+  map: "hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 data-active:border-l-cyan data-active:text-cyan-ink data-active:hover:text-cyan-ink",
   colours:
     "hover:border-l-blush hover:bg-blush-wash hover:text-fg-2 data-active:border-l-blush data-active:text-blush-ink data-active:hover:text-blush-ink",
   fragments:
     "hover:border-l-lime hover:bg-lime-wash hover:text-fg-2 data-active:border-l-lime data-active:text-lime-ink data-active:hover:text-lime-ink",
   connections: NEUTRAL_DEST_CLASS,
+  status: NEUTRAL_DEST_CLASS,
   settings: NEUTRAL_DEST_CLASS,
   onboarding:
     "hover:border-l-cyan hover:bg-cyan-wash hover:text-fg-2 data-active:border-l-cyan data-active:text-cyan-ink data-active:hover:text-cyan-ink",

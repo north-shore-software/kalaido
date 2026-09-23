@@ -1,4 +1,4 @@
-import { ClockIcon } from "lucide-react";
+import { ClockIcon } from "@phosphor-icons/react";
 import { MarkdownContent, Mono, StatusPill } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 

@@ -1,4 +1,4 @@
-import { PinIcon, PinOffIcon } from "lucide-react";
+import { PushPinIcon, PushPinSlashIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/css-utils";
 
 /** Pin toggle for a list row or card. A span (not a button) since `ListRow` and
@@ -40,9 +40,9 @@ export function PinToggle({
       }}
     >
       {pinned ? (
-        <PinIcon className="size-3.5" />
+        <PushPinIcon className="size-3.5" />
       ) : (
-        <PinOffIcon className="size-3.5" />
+        <PushPinSlashIcon className="size-3.5" />
       )}
     </span>
   );

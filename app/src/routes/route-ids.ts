@@ -22,7 +22,9 @@ export const ROUTE_IDS = [
   "colours",
   "connections",
   "rotation",
-  "chat",
+  "explore",
+  "map",
+  "status",
 ] as const;
 
 export type RouteId = (typeof ROUTE_IDS)[number];

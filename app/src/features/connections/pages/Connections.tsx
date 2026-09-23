@@ -1,9 +1,9 @@
 import {
   ArrowRightIcon,
-  DownloadIcon,
-  RefreshCwIcon,
-  UploadIcon,
-} from "lucide-react";
+  ArrowsClockwiseIcon,
+  DownloadSimpleIcon,
+  UploadSimpleIcon,
+} from "@phosphor-icons/react";
 import type { ComponentType } from "react";
 import { Pill } from "@/components/kalaido";
 import {
@@ -38,7 +38,7 @@ const AVAILABLE: AvailableConnection[] = [
     title: "Import",
     description:
       "Bring an mbox archive, text files, or a zip of documents into this kalaidoscope.",
-    icon: DownloadIcon,
+    icon: DownloadSimpleIcon,
     transition: connectionsTransitions.openImport,
   },
 ];
@@ -49,14 +49,14 @@ const COMING_SOON: Connection[] = [
     title: "Export",
     description:
       "Save this kalaidoscope's fragments and projections to a portable file.",
-    icon: UploadIcon,
+    icon: UploadSimpleIcon,
   },
   {
     id: "live-sync",
     title: "Live Sync",
     description:
       "Keep this kalaidoscope continuously in step with an outside source.",
-    icon: RefreshCwIcon,
+    icon: ArrowsClockwiseIcon,
   },
 ];
 

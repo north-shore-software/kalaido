@@ -1,8 +1,15 @@
 import { err, ok, type Result } from "neverthrow";
-import { startLocalKalaidoscope } from "@/api/app/local-scopes";
-import { setSetting } from "@/api/app/settings.ts";
+import {
+  startLocalKalaidoscope,
+  stopLocalKalaidoscope,
+} from "@/api/app/local-scopes";
+import { deleteSetting, setSetting } from "@/api/app/settings.ts";
 import { createKalaidoscopeClient } from "@/api/kalaidoscope/client.ts";
-import { openKalaidoscope, setAppStage } from "@/hooks/app-state-actions.ts";
+import {
+  openKalaidoscope,
+  setAppStage,
+  setAvailableKalaidoscopes,
+} from "@/hooks/app-state-actions.ts";
 import {
   appState,
   type StageEntry,
@@ -76,4 +83,48 @@ export async function switchLocalKalaidoscope(
     }
     return err(toError(error));
   }
+}
+
+/**
+ * Forget a kalaidoscope on this device. The registration goes; a local
+ * workspace's files on disk stay. Any sidecar for it is stopped — switching
+ * away never stops one, so a local workspace may still be running even when
+ * it is not the open one.
+ */
+export async function removeKalaidoscope(
+  targetId: string,
+): Promise<Result<void, Error>> {
+  const meta = appState.availableKalaidoscopes.find((k) => k.id === targetId);
+  const remaining = appState.availableKalaidoscopes.filter(
+    (k) => k.id !== targetId,
+  );
+  setAvailableKalaidoscopes(remaining);
+
+  const persisted = await setSetting("availableKalaidoscopes", remaining);
+  if (persisted.isErr()) {
+    console.error("Failed to persist updated kalaidoscopes:", persisted.error);
+    return err(persisted.error);
+  }
+
+  const currentStage = appState.appStage;
+  const isActive =
+    currentStage.stage === "kalaidoscope_open" &&
+    currentStage.selectedKalaidoscopeId === targetId;
+
+  if (isActive) {
+    setActiveKalaidoscopeClient(null);
+    await deleteSetting("lastOpenedKalaidoscopeId");
+    setAppStage({ stage: "no_kalaidoscopes_available" });
+  }
+
+  if (meta?.type === "local_file") {
+    // A no-op when nothing is running for this id; only a sidecar still
+    // starting up refuses, and that one exits with the app.
+    const stopped = await stopLocalKalaidoscope(targetId);
+    if (stopped.isErr()) {
+      console.error("Failed to stop removed kalaidoscope:", stopped.error);
+    }
+  }
+
+  return ok(undefined);
 }

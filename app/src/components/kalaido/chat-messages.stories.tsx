@@ -1,8 +1,8 @@
+import { BookmarkSimpleIcon } from "@phosphor-icons/react";
 import type { Story } from "@ladle/react";
 import type { UIMessage } from "ai";
-import { BookmarkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { fixtureMessages } from "../../features/chat/fixtures";
+import { fixtureMessages } from "./fixtures";
 import { ChatMessages } from "./chat-messages";
 
 export default { title: "Kalaido / ChatMessages" };
@@ -38,7 +38,7 @@ export const WithMessageActions: Story = () => (
           className="text-fg-3"
           disabled={pending}
         >
-          <BookmarkIcon />
+          <BookmarkSimpleIcon />
           Bookmark
         </Button>
       )}

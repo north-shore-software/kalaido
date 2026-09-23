@@ -1,3 +1,11 @@
+import {
+  ArrowsClockwiseIcon,
+  CompassIcon,
+  MoonIcon,
+  PaletteIcon,
+  SparkleIcon,
+  SunIcon,
+} from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
 import {
@@ -10,12 +18,18 @@ import { Pill } from "@/components/kalaido";
 import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
 import { appState } from "@/hooks/use-app-state.ts";
 import { useLiveCollection } from "@/hooks/use-live-collection";
+import { useOrganizeStatus } from "@/hooks/use-organize-status";
 import { cn } from "@/lib/css-utils";
+import { resolveTheme } from "@/lib/theme";
+import { useTheme } from "@/providers/theme-provider";
+import { useAppNavigate } from "@/routes/use-app-navigate";
 import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
+import { utilityBarTransitions } from "./utility-bar.transitions";
 
 /**
- * Status only — the bar reports what the workspace is doing and holds no
- * controls (appearance moved to Settings › Appearance).
+ * Reports what the workspace is doing. Its only controls are the theme toggle
+ * and the worker cluster, which is a shortcut to the Status page rather than a
+ * way to act on the pipeline.
  */
 export function UtilityBar() {
   const currentKalaidoscope = useActiveKalaidoscope();
@@ -59,7 +73,9 @@ export function UtilityBar() {
       {currentKalaidoscope ? (
         <QueueStatusLine isLocal={isLocal} sidecarStatus={sidecarStatus} />
       ) : (
-        <div />
+        <div className="ml-auto flex items-center">
+          <ThemeToggleMicroButton />
+        </div>
       )}
     </div>
   );
@@ -74,7 +90,7 @@ type QueueTask = {
   tokens_per_second?: number;
 };
 
-const queueHeldLabels: Record<string, string> = {
+export const queueHeldLabels: Record<string, string> = {
   backoff: "provider back-off",
   idle_blocked: "waiting for quiet",
   idle_quiet: "waiting for quiet",
@@ -171,6 +187,86 @@ function RateMeter({
   );
 }
 
+function WorkerCluster() {
+  const { go } = useAppNavigate();
+  const { status: organize } = useOrganizeStatus();
+
+  const isMapActive =
+    organize?.map.state === "consolidating" ||
+    organize?.map.state === "annotating";
+  const isDiscoverActive = organize?.discover.state === "running";
+  const isColourActive = Boolean(organize?.colour?.draining);
+  const isReconcileActive = Boolean(organize?.reconcile.running);
+
+  const mapTitle = `Mapping: ${organize?.map.state ?? "idle"}${
+    organize?.map.annotated !== undefined
+      ? ` (${organize.map.annotated}/${organize.fragments ?? 0})`
+      : ""
+  }`;
+
+  const discoverTitle = `Discover: ${organize?.discover.state ?? "idle"}${
+    organize?.discover.running ? ` (${organize.discover.running})` : ""
+  }`;
+
+  const colourTitle = `Colour: ${
+    organize?.colour?.draining ? "draining" : "idle"
+  }${
+    organize?.colour?.unjudgedFragments !== undefined
+      ? ` (${organize.colour.unjudgedFragments} unjudged)`
+      : ""
+  }`;
+
+  const reconcileTitle = `Reconcile: ${
+    organize?.reconcile.running ? "running" : "idle"
+  }`;
+
+  return (
+    <button
+      type="button"
+      onClick={() => go(utilityBarTransitions.transitions.openStatus)}
+      className="flex items-center gap-2 px-1.5 py-0.5 transition-colors hover:bg-sidebar-accent cursor-pointer"
+      title="Workspace pipeline status"
+    >
+      <span
+        title={mapTitle}
+        className={cn(
+          "flex items-center transition-colors",
+          isMapActive ? "text-fg-1 animate-pulse" : "text-fg-5",
+        )}
+      >
+        <CompassIcon className="size-3.5" />
+      </span>
+      <span
+        title={discoverTitle}
+        className={cn(
+          "flex items-center transition-colors",
+          isDiscoverActive ? "text-fg-1 animate-pulse" : "text-fg-5",
+        )}
+      >
+        <SparkleIcon className="size-3.5" />
+      </span>
+      <span
+        title={colourTitle}
+        className={cn(
+          "flex items-center transition-colors",
+          isColourActive ? "text-fg-1 animate-pulse" : "text-fg-5",
+        )}
+      >
+        <PaletteIcon className="size-3.5" />
+      </span>
+      <span
+        title={reconcileTitle}
+        className={cn(
+          "flex items-center transition-colors",
+          isReconcileActive ? "text-fg-1 animate-spin" : "text-fg-5",
+        )}
+      >
+        <ArrowsClockwiseIcon className="size-3.5" />
+      </span>
+    </button>
+  );
+}
+
 function QueueStatusLine({
   isLocal,
   sidecarStatus,
@@ -204,13 +300,8 @@ function QueueStatusLine({
 
   const fgRunning = running.filter((t) => t.priority === "interactive");
   const fgWaiting = waiting.interactive ?? 0;
-
-  const bgRunning = running.filter(
-    (t) => t.priority === "background" || t.priority === "idle",
-  );
-  const bgWaiting = (waiting.background ?? 0) + (waiting.idle ?? 0);
-  const bgHeld =
-    bgWaiting > 0 && held?.reason ? queueHeldLabels[held.reason] : undefined;
+  const fgHeld =
+    fgWaiting > 0 && held?.reason ? queueHeldLabels[held.reason] : undefined;
 
   const liveRate = running.reduce(
     (sum, t) => sum + (t.tokens_per_second ?? 0),
@@ -224,6 +315,7 @@ function QueueStatusLine({
           badge="FG"
           running={fgRunning}
           waitingCount={fgWaiting}
+          heldReason={fgHeld}
         />
       </div>
 
@@ -240,14 +332,31 @@ function QueueStatusLine({
         )}
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
-        <QueueIndicator
-          badge="BG"
-          running={bgRunning}
-          waitingCount={bgWaiting}
-          heldReason={bgHeld}
-        />
+      <div className="flex items-center gap-2 shrink-0">
+        <WorkerCluster />
+        <div className="h-3.5 w-px bg-line" />
+        <ThemeToggleMicroButton />
       </div>
     </>
+  );
+}
+
+function ThemeToggleMicroButton() {
+  const { theme, setTheme } = useTheme();
+  const isDark = resolveTheme(theme) === "dark";
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="flex items-center px-1 py-0.5 text-fg-5 transition-colors hover:text-fg-2 cursor-pointer"
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {isDark ? (
+        <SunIcon className="size-3.5" />
+      ) : (
+        <MoonIcon className="size-3.5" />
+      )}
+    </button>
   );
 }
