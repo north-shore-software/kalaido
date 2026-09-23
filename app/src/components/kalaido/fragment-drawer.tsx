@@ -1,3 +1,4 @@
+import { CaretRight } from "@phosphor-icons/react";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -6,6 +7,11 @@ import type {
   ColourFragmentMatchTypeOptions,
   FragmentTypeOptions,
 } from "@/api/kalaidoscope/types.ts";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
@@ -81,6 +87,7 @@ export function FragmentDrawer({
                 {occurredStr ? formatShortDateTime(occurredStr) : "Fragment"}
               </SheetDescription>
               <FragmentColours fragmentId={fragment.id} />
+              <FragmentSummary fragmentId={fragment.id} />
             </SheetHeader>
             <ScrollArea className="min-h-0 flex-1">
               <div className="px-6 py-5 md:px-8 md:py-6">
@@ -216,3 +223,31 @@ function FragmentColours({ fragmentId }: { fragmentId: string }) {
     </div>
   );
 }
+
+function FragmentSummary({ fragmentId }: { fragmentId: string }) {
+  const { records } = useLiveCollectionWatching(
+    "fragment_annotation",
+    ["fragment_annotation"],
+    {
+      filter: `fragment_id="${fragmentId}"`,
+      fields: "id,summary",
+    },
+  );
+  const summary = records[0]?.summary;
+  if (!summary) return null;
+
+  return (
+    <Collapsible defaultOpen className="flex flex-col gap-1.5 pt-1">
+      <CollapsibleTrigger className="group flex w-fit items-center gap-1 font-mono text-meta text-fg-4 hover:text-fg-2 cursor-pointer">
+        <CaretRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
+        <span>Summary</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <p className="text-body-sm text-fg-3 leading-relaxed border-l-2 border-line pl-2.5">
+          {summary}
+        </p>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
