@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { Icon } from "@phosphor-icons/react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -13,7 +13,7 @@ import { useCurrentPathname } from "@/routes/use-current-pathname";
 export interface SidebarNavItem {
   title: string;
   transition: TransitionDef;
-  icon: LucideIcon;
+  icon: Icon;
 }
 
 export const RAIL_ICON_CLASS =

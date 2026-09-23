@@ -1,17 +1,17 @@
 import {
-  ActivityIcon,
-  ArrowLeftRightIcon,
-  FileTextIcon,
-  HistoryIcon,
-  LayoutDashboardIcon,
-  MapIcon,
-  MessagesSquareIcon,
-  NotebookPenIcon,
-  PaletteIcon,
-  PanelLeftIcon,
-  SettingsIcon,
-  WavesIcon,
-} from "lucide-react";
+  ArrowsLeftRight,
+  Chats,
+  ClockCounterClockwise,
+  FileText,
+  Gear,
+  MapTrifold,
+  Palette,
+  PlusCircle,
+  Pulse,
+  SidebarSimple,
+  SquaresFour,
+  Waves,
+} from "@phosphor-icons/react";
 import type { ComponentProps } from "react";
 import {
   NEUTRAL_DEST_CLASS,
@@ -50,12 +50,12 @@ const MAIN_NAV: readonly SidebarNavItem[] = [
   {
     title: "Dashboard",
     transition: navSidebarTransitions.transitions.openDashboard,
-    icon: LayoutDashboardIcon,
+    icon: SquaresFour,
   },
   {
     title: "Explore",
     transition: navSidebarTransitions.transitions.openExplore,
-    icon: MessagesSquareIcon,
+    icon: Chats,
   },
 ];
 
@@ -64,27 +64,27 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
   {
     title: "Projections",
     transition: navSidebarTransitions.transitions.openProjections,
-    icon: FileTextIcon,
+    icon: FileText,
   },
   {
     title: "Reflections",
     transition: navSidebarTransitions.transitions.openReflections,
-    icon: HistoryIcon,
+    icon: ClockCounterClockwise,
   },
   {
     title: "Map",
     transition: navSidebarTransitions.transitions.openMap,
-    icon: MapIcon,
+    icon: MapTrifold,
   },
   {
     title: "Colours",
     transition: navSidebarTransitions.transitions.openColours,
-    icon: PaletteIcon,
+    icon: Palette,
   },
   {
     title: "Fragments",
     transition: navSidebarTransitions.transitions.openFragments,
-    icon: WavesIcon,
+    icon: Waves,
   },
 ];
 
@@ -97,15 +97,15 @@ function HeaderCaptureButton() {
             variant="ghost"
             size="icon-sm"
             onClick={() => openAddFragmentModal()}
-            className="text-fg-3 hover:text-fg-1 hover:bg-surface-2 shrink-0 group-data-[collapsible=icon]:size-7 cursor-pointer"
-            aria-label="Capture"
+            className="shrink-0 hover:bg-surface-2 group-data-[collapsible=icon]:size-7 cursor-pointer"
+            aria-label="New Fragment"
           >
-            <NotebookPenIcon className="size-3.5" />
+            <PlusCircle weight="fill" className="size-4 text-cyan" />
           </Button>
         }
       />
       <TooltipContent side="right" align="center" sideOffset={8}>
-        Capture
+        New Fragment
       </TooltipContent>
     </Tooltip>
   );
@@ -133,7 +133,7 @@ function NavConnections() {
                 go(navSidebarTransitions.transitions.openConnections)
               }
             >
-              <ArrowLeftRightIcon className={RAIL_ICON_CLASS} />
+              <ArrowsLeftRight className={RAIL_ICON_CLASS} />
               <span>Connections</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -154,7 +154,7 @@ function StatusButton() {
         className={NEUTRAL_DEST_CLASS}
         onClick={() => go(navSidebarTransitions.transitions.openStatus)}
       >
-        <ActivityIcon />
+        <Pulse />
         <span>Status</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -172,7 +172,7 @@ function SettingsButton() {
         className={NEUTRAL_DEST_CLASS}
         onClick={() => go(navSidebarTransitions.transitions.openSettings)}
       >
-        <SettingsIcon />
+        <Gear />
         <span>Settings</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -185,7 +185,7 @@ function SidebarToggleButton() {
   return (
     <SidebarMenuItem data-sidebar-control="toggle">
       <SidebarMenuButton onClick={toggleSidebar} tooltip={label}>
-        <PanelLeftIcon />
+        <SidebarSimple />
         <span>{label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>

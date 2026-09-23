@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Plus } from "lucide-react";
+import { CaretUpDown, Plus } from "@phosphor-icons/react";
 import { useSnapshot } from "valtio/react";
 import { Label, Mark } from "@/components/kalaido";
 import {
@@ -63,7 +63,7 @@ export function NavKalaidoscopeSwitcher() {
                     Local
                   </Label>
                 </div>
-                <ChevronsUpDown className="ml-auto size-4 opacity-50" />
+                <CaretUpDown className="ml-auto size-4 opacity-50" />
               </SidebarMenuButton>
             }
           />

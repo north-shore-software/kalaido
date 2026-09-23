@@ -1,12 +1,8 @@
-import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { Label, StatusPill } from "@/components/kalaido";
 import { SectionHeader } from "@/components/layout/section";
-import { Button } from "@/components/ui/button";
 import { appState } from "@/hooks/use-app-state.ts";
-import { DiscoverDebugPanel } from "./discover-section";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
-import { MapDebugPanel } from "./map-section";
 
 export function KalaidoscopesSection() {
   const { appStage, availableKalaidoscopes: kalaidoscopes } =
@@ -18,8 +14,6 @@ export function KalaidoscopesSection() {
   const switching = appStage.stage === "kalaidoscope_loading";
   const active = kalaidoscopes.find((k) => k.id === currentKalaidoscopeId);
   const others = kalaidoscopes.filter((k) => k.id !== currentKalaidoscopeId);
-  const [mapOpen, setMapOpen] = useState(false);
-  const [discoverOpen, setDiscoverOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,26 +21,7 @@ export function KalaidoscopesSection() {
         title="Manage Kalaidoscopes"
         description="All kalaidoscopes stored in this application."
       />
-      {active && (
-        <KalaidoscopeRow kalaidoscope={active} isActive>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" disabled>
-              In-scope configurations
-            </Button>
-            <Button size="sm" disabled>
-              PocketBase schema &amp; backups
-            </Button>
-            <Button size="sm" onClick={() => setMapOpen((open) => !open)}>
-              Map
-            </Button>
-            <Button size="sm" onClick={() => setDiscoverOpen((open) => !open)}>
-              Discover
-            </Button>
-          </div>
-          {mapOpen && <MapDebugPanel />}
-          {discoverOpen && <DiscoverDebugPanel />}
-        </KalaidoscopeRow>
-      )}
+      {active && <KalaidoscopeRow kalaidoscope={active} isActive />}
       {others.length > 0 && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2.5">
