@@ -47,7 +47,7 @@ Delivering nothing this turn is a correct outcome, not a problem to route around
 ## Implementation ceiling
 
 One class-level API — one type and its methods, one module's public surface, one small group of
-functions. Anything larger needs human *direction*, not human approval of your plan for it.
+functions. Anything larger needs human _direction_, not human approval of your plan for it.
 
 The API needs review before you build it:
 
@@ -111,3 +111,9 @@ a different source. Report the blocked URL and give the human the `sbx` command 
 ## When in doubt
 
 Stop and ask. The interruption is cheaper than the rework.
+
+## Sub-project routing
+
+If working on files in sub-directories, read and follow the additional instructions provided there.
+
+- If modifying the UI of the app, read: `app/AGENTS.md`
