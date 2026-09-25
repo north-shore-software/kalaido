@@ -115,3 +115,66 @@ func TestGenerateSucceedsImmediatelyAfterCommit(t *testing.T) {
 		t.Fatalf("generate right after commit: %v", err)
 	}
 }
+
+// Committing with a pending candidate snapshot preserves its hand-edited output draft
+// as the approved output, rather than discarding the candidate.
+func TestCommitRefinementPreservesCandidateOutputDraft(t *testing.T) {
+	app := testutil.NewApp(t)
+	strat := ProjectionStrategy{}
+
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "P"})
+	ref := testutil.NewRecord(t, app, "projection_refinement", map[string]any{
+		"projection_id":            proj.Id,
+		"external_conversation_id": "ext-1",
+	})
+	candSnap := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id": proj.Id,
+		"status":        StatusPending,
+		"output_draft":  "HAND EDITED CANVAS DRAFT",
+		"output_raw":    "ORIGINAL RAW",
+	})
+
+	snapID, err := CommitRefinement(context.Background(), app, strat,
+		proj.Id, candSnap.Id, "NEW LENS", "RAW CHAT OUTPUT", llmcontext.PinnedIDs{}, api.ContextSpec{}, ref.Id)
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if snapID != candSnap.Id {
+		t.Fatalf("got snapID %q, want preserved candidate %q", snapID, candSnap.Id)
+	}
+
+	snap, err := app.FindRecordById("projection_snapshot", candSnap.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := snap.GetString("status"); got != StatusApproved {
+		t.Errorf("status = %q, want approved", got)
+	}
+	if got := snap.GetString("output"); got != "HAND EDITED CANVAS DRAFT" {
+		t.Errorf("output = %q, want hand edited canvas draft", got)
+	}
+}
+
+// Committing with a pending candidate snapshot that contains unresolved edit markers must fail.
+func TestCommitRefinementRejectsUnresolvedMarkers(t *testing.T) {
+	app := testutil.NewApp(t)
+	strat := ProjectionStrategy{}
+
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "P"})
+	ref := testutil.NewRecord(t, app, "projection_refinement", map[string]any{
+		"projection_id":            proj.Id,
+		"external_conversation_id": "ext-1",
+	})
+	candSnap := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id": proj.Id,
+		"status":        StatusPending,
+		"output_draft":  "Line 1\n\n<<<edit:abc123>>>\n\nLine 3",
+		"output_raw":    "Original raw",
+	})
+
+	_, err := CommitRefinement(context.Background(), app, strat,
+		proj.Id, candSnap.Id, "NEW LENS", "RAW CHAT OUTPUT", llmcontext.PinnedIDs{}, api.ContextSpec{}, ref.Id)
+	if err == nil {
+		t.Fatal("expected error committing candidate with unresolved markers, got nil")
+	}
+}

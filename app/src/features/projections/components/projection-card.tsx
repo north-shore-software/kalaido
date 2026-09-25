@@ -63,7 +63,13 @@ export function ProjCard({
 }: ProjCardProps) {
   const currentUserId = useCurrentUserId();
   const pinned = isPinned(p.pinned_by, currentUserId);
-  const action = candidateId ? (
+  const isEngagedOutdated =
+    status.status === "pending" &&
+    status.candidateEngaged &&
+    status.candidateOutdated;
+  const showCandidateAction = candidateId && status.status === "pending";
+
+  const action = showCandidateAction ? (
     <>
       <Button
         size="sm"
@@ -77,11 +83,16 @@ export function ProjCard({
         <ArrowsClockwiseIcon />
         Review candidate
       </Button>
-      {newSinceCandidate > 0 && (
+      {isEngagedOutdated ? (
+        <Mono className="text-mono-sm text-drifting-ink">
+          Your edited candidate is out of date
+          {newSinceCandidate > 0 ? ` · ${newSinceCandidate} new` : ""}
+        </Mono>
+      ) : newSinceCandidate > 0 ? (
         <Mono className="text-mono-sm text-drifting-ink">
           {newSinceCandidate} new since candidate · stale
         </Mono>
-      )}
+      ) : null}
     </>
   ) : (
     <StatusBadge info={status} />

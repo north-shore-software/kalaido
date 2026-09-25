@@ -212,6 +212,16 @@ func TestApprovingAsIsSettlesChainWithoutRegeneration(t *testing.T) {
 	ctx := context.Background()
 	p1Cand := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p1.Id)[0]
 	p2Cand := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p2.Id)[0]
+	for _, cand := range []*core.Record{p1Cand, p2Cand} {
+		parentID := cand.GetString("projection_id")
+		for _, edit := range engine.LoadSnapshotEdits(cand) {
+			if edit.Status == api.EditStatusProposed {
+				if _, err := projections.UpdateSnapshotEditStatus(ctx, app, parentID, cand.Id, edit.ID, api.EditStatusApproved); err != nil {
+					t.Fatalf("accept edit %s: %v", edit.ID, err)
+				}
+			}
+		}
+	}
 	if err := engine.ApproveSnapshot(ctx, app, projections.Strategy{}, p1Cand.Id); err != nil {
 		t.Fatalf("approve p1: %v", err)
 	}
@@ -248,6 +258,10 @@ func TestRefiningChainCandidateCarriesTriggerForward(t *testing.T) {
 	// covers what the commit leaves for that wave to pick up.
 	ctx := context.Background()
 	p1Cand := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p1.Id)[0]
+	p1Cand.Set("output_draft", "EDITED OUTPUT")
+	if err := app.Save(p1Cand); err != nil {
+		t.Fatal(err)
+	}
 	pinned := resolvedContext(t, p1Cand)
 	var spec api.ContextSpec
 	_ = g.p1.UnmarshalJSONField("current_context_spec", &spec)
@@ -270,5 +284,40 @@ func TestRefiningChainCandidateCarriesTriggerForward(t *testing.T) {
 	if _, err := engine.CommitRefinement(ctx, app, projections.Strategy{},
 		g.p1.Id, newSnapID, "EDITED LENS AGAIN", "EDITED AGAIN", pinned, spec, ""); err != nil {
 		t.Fatalf("commit second refinement: %v", err)
+	}
+}
+
+func TestWaveSkipsEngagedCandidates(t *testing.T) {
+	app := testutil.NewApp(t)
+	g := buildChain(t, app)
+	lens := newLens(t, app)
+
+	cand := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":    g.p1.Id,
+		"lens_id":          lens.Id,
+		"status":           engine.StatusPending,
+		"output":           "cand output",
+		"resolved_context": pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{g.f0.Id}}),
+		"edits": pbutil.JSONObject([]api.SnapshotEdit{
+			{
+				ID:     "edit-1",
+				Type:   api.EditTypeManual,
+				Status: api.EditStatusApproved,
+			},
+		}),
+	})
+
+	runWave(context.Background(), app)
+
+	updated, err := app.FindRecordById("projection_snapshot", cand.Id)
+	if err != nil {
+		t.Fatalf("find candidate: %v", err)
+	}
+	if updated.GetString("status") != engine.StatusPending {
+		t.Fatalf("candidate status = %q, want pending_review", updated.GetString("status"))
+	}
+	allP1 := snapshotsFor(t, app, "projection_snapshot", "projection_id", g.p1.Id)
+	if len(allP1) != 2 {
+		t.Fatalf("snapshots for p1 = %d, want 2 (original approved + the engaged pending, not replaced)", len(allP1))
 	}
 }

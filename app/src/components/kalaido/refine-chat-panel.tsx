@@ -1,52 +1,60 @@
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import type { TimeWindow } from "@/api/kalaidoscope/chat";
 import {
   ChatPanel,
+  type ChatPanelHandle,
   type ContextItem,
   type EntityKind,
 } from "@/components/kalaido";
+import type { SnapshotEdit } from "@/api/kalaidoscope/projections";
 import type { RefineSession } from "@/hooks/use-refine-session";
 import { PanelErrorBoundary } from "./panel-error-boundary";
 
-/**
- * A {@link ChatPanel} bound to a {@link RefineSession}. Every "refine via chat"
- * surface (New Projection, Projection Review, the reflection detail panel, resuming
- * an uncommitted draft) needs the same cluster of session-derived props wired
- * together — and getting the set wrong is silent: omit `initialMessages` (or the
- * `key`) and a *resumed* session renders an empty chat while its draft preview
- * still populates, so the history looks lost. Binding them here once makes that
- * class of bug unrepresentable at the call site.
- *
- * The `key={session.clientId}` forces a fresh chat instance whenever the session
- * re-targets (a new `start`/`resume` mints a new client id), so seeded
- * `initialMessages` actually take.
- */
-export function RefineChatPanel({
-  session,
-  context,
-  onMention,
-  onContextChange,
-  entity,
-  title,
-  placeholder,
-  flat = true,
-  timeWindow,
-}: {
+export interface RefineChatPanelProps {
   session: RefineSession;
-  /** Active context selection; omit to leave the conversation's pinned context untouched. */
   context?: ContextItem[];
-  /** See {@link ChatPanel}'s onMention — the owner of `context` adds the mentioned item. */
   onMention?: (item: ContextItem) => void;
-  /** See {@link ChatPanel}'s onContextChange — enables the ContextBar above the composer. */
   onContextChange?: (items: ContextItem[]) => void;
-  /** See {@link ChatPanel}'s entity — restricts the bar's pin search. */
   entity?: EntityKind;
-  /** See {@link ChatPanel}'s timeWindow — the window a reflection refinement targets. */
   timeWindow?: TimeWindow;
   title?: ReactNode;
   placeholder?: string;
   flat?: boolean;
-}) {
+  input?: string;
+  onInputChange?: (value: string) => void;
+  highlightedEditId?: string | null;
+  edits?: SnapshotEdit[];
+  onUndoEdit?: (editId: string) => void;
+  /** See {@link ChatPanel}: hold the conversation while the page asks something. */
+  disabled?: boolean;
+  /** See {@link ChatPanel}: the page's own card after the last message. */
+  trailing?: ReactNode;
+}
+
+export const RefineChatPanel = forwardRef<
+  ChatPanelHandle,
+  RefineChatPanelProps
+>(function RefineChatPanel(
+  {
+    session,
+    context,
+    onMention,
+    onContextChange,
+    entity,
+    title,
+    placeholder,
+    flat = true,
+    timeWindow,
+    input,
+    onInputChange,
+    highlightedEditId,
+    edits,
+    onUndoEdit,
+    disabled,
+    trailing,
+  }: RefineChatPanelProps,
+  ref,
+) {
   const api =
     session.parentId && session.refinementId
       ? `/api/${session.target}s/${encodeURIComponent(session.parentId)}/refinements/${encodeURIComponent(session.refinementId)}/chat`
@@ -55,10 +63,13 @@ export function RefineChatPanel({
   return (
     <PanelErrorBoundary label="the chat" resetKey={session.clientId}>
       <ChatPanel
+        ref={ref}
         flat={flat}
         key={session.clientId}
         chatId={session.clientId}
         api={api}
+        input={input}
+        onInputChange={onInputChange}
         initialMessages={session.initialMessages}
         initialPrompt={session.firstPrompt ?? undefined}
         context={context}
@@ -67,9 +78,14 @@ export function RefineChatPanel({
         entity={entity}
         timeWindow={timeWindow}
         onMessagesChange={session.onMessagesChange}
+        highlightedEditId={highlightedEditId}
+        edits={edits}
+        onUndoEdit={onUndoEdit}
         title={title}
         placeholder={placeholder}
+        disabled={disabled}
+        trailing={trailing}
       />
     </PanelErrorBoundary>
   );
-}
+});

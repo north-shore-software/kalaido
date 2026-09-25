@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { specToItems } from "@/api/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
-import { createProjection } from "@/api/kalaidoscope/projections";
+import {
+  createProjection,
+  deleteProjection,
+} from "@/api/kalaidoscope/projections";
 import {
   ContextBar,
   type ContextItem,
@@ -161,8 +164,12 @@ export default function NewProjection() {
         }
         crumb={["Projections", "New"]}
         initialContext={context}
+        approveLabel="Create projection"
         onTitleCommit={rename}
-        onCancel={() => go(newProjectionTransitions.cancel)}
+        onCancel={() => {
+          if (projectionId) void deleteProjection(projectionId);
+          go(newProjectionTransitions.cancel);
+        }}
         onApproveSuccess={(projId) =>
           go(newProjectionTransitions.approveSuccess, {
             params: { id: projId },
@@ -208,7 +215,9 @@ export default function NewProjection() {
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <div className="flex min-w-0 flex-[1.05] flex-col border-r border-line">
+          <PlaceholderPreviewPane className="border-r border-line" />
+
+          <div className="flex min-w-0 flex-[1.05] flex-col">
             <RefineComposer
               title="Define via chat"
               helperText="Describe the view you want. Your first message creates the projection and starts generating a draft."
@@ -241,8 +250,6 @@ export default function NewProjection() {
               }
             />
           </div>
-
-          <PlaceholderPreviewPane />
         </div>
       </PageCard>
     </PageLayout>

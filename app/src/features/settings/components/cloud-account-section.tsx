@@ -16,7 +16,7 @@ export function CloudAccountSection() {
           <Skeleton className="h-8 w-48 mb-2" />
           <Skeleton className="h-4 w-72" />
         </div>
-        <Skeleton className="h-32 w-full max-w-sm" />
+        <Skeleton className="h-32 w-full" />
       </div>
     );
   }
@@ -54,7 +54,7 @@ export function CloudAccountSection() {
         reactive. Signing up here must never navigate — you came to Settings to
         do something, and a redirect to workspace setup would abandon it.
       */}
-      <CloudAuthPanel />
+      <CloudAuthPanel className="max-w-none" />
     </div>
   );
 }

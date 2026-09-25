@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
@@ -32,6 +33,9 @@ type Options struct {
 	// AutoWave controls the reconcile worker's automatic triggers
 	// (KALAIDO_AUTO_WAVE). Default off, only the dashboard's Start runs a wave.
 	AutoWave bool
+	// HandEditCreateFragment controls whether manual edits to a projection draft
+	// create an edit fragment (KALAIDO_HAND_EDIT_CREATE_FRAGMENT). Default false.
+	HandEditCreateFragment bool
 }
 
 func New(config pocketbase.Config) *pocketbase.PocketBase {
@@ -44,6 +48,10 @@ func NewWithSchema(config pocketbase.Config, schemaOpts schema.Options) *pocketb
 
 func NewWithSchemaWithOptions(config pocketbase.Config, schemaOpts schema.Options, opts Options) *pocketbase.PocketBase {
 	app := pocketbase.NewWithConfig(config)
+
+	if opts.HandEditCreateFragment {
+		app.Store().Set(projections.StoreKeyHandEditCreateFragment, true)
+	}
 
 	// Migrate or initialize database schema, if not already present.
 	schema.Install(app, schemaOpts)
@@ -175,6 +183,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.POST("/api/projections/{id}/snapshots", handlers.HandleGenerateCandidate(app, deps))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app, deps))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/edit", handlers.HandleEditCandidate(app))
+		se.Router.PATCH("/api/projections/{id}/candidates/{rid}/edits/{eid}", handlers.HandleUpdateSnapshotEditStatus(app))
 		se.Router.POST("/api/projections/{id}/refinements", handlers.HandleCreateProjectionRefinement(app))
 		se.Router.POST("/api/projections/{id}/refinements/{rid}/chat", handlers.HandleProjectionRefinementChat(app))
 		se.Router.POST("/api/projections/{id}/refinements/{rid}/commit", handlers.HandleCommitProjectionRefinement(app, deps))

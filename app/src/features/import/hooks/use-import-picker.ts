@@ -20,6 +20,14 @@ export const SUPPORTED_FORMATS_HINT = `Supported formats: ${FILE_FILTERS.filter(
   .map((f) => `${f.name} (${f.extensions.map((e) => `.${e}`).join(", ")})`)
   .join(", ")}.`;
 
+/** Compact form of FILE_FILTERS, e.g. ".mbox, .eml, .txt". */
+export const SUPPORTED_EXTENSIONS_HINT = FILE_FILTERS.flatMap(
+  (f) => f.extensions,
+)
+  .filter((e) => e !== "*")
+  .map((e) => `.${e}`)
+  .join(", ");
+
 export type ImportPicker = ReturnType<typeof useImportPicker>;
 
 export function useImportPicker(onPicked?: () => void) {

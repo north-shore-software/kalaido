@@ -22,11 +22,14 @@ import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
  * The return shape is identical to `useCollection`, so it's a drop-in upgrade
  * wherever you want a list that reacts to records appearing/changing/vanishing.
  */
-export function useLiveCollection<N extends CollectionName>(
+export function useLiveCollection<
+  N extends CollectionName,
+  R = CollectionResponses[N],
+>(
   collection: N,
   query: CollectionQuery = {},
-  config?: SWRConfiguration<CollectionResponses[N][], Error>,
-): UseCollectionResult<CollectionResponses[N]> {
+  config?: SWRConfiguration<R[], Error>,
+): UseCollectionResult<R> {
   return useLiveCollectionWatching(collection, [collection], query, config);
 }
 
@@ -42,14 +45,17 @@ export function useLiveCollection<N extends CollectionName>(
  * subscription on the collection being read — it is written against that
  * collection's columns and need not hold on a watched one.
  */
-export function useLiveCollectionWatching<N extends CollectionName>(
+export function useLiveCollectionWatching<
+  N extends CollectionName,
+  R = CollectionResponses[N],
+>(
   collection: N,
   watched: CollectionName[],
   query: CollectionQuery = {},
-  config?: SWRConfiguration<CollectionResponses[N][], Error>,
-): UseCollectionResult<CollectionResponses[N]> {
+  config?: SWRConfiguration<R[], Error>,
+): UseCollectionResult<R> {
   const client = useKalaidoscopeClient();
-  const result = useCollection(collection, query, config);
+  const result = useCollection<N, R>(collection, query, config);
 
   const { enabled = true, filter } = query;
   const watchedKey = watched.join(",");

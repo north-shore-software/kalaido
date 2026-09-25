@@ -21,7 +21,7 @@ export function DangerZoneSection() {
         title="Danger Zone"
         description="Irreversible actions that affect all app data."
       />
-      <div className="flex max-w-lg flex-col gap-4 rounded-none border border-critical/40 bg-critical-wash p-4">
+      <div className="flex w-full flex-col gap-4 rounded-none border border-critical/40 bg-critical-wash p-4">
         <div className="flex flex-col gap-0.5">
           <span className="text-item font-medium text-fg-1">
             Reset all app settings
@@ -35,7 +35,6 @@ export function DangerZoneSection() {
           {confirming ? (
             <>
               <Button
-                size="sm"
                 variant="destructive"
                 onClick={() => void handleReset()}
                 disabled={resetting}
@@ -43,7 +42,6 @@ export function DangerZoneSection() {
                 {resetting ? <Spinner /> : "Yes, reset"}
               </Button>
               <Button
-                size="sm"
                 variant="ghost"
                 onClick={() => setConfirming(false)}
                 disabled={resetting}
@@ -52,11 +50,7 @@ export function DangerZoneSection() {
               </Button>
             </>
           ) : (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setConfirming(true)}
-            >
+            <Button variant="destructive" onClick={() => setConfirming(true)}>
               Reset
             </Button>
           )}

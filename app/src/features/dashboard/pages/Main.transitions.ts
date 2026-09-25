@@ -25,6 +25,10 @@ export const mainTransitions = defineTransitions({
     to: "onboarding-organizing",
     trigger: "Click 'Import' in the dashboard import modal for the first time",
   },
+  openExplore: {
+    to: "explore",
+    trigger: "Click explore card",
+  },
   toApp: {
     to: "main",
     trigger:

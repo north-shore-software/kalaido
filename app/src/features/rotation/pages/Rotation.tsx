@@ -17,6 +17,7 @@ import { RotationEmptyState } from "@/features/rotation/components/rotation-empt
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { parseProjectionOutput } from "@/hooks/use-projection-snapshot";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
+import { stripEditMarkers } from "@/lib/markdown-diff";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { rotationTransitions } from "./Rotation.transitions";
@@ -50,13 +51,19 @@ export default function Rotation() {
   const pending = useLiveCollection("projection_snapshot", {
     filter: 'status="pending_review" && projection_id.deleted_at = ""',
     sort: "-created",
-    fields: "id,projection_id,output",
+    fields: "id,projection_id,output,output_draft",
   });
   const candidateByProjection = useMemo(() => {
     const m = new Map<string, { id: string; output: unknown }>();
     for (const s of pending.records) {
-      if (!m.has(s.projection_id))
-        m.set(s.projection_id, { id: s.id, output: s.output });
+      if (!m.has(s.projection_id)) {
+        const raw = (s.output_draft ?? s.output) as unknown;
+        const cleaned = typeof raw === "string" ? stripEditMarkers(raw) : raw;
+        m.set(s.projection_id, {
+          id: s.id,
+          output: cleaned,
+        });
+      }
     }
     return m;
   }, [pending.records]);
@@ -176,6 +183,7 @@ export default function Rotation() {
                           if (candidate) {
                             go(rotationTransitions.tweakCandidate, {
                               params: { id: s.id, snapshotId: candidate.id },
+                              state: { wave: true },
                             });
                           }
                         }}

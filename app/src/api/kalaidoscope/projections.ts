@@ -1,6 +1,31 @@
 import { ClientResponseError } from "pocketbase";
 import type { Result } from "neverthrow";
 import { withActiveClient } from "./_active";
+export type SnapshotEditType = "regeneration" | "refinement" | "manual";
+export type SnapshotEditStatus =
+  | "proposed"
+  | "approved"
+  | "rejected"
+  | "superseded";
+
+export interface SnapshotEdit {
+  id: string;
+  sequence: number;
+  type: SnapshotEditType;
+  status: SnapshotEditStatus;
+  contentBefore: string;
+  contentAfter: string;
+  blockIndex: number;
+  fragmentId?: string;
+  inlinedText?: string;
+  anchorPrev?: string;
+  anchorNext?: string;
+  supersededBy?: string;
+  undoable?: boolean;
+  undoReason?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export interface CreateProjectionResult {
   projectionId: string;
@@ -42,6 +67,10 @@ export async function createProjection(
 export async function regenerateProjection(
   projectionId: string,
   autoApprove = false,
+  opts?: {
+    discardEngaged?: boolean;
+    foldIn?: boolean;
+  },
 ): Promise<Result<RegenerateProjectionResult, Error>> {
   return withActiveClient((client) =>
     client.send<RegenerateProjectionResult>(
@@ -49,7 +78,15 @@ export async function regenerateProjection(
       // requestKey: null opts out of the SDK's auto-cancellation — without it
       // a second generate call aborts the first client-side while the server
       // keeps running both, surfacing as a phantom "Failed to refresh".
-      { method: "POST", body: { preview: !autoApprove }, requestKey: null },
+      {
+        method: "POST",
+        body: {
+          preview: !autoApprove,
+          discardEngaged: opts?.discardEngaged,
+          foldIn: opts?.foldIn,
+        },
+        requestKey: null,
+      },
     ),
   );
 }
@@ -109,27 +146,33 @@ export async function approveProjectionCandidate(
 }
 
 export interface EditProjectionCandidateResult {
-  snapshotId: string;
   fragmentId: string;
+  edit: SnapshotEdit;
 }
 
-/**
- * Replace one exact passage of a pending candidate by hand. The server records
- * the edit as an `edit` fragment pinned to the projection's context and adds a
- * second pending candidate carrying the new text; the one edited stays pending.
- * Mirrors `POST /api/projections/:id/candidates/:rid/edit`
- * (`EditCandidateRequest`). `oldText` must be the raw markdown slice as it
- * appears in the candidate, once.
- */
 export async function editProjectionCandidate(
   projectionId: string,
   snapshotId: string,
-  edit: { oldText: string; newText: string },
+  edit: { blockPosition: number; newText: string },
 ): Promise<Result<EditProjectionCandidateResult, Error>> {
   return withActiveClient((client) =>
     client.send<EditProjectionCandidateResult>(
       `/api/projections/${projectionId}/candidates/${snapshotId}/edit`,
       { method: "POST", body: edit, requestKey: null },
+    ),
+  );
+}
+
+export async function updateSnapshotEditStatus(
+  projectionId: string,
+  snapshotId: string,
+  editId: string,
+  status: SnapshotEditStatus,
+): Promise<Result<{ edit: SnapshotEdit }, Error>> {
+  return withActiveClient((client) =>
+    client.send<{ edit: SnapshotEdit }>(
+      `/api/projections/${projectionId}/candidates/${snapshotId}/edits/${editId}`,
+      { method: "PATCH", body: { status }, requestKey: null },
     ),
   );
 }

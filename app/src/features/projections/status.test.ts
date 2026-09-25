@@ -78,4 +78,39 @@ describe("getProjectionStatus", () => {
     const info = getProjectionStatus(status({}), true, { lensMissing: true });
     expect(info.status).toBe("pending");
   });
+
+  test("pending untouched outdated candidate resolves to stale", () => {
+    const info = getProjectionStatus(
+      status({
+        candidate: { id: "c1", outdated: true, engaged: false },
+      }),
+      true,
+    );
+    expect(info.status).toBe("stale");
+    expect(info.candidateOutdated).toBe(true);
+    expect(info.candidateEngaged).toBe(false);
+  });
+
+  test("pending engaged outdated candidate remains pending", () => {
+    const info = getProjectionStatus(
+      status({
+        candidate: { id: "c1", outdated: true, engaged: true },
+      }),
+      true,
+    );
+    expect(info.status).toBe("pending");
+    expect(info.candidateOutdated).toBe(true);
+    expect(info.candidateEngaged).toBe(true);
+  });
+
+  test("pending current candidate remains pending", () => {
+    const info = getProjectionStatus(
+      status({
+        candidate: { id: "c1", outdated: false, engaged: false },
+      }),
+      true,
+    );
+    expect(info.status).toBe("pending");
+    expect(info.candidateOutdated).toBe(false);
+  });
 });

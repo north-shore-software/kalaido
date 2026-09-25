@@ -11,6 +11,10 @@ import {
   StreamSkeleton,
 } from "@/features/fragments/components/stream-parts";
 import type { LoadedFragment } from "@/features/fragments/types";
+import {
+  resolveSwatches,
+  useColourSwatches,
+} from "@/hooks/use-colour-swatches";
 import { useLiveCollectionWatching } from "@/hooks/use-live-collection";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
@@ -18,10 +22,6 @@ import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { streamTransitions } from "./Stream.transitions";
-import {
-  resolveSwatches,
-  useColourSwatches,
-} from "@/hooks/use-colour-swatches";
 
 const formatType = (type: string) => {
   return fragmentTypeLabel(type as FragmentTypeOptions);
@@ -97,7 +97,7 @@ export default function Stream() {
                   <div
                     role="button"
                     tabIndex={0}
-                    className="group flex w-full cursor-pointer items-start gap-4 text-left"
+                    className="group flex w-full min-w-0 cursor-pointer items-start gap-4 text-left"
                     onClick={() =>
                       go(streamTransitions.openFragment, {
                         params: { id: f.id },

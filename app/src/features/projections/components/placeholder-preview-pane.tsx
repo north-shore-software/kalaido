@@ -1,9 +1,14 @@
 import { Pill } from "@/components/kalaido";
+import { cn } from "@/lib/css-utils";
 import { PaneHeader } from "@/components/layout/page-layout";
 
-export function PlaceholderPreviewPane() {
+export function PlaceholderPreviewPane({
+  className,
+}: {
+  className?: string;
+} = {}) {
   return (
-    <div className="flex min-w-0 flex-[1.1] flex-col">
+    <div className={cn("flex min-w-0 flex-[1.1] flex-col", className)}>
       <PaneHeader
         label="Live draft preview"
         status={

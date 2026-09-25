@@ -51,3 +51,27 @@ func TestAPIKeyHiddenFromAppUsers(t *testing.T) {
 		t.Errorf("superuser api_key = %q, want the stored key", got)
 	}
 }
+
+// has_api_key tells the app whether a key is stored without exporting it.
+func TestHasAPIKeyExported(t *testing.T) {
+	app := testutil.NewApp(t)
+	RegisterHooks(app)
+	user := authRecord(t, app, "users", "user@example.test")
+
+	enrich := func(key string) map[string]any {
+		rec := testutil.NewRecord(t, app, CollectionName, map[string]any{"api_key": key})
+		ev := &core.RecordEnrichEvent{App: app, RequestInfo: &core.RequestInfo{Auth: user}}
+		ev.Record = rec
+		if err := app.OnRecordEnrich(CollectionName).Trigger(ev); err != nil {
+			t.Fatal(err)
+		}
+		return rec.PublicExport()
+	}
+
+	if got, _ := enrich("sk-secret")["has_api_key"].(bool); !got {
+		t.Error("has_api_key = false with a stored key")
+	}
+	if got, ok := enrich("")["has_api_key"].(bool); !ok || got {
+		t.Errorf("has_api_key = %v (present %v) with no key, want false", got, ok)
+	}
+}

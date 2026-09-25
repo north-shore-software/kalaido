@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { SnapshotEdit } from "@/api/kalaidoscope/projections";
 import type {
   ProjectionResponse,
   ProjectionSnapshotResponse,
@@ -89,7 +90,10 @@ export const mockProjections: ProjectionResponse[] = [
   },
 ];
 
-export const mockSnapshots: ProjectionSnapshotResponse[] = [
+export const mockSnapshots: ProjectionSnapshotResponse<
+  unknown,
+  SnapshotEdit[]
+>[] = [
   {
     id: "snap-1",
     collectionId: "col-snap-1",
@@ -103,6 +107,9 @@ export const mockSnapshots: ProjectionSnapshotResponse[] = [
     // the generated option type does not admit.
     generation_trigger: "" as ProjectionSnapshotResponse["generation_trigger"],
     output: mockMarkdownContent2,
+    output_draft: mockMarkdownContent2,
+    output_raw: mockMarkdownContent2,
+    edits: [],
     resolved_context: null,
     status: "approved",
     approval_sequence_number: 1,
@@ -124,6 +131,9 @@ export const mockSnapshots: ProjectionSnapshotResponse[] = [
     // the generated option type does not admit.
     generation_trigger: "" as ProjectionSnapshotResponse["generation_trigger"],
     output: mockMarkdownContent1,
+    output_draft: mockMarkdownContent1,
+    output_raw: mockMarkdownContent1,
+    edits: [],
     resolved_context: null,
     status: "approved",
     approval_sequence_number: 1,
@@ -145,6 +155,22 @@ export const mockSnapshots: ProjectionSnapshotResponse[] = [
     // the generated option type does not admit.
     generation_trigger: "" as ProjectionSnapshotResponse["generation_trigger"],
     output: `${mockMarkdownContent1}\n- Review updates added.`,
+    output_draft: mockMarkdownContent1,
+    output_raw: `${mockMarkdownContent1}\n- Review updates added.`,
+    edits: [
+      {
+        id: "edit-superseded",
+        sequence: 1,
+        type: "refinement",
+        status: "superseded",
+        contentBefore: "Old text",
+        contentAfter: "Superseded text",
+        blockIndex: 0,
+        undoable: false,
+        undoReason: "regenerated",
+        createdAt: "2026-07-06T10:18:00.000Z",
+      },
+    ],
     resolved_context: null,
     status: "pending_review",
     approval_sequence_number: 0,
@@ -207,6 +233,7 @@ export const mockSession: RefineSession = {
   onMessagesChange: () => {},
   preview: mockMarkdownContent1,
   previewReady: true,
+  hasDraftedLens: true,
   phase: "ready" as const,
   suggestedName: "Product Roadmap",
   started: true,
@@ -222,6 +249,7 @@ export const mockSessionEmpty: RefineSession = {
   ...mockSession,
   preview: "",
   previewReady: false,
+  hasDraftedLens: false,
   phase: "idle" as const,
   messages: [],
   started: false,

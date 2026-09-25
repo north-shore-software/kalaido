@@ -75,14 +75,15 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 					readNames = append(readNames, name)
 					readOutputs = append(readOutputs, data.Output)
 				}
+			case p.Type == prompts.LensPartType:
+				var data prompts.LensPartData
+				if err := json.Unmarshal(p.Data, &data); err == nil && data.Lens != "" {
+					if sb.Len() > 0 {
+						sb.WriteString("\n\n")
+					}
+					sb.WriteString(prompts.LensEcho(prompts.UpdateLensToolName, data.Lens))
+				}
 			case p.Type == "tool-"+prompts.UpdateLensToolName:
-				// The lens is the only tool part echoed back into the
-				// transcript. Everything else on an assistant message —
-				// tool-apply_result (the lens's executed output),
-				// tool-suggest_name, data-* notices — must stay invisible to
-				// the model: a lens-writer that sees its own output starts
-				// encoding output back into the lens, which is the overfitting
-				// this design removes.
 				var data struct {
 					ToolName string `json:"toolName"`
 					Input    struct {
@@ -96,6 +97,16 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 						}
 						sb.WriteString(prompts.LensEcho(data.ToolName, data.Input.Lens))
 					}
+				}
+			case p.Type == prompts.ContextConfirmationPartType:
+				// The model's own proposal, so the later confirm or cancel
+				// notice has something to refer to.
+				var data prompts.ContextConfirmationData
+				if err := json.Unmarshal(p.Data, &data); err == nil {
+					if sb.Len() > 0 {
+						sb.WriteString("\n\n")
+					}
+					sb.WriteString(prompts.ContextProposalEcho(data.Reason))
 				}
 			}
 		}

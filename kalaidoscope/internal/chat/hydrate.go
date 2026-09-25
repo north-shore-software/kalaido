@@ -102,10 +102,102 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 		if m.Role == "system" {
 			var foundPinned bool
 			var pinned llmcontext.PinnedIDs
+			var notices []string
 			for _, p := range m.Parts {
 				if p.Type == "pinned_ids" && len(p.Data) > 0 {
 					if err := json.Unmarshal(p.Data, &pinned); err == nil {
 						foundPinned = true
+					}
+				}
+				switch p.Type {
+				case prompts.HandEditPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else if len(p.Data) > 0 {
+						var d struct {
+							Before string `json:"before"`
+							After  string `json:"after"`
+						}
+						if err := json.Unmarshal(p.Data, &d); err == nil {
+							notices = append(notices, prompts.HandEditNotice(d.Before, d.After))
+						}
+					}
+				case prompts.RefineTargetPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else if len(p.Data) > 0 {
+						var d struct {
+							Passage string `json:"passage"`
+						}
+						if err := json.Unmarshal(p.Data, &d); err == nil {
+							notices = append(notices, prompts.RefineTargetNotice(d.Passage))
+						}
+					}
+				case prompts.EditTriagePartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else if len(p.Data) > 0 {
+						var d struct {
+							Sequence int    `json:"sequence"`
+							Status   string `json:"status"`
+						}
+						if err := json.Unmarshal(p.Data, &d); err == nil {
+							notices = append(notices, prompts.EditTriageNotice(d.Sequence, d.Status))
+						}
+					}
+				case prompts.RegenerateSupersededPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else if len(p.Data) > 0 {
+						// Older notices carried a contiguous range; newer ones
+						// list the sequences, since surviving edits can leave gaps.
+						var d struct {
+							prompts.RegenerateSupersededData
+							StartSequence int `json:"startSequence"`
+							EndSequence   int `json:"endSequence"`
+						}
+						if err := json.Unmarshal(p.Data, &d); err == nil {
+							seqs := d.Sequences
+							if len(seqs) == 0 && d.StartSequence > 0 {
+								for s := d.StartSequence; s <= d.EndSequence; s++ {
+									seqs = append(seqs, s)
+								}
+							}
+							if len(seqs) > 0 || len(d.Kept) > 0 {
+								notices = append(notices, prompts.RegenerateSupersededNotice(seqs, d.Kept))
+							}
+						}
+					}
+				case prompts.RegenerateCancelPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else {
+						notices = append(notices, prompts.RegenerateCancelledNotice())
+					}
+				case prompts.ContextConfirmPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else {
+						notices = append(notices, prompts.ContextConfirmedNotice())
+					}
+				case prompts.ContextCancelPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else {
+						notices = append(notices, prompts.ContextCancelledNotice())
+					}
+				case prompts.RefineProposalResultPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else if len(p.Data) > 0 {
+						var d prompts.RefineProposalResultData
+						if err := json.Unmarshal(p.Data, &d); err == nil {
+							if d.OK {
+								notices = append(notices, prompts.RefineProposalSuccessNotice(d.Sequence))
+							} else {
+								notices = append(notices, prompts.RefineProposalFailureNotice(d.Error))
+							}
+						}
 					}
 				}
 			}
@@ -118,6 +210,12 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 				deltaText, _ := hydrator.Delta(ctx, added, removed)
 				text += deltaText
 				activeIDs = pinned
+			}
+			for _, n := range notices {
+				if text != "" {
+					text += "\n\n"
+				}
+				text += n
 			}
 			if text != "" {
 				hydratedMsgs = append(hydratedMsgs, llm.Message{Role: "system", Content: text})

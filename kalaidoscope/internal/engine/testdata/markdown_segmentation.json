@@ -1,0 +1,101 @@
+{
+  "segmentationCases": [
+    {
+      "name": "basic document with headers and lists",
+      "markdown": "# Product Roadmap Q3\n\n## Phase 1: Foundation\n- Define styling tokens.\n- Standardize on Ladle.\n\nClosing paragraph.",
+      "expectedBlocks": [
+        "# Product Roadmap Q3",
+        "## Phase 1: Foundation\n- Define styling tokens.\n- Standardize on Ladle.",
+        "Closing paragraph."
+      ]
+    },
+    {
+      "name": "backtick fence with internal blank lines",
+      "markdown": "before\n\n```ts\nconst a = 1;\n\nconst b = 2;\n```\n\nafter",
+      "expectedBlocks": [
+        "before",
+        "```ts\nconst a = 1;\n\nconst b = 2;\n```",
+        "after"
+      ]
+    },
+    {
+      "name": "tilde fence with internal blank lines",
+      "markdown": "top\n\n~~~python\nprint('hello')\n\nprint('world')\n~~~\n\nbottom",
+      "expectedBlocks": [
+        "top",
+        "~~~python\nprint('hello')\n\nprint('world')\n~~~",
+        "bottom"
+      ]
+    },
+    {
+      "name": "empty input",
+      "markdown": "",
+      "expectedBlocks": []
+    },
+    {
+      "name": "multiple blank lines",
+      "markdown": "one\n\n\n\ntwo\nstill two\n\nthree",
+      "expectedBlocks": [
+        "one",
+        "two\nstill two",
+        "three"
+      ]
+    },
+    {
+      "name": "whitespace-only separator lines",
+      "markdown": "one\n  \n\t\ntwo",
+      "expectedBlocks": [
+        "one",
+        "two"
+      ]
+    },
+    {
+      "name": "no trailing newline",
+      "markdown": "a\n\nb",
+      "expectedBlocks": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "name": "trailing newlines",
+      "markdown": "a\n\nb\n\n",
+      "expectedBlocks": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "name": "leading blank lines",
+      "markdown": "\n\na\n\nb",
+      "expectedBlocks": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "name": "single block",
+      "markdown": "just one line",
+      "expectedBlocks": [
+        "just one line"
+      ]
+    }
+  ],
+  "markerCases": [
+    {
+      "id": "edit_abc123",
+      "formatted": "<<<edit:edit_abc123>>>",
+      "valid": true
+    },
+    {
+      "id": "snap-456_xyz",
+      "formatted": "<<<edit:snap-456_xyz>>>",
+      "valid": true
+    },
+    {
+      "id": "abc-123_456",
+      "formatted": "  <<<edit:abc-123_456>>>  ",
+      "valid": true
+    }
+  ]
+}
