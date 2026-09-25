@@ -4,10 +4,9 @@ import {
   validationMessage,
 } from "@/api/app/llm-validate.ts";
 import {
-  LLM_ROLES,
   type LlmProvider,
   type LlmRole,
-  RECOMMENDED_MODEL,
+  ollamaWorkspaceLlmConfig,
   type WorkspaceLlmConfig,
 } from "@/api/kalaidoscope/llm-config.ts";
 import {
@@ -121,25 +120,11 @@ export default function KalaidoscopeSetup() {
    * The provider config to write into the new workspace.
    *
    * Cloud workspaces get none: their AI is provided and not configurable.
-   * Ollama records itself explicitly rather than being left blank — an unwritten
-   * provider is indistinguishable from a workspace that predates provider
-   * config, and leaves the choice as a label rather than saved state. The model
-   * is not optional: the backend rejects a configured provider with no model,
-   * so every role is pinned to the recommended one, which is exactly what the
-   * local model set already resolves to.
    */
   function llmConfig(): WorkspaceLlmConfig | undefined {
     if (storage !== "local_file") return undefined;
 
-    if (fields.llmProvider === "ollama") {
-      return {
-        provider: "ollama",
-        defaultModel: RECOMMENDED_MODEL,
-        roleModels: Object.fromEntries(
-          LLM_ROLES.map((role) => [role, RECOMMENDED_MODEL]),
-        ),
-      };
-    }
+    if (fields.llmProvider === "ollama") return ollamaWorkspaceLlmConfig();
 
     return {
       provider: "gemini",

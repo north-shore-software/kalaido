@@ -36,7 +36,11 @@ func RegisterHooks(app core.App) {
 	// singleton. Hiding the field at the schema level would also strip it
 	// from the app's own update request (PocketBase drops hidden fields from
 	// non-superuser writes), so only the read side is narrowed, here.
+	// has_api_key stands in for it, so settings can say whether a key is
+	// stored without ever reading it.
 	app.OnRecordEnrich(CollectionName).BindFunc(func(e *core.RecordEnrichEvent) error {
+		e.Record.WithCustomData(true)
+		e.Record.Set("has_api_key", e.Record.GetString("api_key") != "")
 		if e.RequestInfo == nil || !e.RequestInfo.HasSuperuserAuth() {
 			e.Record.Hide("api_key")
 		}

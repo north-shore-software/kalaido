@@ -57,6 +57,7 @@ export interface ProviderFieldsProps {
   highlightedFields?: ReadonlySet<"name" | "apiKey" | "model">;
   apiKeyFieldId?: string;
   modelFieldId?: string;
+  apiKeyPlaceholder?: string;
   onProviderChange: (provider: LlmProvider) => void;
   onApiKeyChange: (apiKey: string) => void;
   onDefaultModelChange: (model: string) => void;
@@ -72,6 +73,7 @@ export function ProviderFields({
   highlightedFields,
   apiKeyFieldId: externalApiKeyFieldId,
   modelFieldId: externalModelFieldId,
+  apiKeyPlaceholder = "Paste your Gemini API key",
   onProviderChange,
   onApiKeyChange,
   onDefaultModelChange,
@@ -125,7 +127,7 @@ export function ProviderFields({
                 value={apiKey}
                 disabled={disabled}
                 onChange={(e) => onApiKeyChange(e.target.value)}
-                placeholder="Paste your Gemini API key"
+                placeholder={apiKeyPlaceholder}
                 className={cn(
                   "h-12 w-full pr-10 text-[18px] transition-all duration-150 placeholder:text-muted-foreground/80",
                   highlightedFields?.has("apiKey") && [
