@@ -147,5 +147,19 @@ type ReflectionStatus struct {
 	PendingWindows []Window `json:"pendingWindows,omitempty"`
 	// Reflections: windows whose approved snapshot predates fragments that
 	// now fall inside them (a backdated import, a late-arriving email).
-	StaleWindows []Window `json:"staleWindows,omitempty"`
+	StaleWindows []Window         `json:"staleWindows,omitempty"`
+	Candidate    *CandidateStatus `json:"candidate,omitempty"`
+}
+
+// CandidateStatus describes a projection's pending candidate for the UI:
+// whether it still reflects what a generation would consume now (Outdated,
+// with Reason one of engine.Currency*: new_fragments, context_changed,
+// lens_changed, model_changed) and whether the user has invested in it
+// (Engaged — see engine.CandidateEngaged).
+type CandidateStatus struct {
+	ID             string   `json:"id"`
+	Outdated       bool     `json:"outdated"`
+	Reason         string   `json:"reason,omitempty"`
+	Engaged        bool     `json:"engaged"`
+	NewFragmentIDs []string `json:"newFragmentIds,omitempty"`
 }

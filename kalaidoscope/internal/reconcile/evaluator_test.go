@@ -380,3 +380,46 @@ func TestReflectionStalenessIsPerWindow(t *testing.T) {
 		t.Errorf("stale reflection reports an up-to-date snapshot")
 	}
 }
+
+// The plan reports a pending candidate's own currency, separately from the
+// live snapshot's: which fragments it never saw, and whether the user has
+// invested in it.
+func TestCandidateStatusReportsOutdatedReasonAndEngagement(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":                 "notes",
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
+	})
+	f1 := addFragment(t, app, "first")
+	approveSnapshot(t, app, proj.Id, 1, llmcontext.PinnedIDs{FragmentIDs: []string{f1.Id}})
+	candidate := pendingSnapshot(t, app, proj.Id, llmcontext.PinnedIDs{FragmentIDs: []string{f1.Id}})
+
+	got := evaluate(t, app)[proj.Id]
+	if got.Candidate == nil || got.Candidate.ID != candidate.Id {
+		t.Fatalf("candidate = %+v, want %s", got.Candidate, candidate.Id)
+	}
+	if got.Candidate.Outdated || got.Candidate.Reason != "" || got.Candidate.Engaged {
+		t.Errorf("fresh untouched candidate reported as %+v", got.Candidate)
+	}
+
+	f2 := addFragment(t, app, "second")
+	candidate.Set("edits", pbutil.JSONObject([]api.SnapshotEdit{{ID: "e1", Type: api.EditTypeManual, Status: api.EditStatusApproved}}))
+	if err := app.Save(candidate); err != nil {
+		t.Fatal(err)
+	}
+
+	got = evaluate(t, app)[proj.Id]
+	if got.Candidate == nil || !got.Candidate.Outdated {
+		t.Fatalf("candidate after a new fragment = %+v, want outdated", got.Candidate)
+	}
+	if got.Candidate.Reason != engine.CurrencyNewFragments {
+		t.Errorf("reason = %q, want %q", got.Candidate.Reason, engine.CurrencyNewFragments)
+	}
+	if len(got.Candidate.NewFragmentIDs) != 1 || got.Candidate.NewFragmentIDs[0] != f2.Id {
+		t.Errorf("candidate newFragmentIds = %v, want [%s]", got.Candidate.NewFragmentIDs, f2.Id)
+	}
+	if !got.Candidate.Engaged {
+		t.Error("a hand-edited candidate must report engaged")
+	}
+}

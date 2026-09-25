@@ -103,6 +103,30 @@ func storedOutput(t *testing.T, app core.App, strat Strategy, snapID string) str
 	return snap.GetString("output")
 }
 
+func storedDraft(t *testing.T, app core.App, strat Strategy, snapID string) string {
+	t.Helper()
+	snap, err := app.FindRecordById(strat.SnapshotCollectionName(), snapID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snap.GetString("output_draft")
+}
+
+func reconstructedOutput(t *testing.T, app core.App, strat Strategy, snapID string) string {
+	t.Helper()
+	snap, err := app.FindRecordById(strat.SnapshotCollectionName(), snapID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft := snap.GetString("output_draft")
+	edits := LoadSnapshotEdits(snap)
+	res := draft
+	for _, edit := range edits {
+		res = strings.ReplaceAll(res, FormatEditMarker(edit.ID), edit.ContentAfter)
+	}
+	return res
+}
+
 // With no approved predecessor the raw candidate is the snapshot — one model
 // call, no delta conversation.
 func TestGenerateSnapshotFirstGenerationStoresRawCandidate(t *testing.T) {
@@ -180,8 +204,11 @@ func TestGenerateSnapshotMinimizesAgainstApproved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := storedOutput(t, app, strat, snapID); got != "MERGED V2" {
-		t.Errorf("output = %q, want the merge result", got)
+	if got := storedOutput(t, app, strat, snapID); got != "" {
+		t.Errorf("output = %q, want empty until approved", got)
+	}
+	if got := reconstructedOutput(t, app, strat, snapID); got != "MERGED V2" {
+		t.Errorf("reconstructed = %q, want the merge result", got)
 	}
 
 	calls := script.transcripts()
@@ -221,8 +248,11 @@ func TestGenerateSnapshotNoChangesKeepsPreviousVerbatim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := storedOutput(t, app, strat, snapID); got != "OLD V1" {
-		t.Errorf("output = %q, want the previous output verbatim", got)
+	if got := storedOutput(t, app, strat, snapID); got != "" {
+		t.Errorf("output = %q, want empty until approved", got)
+	}
+	if got := reconstructedOutput(t, app, strat, snapID); got != "OLD V1" {
+		t.Errorf("reconstructed = %q, want the previous output verbatim", got)
 	}
 	if n := len(script.transcripts()); n != 2 {
 		t.Errorf("model calls = %d, want 2 (merge skipped)", n)
@@ -249,8 +279,11 @@ func TestGenerateSnapshotFallsBackToRawCandidateOnDeltaError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := storedOutput(t, app, strat, snapID); got != "RAW V2" {
-		t.Errorf("output = %q, want the raw candidate fallback", got)
+	if got := storedOutput(t, app, strat, snapID); got != "" {
+		t.Errorf("output = %q, want empty until approved", got)
+	}
+	if got := reconstructedOutput(t, app, strat, snapID); got != "RAW V2" {
+		t.Errorf("reconstructed = %q, want the raw candidate fallback", got)
 	}
 }
 

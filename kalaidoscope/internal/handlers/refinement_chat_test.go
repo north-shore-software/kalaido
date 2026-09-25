@@ -13,9 +13,12 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // refineScript answers the turn's calls: the chat leg (its transcript opens
@@ -33,9 +36,12 @@ type refineScript struct {
 	// suggestName, when set, makes the first chat leg emit a bare suggest_name
 	// call (no text) — the shape Gemini returns on a question turn.
 	// continueText is what the continuation leg (no tools advertised) says.
-	suggestName  string
-	continueText string
-	chatCalls    int
+	suggestName       string
+	continueText      string
+	chatCalls         int
+	refineTarget      string
+	refineReplacement string
+	chatHistory       [][]llm.Message
 }
 
 func (s *refineScript) install(t *testing.T) {
@@ -51,7 +57,14 @@ type refineScriptProvider struct{ s *refineScript }
 func (p refineScriptProvider) ContextWindow() int { return 256_000 }
 
 func (p refineScriptProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
-	isChat := msgs[0].Role == "system" && msgs[0].Content == prompts.RefinementSystemPrompt
+	if msgs[0].Role == "system" && msgs[0].Content == prompts.LensCompilerSystemPrompt {
+		ch := make(chan llm.StreamEvent, 1)
+		ch <- llm.StreamEvent{Kind: llm.EventText, Text: p.s.lens}
+		close(ch)
+		return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
+	}
+
+	isChat := msgs[0].Role == "system" && (msgs[0].Content == prompts.RefinementCreationPrompt || msgs[0].Content == prompts.RefinementRevisionPrompt)
 
 	if !isChat {
 		p.s.mu.Lock()
@@ -68,6 +81,7 @@ func (p refineScriptProvider) Stream(ctx context.Context, msgs []llm.Message, to
 
 	p.s.mu.Lock()
 	p.s.chatCalls++
+	p.s.chatHistory = append(p.s.chatHistory, msgs)
 	continuation := p.s.suggestName != "" && p.s.chatCalls > 1
 	p.s.mu.Unlock()
 
@@ -88,11 +102,22 @@ func (p refineScriptProvider) Stream(ctx context.Context, msgs []llm.Message, to
 	if p.s.chatText != "" {
 		ch <- llm.StreamEvent{Kind: llm.EventText, Text: p.s.chatText}
 	}
+	if p.s.refineTarget != "" || p.s.refineReplacement != "" {
+		args, _ := json.Marshal(prompts.RefineCandidateArgs{
+			Target:      p.s.refineTarget,
+			Replacement: p.s.refineReplacement,
+		})
+		ch <- llm.StreamEvent{Kind: llm.EventToolStart, ToolCallID: "tc-refine", ToolName: prompts.RefineCandidateToolName}
+		ch <- llm.StreamEvent{Kind: llm.EventToolEnd, ToolCallID: "tc-refine", ToolName: prompts.RefineCandidateToolName, Args: args}
+	}
 	if p.s.lens != "" {
-		args, _ := json.Marshal(map[string]string{"lens": p.s.lens})
+		args, _ := json.Marshal(map[string]string{"directive": p.s.lens})
 		ch <- llm.StreamEvent{Kind: llm.EventToolStart, ToolCallID: "tc-1", ToolName: prompts.UpdateLensToolName}
 		ch <- llm.StreamEvent{Kind: llm.EventToolArgDelta, ToolCallID: "tc-1", Text: string(args)}
 		ch <- llm.StreamEvent{Kind: llm.EventToolEnd, ToolCallID: "tc-1", ToolName: prompts.UpdateLensToolName, Args: args}
+
+		ch <- llm.StreamEvent{Kind: llm.EventToolStart, ToolCallID: "tc-2", ToolName: prompts.RegenerateFromLensToolName}
+		ch <- llm.StreamEvent{Kind: llm.EventToolEnd, ToolCallID: "tc-2", ToolName: prompts.RegenerateFromLensToolName, Args: []byte("{}")}
 	}
 	close(ch)
 	return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
@@ -433,5 +458,304 @@ func TestRefinementApplyFailurePersistsErrorNotice(t *testing.T) {
 	}
 	if _, ok := parts["tool-"+prompts.UpdateLensToolName]; !ok {
 		t.Error("the lens part must survive an apply failure")
+	}
+}
+
+func TestRefinementRegenerateWithAcceptedEditsBlocksApply(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	snap := testutil.NewRecord(t, app, schema.ColProjectionSnapshot.String(), map[string]any{
+		"projection_id": ref.GetString("projection_id"),
+		"status":        engine.StatusPending,
+		"output_draft":  "Draft",
+		"output_raw":    "Raw",
+		"edits": pbutil.JSONObject([]api.SnapshotEdit{
+			{
+				ID:            "e1",
+				Sequence:      1,
+				Type:          api.EditTypeRefinement,
+				Status:        api.EditStatusApproved,
+				ContentBefore: "A",
+				ContentAfter:  "B",
+			},
+		}),
+	})
+	ref.Set("projection_snapshot_id", snap.Id)
+	if err := app.Save(ref); err != nil {
+		t.Fatal(err)
+	}
+
+	script := &refineScript{lens: "UPDATED LENS", applyOut: "NEW OUTPUT"}
+	script.install(t)
+
+	body, msgs := runRefinementTurn(t, app, ref, "make it shorter")
+
+	if !strings.Contains(body, `"type":"`+prompts.RegenerateConfirmationPartType+`"`) {
+		t.Error("regenerate confirmation data part not streamed")
+	}
+	if strings.Contains(body, prompts.ApplyResultToolName) {
+		t.Error("apply result should not be streamed when confirmation is pending")
+	}
+
+	parts := assistantParts(t, msgs)
+	if _, ok := parts[prompts.RegenerateConfirmationPartType]; !ok {
+		t.Error("regenerate confirmation part not persisted")
+	}
+	if _, ok := parts["tool-"+prompts.ApplyResultToolName]; ok {
+		t.Error("apply part should not be persisted when confirmation is pending")
+	}
+
+	script.mu.Lock()
+	applies := len(script.applyCalls)
+	script.mu.Unlock()
+	if applies != 0 {
+		t.Errorf("apply model calls = %d, want 0", applies)
+	}
+}
+
+func TestRefinementRegenerateConfirmedRunsApply(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	snap := testutil.NewRecord(t, app, schema.ColProjectionSnapshot.String(), map[string]any{
+		"projection_id": ref.GetString("projection_id"),
+		"status":        engine.StatusPending,
+		"output_draft":  "Draft",
+		"output_raw":    "Raw",
+		"edits": pbutil.JSONObject([]api.SnapshotEdit{
+			{
+				ID:            "e1",
+				Sequence:      1,
+				Type:          api.EditTypeRefinement,
+				Status:        api.EditStatusApproved,
+				ContentBefore: "A",
+				ContentAfter:  "B",
+			},
+		}),
+	})
+	ref.Set("projection_snapshot_id", snap.Id)
+	if err := app.Save(ref); err != nil {
+		t.Fatal(err)
+	}
+
+	script := &refineScript{lens: "UPDATED LENS", applyOut: "NEW OUTPUT"}
+	script.install(t)
+
+	_, msgs := runRefinementTurnID(t, app, ref, "user-1", "make it shorter")
+	parts := assistantParts(t, msgs)
+	if _, ok := parts[prompts.RegenerateConfirmationPartType]; !ok {
+		t.Fatal("regenerate confirmation part not persisted on first turn")
+	}
+
+	confirmReq := api.ChatRequest{
+		ID: ref.GetString("external_conversation_id"),
+		Messages: []api.UIMessage{{
+			ID:    "confirm-msg",
+			Role:  "system",
+			Parts: []api.UIMessagePart{{Type: prompts.RegenerateConfirmPartType}},
+		}},
+	}
+	rec := httptest.NewRecorder()
+	e := &core.RequestEvent{App: app}
+	e.Request = httptest.NewRequest("POST", "/api/chat", nil)
+	e.Response = rec
+
+	if err := HandleChatForRefinement(app, confirmReq, ref)(e); err != nil {
+		t.Fatalf("handler confirm: %v", err)
+	}
+
+	allMsgs, err := chat.LoadMessages(context.Background(), app, ref)
+	if err != nil {
+		t.Fatalf("load messages: %v", err)
+	}
+	secondTurnParts := assistantParts(t, allMsgs)
+	if _, ok := secondTurnParts["tool-"+prompts.ApplyResultToolName]; !ok {
+		t.Fatal("apply part not persisted on confirmed turn")
+	}
+
+	script.mu.Lock()
+	applies := len(script.applyCalls)
+	script.mu.Unlock()
+	if applies != 1 {
+		t.Errorf("apply model calls = %d, want 1", applies)
+	}
+}
+
+func TestRefinementRegenerateWithNoAcceptedEditsRunsStraightThrough(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	snap := testutil.NewRecord(t, app, schema.ColProjectionSnapshot.String(), map[string]any{
+		"projection_id": ref.GetString("projection_id"),
+		"status":        engine.StatusPending,
+		"output_draft":  "Draft",
+		"output_raw":    "Raw",
+		"edits": pbutil.JSONObject([]api.SnapshotEdit{
+			{
+				ID:            "e1",
+				Sequence:      1,
+				Type:          api.EditTypeRefinement,
+				Status:        api.EditStatusProposed,
+				ContentBefore: "A",
+				ContentAfter:  "B",
+			},
+		}),
+	})
+	ref.Set("projection_snapshot_id", snap.Id)
+	if err := app.Save(ref); err != nil {
+		t.Fatal(err)
+	}
+
+	script := &refineScript{lens: "UPDATED LENS", applyOut: "NEW OUTPUT"}
+	script.install(t)
+
+	body, msgs := runRefinementTurn(t, app, ref, "make it shorter")
+
+	if strings.Contains(body, prompts.RegenerateConfirmationPartType) {
+		t.Error("regenerate confirmation data part should not be streamed without accepted edits")
+	}
+	if !strings.Contains(body, prompts.ApplyResultToolName) {
+		t.Error("apply result should be streamed when no accepted edits exist")
+	}
+
+	parts := assistantParts(t, msgs)
+	if _, ok := parts[prompts.RegenerateConfirmationPartType]; ok {
+		t.Error("regenerate confirmation part should not be persisted")
+	}
+	if _, ok := parts["tool-"+prompts.ApplyResultToolName]; !ok {
+		t.Error("apply part should be persisted")
+	}
+
+	script.mu.Lock()
+	applies := len(script.applyCalls)
+	script.mu.Unlock()
+	if applies != 1 {
+		t.Errorf("apply model calls = %d, want 1", applies)
+	}
+}
+
+func TestRefinementFailedProposeYieldsNoticeNextTurnSees(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	snap := testutil.NewRecord(t, app, schema.ColProjectionSnapshot.String(), map[string]any{
+		"projection_id": ref.GetString("projection_id"),
+		"status":        engine.StatusPending,
+		"output_draft":  "Existing paragraph 1\n\nExisting paragraph 2",
+		"output_raw":    "Existing paragraph 1\n\nExisting paragraph 2",
+	})
+	ref.Set("projection_snapshot_id", snap.Id)
+	if err := app.Save(ref); err != nil {
+		t.Fatal(err)
+	}
+
+	script := &refineScript{
+		refineTarget:      "nonexistent passage",
+		refineReplacement: "replacement passage",
+	}
+	script.install(t)
+
+	_, msgs := runRefinementTurnID(t, app, ref, "user-1", "refine the nonexistent part")
+	parts := assistantParts(t, msgs)
+	resultData, ok := parts[prompts.RefineResultPartType]
+	if !ok {
+		t.Fatal("refine_result part not persisted")
+	}
+	var res struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(resultData, &res); err != nil || res.OK {
+		t.Fatalf("expected failed propose result, got ok=%v, err=%v", res.OK, err)
+	}
+
+	script.mu.Lock()
+	script.refineTarget = ""
+	script.refineReplacement = ""
+	script.chatText = "Okay, let's fix it."
+	script.mu.Unlock()
+
+	runRefinementTurnID(t, app, ref, "user-2", "try again")
+
+	script.mu.Lock()
+	history := script.chatHistory
+	script.mu.Unlock()
+
+	if len(history) < 2 {
+		t.Fatalf("expected at least 2 chat turns, got %d", len(history))
+	}
+	secondTurnMsgs := history[1]
+	var foundNotice bool
+	for _, m := range secondTurnMsgs {
+		if m.Role == "system" && strings.Contains(m.Content, "Refinement proposal failed:") {
+			foundNotice = true
+			if !strings.Contains(m.Content, "refinement target passage not found in draft") {
+				t.Errorf("system notice missing error reason: %s", m.Content)
+			}
+			break
+		}
+	}
+	if !foundNotice {
+		t.Error("second turn did not see failure notice in system messages")
+	}
+}
+
+func TestRefinementSuccessfulProposeYieldsNoticeNextTurnSees(t *testing.T) {
+	app := testutil.NewApp(t)
+	ref := newRefinement(t, app)
+	snap := testutil.NewRecord(t, app, schema.ColProjectionSnapshot.String(), map[string]any{
+		"projection_id": ref.GetString("projection_id"),
+		"status":        engine.StatusPending,
+		"output_draft":  "Existing paragraph 1\n\nExisting paragraph 2",
+		"output_raw":    "Existing paragraph 1\n\nExisting paragraph 2",
+	})
+	ref.Set("projection_snapshot_id", snap.Id)
+	if err := app.Save(ref); err != nil {
+		t.Fatal(err)
+	}
+
+	script := &refineScript{
+		refineTarget:      "Existing paragraph 1",
+		refineReplacement: "New paragraph 1",
+	}
+	script.install(t)
+
+	_, msgs := runRefinementTurnID(t, app, ref, "user-1", "refine paragraph 1")
+	parts := assistantParts(t, msgs)
+	resultData, ok := parts[prompts.RefineResultPartType]
+	if !ok {
+		t.Fatal("refine_result part not persisted")
+	}
+	var res struct {
+		OK       bool `json:"ok"`
+		Sequence int  `json:"sequence"`
+	}
+	if err := json.Unmarshal(resultData, &res); err != nil || !res.OK {
+		t.Fatalf("expected successful propose result, got ok=%v, err=%v", res.OK, err)
+	}
+
+	script.mu.Lock()
+	script.refineTarget = ""
+	script.refineReplacement = ""
+	script.chatText = "Proposal submitted."
+	script.mu.Unlock()
+
+	runRefinementTurnID(t, app, ref, "user-2", "what next?")
+
+	script.mu.Lock()
+	history := script.chatHistory
+	script.mu.Unlock()
+
+	if len(history) < 2 {
+		t.Fatalf("expected at least 2 chat turns, got %d", len(history))
+	}
+	secondTurnMsgs := history[1]
+	var foundNotice bool
+	wantNotice := prompts.RefineProposalSuccessNotice(res.Sequence)
+	for _, m := range secondTurnMsgs {
+		if m.Role == "system" && strings.Contains(m.Content, wantNotice) {
+			foundNotice = true
+			break
+		}
+	}
+	if !foundNotice {
+		t.Errorf("second turn did not see success notice %q in system messages", wantNotice)
 	}
 }

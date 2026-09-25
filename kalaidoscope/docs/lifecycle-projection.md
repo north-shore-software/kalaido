@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Projection Lifecycle — Generated Audit Snapshot
 
 > **Generated:** 2026-09-23, from source at commit `bdd0b9a`.
@@ -100,11 +102,10 @@ Response `200 {snapshotId}`. Error mapping: quota exhausted → 402 (`llm-queue-
 
 1. The projection is loaded live (a missing or soft-deleted one → 500 `edit failed`). The candidate must be `pending_review` → else 409 `edit rejected: candidate is not pending review`.
 2. `oldText == newText` → `edit changes nothing`; then `oldText` must occur exactly once in the candidate's `output`: zero occurrences → `selected text not found in candidate`; more than one → `selected text occurs more than once in candidate`; a replacement leaving only whitespace → `edit would empty the candidate`. Each → 422 `edit rejected: <text>`. An empty `newText` deletes the passage.
-3. A `fragment` row is created: `type = edit`, `ingested_via = app`, `source` = `edit to projection "<name>" (candidate <rid>)`, `content` = the before/after passages in the edit-fragment format (`prompts.md` § 1), `occurred_at = now`. Its birth hooks fire as for any app-written fragment (`ingestion.md` § 7).
-4. The fragment's id is appended (once) to the projection's `current_context_spec.fragmentIds`; a spec that fails to parse fails the edit (500).
-5. A new `pending_review` snapshot is appended: `output` = the candidate's with the passage replaced; `lens_id` and `generated_by_model` copied from the source; `context_spec` = the source's plus the fragment id; `resolved_context` = the source's with the fragment id added to `fragmentIds` and `expandedIds`; `generation_trigger` and `created_from_refinement_id` empty; `generated_at = now`. No model call is made.
+3. If fragment creation is enabled via `KALAIDO_HAND_EDIT_CREATE_FRAGMENT` (default disabled), a `fragment` row is created: `type = edit`, `ingested_via = app`, `source` = `edit to projection "<name>" (candidate <rid>)`, `content` = the before/after passages in the edit-fragment format (`prompts.md` § 1), `occurred_at = now`. Its birth hooks fire as for any app-written fragment (`ingestion.md` § 7). The fragment's id is appended (once) to the projection's `current_context_spec.fragmentIds`. When disabled (default), no fragment is created and the parent's context spec is untouched.
+4. The candidate snapshot is updated in place: `output_draft` contains the updated content, `output` is cleared, and an `approved` manual edit is appended to `edits` (carrying `fragmentId` when created, or empty). If a fragment was created, its id is appended to `context_spec` and `resolved_context`. No model call is made.
 
-The source candidate stays `pending_review`, so two candidates coexist; approving either (§ 4.3), or completing any generation (§ 4.2 step 8), discards the other. Because the approved snapshot's receipt lacks the new fragment, staleness reports it under `newFragmentIds` until the edited candidate, or a later regeneration, is approved (`reconcile.md` § 2). No in-flight check is made. Response `200 {snapshotId, fragmentId}`. Any other failure → 500 `edit failed`.
+Response `200 {fragmentId, edit}` where `fragmentId` is empty when disabled. Any other failure → 500 `edit failed`.
 
 ## 5. Model resolution
 

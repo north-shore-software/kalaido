@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Refinement — Generated Audit Snapshot
 
 > **Generated:** 2026-09-23, from source at commit `bdd0b9a`.

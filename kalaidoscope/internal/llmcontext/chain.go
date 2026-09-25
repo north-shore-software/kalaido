@@ -29,3 +29,21 @@ func GenerationTriggerFromContext(ctx stdctx.Context) string {
 	}
 	return ""
 }
+
+type settleUnchangedKey struct{}
+
+// WithSettleUnchanged marks ctx as a fold-in: an interactive regeneration whose
+// intent is "bring this entity up to date", not "show me the result". A
+// no-change result then settles the approved snapshot in place instead of
+// parking an identical candidate, exactly as a speculative wave would — but
+// without the wave's speculative resolution (unapproved upstream candidates
+// are not consumed) and without stamping generation_trigger on the row.
+func WithSettleUnchanged(ctx stdctx.Context) stdctx.Context {
+	return stdctx.WithValue(ctx, settleUnchangedKey{}, true)
+}
+
+// SettleUnchangedFromContext reports whether ctx carries the fold-in mark.
+func SettleUnchangedFromContext(ctx stdctx.Context) bool {
+	v, _ := ctx.Value(settleUnchangedKey{}).(bool)
+	return v
+}

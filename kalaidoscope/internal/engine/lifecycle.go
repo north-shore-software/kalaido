@@ -27,6 +27,9 @@ type SnapshotSpec struct {
 	SourceID        string
 	LensID          string
 	Output          string
+	OutputRaw       string
+	OutputDraft     string
+	Edits           []api.SnapshotEdit
 	ContextSpec     api.ContextSpec
 	ResolvedContext llmcontext.PinnedIDs
 	// Reflections: the window this snapshot covers; nil for a windowless
@@ -65,6 +68,13 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, strat Strategy, s
 	snap.Set(strat.ForeignKeyCol(), s.SourceID)
 	snap.Set("lens_id", s.LensID)
 	snap.Set("output", s.Output)
+	snap.Set("output_raw", s.OutputRaw)
+	snap.Set("output_draft", s.OutputDraft)
+	if s.Edits != nil {
+		snap.Set("edits", pbutil.JSONObject(s.Edits))
+	} else if snap.Get("edits") == nil {
+		snap.Set("edits", pbutil.JSONObject([]api.SnapshotEdit{}))
+	}
 	snap.Set("context_spec", pbutil.JSONObject(s.ContextSpec))
 	snap.Set("resolved_context", pbutil.JSONObject(s.ResolvedContext))
 
@@ -83,6 +93,12 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, strat Strategy, s
 	}
 	snap.Set("generation_trigger", trigger)
 	snap.Set("generated_at", types.NowDateTime())
+}
+
+func LoadSnapshotEdits(rec *core.Record) []api.SnapshotEdit {
+	var edits []api.SnapshotEdit
+	_ = rec.UnmarshalJSONField("edits", &edits)
+	return edits
 }
 
 // completeClaimedSnapshot fills the generation claim row with the finished
@@ -127,6 +143,13 @@ func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshot
 			return fmt.Errorf("%w: generation still running", ErrNotApprovable)
 		case StatusDiscarded:
 			return fmt.Errorf("%w: candidate was superseded", ErrNotApprovable)
+		}
+		if strings.TrimSpace(snap.GetString("output")) == "" {
+			draft := snap.GetString("output_draft")
+			if HasUnresolvedEditMarkers(draft) {
+				return fmt.Errorf("%w: candidate has unresolved edits", ErrNotApprovable)
+			}
+			snap.Set("output", strings.TrimSpace(draft))
 		}
 		if strings.TrimSpace(snap.GetString("output")) == "" {
 			return fmt.Errorf("%w: candidate has no content", ErrNotApprovable)
@@ -234,6 +257,37 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		lensRec.Set(strat.RefinementForeignKeyCol(), refinementID)
 		if err := tx.Save(lensRec); err != nil {
 			return err
+		}
+
+		if sourceSnapshotID != "" && strat.TargetType() != "reflection" {
+			if sourceSnap, err := tx.FindRecordById(strat.SnapshotCollectionName(), sourceSnapshotID); err == nil && sourceSnap.GetString("status") == StatusPending {
+				draft := strings.TrimSpace(sourceSnap.GetString("output_draft"))
+				if draft == "" {
+					draft = strings.TrimSpace(sourceSnap.GetString("output"))
+				}
+				if draft == "" {
+					draft = strings.TrimSpace(output)
+				}
+				if HasUnresolvedEditMarkers(draft) {
+					return fmt.Errorf("%w: candidate has unresolved edits", ErrNotApprovable)
+				}
+				sourceSnap.Set("output", draft)
+				sourceSnap.Set("lens_id", lensRec.Id)
+				sourceSnap.Set("context_spec", pbutil.JSONObject(spec))
+				sourceSnap.Set("resolved_context", pbutil.JSONObject(pinned))
+				if err := tx.Save(sourceSnap); err != nil {
+					return err
+				}
+				if err := ApproveSnapshot(ctx, tx, strat, sourceSnap.Id); err != nil {
+					return err
+				}
+				newSnapID = sourceSnap.Id
+
+				parentRec.Set("current_lens_id", lensRec.Id)
+				parentRec.Set("current_context_spec", pbutil.JSONObject(spec))
+				parentRec.Set("status", EntityActive)
+				return tx.Save(parentRec)
+			}
 		}
 
 		snapID, err := strat.CommitRefinementSnapshot(ctx, tx, parentRec, lensRec, output, pinned, spec, generationTrigger, refinementID)
