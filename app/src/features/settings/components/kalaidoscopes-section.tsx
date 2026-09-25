@@ -3,6 +3,7 @@ import { Label, StatusPill } from "@/components/kalaido";
 import { SectionHeader } from "@/components/layout/section";
 import { appState } from "@/hooks/use-app-state.ts";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
+import { WorkspaceAiPanel } from "./workspace-ai-panel";
 
 export function KalaidoscopesSection() {
   const { appStage, availableKalaidoscopes: kalaidoscopes } =
@@ -21,7 +22,11 @@ export function KalaidoscopesSection() {
         title="Manage Kalaidoscopes"
         description="All kalaidoscopes stored in this application."
       />
-      {active && <KalaidoscopeRow kalaidoscope={active} isActive />}
+      {active && (
+        <KalaidoscopeRow kalaidoscope={active} isActive>
+          <WorkspaceAiPanel kalaidoscope={active} />
+        </KalaidoscopeRow>
+      )}
       {others.length > 0 && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2.5">
