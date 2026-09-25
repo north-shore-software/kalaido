@@ -111,6 +111,26 @@ export const WithReviewCandidate: Story = () => (
   </Frame>
 );
 
+export const WithEngagedOutdatedCandidate: Story = () => (
+  <Frame>
+    <ProjCard
+      p={mockProjections[1]}
+      candidateId="snap-3"
+      status={{
+        status: "pending",
+        entropy: 2,
+        blockedBy: [],
+        candidateOutdated: true,
+        candidateEngaged: true,
+      }}
+      newSinceCandidate={2}
+      description={description}
+      sources={mixed}
+      {...handlers}
+    />
+  </Frame>
+);
+
 export const Badges: Story = () => (
   <div className="p-4 flex flex-col gap-4">
     <div>

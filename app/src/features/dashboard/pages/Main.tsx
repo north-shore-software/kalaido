@@ -270,6 +270,7 @@ export default function Main() {
       if (!t.snapshotId) return;
       go(mainTransitions.reviewProjection, {
         params: { id: t.id, snapshotId: t.snapshotId },
+        state: { wave: true },
       });
     },
   });

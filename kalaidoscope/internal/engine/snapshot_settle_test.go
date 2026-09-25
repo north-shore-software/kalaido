@@ -152,3 +152,39 @@ func TestGenerateSnapshotInteractiveNoChangeStillParksCandidate(t *testing.T) {
 		t.Errorf("interactive no-change status = %q, want pending_review", rec.GetString("status"))
 	}
 }
+
+// A fold-in regeneration (the user approved an outdated candidate and asked to
+// bring the projection up to date) settles a no-change result in place like a
+// speculative wave would, but it is not a wave: the row is not stamped as
+// generate_all and resolution stays non-speculative.
+func TestGenerateSnapshotFoldInNoChangeSettlesInPlace(t *testing.T) {
+	app := testutil.NewApp(t)
+	strat := ProjectionStrategy{}
+	proj := genFixture(t, app, "projection")
+	priorApproved(t, app, strat, proj, "OLD V1", nil)
+	approvedID := allSnapshots(t, app, strat, proj.Id)[0].Id
+
+	script := &snapshotScript{reply: func(msgs []llm.Message) (string, error) {
+		return "OLD V1", nil
+	}}
+	script.install(t)
+
+	before := len(allSnapshots(t, app, strat, proj.Id))
+	snapID, err := GenerateSnapshot(llmcontext.WithSettleUnchanged(context.Background()), app, proj.Id, StatusPending, strat, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapID != approvedID {
+		t.Errorf("fold-in no-change returned %s, want the approved row %s settled in place", snapID, approvedID)
+	}
+	if after := len(allSnapshots(t, app, strat, proj.Id)); after != before {
+		t.Errorf("fold-in no-change grew snapshots %d -> %d, want unchanged", before, after)
+	}
+	rec, err := app.FindRecordById(strat.SnapshotCollectionName(), approvedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.GetString("generation_trigger") != "" {
+		t.Errorf("fold-in stamped generation_trigger = %q, want none", rec.GetString("generation_trigger"))
+	}
+}

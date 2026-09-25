@@ -11,6 +11,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -224,6 +225,43 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 		liveSnapID = snapRec.Id
 	}
 
+	var currentPinned llmcontext.PinnedIDs
+	var resolvedSpec bool
+
+	if n.entityType == "projection" {
+		strat := projections.Strategy{}
+		candRec, err := engine.FindPendingCandidate(e.app, strat, n.record.Id, nil)
+		if err != nil {
+			return status, err
+		}
+		if candRec != nil {
+			engaged, err := engine.CandidateEngaged(e.app, strat, candRec)
+			if err != nil {
+				return status, err
+			}
+			pinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, nil)
+			if err != nil {
+				return status, err
+			}
+			currentPinned = pinned
+			resolvedSpec = true
+			current, reason := engine.SnapshotCurrency(n.record, candRec, pinned)
+			var candRecorded llmcontext.PinnedIDs
+			_ = candRec.UnmarshalJSONField("resolved_context", &candRecorded)
+			newIDs := pinned.Diff(candRecorded).FragmentIDs
+			if reason == engine.CurrencyContextChanged && len(newIDs) > 0 {
+				reason = engine.CurrencyNewFragments
+			}
+			status.Candidate = &api.CandidateStatus{
+				ID:             candRec.Id,
+				Outdated:       !current,
+				Reason:         reason,
+				Engaged:        engaged,
+				NewFragmentIDs: newIDs,
+			}
+		}
+	}
+
 	if liveSnapID == "" {
 		// Draft entity: ignore staleness according to plan.
 		return status, nil
@@ -238,10 +276,12 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 	var recordedPinned llmcontext.PinnedIDs
 	_ = snapRec.UnmarshalJSONField("resolved_context", &recordedPinned)
 
-	// Resolve the spec to see what it *should* include right now
-	currentPinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, nil)
-	if err != nil {
-		return status, err
+	if !resolvedSpec {
+		pinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, nil)
+		if err != nil {
+			return status, err
+		}
+		currentPinned = pinned
 	}
 
 	// Diff them: what's in current that's not in recorded?

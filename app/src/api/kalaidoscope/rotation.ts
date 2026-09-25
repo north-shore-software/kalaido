@@ -37,6 +37,30 @@ export interface EntityStatus {
    * fall inside them (a backdated import). Regenerating them picks those up.
    */
   staleWindows?: Window[];
+  candidate?: CandidateStatus;
+}
+
+/** Why a candidate is outdated; mirrors `engine.Currency*` on the backend. */
+export type CandidateOutdatedReason =
+  | "new_fragments"
+  | "context_changed"
+  | "lens_changed"
+  | "model_changed";
+
+/**
+ * A projection's pending candidate, as the plan sees it: whether it still
+ * reflects what a generation would consume now, and whether the user has
+ * invested in it (hand edits, chat proposals, an open refinement). The machine
+ * never replaces an engaged candidate.
+ */
+export interface CandidateStatus {
+  id: string;
+  outdated: boolean;
+  /** Set only when `outdated`. */
+  reason?: CandidateOutdatedReason;
+  engaged: boolean;
+  /** In-scope fragments the candidate's resolved context never saw. */
+  newFragmentIds?: string[];
 }
 
 export interface StatusResponse {

@@ -44,11 +44,14 @@ export interface UseCollectionResult<T> extends SWRResponse<T[], Error> {
  * is automatically scoped to the open kalaidoscope and never leaks across them.
  * Mutating data elsewhere? Call the returned `mutate()` to revalidate.
  */
-export function useCollection<N extends CollectionName>(
+export function useCollection<
+  N extends CollectionName,
+  R = CollectionResponses[N],
+>(
   collection: N,
   query: CollectionQuery = {},
-  config?: SWRConfiguration<CollectionResponses[N][], Error>,
-): UseCollectionResult<CollectionResponses[N]> {
+  config?: SWRConfiguration<R[], Error>,
+): UseCollectionResult<R> {
   const client = useKalaidoscopeClient();
   const { enabled = true, ...params } = query;
 
@@ -58,10 +61,10 @@ export function useCollection<N extends CollectionName>(
     ? (["collection", client.baseURL, collection, params] as const)
     : null;
 
-  const swr = useSWR<CollectionResponses[N][], Error>(
+  const swr = useSWR<R[], Error>(
     key,
     () =>
-      client.collection(collection).getFullList({
+      client.collection(collection).getFullList<R>({
         ...params,
         // SWR owns deduping and revalidation, so disable PocketBase's
         // auto-cancellation — otherwise concurrent revalidations reject each

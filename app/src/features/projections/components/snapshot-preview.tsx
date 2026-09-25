@@ -7,6 +7,7 @@ import {
   StatusPill,
 } from "@/components/kalaido";
 import type { ProjectionSnapshotState } from "@/hooks/use-projection-snapshot";
+import { SnapshotEditMarkers } from "./snapshot-edit-markers";
 
 export interface SnapshotPreviewProps {
   state: ProjectionSnapshotState;
@@ -88,11 +89,16 @@ export function SnapshotPreview({
               <div className="mb-4 flex items-center gap-2.5">
                 <Pill tone="primary">plan of record</Pill>
               </div>
-              <div className="max-w-[640px] text-body leading-relaxed text-fg-1">
-                {state.output.content ? (
-                  <MarkdownContent content={state.output.content} />
-                ) : (
-                  "(empty snapshot)"
+              <div className="flex items-start gap-8">
+                <div className="max-w-[640px] flex-1 text-body leading-relaxed text-fg-1">
+                  {state.output.content ? (
+                    <MarkdownContent content={state.output.content} />
+                  ) : (
+                    "(empty snapshot)"
+                  )}
+                </div>
+                {state.current.edits && state.current.edits.length > 0 && (
+                  <SnapshotEditMarkers edits={state.current.edits} />
                 )}
               </div>
             </>

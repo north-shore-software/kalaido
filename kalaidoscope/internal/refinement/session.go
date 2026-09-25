@@ -8,12 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
@@ -100,6 +102,11 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 		}
 		for _, p := range m.Parts {
 			switch p.Type {
+			case prompts.LensPartType:
+				var data prompts.LensPartData
+				if err := json.Unmarshal(p.Data, &data); err == nil && strings.TrimSpace(data.Lens) != "" {
+					lens = strings.TrimSpace(data.Lens)
+				}
 			case "tool-" + prompts.UpdateLensToolName:
 				var data struct {
 					Input struct {
@@ -151,7 +158,8 @@ func CreateProjectionRefinement(app core.App, clientID, targetID, snapshotID str
 		rec := core.NewRecord(col)
 		rec.Set("external_conversation_id", clientID)
 
-		if _, err := projections.FindLive(txApp, targetID); err != nil {
+		parent, err := projections.FindLive(txApp, targetID)
+		if err != nil {
 			return err
 		}
 		rec.Set("projection_id", targetID)
@@ -201,6 +209,13 @@ func CreateProjectionRefinement(app core.App, clientID, targetID, snapshotID str
 				return err
 			}
 			seeded = append(seeded, msg)
+		}
+
+		if lensMsg, ok := SeedLensTurn(txApp, parent, nil); ok {
+			if _, err := chat.PersistMessage(context.Background(), txApp, rec, lensMsg, ""); err != nil {
+				return err
+			}
+			seeded = append(seeded, lensMsg)
 		}
 
 		return nil
@@ -304,10 +319,6 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 	if lens == "" {
 		return "", ErrNoDraftedLens
 	}
-	if output == "" {
-		return "", ErrNoPreviewOutput
-	}
-
 	strat := strategyFor(refRec)
 	parent := parentID(app, refRec, strat)
 	if parent == "" {
@@ -318,6 +329,19 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 	}
 
 	sourceSnapID := refRec.GetString(strat.TargetType() + "_snapshot_id")
+	if output == "" && sourceSnapID != "" {
+		if snap, err := app.FindRecordById(strat.SnapshotCollectionName(), sourceSnapID); err == nil {
+			if draft := strings.TrimSpace(snap.GetString("output_draft")); draft != "" {
+				output = draft
+			} else if approved := strings.TrimSpace(snap.GetString("output")); approved != "" {
+				output = approved
+			}
+		}
+	}
+	if output == "" {
+		return "", ErrNoPreviewOutput
+	}
+
 	newSnapID, err := engine.CommitRefinement(ctx, app, strat, parent, sourceSnapID, lens, output, pinned, spec, refRec.Id)
 	if err != nil {
 		logger().Error("refinement commit failed", "error", err)
@@ -337,5 +361,175 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 		logger().Info("refinement committed", "target_type", strat.TargetType(), "id", parent, "refinement_id", refRec.Id, "snapshot_id", newSnapID)
 	}
 
+	return newSnapID, nil
+}
+
+func MaterializeCandidateIfNew(ctx context.Context, app core.App, refRec *core.Record, lens string, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, suggestedName string, model string) (string, error) {
+	if refRec.Collection().Name != schema.ColProjectionRefinement.String() {
+		return "", nil
+	}
+	projID := refRec.GetString("projection_id")
+	if projID == "" {
+		return "", nil
+	}
+
+	snapID := refRec.GetString("projection_snapshot_id")
+	if snapID != "" {
+		snapRec, err := app.FindRecordById(schema.ColProjectionSnapshot.String(), snapID)
+		if err == nil && snapRec.GetString("status") == engine.StatusPending {
+			strat := projections.Strategy{}
+			priorEdits := engine.LoadSnapshotEdits(snapRec)
+
+			// The regeneration is presented as deltas on the text the user was
+			// looking at: the candidate draft with accepted edits inlined and
+			// undecided proposals shown as their original passages. Only a
+			// candidate that never had a draft falls back to the approved
+			// output, and one with neither is replaced wholesale.
+			prev := engine.ResolveDraftBaseline(snapRec.GetString("output_draft"), priorEdits)
+			if strings.TrimSpace(prev) == "" {
+				if snaps, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), "projection_id = {:pid} && status = {:status}", "-approval_sequence_number", 1, 0, dbx.Params{"pid": projID, "status": engine.StatusApproved}); err == nil && len(snaps) > 0 {
+					prev = snaps[0].GetString("output")
+				}
+			}
+
+			var newDraft string
+			var newEdits []api.SnapshotEdit
+			if strings.TrimSpace(prev) != "" {
+				newDraft, newEdits = engine.DiffAndMarkBlocks(prev, output, api.EditTypeRegeneration)
+			} else {
+				newDraft = output
+				newEdits = []api.SnapshotEdit{}
+			}
+
+			// Prior edits are superseded by the regeneration, except an accepted
+			// edit whose passage the regenerated text still carries verbatim:
+			// that one stands, re-anchored to where the passage now sits.
+			maxSeq := 0
+			var supersededSeqs, keptSeqs []int
+			now := time.Now().UTC().Format(time.RFC3339)
+			undoableFalse := false
+
+			for i := range priorEdits {
+				e := &priorEdits[i]
+				if e.Sequence > maxSeq {
+					maxSeq = e.Sequence
+				}
+				if e.Status == api.EditStatusApproved && e.InlinedText != "" && strings.Contains(newDraft, e.InlinedText) {
+					if idx := engine.BlockRunIndex(newDraft, e.InlinedText); idx >= 0 {
+						e.BlockIndex = idx
+					}
+					e.UpdatedAt = now
+					keptSeqs = append(keptSeqs, e.Sequence)
+					continue
+				}
+				if e.Status != api.EditStatusSuperseded {
+					supersededSeqs = append(supersededSeqs, e.Sequence)
+				}
+				e.Status = api.EditStatusSuperseded
+				e.UndoReason = "regenerated"
+				e.Undoable = &undoableFalse
+				e.UpdatedAt = now
+			}
+
+			for i := range newEdits {
+				newEdits[i].Sequence = maxSeq + 1 + i
+			}
+
+			combinedEdits := append(priorEdits, newEdits...)
+
+			if lensCol, err := app.FindCollectionByNameOrId(strat.LensCollectionName()); err == nil {
+				lensRec := core.NewRecord(lensCol)
+				lensRec.Set("prompt", lens)
+				lensRec.Set(strat.RefinementForeignKeyCol(), refRec.Id)
+				if err := app.Save(lensRec); err == nil {
+					snapRec.Set("lens_id", lensRec.Id)
+				}
+			}
+
+			snapRec.Set("output_draft", newDraft)
+			snapRec.Set("output_raw", output)
+			snapRec.Set("edits", pbutil.JSONObject(combinedEdits))
+			snapRec.Set("context_spec", pbutil.JSONObject(spec))
+			snapRec.Set("resolved_context", pbutil.JSONObject(pinned))
+			snapRec.Set("generated_by_model", model)
+			if err := app.Save(snapRec); err != nil {
+				logger().Error("failed to save candidate snapshot", "error", err, "snapshot_id", snapID)
+				return "", err
+			}
+
+			if len(supersededSeqs) > 0 || len(keptSeqs) > 0 {
+				noticeText := prompts.RegenerateSupersededNotice(supersededSeqs, keptSeqs)
+				noticeData, _ := json.Marshal(prompts.RegenerateSupersededData{
+					Sequences: supersededSeqs,
+					Kept:      keptSeqs,
+				})
+				msg := api.UIMessage{
+					ID:   fmt.Sprintf("superseded-regen-%d", time.Now().UnixNano()),
+					Role: "system",
+					Parts: []api.UIMessagePart{
+						{
+							Type: prompts.RegenerateSupersededPartType,
+							Text: noticeText,
+							Data: noticeData,
+						},
+					},
+				}
+				_, _ = chat.PersistMessage(ctx, app, refRec, msg, "")
+			}
+		}
+		return snapID, nil
+	}
+
+	var newSnapID string
+	err := app.RunInTransaction(func(tx core.App) error {
+		parentRec, err := tx.FindRecordById(schema.ColProjection.String(), projID)
+		if err != nil {
+			return err
+		}
+
+		strat := projections.Strategy{}
+		lensCol, err := tx.FindCollectionByNameOrId(strat.LensCollectionName())
+		if err != nil {
+			return err
+		}
+		lensRec := core.NewRecord(lensCol)
+		lensRec.Set("prompt", lens)
+		lensRec.Set(strat.RefinementForeignKeyCol(), refRec.Id)
+		if err := tx.Save(lensRec); err != nil {
+			return err
+		}
+
+		sID, err := engine.AppendSnapshot(ctx, tx, strat, engine.SnapshotSpec{
+			SourceID:                parentRec.Id,
+			LensID:                  lensRec.Id,
+			Output:                  "",
+			OutputDraft:             output,
+			OutputRaw:               output,
+			ContextSpec:             spec,
+			ResolvedContext:         pinned,
+			Status:                  engine.StatusPending,
+			Model:                   model,
+			CreatedFromRefinementID: refRec.Id,
+		})
+		if err != nil {
+			return err
+		}
+		newSnapID = sID
+
+		refRec.Set("projection_snapshot_id", newSnapID)
+		if err := tx.Save(refRec); err != nil {
+			return err
+		}
+
+		if suggestedName != "" && (parentRec.GetString("name") == "" || strings.HasPrefix(parentRec.GetString("name"), "Untitled")) {
+			parentRec.Set("name", suggestedName)
+			return tx.Save(parentRec)
+		}
+		return nil
+	})
+	if err != nil {
+		logger().Error("failed to materialize candidate from refinement", "error", err, "projection_id", projID)
+		return "", err
+	}
 	return newSnapID, nil
 }

@@ -66,6 +66,25 @@ export interface ContextItem {
 
 export type MessageRole = "user" | "assistant";
 
+export const REFINE_TARGET_PART_TYPE = "data-refine_target";
+export const HAND_EDIT_PART_TYPE = "data-hand_edit";
+export const EDIT_TRIAGE_PART_TYPE = "data-edit_triage";
+export const REFINE_RESULT_PART_TYPE = "data-refine_result";
+export const REGENERATE_CONFIRMATION_PART_TYPE = "data-regenerate_confirmation";
+export const REGENERATE_CONFIRM_PART_TYPE = "data-regenerate_confirm";
+export const REGENERATE_CANCEL_PART_TYPE = "data-regenerate_cancel";
+export const REFINE_PROPOSAL_RESULT_PART_TYPE = "data-refine_proposal_result";
+/** Rides the assistant turn that called update_context: the spec proposed. */
+export const CONTEXT_CONFIRMATION_PART_TYPE = "data-context_confirmation";
+/** Marks the system message that accepts it; travels with the `context_spec`. */
+export const CONTEXT_CONFIRM_PART_TYPE = "data-context_confirm";
+export const CONTEXT_CANCEL_PART_TYPE = "data-context_cancel";
+
+export interface ContextConfirmation {
+  spec: ContextSpec;
+  reason?: string;
+}
+
 // A persisted assistant thread. Backed by the `chat_conversation` collection,
 // with messages stored separately in `chat_message`.
 export interface Conversation {

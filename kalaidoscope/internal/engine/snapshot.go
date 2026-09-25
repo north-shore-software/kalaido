@@ -18,6 +18,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func GenerateOutput(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window) (string, error) {
@@ -89,46 +90,46 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("generate standard: %w", err)
 	}
 	outputModel := model
+	outputRaw := outputStr
 
-	// unchanged: the regeneration reproduced the approved output. The
-	// candidate would be a document identical to the one already approved.
+	var outputDraft string
+	var edits []api.SnapshotEdit
 	unchanged := false
-	switch prev, otherLens := latestApprovedOutput(app, strat, rec.Id, window, lensID); {
-	case otherLens:
-		// The published output was produced by a different lens. Its wording
-		// and shape are not this lens's to preserve — the minimal-diff rewrite
-		// would erase exactly the changes the new lens exists to make — so the
-		// raw candidate is the snapshot, as for a first generation.
-		logger().Info("lens changed since last approval; generating from scratch", "target_type", strat.TargetType(), "id", rec.Id)
-	case strings.TrimSpace(prev) == "":
-		// First generation for this target (and window): nothing to anchor to.
+	prev, otherLens := latestApprovedOutput(app, strat, rec.Id, window, lensID)
+	switch {
+	case otherLens || strings.TrimSpace(prev) == "":
+		if otherLens {
+			logger().Info("lens changed since last approval; generating from scratch", "target_type", strat.TargetType(), "id", rec.Id)
+		}
+		outputDraft = outputRaw
+		edits = []api.SnapshotEdit{}
 	case outputStr == prev:
 		logger().Info("candidate matches the approved output byte-for-byte; nothing to rewrite", "target_type", strat.TargetType(), "id", rec.Id)
 		unchanged = true
+		outputDraft = prev
+		edits = []api.SnapshotEdit{}
 	default:
+		outputDraft = prev
 		merged, err := minimizeAgainstPrevious(ctx, app, model, lensPrompt, sourceBlock, window, prev, outputStr)
 		switch {
 		case err == nil:
 			if merged == prev {
 				logger().Info("delta reported no semantic change; republishing the approved output verbatim", "target_type", strat.TargetType(), "id", rec.Id)
 				unchanged = true
+				outputStr = merged
+				edits = []api.SnapshotEdit{}
 			} else {
 				logger().Info("stored minimal-diff rewrite of the candidate", "target_type", strat.TargetType(), "id", rec.Id)
+				outputStr = merged
+				outputDraft, edits = DiffAndMarkBlocks(prev, merged, api.EditTypeRegeneration)
 			}
-			outputStr = merged
 		case errors.Is(err, queue.ErrPreempted):
-			// The same contract as a preempted GenerateOutput: the caller
-			// (the reconcile worker) retries the whole generation rather
-			// than publishing a half-processed candidate.
 			return "", err
 		case ctx.Err() != nil:
-			// The whole generation is being abandoned, and the raw candidate
-			// itself may be a mid-stream truncation. Abort; persist nothing.
 			return "", fmt.Errorf("minimal-diff rewrite: %w", context.Cause(ctx))
 		default:
-			// The polish steps failing must not fail the generation; the
-			// raw candidate is correct, just noisier to diff.
 			logger().Warn("minimal-diff rewrite failed, keeping raw candidate", "target_type", strat.TargetType(), "id", rec.Id, "error", err)
+			outputDraft, edits = DiffAndMarkBlocks(prev, outputRaw, api.EditTypeRegeneration)
 		}
 	}
 
@@ -136,13 +137,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("%s %s: model returned empty output", strat.TargetType(), rec.Id)
 	}
 
-	if unchanged && llmcontext.GenerationTriggerFromContext(ctx) != "" {
-		// A speculative regeneration that changed nothing is not something
-		// to review: the approved snapshot simply records that it now
-		// reflects this context too. No new row, so the approval sequence
-		// does not move and dependents are not made stale by a no-op. (An
-		// interactive regeneration keeps producing a candidate — the user
-		// asked to see the result.) The claim row is released by the defer.
+	if unchanged && (llmcontext.GenerationTriggerFromContext(ctx) != "" || llmcontext.SettleUnchangedFromContext(ctx)) {
 		settledID, err := settleApprovedInPlace(app, strat, rec.Id, window, lensID, SnapshotSpec{
 			ContextSpec:     lensSpec,
 			ResolvedContext: pinnedCtx,
@@ -157,14 +152,22 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 				"snapshot_id", settledID, "duration", time.Since(started).Round(time.Millisecond))
 			return settledID, nil
 		}
-		// The approved snapshot moved under us; fall through and store the
-		// candidate as usual.
+	}
+
+	var finalOutput string
+	if status == StatusApproved {
+		finalOutput = outputStr
+		outputDraft = outputStr
+		edits = []api.SnapshotEdit{}
 	}
 
 	if err := completeClaimedSnapshot(ctx, app, strat, claimID, SnapshotSpec{
 		SourceID:        rec.Id,
 		LensID:          lensID,
-		Output:          outputStr,
+		Output:          finalOutput,
+		OutputRaw:       outputRaw,
+		OutputDraft:     outputDraft,
+		Edits:           edits,
 		ContextSpec:     lensSpec,
 		ResolvedContext: pinnedCtx,
 		Window:          window,
@@ -302,26 +305,64 @@ func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *c
 		return false
 	}
 	latest := recs[0]
-	if latest.GetString("lens_id") != rec.GetString("current_lens_id") {
-		return false
-	}
-	// A model change makes the latest snapshot non-current — but only when both
-	// sides are known: legacy and empty-lens snapshots carry no model and must
-	// not read as perpetually stale.
-	if snapModel := latest.GetString("generated_by_model"); snapModel != "" {
-		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("generate_with_model")); err == nil && effective != snapModel {
-			return false
-		}
-	}
 	_, lensSpec := resolveActiveLens(app, strat, rec)
 	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec, nil)
 	if err != nil {
 		return false
 	}
+	current, _ := SnapshotCurrency(rec, latest, pinned)
+	return current
+}
+
+// Why a snapshot is not current, as SnapshotCurrency reports it. The
+// evaluator narrows CurrencyContextChanged to CurrencyNewFragments when the
+// drift is (at least) fragments the candidate never saw, which is the case the
+// UI can count.
+const (
+	CurrencyLensChanged    = "lens_changed"
+	CurrencyModelChanged   = "model_changed"
+	CurrencyContextChanged = "context_changed"
+	CurrencyNewFragments   = "new_fragments"
+)
+
+// SnapshotCurrency reports whether snap already reflects what a generation of
+// rec would consume, given the entity's context already resolved to pinned —
+// the same three checks as SnapshotIsCurrent (lens, effective model, resolved
+// context), split out so a caller that has resolved the spec for its own
+// purposes does not resolve it twice. The reason is "" when current.
+func SnapshotCurrency(rec, snap *core.Record, pinned llmcontext.PinnedIDs) (bool, string) {
+	if snap.GetString("lens_id") != rec.GetString("current_lens_id") {
+		return false, CurrencyLensChanged
+	}
+	// A model change makes the snapshot non-current — but only when both
+	// sides are known: legacy and empty-lens snapshots carry no model and must
+	// not read as perpetually stale.
+	if snapModel := snap.GetString("generated_by_model"); snapModel != "" {
+		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("generate_with_model")); err == nil && effective != snapModel {
+			return false, CurrencyModelChanged
+		}
+	}
 	var recorded llmcontext.PinnedIDs
-	_ = latest.UnmarshalJSONField("resolved_context", &recorded)
+	_ = snap.UnmarshalJSONField("resolved_context", &recorded)
 	added, removed := llmcontext.DiffPinnedIDs(recorded, pinned)
-	return added.IsEmpty() && removed.IsEmpty()
+	if !added.IsEmpty() || !removed.IsEmpty() {
+		return false, CurrencyContextChanged
+	}
+	return true, ""
+}
+
+// FindPendingCandidate returns the parent's pending candidate (per window for
+// reflections), or nil when there is none. At most one exists per target.
+func FindPendingCandidate(app core.App, strat Strategy, parentID string, window *api.Window) (*core.Record, error) {
+	filter, params := statusSnapshotFilter(strat, parentID, window, StatusPending)
+	recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "-created", 1, 0, params)
+	if err != nil {
+		return nil, err
+	}
+	if len(recs) == 0 {
+		return nil, nil
+	}
+	return recs[0], nil
 }
 
 // prepareGenerationContext resolves the lens's spec — inside the window for a
@@ -339,4 +380,30 @@ func prepareGenerationContext(ctx context.Context, app core.App, strat Strategy,
 		}
 	}
 	return sourceBlock, pinnedCtx, nil
+}
+
+// CandidateEngaged reports whether the user has invested in a pending
+// candidate: a hand edit or chat proposal in its edits (regeneration-typed
+// edits are machine diff markers and do not count), or a refinement
+// conversation opened on it. The machine never replaces an engaged candidate;
+// only an explicit user choice does.
+func CandidateEngaged(app core.App, strat Strategy, snap *core.Record) (bool, error) {
+	if snap == nil {
+		return false, nil
+	}
+	for _, edit := range LoadSnapshotEdits(snap) {
+		if edit.Type == api.EditTypeManual || edit.Type == api.EditTypeRefinement {
+			return true, nil
+		}
+	}
+	if strat.TargetType() == "projection" {
+		recs, err := app.FindRecordsByFilter(schema.ColProjectionRefinement.String(), "projection_snapshot_id = {:id}", "", 1, 0, dbx.Params{"id": snap.Id})
+		if err != nil {
+			return false, err
+		}
+		if len(recs) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }

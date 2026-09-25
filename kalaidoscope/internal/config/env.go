@@ -33,6 +33,9 @@ type Env struct {
 	// LogLevel is the minimum level written to stderr (KALAIDO_LOG_LEVEL:
 	// debug, info, warn, error; default info).
 	LogLevel slog.Level
+	// HandEditCreateFragment controls whether manual edits to a projection draft
+	// create an edit fragment (KALAIDO_HAND_EDIT_CREATE_FRAGMENT). Default false.
+	HandEditCreateFragment bool
 }
 
 // LoadEnv reads the process environment. An unparseable value is an error
@@ -42,13 +45,41 @@ func LoadEnv() (Env, error) {
 	return parseEnv(os.Getenv)
 }
 
+// HandEditCreateFragment returns whether manual edits to a projection draft
+// create an edit fragment, read from the environment.
+func HandEditCreateFragment() bool {
+	env, err := LoadEnv()
+	if err != nil {
+		return false
+	}
+	return env.HandEditCreateFragment
+}
+
 func parseEnv(get func(string) string) (Env, error) {
+	autoWave, err := parseBool("KALAIDO_AUTO_WAVE", get("KALAIDO_AUTO_WAVE"))
+	if err != nil {
+		return Env{}, err
+	}
+	llmTrace, err := parseBool("KALAIDO_LLM_TRACE", get("KALAIDO_LLM_TRACE"))
+	if err != nil {
+		return Env{}, err
+	}
+	fragRaw := get("KALAIDO_HAND_EDIT_CREATE_FRAGMENT")
+	if fragRaw == "" {
+		fragRaw = get("KALAIDO_CREATE_EDIT_FRAGMENTS")
+	}
+	frag, err := parseBool("KALAIDO_HAND_EDIT_CREATE_FRAGMENT", fragRaw)
+	if err != nil {
+		return Env{}, err
+	}
+
 	env := Env{
-		ModelSetRaw:  get("KALAIDO_MODEL_SET"),
-		UserPassword: get("KALAIDO_USER_PASSWORD"),
-		AutoWave:     flag(get("KALAIDO_AUTO_WAVE")),
-		LLMTrace:     flag(get("KALAIDO_LLM_TRACE")),
-		LogLevel:     slog.LevelInfo,
+		ModelSetRaw:            get("KALAIDO_MODEL_SET"),
+		UserPassword:           get("KALAIDO_USER_PASSWORD"),
+		AutoWave:               autoWave,
+		LLMTrace:               llmTrace,
+		HandEditCreateFragment: frag,
+		LogLevel:               slog.LevelInfo,
 	}
 	if env.ModelSetRaw != "" {
 		set, err := llm.ParseModelSet(env.ModelSetRaw)
@@ -67,8 +98,17 @@ func parseEnv(get func(string) string) (Env, error) {
 	return env, nil
 }
 
-// flag reads an on/off variable the conventional way: unset, "0", "false",
-// "no" and "off" are off; anything else ("1", "true", "yes", "on") is on.
+func parseBool(name, raw string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "0", "false", "no", "off":
+		return false, nil
+	case "1", "true", "yes", "on":
+		return true, nil
+	default:
+		return false, fmt.Errorf("%s: unparseable boolean value %q", name, raw)
+	}
+}
+
 func flag(raw string) bool {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "", "0", "false", "no", "off":

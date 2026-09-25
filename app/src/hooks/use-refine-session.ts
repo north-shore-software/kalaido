@@ -5,6 +5,7 @@ import type { ContextSpec, TimeWindow } from "@/api/kalaidoscope/chat";
 import {
   commitRefinement,
   createRefinement,
+  extractHasDraftedLens,
   extractPreviewFromMessages,
   extractPreviewReady,
   extractRefinePhase,
@@ -57,6 +58,7 @@ export interface RefineSession {
    * next to a newer lens whose apply failed.
    */
   previewReady: boolean;
+  hasDraftedLens: boolean;
   /** Where the current turn stands: drafting the lens, applying it, or done. */
   phase: RefinePhase;
   /**
@@ -89,8 +91,13 @@ export interface RefineSession {
     prompt?: string;
     snapshotId?: string;
     contextSpec?: ContextSpec;
-    /** Reflections: the window the preview starts on (default: current). */
     window?: TimeWindow;
+    systemNotices?: Array<{
+      type: string;
+      text?: string;
+      data?: Record<string, unknown>;
+      id?: string;
+    }>;
   }) => Promise<boolean>;
   /** Adopt an already-persisted refinement, seeding the chat with its history. */
   resume: (args: {
@@ -131,16 +138,22 @@ export function useRefineSession({
 
   const preview = extractPreviewFromMessages(messages);
   const previewReady = extractPreviewReady(messages);
+  const hasDraftedLens = extractHasDraftedLens(messages);
   const phase = extractRefinePhase(messages);
   const suggestedName = extractSuggestedNameFromMessages(messages);
   const started = refinementId != null;
 
   const start = useCallback<RefineSession["start"]>(
-    async ({ parentId, prompt, snapshotId, contextSpec, window }) => {
+    async ({
+      parentId,
+      prompt,
+      snapshotId,
+      contextSpec,
+      window,
+      systemNotices,
+    }) => {
       if (creating) return false;
       setCreating(true);
-      // Mint a fresh chat id per session so re-opening never collides with
-      // the previous conversation.
       const newClientId = generateId();
       const res = await createRefinement({
         target,
@@ -157,18 +170,30 @@ export function useRefineSession({
         });
         return false;
       }
-      // Adopt whatever the server seeded (the context system message),
-      // normalised into the shape the live stream produces. These carry the
-      // server's own message ids, so the next turn recognises them as history
-      // rather than persisting a second copy.
       const seeded = res.value.messages ?? [];
       const history = seeded.length
-        ? normalizeRefinementMessages(seeded)
-        : undefined;
+        ? [...normalizeRefinementMessages(seeded)]
+        : [];
+      if (systemNotices?.length) {
+        for (const n of systemNotices) {
+          const part: Record<string, unknown> = {
+            type: n.type,
+            text: n.text ?? "",
+          };
+          if (n.data !== undefined) {
+            part.data = n.data;
+          }
+          history.push({
+            id: n.id ?? generateId(),
+            role: "system",
+            parts: [part],
+          } as unknown as UIMessage);
+        }
+      }
       setClientId(newClientId);
       setParentId(parentId);
-      setInitialMessages(history);
-      setMessages(history ?? []);
+      setInitialMessages(history.length ? history : undefined);
+      setMessages(history);
       setFirstPrompt(prompt ?? null);
       setRefinementId(res.value.refinementId);
       return true;
@@ -221,6 +246,7 @@ export function useRefineSession({
     onMessagesChange,
     preview,
     previewReady,
+    hasDraftedLens,
     phase,
     suggestedName,
     started,

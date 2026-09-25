@@ -364,18 +364,21 @@ export const ProjectionSnapshotGenerationTriggerOptions = {
 	"generate_all": "generate_all",
 } as const
 export type ProjectionSnapshotGenerationTriggerOptions = typeof ProjectionSnapshotGenerationTriggerOptions[keyof typeof ProjectionSnapshotGenerationTriggerOptions]
-export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
+export type ProjectionSnapshotRecord<Tcontext_spec = unknown, Tedits = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_refinement_id?: RecordIdString
+	edits?: null | Tedits
 	generated_at?: IsoDateString
 	generated_by_model?: string
 	generation_trigger?: ProjectionSnapshotGenerationTriggerOptions
 	id: string
 	lens_id?: RecordIdString
 	output?: string
+	output_draft?: string
+	output_raw?: string
 	projection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
 	status: ProjectionSnapshotStatusOptions
@@ -423,18 +426,21 @@ export const ReflectionSnapshotGenerationTriggerOptions = {
 	"generate_all": "generate_all",
 } as const
 export type ReflectionSnapshotGenerationTriggerOptions = typeof ReflectionSnapshotGenerationTriggerOptions[keyof typeof ReflectionSnapshotGenerationTriggerOptions]
-export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Tresolved_context = unknown> = {
+export type ReflectionSnapshotRecord<Tcontext_spec = unknown, Tedits = unknown, Tresolved_context = unknown> = {
 	approval_sequence_number?: number
 	approved_at?: IsoDateString
 	context_spec?: null | Tcontext_spec
 	created: IsoAutoDateString
 	created_from_refinement_id?: RecordIdString
+	edits?: null | Tedits
 	generated_at?: IsoDateString
 	generated_by_model?: string
 	generation_trigger?: ReflectionSnapshotGenerationTriggerOptions
 	id: string
 	lens_id?: RecordIdString
 	output?: string
+	output_draft?: string
+	output_raw?: string
 	reflection_id: RecordIdString
 	resolved_context?: null | Tresolved_context
 	status: ReflectionSnapshotStatusOptions
@@ -513,10 +519,10 @@ export type LlmQueueStatusResponse<Theld = unknown, Trunning = unknown, Twaiting
 export type MapRunResponse<Texpand = unknown> = Required<MapRunRecord> & BaseSystemFields<Texpand>
 export type ProjectionResponse<Tcurrent_context_spec = unknown, Texpand = unknown> = Required<ProjectionRecord<Tcurrent_context_spec>> & BaseSystemFields<Texpand>
 export type ProjectionRefinementResponse<Texpand = unknown> = Required<ProjectionRefinementRecord> & BaseSystemFields<Texpand>
-export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
+export type ProjectionSnapshotResponse<Tcontext_spec = unknown, Tedits = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ProjectionSnapshotRecord<Tcontext_spec, Tedits, Tresolved_context>> & BaseSystemFields<Texpand>
 export type ReflectionResponse<Tcurrent_context_spec = unknown, Twindow_spec_versions = unknown, Texpand = unknown> = Required<ReflectionRecord<Tcurrent_context_spec, Twindow_spec_versions>> & BaseSystemFields<Texpand>
 export type ReflectionRefinementResponse<Texpand = unknown> = Required<ReflectionRefinementRecord> & BaseSystemFields<Texpand>
-export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Tresolved_context>> & BaseSystemFields<Texpand>
+export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tedits = unknown, Tresolved_context = unknown, Texpand = unknown> = Required<ReflectionSnapshotRecord<Tcontext_spec, Tedits, Tresolved_context>> & BaseSystemFields<Texpand>
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>

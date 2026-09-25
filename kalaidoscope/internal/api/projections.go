@@ -5,12 +5,17 @@ type ProjectionSnapshotResponse struct {
 }
 
 type GenerateProjectionSnapshotRequest struct {
-	SourceID    string      `json:"sourceId"` // ProjectionID
-	ChatID      string      `json:"chatId"`
-	FragmentIDs []string    `json:"fragmentIds"`
-	ColourIDs   []string    `json:"colourIds"`
-	Messages    []UIMessage `json:"messages"`
-	Preview     bool        `json:"preview"`
+	SourceID       string      `json:"sourceId"` // ProjectionID
+	ChatID         string      `json:"chatId"`
+	FragmentIDs    []string    `json:"fragmentIds"`
+	ColourIDs      []string    `json:"colourIds"`
+	Messages       []UIMessage `json:"messages"`
+	Preview        bool        `json:"preview"`
+	DiscardEngaged bool        `json:"discardEngaged,omitempty"`
+	// FoldIn marks an approve-then-regenerate: an unchanged result settles
+	// the approved row in place, and the refinement that was open on the
+	// approved candidate carries over to the new one.
+	FoldIn bool `json:"foldIn,omitempty"`
 }
 
 type ReviewCandidateRequest struct {
@@ -18,19 +23,25 @@ type ReviewCandidateRequest struct {
 }
 
 // EditCandidateRequest is the body of
-// POST /api/projections/{id}/candidates/{rid}/edit: replace the one exact
-// occurrence of OldText in the pending candidate's output with NewText. The
-// client sends the raw markdown slice it selected, so the match is verbatim.
+// POST /api/projections/{id}/candidates/{rid}/edit: replace the markdown
+// block at BlockPosition (0-based, as segmented by the engine) of the pending
+// candidate's draft with NewText. An empty NewText deletes the block.
 type EditCandidateRequest struct {
-	OldText string `json:"oldText"`
-	NewText string `json:"newText"`
+	BlockPosition int    `json:"blockPosition"`
+	NewText       string `json:"newText"`
 }
 
-// EditCandidateResponse names the new pending snapshot carrying the edit and
-// the "edit" fragment that records it.
 type EditCandidateResponse struct {
-	SnapshotID string `json:"snapshotId"`
-	FragmentID string `json:"fragmentId"`
+	FragmentID string       `json:"fragmentId"`
+	Edit       SnapshotEdit `json:"edit"`
+}
+
+type UpdateSnapshotEditStatusRequest struct {
+	Status SnapshotEditStatus `json:"status"`
+}
+
+type UpdateSnapshotEditStatusResponse struct {
+	Edit SnapshotEdit `json:"edit"`
 }
 
 type CreateProjectionResponse struct {

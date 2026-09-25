@@ -386,6 +386,11 @@ func generateEntity(ctx context.Context, app core.App, s api.EntityStatus) error
 		genStatus = engine.StatusPending // projections get review candidates
 	}
 
+	if s.Candidate != nil && s.Candidate.Engaged {
+		log.Info("wave target skipped; candidate is engaged", "target_type", s.Type, "target_id", s.ID)
+		return nil
+	}
+
 	rec, err := engine.FindLive(app, strat, s.ID)
 	if err != nil {
 		// Deleted (or hard-removed) since the wave was evaluated: nothing to

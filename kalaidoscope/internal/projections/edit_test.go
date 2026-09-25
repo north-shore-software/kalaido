@@ -59,7 +59,8 @@ func editFixture(t *testing.T, app core.App) (*core.Record, *core.Record) {
 	src := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 		"projection_id":      proj.Id,
 		"lens_id":            proj.GetString("current_lens_id"),
-		"output":             editSourceOutput,
+		"output":             "",
+		"output_draft":       editSourceOutput,
 		"status":             engine.StatusPending,
 		"context_spec":       pbutil.JSONObject(spec),
 		"resolved_context":   pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: ids}),
@@ -96,11 +97,66 @@ func storedOutput(t *testing.T, app core.App, snapID string) string {
 	return snap.GetString("output")
 }
 
-func TestApplyEditCreatesFragmentPinsAndSecondPendingRow(t *testing.T) {
+func TestApplyEditDefaultDoesNotCreateFragment(t *testing.T) {
 	app := testutil.NewApp(t)
 	proj, src := editFixture(t, app)
 
-	res, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, "alpha beta", "alpha BETA")
+	res, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, 1, "alpha BETA")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res.FragmentID != "" {
+		t.Errorf("res.FragmentID = %q, want empty by default", res.FragmentID)
+	}
+
+	frags := editFragments(t, app)
+	if len(frags) != 0 {
+		t.Fatalf("edit fragments = %d, want 0 when disabled by default", len(frags))
+	}
+
+	proj, err = app.FindRecordById("projection", proj.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parentSpec api.ContextSpec
+	if err := proj.UnmarshalJSONField("current_context_spec", &parentSpec); err != nil {
+		t.Fatal(err)
+	}
+	if len(parentSpec.FragmentIDs) != 0 {
+		t.Errorf("projection current_context_spec.fragmentIds = %v, want empty", parentSpec.FragmentIDs)
+	}
+
+	rows := snapshotRows(t, app, proj.Id)
+	if len(rows) != 1 {
+		t.Fatalf("snapshot rows = %d, want the candidate updated in place", len(rows))
+	}
+	edited := rows[0]
+	if edited.Id != src.Id {
+		t.Errorf("edited id = %s, want %s", edited.Id, src.Id)
+	}
+	if got := edited.GetString("output"); got != "" {
+		t.Errorf("edited output = %q, want empty", got)
+	}
+	wantOutput := "# T\n\nalpha BETA\n\ngamma"
+	if got := edited.GetString("output_draft"); got != wantOutput {
+		t.Errorf("edited output_draft = %q, want %q", got, wantOutput)
+	}
+	snapEdits := engine.LoadSnapshotEdits(edited)
+	if len(snapEdits) != 1 || snapEdits[0].Type != api.EditTypeManual || snapEdits[0].Status != api.EditStatusApproved {
+		t.Errorf("unexpected snapshot edits: %+v", snapEdits)
+	}
+	if snapEdits[0].FragmentID != "" {
+		t.Errorf("snapshot edit fragmentId = %q, want empty", snapEdits[0].FragmentID)
+	}
+}
+
+func TestApplyEditCreatesFragmentWhenEnabled(t *testing.T) {
+	app := testutil.NewApp(t)
+	projections.SetHandEditCreateFragment(app, true)
+	proj, src := editFixture(t, app)
+
+	res, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, 1, "alpha BETA")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,22 +195,26 @@ func TestApplyEditCreatesFragmentPinsAndSecondPendingRow(t *testing.T) {
 	}
 
 	rows := snapshotRows(t, app, proj.Id)
-	if len(rows) != 2 {
-		t.Fatalf("snapshot rows = %d, want the source and the edited candidate", len(rows))
+	if len(rows) != 1 {
+		t.Fatalf("snapshot rows = %d, want the candidate updated in place", len(rows))
 	}
-	var edited *core.Record
-	for _, r := range rows {
-		if r.Id == res.SnapshotID {
-			edited = r
-		} else if r.Id != src.Id || r.GetString("status") != engine.StatusPending {
-			t.Errorf("source row %s status = %q, want still pending", r.Id, r.GetString("status"))
-		}
+	edited := rows[0]
+	if edited.Id != src.Id {
+		t.Errorf("edited id = %s, want %s", edited.Id, src.Id)
 	}
-	if edited == nil {
-		t.Fatal("edited snapshot not found")
+	if got := edited.GetString("output"); got != "" {
+		t.Errorf("edited output = %q, want empty", got)
 	}
-	if got := edited.GetString("output"); got != "# T\n\nalpha BETA\n\n\ngamma" {
-		t.Errorf("edited output = %q", got)
+	wantOutput := "# T\n\nalpha BETA\n\ngamma"
+	if got := edited.GetString("output_draft"); got != wantOutput {
+		t.Errorf("edited output_draft = %q, want %q", got, wantOutput)
+	}
+	snapEdits := engine.LoadSnapshotEdits(edited)
+	if len(snapEdits) != 1 || snapEdits[0].Type != api.EditTypeManual || snapEdits[0].Status != api.EditStatusApproved {
+		t.Errorf("unexpected snapshot edits: %+v", snapEdits)
+	}
+	if snapEdits[0].FragmentID != frag.Id {
+		t.Errorf("snapshot edit fragmentId = %q, want %q", snapEdits[0].FragmentID, frag.Id)
 	}
 	if got := edited.GetString("status"); got != engine.StatusPending {
 		t.Errorf("edited status = %q, want pending", got)
@@ -165,8 +225,8 @@ func TestApplyEditCreatesFragmentPinsAndSecondPendingRow(t *testing.T) {
 	if got := edited.GetString("generated_by_model"); got == "" || got != src.GetString("generated_by_model") {
 		t.Errorf("generated_by_model = %q, want inherited %q", got, src.GetString("generated_by_model"))
 	}
-	if got := edited.GetString("generation_trigger"); got != "" {
-		t.Errorf("generation_trigger = %q, want empty (not part of a wave)", got)
+	if got := edited.GetString("generation_trigger"); got != src.GetString("generation_trigger") {
+		t.Errorf("generation_trigger = %q, want %q", got, src.GetString("generation_trigger"))
 	}
 	var snapSpec api.ContextSpec
 	if err := edited.UnmarshalJSONField("context_spec", &snapSpec); err != nil {
@@ -191,11 +251,30 @@ func TestApplyEditCreatesFragmentPinsAndSecondPendingRow(t *testing.T) {
 	}
 }
 
+func TestApplyEditCreatesFragmentViaEnvVar(t *testing.T) {
+	t.Setenv("KALAIDO_HAND_EDIT_CREATE_FRAGMENT", "1")
+	app := testutil.NewApp(t)
+	proj, src := editFixture(t, app)
+
+	res, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, 1, "alpha BETA")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res.FragmentID == "" {
+		t.Error("res.FragmentID is empty, want fragment created via env var")
+	}
+	frags := editFragments(t, app)
+	if len(frags) != 1 || frags[0].Id != res.FragmentID {
+		t.Fatalf("edit fragments = %d, want 1", len(frags))
+	}
+}
+
 func TestApplyEditRejectionsLeaveNoTrace(t *testing.T) {
 	cases := []struct {
 		name    string
 		prepare func(t *testing.T, app core.App, proj, src *core.Record) (parentID, snapID string)
-		old     string
+		pos     int
 		new     string
 		want    error
 	}{
@@ -209,33 +288,33 @@ func TestApplyEditRejectionsLeaveNoTrace(t *testing.T) {
 				}
 				return proj.Id, src.Id
 			},
-			old: "alpha beta", new: "x", want: projections.ErrEditNotPending,
+			pos: 1, new: "x", want: projections.ErrEditNotPending,
 		},
 		{
-			name:    "unknown text",
+			name:    "negative position",
 			prepare: func(t *testing.T, app core.App, proj, src *core.Record) (string, string) { return proj.Id, src.Id },
-			old:     "never there", new: "x", want: projections.ErrEditTextNotFound,
+			pos:     -1, new: "x", want: projections.ErrInvalidBlockPosition,
 		},
 		{
-			name:    "identical texts",
+			name:    "position out of bounds",
 			prepare: func(t *testing.T, app core.App, proj, src *core.Record) (string, string) { return proj.Id, src.Id },
-			old:     "alpha beta", new: "alpha beta", want: projections.ErrEditNoChange,
+			pos:     10, new: "x", want: projections.ErrInvalidBlockPosition,
 		},
 		{
-			name: "duplicated passage",
+			name: "position under edit marker",
 			prepare: func(t *testing.T, app core.App, proj, src *core.Record) (string, string) {
-				src.Set("output", "gamma\n\ngamma")
+				src.Set("output_draft", "# T\n\n<<<edit:abc>>>\n\ngamma")
 				if err := app.Save(src); err != nil {
 					t.Fatal(err)
 				}
 				return proj.Id, src.Id
 			},
-			old: "gamma", new: "delta", want: projections.ErrEditTextAmbiguous,
+			pos: 1, new: "x", want: projections.ErrEditUnderMarker,
 		},
 		{
-			name:    "deleting everything",
+			name:    "identical texts",
 			prepare: func(t *testing.T, app core.App, proj, src *core.Record) (string, string) { return proj.Id, src.Id },
-			old:     editSourceOutput, new: "  \n", want: projections.ErrEditEmptyResult,
+			pos:     1, new: "alpha beta", want: projections.ErrEditNoChange,
 		},
 		{
 			name: "another projection's candidate",
@@ -243,7 +322,7 @@ func TestApplyEditRejectionsLeaveNoTrace(t *testing.T) {
 				other := genFixture(t, app)
 				return other.Id, src.Id
 			},
-			old: "alpha beta", new: "x", want: nil,
+			pos: 1, new: "x", want: nil,
 		},
 	}
 	for _, tc := range cases {
@@ -254,7 +333,7 @@ func TestApplyEditRejectionsLeaveNoTrace(t *testing.T) {
 			specBefore := proj.GetString("current_context_spec")
 			parentID, snapID := tc.prepare(t, app, proj, src)
 
-			_, err := projections.ApplyEdit(context.Background(), app, parentID, snapID, tc.old, tc.new)
+			_, err := projections.ApplyEdit(context.Background(), app, parentID, snapID, tc.pos, tc.new)
 			if err == nil {
 				t.Fatal("expected an error")
 			}
@@ -284,35 +363,348 @@ func TestApplyEditRejectionsLeaveNoTrace(t *testing.T) {
 func TestApplyEditCanDeleteAPassage(t *testing.T) {
 	app := testutil.NewApp(t)
 	proj, src := editFixture(t, app)
-	res, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, "alpha beta\n\n\n", "")
+	_, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, 1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := storedOutput(t, app, res.SnapshotID); got != "# T\n\ngamma" {
+	if err := engine.ApproveSnapshot(context.Background(), app, projections.Strategy{}, src.Id); err != nil {
+		t.Fatal(err)
+	}
+	if got := storedOutput(t, app, src.Id); got != "# T\n\ngamma" {
 		t.Errorf("output = %q", got)
 	}
 }
 
-func TestApproveEditedCandidateDiscardsSource(t *testing.T) {
+func TestApproveEditedCandidate(t *testing.T) {
 	app := testutil.NewApp(t)
 	proj, src := editFixture(t, app)
-	res, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, "alpha beta", "alpha BETA")
+	_, err := projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, 1, "alpha BETA")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.ApproveSnapshot(context.Background(), app, projections.Strategy{}, res.SnapshotID); err != nil {
+	if err := engine.ApproveSnapshot(context.Background(), app, projections.Strategy{}, src.Id); err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range snapshotRows(t, app, proj.Id) {
-		switch r.Id {
-		case res.SnapshotID:
-			if r.GetString("status") != engine.StatusApproved || r.GetInt("approval_sequence_number") != 1 {
-				t.Errorf("edited row status=%q seq=%d, want approved #1", r.GetString("status"), r.GetInt("approval_sequence_number"))
-			}
-		case src.Id:
-			if r.GetString("status") != engine.StatusDiscarded {
-				t.Errorf("source row status = %q, want discarded", r.GetString("status"))
-			}
-		}
+	snap, err := app.FindRecordById("projection_snapshot", src.Id)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if snap.GetString("status") != engine.StatusApproved || snap.GetInt("approval_sequence_number") != 1 {
+		t.Errorf("status=%q seq=%d, want approved #1", snap.GetString("status"), snap.GetInt("approval_sequence_number"))
+	}
+	if got := snap.GetString("output"); got != "# T\n\nalpha BETA\n\ngamma" {
+		t.Errorf("output = %q", got)
+	}
+}
+
+func TestUpdateSnapshotEditStatus(t *testing.T) {
+	t.Run("accept replaces marker with ContentAfter", func(t *testing.T) {
+		app := testutil.NewApp(t)
+		proj, src := editFixture(t, app)
+		editID := "edit-1"
+		marker := engine.FormatEditMarker(editID)
+		src.Set("output_draft", "# T\n\n"+marker+"\n\ngamma")
+		edits := []api.SnapshotEdit{
+			{
+				ID:            editID,
+				Sequence:      1,
+				Type:          api.EditTypeRegeneration,
+				Status:        api.EditStatusProposed,
+				ContentBefore: "alpha beta",
+				ContentAfter:  "alpha NEW",
+				BlockIndex:    1,
+			},
+		}
+		src.Set("edits", pbutil.JSONObject(edits))
+		if err := app.Save(src); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusApproved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Status != api.EditStatusApproved {
+			t.Errorf("res.Status = %s, want approved", res.Status)
+		}
+
+		snap, err := app.FindRecordById("projection_snapshot", src.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantDraft := "# T\n\nalpha NEW\n\ngamma"
+		if got := snap.GetString("output_draft"); got != wantDraft {
+			t.Errorf("output_draft = %q, want %q", got, wantDraft)
+		}
+		loadedEdits := engine.LoadSnapshotEdits(snap)
+		if len(loadedEdits) != 1 || loadedEdits[0].Status != api.EditStatusApproved {
+			t.Errorf("edits = %+v", loadedEdits)
+		}
+
+		_, err = projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusRejected)
+		if !errors.Is(err, projections.ErrEditAlreadyResolved) {
+			t.Errorf("err = %v, want ErrEditAlreadyResolved", err)
+		}
+
+		undoRes, err := projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusProposed)
+		if err != nil {
+			t.Fatalf("undo failed: %v", err)
+		}
+		if undoRes.Status != api.EditStatusProposed {
+			t.Errorf("undoRes.Status = %s, want proposed", undoRes.Status)
+		}
+		snapAfterUndo, _ := app.FindRecordById("projection_snapshot", src.Id)
+		if got := snapAfterUndo.GetString("output_draft"); got != "# T\n\n"+marker+"\n\ngamma" {
+			t.Errorf("output_draft after undo = %q, want marker restored", got)
+		}
+	})
+
+	t.Run("reject replaces marker with ContentBefore", func(t *testing.T) {
+		app := testutil.NewApp(t)
+		proj, src := editFixture(t, app)
+		editID := "edit-2"
+		marker := engine.FormatEditMarker(editID)
+		src.Set("output_draft", "# T\n\n"+marker+"\n\ngamma")
+		edits := []api.SnapshotEdit{
+			{
+				ID:            editID,
+				Sequence:      1,
+				Type:          api.EditTypeRegeneration,
+				Status:        api.EditStatusProposed,
+				ContentBefore: "alpha beta",
+				ContentAfter:  "alpha NEW",
+				BlockIndex:    1,
+			},
+		}
+		src.Set("edits", pbutil.JSONObject(edits))
+		if err := app.Save(src); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusRejected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Status != api.EditStatusRejected {
+			t.Errorf("res.Status = %s, want rejected", res.Status)
+		}
+
+		snap, err := app.FindRecordById("projection_snapshot", src.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantDraft := "# T\n\nalpha beta\n\ngamma"
+		if got := snap.GetString("output_draft"); got != wantDraft {
+			t.Errorf("output_draft = %q, want %q", got, wantDraft)
+		}
+
+		undoRes, err := projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusProposed)
+		if err != nil {
+			t.Fatalf("undo failed: %v", err)
+		}
+		if undoRes.Status != api.EditStatusProposed {
+			t.Errorf("undoRes.Status = %s, want proposed", undoRes.Status)
+		}
+		snapAfterUndo, _ := app.FindRecordById("projection_snapshot", src.Id)
+		if got := snapAfterUndo.GetString("output_draft"); got != "# T\n\n"+marker+"\n\ngamma" {
+			t.Errorf("output_draft after undo = %q, want marker restored", got)
+		}
+	})
+
+	t.Run("rejected pure insertion undo and latching", func(t *testing.T) {
+		app := testutil.NewApp(t)
+		proj, src := editFixture(t, app)
+		editID := "insert-1"
+		marker := engine.FormatEditMarker(editID)
+		src.Set("output_draft", "# T\n\n"+marker+"\n\ngamma")
+		edits := []api.SnapshotEdit{
+			{
+				ID:            editID,
+				Sequence:      1,
+				Type:          api.EditTypeRefinement,
+				Status:        api.EditStatusProposed,
+				ContentBefore: "",
+				ContentAfter:  "inserted content",
+				BlockIndex:    1,
+			},
+		}
+		src.Set("edits", pbutil.JSONObject(edits))
+		if err := app.Save(src); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusRejected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.InlinedText != "" || res.AnchorPrev != "# T" || res.AnchorNext != "gamma" {
+			t.Errorf("unexpected anchors: %+v", res)
+		}
+
+		snap, _ := app.FindRecordById("projection_snapshot", src.Id)
+		if got := snap.GetString("output_draft"); got != "# T\n\ngamma" {
+			t.Errorf("output_draft after reject = %q, want '# T\\n\\ngamma'", got)
+		}
+
+		undoRes, err := projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusProposed)
+		if err != nil {
+			t.Fatalf("undo rejected insertion failed: %v", err)
+		}
+		if undoRes.Status != api.EditStatusProposed {
+			t.Errorf("undoRes.Status = %s, want proposed", undoRes.Status)
+		}
+		snapAfterUndo, _ := app.FindRecordById("projection_snapshot", src.Id)
+		if got := snapAfterUndo.GetString("output_draft"); got != "# T\n\n"+marker+"\n\ngamma" {
+			t.Errorf("output_draft after undo = %q, want marker restored", got)
+		}
+
+		_, err = projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusApproved)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = projections.ApplyEdit(context.Background(), app, proj.Id, src.Id, 1, "hand edited")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		snapLatched, _ := app.FindRecordById("projection_snapshot", src.Id)
+		latchedEdits := engine.LoadSnapshotEdits(snapLatched)
+		if len(latchedEdits) < 2 {
+			t.Fatalf("expected at least 2 edits, got %d", len(latchedEdits))
+		}
+		if latchedEdits[0].Undoable == nil || *latchedEdits[0].Undoable != false || latchedEdits[0].UndoReason != "another edit was made on top" {
+			t.Errorf("expected latched false with reason, got: %+v", latchedEdits[0])
+		}
+
+		_, err = projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, editID, api.EditStatusProposed)
+		if !errors.Is(err, projections.ErrEditNotUndoable) {
+			t.Errorf("err = %v, want ErrEditNotUndoable", err)
+		}
+	})
+}
+
+func TestProposeRefineEditSubBlock(t *testing.T) {
+	t.Run("one sentence inside a paragraph", func(t *testing.T) {
+		app := testutil.NewApp(t)
+		proj, src := editFixture(t, app)
+		src.Set("output_draft", "Sentence one. Sentence two. Sentence three.")
+		if err := app.Save(src); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := projections.ProposeRefineEdit(context.Background(), app, proj.Id, src.Id, "Sentence two.", "Revised two.")
+		if err != nil {
+			t.Fatalf("ProposeRefineEdit: %v", err)
+		}
+		if res.Edit.ContentBefore != "Sentence two." {
+			t.Errorf("ContentBefore = %q, want %q", res.Edit.ContentBefore, "Sentence two.")
+		}
+		if res.Edit.ContentAfter != "Revised two." {
+			t.Errorf("ContentAfter = %q, want %q", res.Edit.ContentAfter, "Revised two.")
+		}
+		if res.Edit.BlockIndex != 0 {
+			t.Errorf("BlockIndex = %d, want 0", res.Edit.BlockIndex)
+		}
+
+		snap, err := app.FindRecordById("projection_snapshot", src.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		marker := engine.FormatEditMarker(res.Edit.ID)
+		wantDraft := "Sentence one. " + marker + " Sentence three."
+		if got := snap.GetString("output_draft"); got != wantDraft {
+			t.Errorf("output_draft = %q, want %q", got, wantDraft)
+		}
+
+		_, err = projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, res.Edit.ID, api.EditStatusApproved)
+		if err != nil {
+			t.Fatalf("UpdateSnapshotEditStatus approved: %v", err)
+		}
+		snapApproved, _ := app.FindRecordById("projection_snapshot", src.Id)
+		if got := snapApproved.GetString("output_draft"); got != "Sentence one. Revised two. Sentence three." {
+			t.Errorf("output_draft after approve = %q, want %q", got, "Sentence one. Revised two. Sentence three.")
+		}
+	})
+
+	t.Run("heading line joined to paragraph by single newline", func(t *testing.T) {
+		app := testutil.NewApp(t)
+		proj, src := editFixture(t, app)
+		src.Set("output_draft", "# Heading\nFirst line of body.")
+		if err := app.Save(src); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := projections.ProposeRefineEdit(context.Background(), app, proj.Id, src.Id, "# Heading", "# New Heading")
+		if err != nil {
+			t.Fatalf("ProposeRefineEdit: %v", err)
+		}
+		if res.Edit.ContentBefore != "# Heading" {
+			t.Errorf("ContentBefore = %q, want %q", res.Edit.ContentBefore, "# Heading")
+		}
+		if res.Edit.BlockIndex != 0 {
+			t.Errorf("BlockIndex = %d, want 0", res.Edit.BlockIndex)
+		}
+
+		snap, err := app.FindRecordById("projection_snapshot", src.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		marker := engine.FormatEditMarker(res.Edit.ID)
+		wantDraft := marker + "\nFirst line of body."
+		if got := snap.GetString("output_draft"); got != wantDraft {
+			t.Errorf("output_draft = %q, want %q", got, wantDraft)
+		}
+
+		_, err = projections.UpdateSnapshotEditStatus(context.Background(), app, proj.Id, src.Id, res.Edit.ID, api.EditStatusApproved)
+		if err != nil {
+			t.Fatalf("UpdateSnapshotEditStatus approved: %v", err)
+		}
+		snapApproved, _ := app.FindRecordById("projection_snapshot", src.Id)
+		if got := snapApproved.GetString("output_draft"); got != "# New Heading\nFirst line of body." {
+			t.Errorf("output_draft after approve = %q, want %q", got, "# New Heading\nFirst line of body.")
+		}
+	})
+
+	t.Run("same sentence in two blocks", func(t *testing.T) {
+		app := testutil.NewApp(t)
+		proj, src := editFixture(t, app)
+		src.Set("output_draft", "First block. Common sentence.\n\nSecond block. Common sentence.")
+		if err := app.Save(src); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := projections.ProposeRefineEdit(context.Background(), app, proj.Id, src.Id, "Common sentence.", "Replaced sentence.")
+		if err != nil {
+			t.Fatalf("ProposeRefineEdit: %v", err)
+		}
+		if res.Edit.BlockIndex != 0 {
+			t.Errorf("BlockIndex = %d, want 0", res.Edit.BlockIndex)
+		}
+
+		snap, err := app.FindRecordById("projection_snapshot", src.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		marker := engine.FormatEditMarker(res.Edit.ID)
+		wantDraft := "First block. " + marker + "\n\nSecond block. Common sentence."
+		if got := snap.GetString("output_draft"); got != wantDraft {
+			t.Errorf("output_draft = %q, want %q", got, wantDraft)
+		}
+	})
+
+	t.Run("containing block with existing marker is rejected", func(t *testing.T) {
+		app := testutil.NewApp(t)
+		proj, src := editFixture(t, app)
+		existingMarker := engine.FormatEditMarker("existing-edit")
+		src.Set("output_draft", "Sentence one. "+existingMarker+" Sentence three.")
+		if err := app.Save(src); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := projections.ProposeRefineEdit(context.Background(), app, proj.Id, src.Id, "Sentence three.", "Revised three.")
+		if !errors.Is(err, projections.ErrEditUnderMarker) {
+			t.Errorf("err = %v, want ErrEditUnderMarker", err)
+		}
+	})
 }

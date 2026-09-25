@@ -11,8 +11,8 @@ import (
 // blocks carry the quoted name a projection/reflection mention joins on.
 func TestMentionLegendComposition(t *testing.T) {
 	for name, prompt := range map[string]string{
-		"ChatSystemPrompt":       ChatSystemPrompt,
-		"RefinementSystemPrompt": RefinementSystemPrompt,
+		"ChatSystemPrompt":         ChatSystemPrompt,
+		"RefinementCreationPrompt": RefinementCreationPrompt,
 	} {
 		if !strings.Contains(prompt, MentionLegend) {
 			t.Errorf("%s does not include MentionLegend", name)
@@ -54,12 +54,9 @@ func TestSnapshotDeltaPromptContract(t *testing.T) {
 // silently detaches the instruction from the tool it governs.
 func TestRefinementToolInstructions(t *testing.T) {
 	for _, name := range []string{UpdateLensToolName, SuggestNameToolName} {
-		if !strings.Contains(RefinementSystemPrompt, `"`+name+`"`) {
-			t.Errorf("RefinementSystemPrompt does not quote tool %q", name)
+		if !strings.Contains(RefinementCreationPrompt, `"`+name+`"`) {
+			t.Errorf("RefinementCreationPrompt does not quote tool %q", name)
 		}
-	}
-	if !strings.Contains(RefinementSystemPrompt, `"suggested_name"`) {
-		t.Error("RefinementSystemPrompt does not mention update_lens's suggested_name argument")
 	}
 }
 
@@ -68,8 +65,8 @@ func TestRefinementToolInstructions(t *testing.T) {
 // state the model's epistemic position and the data-agnosticism hard rules
 // carried over from the distillation generator.
 func TestRefinementPromptEpistemics(t *testing.T) {
-	if strings.Contains(RefinementSystemPrompt, ApplyResultToolName) {
-		t.Errorf("RefinementSystemPrompt mentions %q — the model must not know the apply channel exists", ApplyResultToolName)
+	if strings.Contains(RefinementCreationPrompt, ApplyResultToolName) {
+		t.Errorf("RefinementCreationPrompt mentions %q — the model must not know the apply channel exists", ApplyResultToolName)
 	}
 	for _, marker := range []string{
 		"NEVER see the document",         // epistemic position
@@ -80,8 +77,8 @@ func TestRefinementPromptEpistemics(t *testing.T) {
 		"Interview first",                // no lens until the essentials are settled
 		"Before the first lens exists",   // the confidence gate is first-lens scoped
 	} {
-		if !strings.Contains(RefinementSystemPrompt, marker) {
-			t.Errorf("RefinementSystemPrompt lost the %q contract", marker)
+		if !strings.Contains(RefinementCreationPrompt, marker) {
+			t.Errorf("RefinementCreationPrompt lost the %q contract", marker)
 		}
 	}
 }

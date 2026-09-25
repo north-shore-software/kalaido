@@ -285,6 +285,9 @@ var Canonical = []TableDef{
 			&core.DateField{Name: "generated_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+			&core.TextField{Name: "output_raw", Max: longTextMax},
+			&core.TextField{Name: "output_draft", Max: longTextMax},
+			&core.JSONField{Name: "edits"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_projection_snapshot_projection", Columns: "projection_id"},
@@ -338,6 +341,9 @@ var Canonical = []TableDef{
 			&core.DateField{Name: "generated_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+			&core.TextField{Name: "output_raw", Max: longTextMax},
+			&core.TextField{Name: "output_draft", Max: longTextMax},
+			&core.JSONField{Name: "edits"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_reflection_snapshot_reflection", Columns: "reflection_id"},

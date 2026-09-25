@@ -26,7 +26,10 @@ export type RouteContracts = {
     state: { seed?: ReflectionSeed };
   };
   "projection-detail": { params: { id: string; snapshotId?: string } };
-  "projection-review": { params: { id: string; snapshotId: string } };
+  "projection-review": {
+    params: { id: string; snapshotId: string };
+    state: { wave?: boolean };
+  };
   "onboarding-organizing": { params: { ingestId: string } };
   "kalaidoscope-setup": { state: KalaidoscopeSetupState };
   "new-projection": { state: { seed?: ProjectionSeed } };
