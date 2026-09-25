@@ -10,7 +10,11 @@ export {
   MessageBubble,
   type MessageBubbleProps,
 } from "./chat-messages";
-export { ChatPanel } from "./chat-panel";
+export {
+  ChatPanel,
+  type ChatPanelHandle,
+  type ChatPanelProps,
+} from "./chat-panel";
 export { Chip } from "./chip";
 export { ColourSwatch, contentColour } from "./colour";
 export {
@@ -29,6 +33,7 @@ export type {
 export { DiffLine } from "./diff";
 export { DocumentCard } from "./document-card";
 export { EditableText, type EditableTextProps } from "./editable-text";
+export { EditDiffBoxes, type EditDiffBoxesProps } from "./edit-diff-boxes";
 export { EmptyState } from "./empty-state";
 export { FragmentCard } from "./fragment-card";
 export { FragmentDrawer } from "./fragment-drawer";
@@ -50,9 +55,17 @@ export {
   PanelErrorBoundary,
   PanelErrorFallback,
 } from "./panel-error-boundary";
+export {
+  DecisionCard,
+  type DecisionCardProps,
+  type DecisionOption,
+} from "./decision-card";
 export { Pill } from "./pill";
 export { PinToggle } from "./pin-toggle";
-export { RefineChatPanel } from "./refine-chat-panel";
+export {
+  RefineChatPanel,
+  type RefineChatPanelProps,
+} from "./refine-chat-panel";
 export { RefineComposer } from "./refine-composer";
 export {
   RequiredPill,

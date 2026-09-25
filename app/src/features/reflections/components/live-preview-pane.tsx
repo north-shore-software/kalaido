@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { RefinePhase } from "@/api/kalaidoscope/refinements";
 import { MarkdownContent, Pill } from "@/components/kalaido";
 import { PaneHeader } from "@/components/layout/page-layout";
+import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { cn } from "@/lib/css-utils";
 
 export interface LivePreviewPaneProps {
@@ -25,6 +26,11 @@ export function LivePreviewPane({
   header,
   className,
 }: LivePreviewPaneProps) {
+  const { containerRef, onScroll } = useAutoScroll({
+    active: phase === "applying",
+    content: preview,
+  });
+
   return (
     <div className={cn("flex min-w-0 flex-[1.1] flex-col", className)}>
       <PaneHeader
@@ -44,7 +50,11 @@ export function LivePreviewPane({
           </div>
         }
       />
-      <div className="flex-1 overflow-y-auto p-5">
+      <div
+        ref={containerRef}
+        onScroll={onScroll}
+        className="flex-1 overflow-y-auto p-5"
+      >
         {!started ? (
           <p className="text-body-sm text-fg-2">
             Send a first message to generate a draft.

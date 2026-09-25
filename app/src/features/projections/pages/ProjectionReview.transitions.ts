@@ -18,8 +18,12 @@ export const projectionReviewTransitions = defineTransitions({
     to: "main",
     trigger: "Approve & next with nothing left to do — back to the dashboard",
   },
-  backToList: {
-    to: "projections",
-    trigger: "Click ‘Come back later’ to go back to projections list",
+  backToDetail: {
+    to: "projection-detail",
+    trigger: "Click ‘Come back later’ to return to projection detail",
+  },
+  exitWave: {
+    to: "rotation",
+    trigger: "Exit wave back to rotation queue",
   },
 });

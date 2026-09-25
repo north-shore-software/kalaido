@@ -14,6 +14,7 @@ export interface ChatComposerProps {
   onMention?: (item: ContextItem) => void;
   /** A row beneath the input, e.g. the context meter. */
   footer?: ReactNode;
+  textareaRef?: React.Ref<HTMLTextAreaElement>;
 }
 
 export function ChatComposer({
@@ -25,6 +26,7 @@ export function ChatComposer({
   quotaMessage,
   onMention,
   footer,
+  textareaRef,
 }: ChatComposerProps) {
   const isSendDisabled = !value.trim() || disabled || !!quotaMessage;
 
@@ -44,6 +46,7 @@ export function ChatComposer({
           onMention={onMention}
           placeholder={placeholder}
           disabled={!!quotaMessage}
+          textareaRef={textareaRef}
           className="flex-1 min-h-0 max-h-40 overflow-y-auto"
         />
         <ComposerSendButton onClick={onSubmit} disabled={isSendDisabled} />

@@ -1,6 +1,10 @@
 import type { UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 import {
+  CONTEXT_CONFIRMATION_PART_TYPE,
+  REGENERATE_CONFIRMATION_PART_TYPE,
+} from "./chat";
+import {
   APPLY_RESULT_TOOL,
   extractPreviewFromMessages,
   extractPreviewReady,
@@ -205,9 +209,49 @@ describe("extractRefinePhase", () => {
         assistant(
           "a2",
           liveTool(UPDATE_LENS_TOOL, { lens: "L2…" }, "input-streaming"),
+          liveTool("regenerate_from_lens", {}),
         ),
       ]),
     ).toBe("drafting");
+  });
+
+  it("does not read a lens-only update after the first lens as drafting", () => {
+    // Once a draft exists, updating the lens alone applies nothing: the
+    // canvas keeps showing the candidate until the user regenerates.
+    expect(
+      extractRefinePhase([
+        draftingTurn("a1", "L", "# v1"),
+        assistant("a2", liveTool(UPDATE_LENS_TOOL, { lens: "L2" })),
+      ]),
+    ).toBe("idle");
+  });
+
+  it("is idle after a turn that stopped to ask for confirmation", () => {
+    // A gated regenerate: the lens was updated on the turn, but nothing was
+    // applied, so the canvas is not waiting on a draft.
+    expect(
+      extractRefinePhase([
+        draftingTurn("a1", "L", "# v1"),
+        assistant(
+          "a2",
+          liveTool(UPDATE_LENS_TOOL, { lens: "L2" }),
+          liveTool("regenerate_from_lens", {}),
+          {
+            type: REGENERATE_CONFIRMATION_PART_TYPE,
+            data: { affectedEdits: [] },
+          },
+        ),
+      ]),
+    ).toBe("idle");
+    // A proposed context change, likewise — even before any lens exists.
+    expect(
+      extractRefinePhase([
+        assistant("a1", {
+          type: CONTEXT_CONFIRMATION_PART_TYPE,
+          data: { spec: { wholeScope: "full" }, reason: "r" },
+        }),
+      ]),
+    ).toBe("idle");
   });
 });
 

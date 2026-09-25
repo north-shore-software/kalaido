@@ -80,3 +80,46 @@ export const ReadOnlyPastSnapshot: Story = () => (
     />
   </div>
 );
+
+export const PendingEngagedOutdated: Story = () => (
+  <div className="flex h-[600px] border border-line bg-bg rounded-none max-w-sm">
+    <ProjectionSideRail
+      readOnly={false}
+      rotLoading={false}
+      info={{
+        status: "pending",
+        entropy: 2,
+        blockedBy: [],
+        candidateOutdated: true,
+        candidateEngaged: true,
+      }}
+      newSinceCandidate={2}
+      onReviewCandidate={action("onReviewCandidate")}
+      regenerating={false}
+      onRefresh={action("onRefresh")}
+      onBackToLive={action("onBackToLive")}
+      timeline={mockTimelineItemsWithCandidate}
+    />
+  </div>
+);
+
+export const PendingUntouchedOutdated: Story = () => (
+  <div className="flex h-[600px] border border-line bg-bg rounded-none max-w-sm">
+    <ProjectionSideRail
+      readOnly={false}
+      rotLoading={false}
+      info={{
+        status: "stale",
+        entropy: 3,
+        blockedBy: [],
+        candidateOutdated: true,
+        candidateEngaged: false,
+      }}
+      onReviewCandidate={action("onReviewCandidate")}
+      regenerating={false}
+      onRefresh={action("onRefresh")}
+      onBackToLive={action("onBackToLive")}
+      timeline={mockTimelineItemsWithCandidate}
+    />
+  </div>
+);

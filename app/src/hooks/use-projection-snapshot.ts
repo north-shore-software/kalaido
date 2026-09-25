@@ -1,10 +1,16 @@
 import { useMemo } from "react";
 
+import type { SnapshotEdit } from "@/api/kalaidoscope/projections";
 import type {
   ProjectionResponse,
   ProjectionSnapshotResponse,
 } from "@/api/kalaidoscope/types";
 import { useLiveCollection } from "@/hooks/use-live-collection";
+
+export type ProjectionSnapshotWithEdits = ProjectionSnapshotResponse<
+  unknown,
+  SnapshotEdit[]
+>;
 
 /** Snapshot payload: the generated markdown, wrapped by {@link parseProjectionOutput}. */
 export interface ProjectionOutput {
@@ -31,7 +37,7 @@ export type ProjectionSnapshotState =
   | { status: "empty" }
   | {
       status: "ready";
-      current: ProjectionSnapshotResponse;
+      current: ProjectionSnapshotWithEdits;
       output: ProjectionOutput;
     }
   | { status: "error"; error: Error };
@@ -40,17 +46,18 @@ export interface UseProjectionSnapshotResult {
   state: ProjectionSnapshotState;
   projection: ProjectionResponse | undefined;
   /** Full snapshot history, newest first (for a timeline). */
-  snapshots: ProjectionSnapshotResponse[];
-  liveSnapshot: ProjectionSnapshotResponse | undefined;
+  snapshots: ProjectionSnapshotWithEdits[];
+  liveSnapshot: ProjectionSnapshotWithEdits | undefined;
   /** A generation is running server-side (a status='generating' claim row). */
   generating: boolean;
+  mutate: () => Promise<unknown>;
 }
 
 /**
  * A snapshot is "live" when approved. The backend treats an empty status as
  * approved (see `synthesis.ApprovedStatusFilter`), so mirror that here.
  */
-function isApprovedSnapshot(s: ProjectionSnapshotResponse): boolean {
+function isApprovedSnapshot(s: ProjectionSnapshotWithEdits): boolean {
   return !s.status || s.status === "approved";
 }
 
@@ -67,7 +74,10 @@ export function useProjectionSnapshot(
 ): UseProjectionSnapshotResult {
   const enabled = !!projectionId;
 
-  const snapshotsQuery = useLiveCollection("projection_snapshot", {
+  const snapshotsQuery = useLiveCollection<
+    "projection_snapshot",
+    ProjectionSnapshotWithEdits
+  >("projection_snapshot", {
     filter: projectionId ? `projection_id="${projectionId}"` : undefined,
     sort: "-created",
     enabled,
@@ -135,7 +145,14 @@ export function useProjectionSnapshot(
     projectionsQuery.error,
   ]);
 
-  return { state, projection, snapshots, liveSnapshot, generating };
+  return {
+    state,
+    projection,
+    snapshots,
+    liveSnapshot,
+    generating,
+    mutate: snapshotsQuery.mutate,
+  };
 }
 
 /** A snapshot's `output` column holds the generated markdown as plain text. */

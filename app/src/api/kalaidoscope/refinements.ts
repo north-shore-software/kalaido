@@ -1,7 +1,12 @@
 import type { UIMessage } from "ai";
 import type { Result } from "neverthrow";
 import { withActiveClient } from "./_active";
-import type { ContextSpec, TimeWindow } from "./chat";
+import {
+  CONTEXT_CONFIRMATION_PART_TYPE,
+  type ContextSpec,
+  REGENERATE_CONFIRMATION_PART_TYPE,
+  type TimeWindow,
+} from "./chat";
 
 export interface CreateRefinementResult {
   refinementId: string;
@@ -94,7 +99,10 @@ export async function commitRefinement(input: {
 }
 
 export const UPDATE_LENS_TOOL = "update_lens";
+export const REGENERATE_FROM_LENS_TOOL = "regenerate_from_lens";
 export const APPLY_RESULT_TOOL = "apply_result";
+export const LENS_PART_TYPE = "data-lens";
+export const LENS_SEED_PART_TYPE = "data-lens_seed";
 const SUGGEST_NAME_TOOL = "suggest_name";
 
 /**
@@ -247,6 +255,46 @@ export function extractPreviewReady(messages: UIMessage[]): boolean {
  * flight, while {@link extractPreviewFromMessages} / {@link extractPreviewReady}
  * scan the whole transcript for the standing preview.
  */
+function hasToolCall(part: unknown, toolName: string): boolean {
+  const p = part as {
+    type?: string;
+    toolName?: string;
+    data?: { toolName?: string };
+  };
+  return (
+    (p.type === "dynamic-tool" && p.toolName === toolName) ||
+    p.type === `tool-${toolName}` ||
+    p.data?.toolName === toolName
+  );
+}
+
+function messageHasLens(m: UIMessage): boolean {
+  if (m.role !== "assistant" || !m.parts) return false;
+  return m.parts.some(
+    (p) =>
+      hasToolCall(p, UPDATE_LENS_TOOL) ||
+      (p as { type?: string }).type === LENS_PART_TYPE ||
+      (p as { type?: string }).type === LENS_SEED_PART_TYPE,
+  );
+}
+
+export function extractHasDraftedLens(messages: UIMessage[]): boolean {
+  for (const m of messages) {
+    if (m.role !== "assistant" || !m.parts) continue;
+    const isSeed = m.parts.some(
+      (p) => (p as { type?: string }).type === LENS_SEED_PART_TYPE,
+    );
+    if (isSeed) continue;
+    const hasLens = m.parts.some(
+      (p) =>
+        hasToolCall(p, UPDATE_LENS_TOOL) ||
+        (p as { type?: string }).type === LENS_PART_TYPE,
+    );
+    if (hasLens) return true;
+  }
+  return false;
+}
+
 export type RefinePhase = "idle" | "drafting" | "applying" | "ready";
 
 export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
@@ -254,11 +302,21 @@ export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
     const m = messages[i];
     if (m.role !== "assistant" || !m.parts) continue;
     let sawLens = false;
+    let sawRegenerate = false;
     let sawError = false;
+    let sawConfirmation = false;
     let applyStreaming = false;
     let applyReady = false;
     for (const part of m.parts) {
-      if (toolInputFromPart(part, UPDATE_LENS_TOOL)) sawLens = true;
+      if (
+        hasToolCall(part, UPDATE_LENS_TOOL) ||
+        (part as { type?: string }).type === LENS_PART_TYPE
+      ) {
+        sawLens = true;
+      }
+      if (hasToolCall(part, REGENERATE_FROM_LENS_TOOL)) {
+        sawRegenerate = true;
+      }
       const output = applyOutputFromPart(part);
       if (output !== null) {
         if (applyOutputFromPart(part, true) !== null) applyReady = true;
@@ -267,11 +325,33 @@ export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
       if ((part as { type?: string }).type === "data-refine_error") {
         sawError = true;
       }
+      // A turn that ended by asking the user to confirm something (a gated
+      // regenerate, a proposed context change) applies nothing: no draft is
+      // in flight, whatever the turn's lens parts suggest.
+      const partType = (part as { type?: string }).type;
+      if (
+        partType === REGENERATE_CONFIRMATION_PART_TYPE ||
+        partType === CONTEXT_CONFIRMATION_PART_TYPE
+      ) {
+        sawConfirmation = true;
+      }
     }
     if (applyReady) return "ready";
     if (applyStreaming) return "applying";
-    if (sawError) return "idle";
-    if (sawLens) return "drafting";
+    if (sawError || sawConfirmation) return "idle";
+    if (sawLens) {
+      let earlierHadLens = false;
+      for (let j = 0; j < i; j++) {
+        if (messageHasLens(messages[j])) {
+          earlierHadLens = true;
+          break;
+        }
+      }
+      if (sawRegenerate || !earlierHadLens) {
+        return "drafting";
+      }
+      return "idle";
+    }
     return "idle";
   }
   return "idle";

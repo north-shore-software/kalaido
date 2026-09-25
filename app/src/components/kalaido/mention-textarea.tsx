@@ -28,6 +28,7 @@ export interface MentionTextareaProps {
    * this prop to disable mentions).
    */
   onMention?: (item: ContextItem) => void;
+  textareaRef?: React.Ref<HTMLTextAreaElement>;
 }
 
 /**
@@ -44,8 +45,21 @@ export function MentionTextarea({
   disabled = false,
   className,
   onMention,
+  textareaRef: externalRef,
 }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const setCombinedRef = (node: HTMLTextAreaElement | null) => {
+    (
+      textareaRef as unknown as { current: HTMLTextAreaElement | null }
+    ).current = node;
+    if (typeof externalRef === "function") {
+      externalRef(node);
+    } else if (externalRef && "current" in externalRef) {
+      (
+        externalRef as unknown as { current: HTMLTextAreaElement | null }
+      ).current = node;
+    }
+  };
   const [caret, setCaret] = useState(0);
   // The `@` position the user pressed Escape on. Comparing by position keeps
   // the menu closed while they continue typing the same word, but lets a new
@@ -126,7 +140,7 @@ export function MentionTextarea({
         />
       )}
       <Textarea
-        ref={textareaRef}
+        ref={setCombinedRef}
         value={value}
         onChange={(e) => {
           onChange(e.target.value);

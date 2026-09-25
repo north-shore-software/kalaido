@@ -14,6 +14,8 @@ export interface ProjectionStatusInfo {
   entropy: number;
   /** Upstream ids that are not themselves up to date, so this one must wait. */
   blockedBy: string[];
+  candidateOutdated?: boolean;
+  candidateEngaged?: boolean;
 }
 
 /**
@@ -43,15 +45,32 @@ export function getProjectionStatus(
   const staleDeps = status?.staleDependencies?.length ?? 0;
   const dueWindows =
     (status?.pendingWindows?.length ?? 0) + (status?.staleWindows?.length ?? 0);
+  const candidate = status?.candidate;
+  const candidateOutdated = candidate?.outdated ?? false;
+  const candidateEngaged = candidate?.engaged ?? false;
+  const isUntouchedOutdated =
+    hasPending && candidateOutdated && !candidateEngaged;
 
   let kind: ProjectionStatus = "stable";
   if (opts?.generating) kind = "generating";
-  else if (hasPending) kind = "pending";
+  else if (hasPending && !isUntouchedOutdated) kind = "pending";
   else if (opts?.lensMissing) kind = "preparing";
   else if (blockedBy.length > 0) kind = "blocked";
-  else if (entropy > 0 || dueWindows > 0 || staleDeps > 0) kind = "stale";
+  else if (
+    entropy > 0 ||
+    dueWindows > 0 ||
+    staleDeps > 0 ||
+    isUntouchedOutdated
+  )
+    kind = "stale";
 
-  return { status: kind, entropy, blockedBy };
+  return {
+    status: kind,
+    entropy,
+    blockedBy,
+    candidateOutdated,
+    candidateEngaged,
+  };
 }
 
 export function statusLabel(status: ProjectionStatus): string {

@@ -1,9 +1,9 @@
 import { CheckIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import {
+  type ChatPanelHandle,
   type ContextItem,
-  MarkdownContent,
   Pill,
   RefineChatPanel,
 } from "@/components/kalaido";
@@ -14,8 +14,12 @@ import {
   PaneHeader,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
+import { useProjectionSnapshot } from "@/hooks/use-projection-snapshot";
 import type { RefineSession } from "@/hooks/use-refine-session";
 import { withContextItem } from "@/lib/mentions";
+import { EditsStatusPill } from "./edits-status-pill";
+import { ProjectionCanvasPane } from "./projection-canvas-pane";
+import { useCandidateTriage } from "../hooks/use-candidate-triage";
 
 export interface ProjectionDraftEditorProps {
   session: RefineSession;
@@ -23,27 +27,19 @@ export interface ProjectionDraftEditorProps {
   title: string;
   crumb: string[];
   initialContext?: ContextItem[];
-  /** Makes the header title editable inline; see {@link PageHeader}. */
+  approveLabel?: string;
   onTitleCommit?: (next: string) => void;
   onCancel: () => void;
   onApproveSuccess: (id: string) => void;
 }
 
-/**
- * The `context | chat | live-preview` editor for drafting a projection through
- * a refinement chat. Used both when authoring a brand-new projection
- * ({@link NewProjection}) and when resuming an uncommitted draft
- * ({@link ProjectionDetail}) — the only difference is how the {@link RefineSession}
- * was opened (fresh `start` vs `resume`). The chat drafts a lens; the preview
- * shows that lens's executed output (the `apply_result` part), and Approve
- * commits lens + output together and routes to the projection.
- */
 export function ProjectionDraftEditor({
   session,
   projectionId,
   title,
   crumb,
   initialContext,
+  approveLabel,
   onTitleCommit,
   onCancel,
   onApproveSuccess,
@@ -51,8 +47,25 @@ export function ProjectionDraftEditor({
   const [context, setContext] = useState<ContextItem[]>(
     initialContext ?? [WHOLE_SCOPE_ITEM],
   );
+  const chatPanelRef = useRef<ChatPanelHandle>(null);
+  const [chatInput, setChatInput] = useState("");
 
-  const canApprove = session.previewReady && !session.committing;
+  const { snapshots, mutate } = useProjectionSnapshot(projectionId);
+  const pending = snapshots.find((s) => s.status === "pending_review");
+  const pendingId = pending?.id;
+
+  const triage = useCandidateTriage({
+    projectionId,
+    pending,
+    mutate,
+    session,
+    chatPanelRef,
+  });
+  const { edits, hasUnresolvedEdits, activeDraft, highlightedEditId } = triage;
+
+  const hasDraft =
+    (activeDraft && activeDraft.length > 0) || session.previewReady;
+  const canApprove = hasDraft && !hasUnresolvedEdits && !session.committing;
 
   async function approve() {
     if (!canApprove) return;
@@ -69,6 +82,13 @@ export function ProjectionDraftEditor({
         onTitleCommit={onTitleCommit}
         actions={
           <>
+            <EditsStatusPill
+              edits={edits}
+              onNext={triage.jumpToNextEdit}
+              onPrev={triage.jumpToPrevEdit}
+              canNext={triage.canJumpNext}
+              canPrev={triage.canJumpPrev}
+            />
             <Button variant="ghost" onClick={onCancel}>
               Cancel
             </Button>
@@ -78,27 +98,18 @@ export function ProjectionDraftEditor({
               onClick={() => void approve()}
             >
               <CheckIcon />
-              {session.committing ? "Approving…" : "Approve"}
+              {session.committing
+                ? approveLabel === "Create projection"
+                  ? "Creating…"
+                  : "Approving…"
+                : (approveLabel ?? "Approve")}
             </Button>
           </>
         }
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <div className="flex min-w-0 flex-[1.05] flex-col border-r border-line">
-            <RefineChatPanel
-              session={session}
-              title="Define via chat"
-              context={context}
-              onMention={(item) =>
-                setContext((prev) => withContextItem(prev, item))
-              }
-              onContextChange={setContext}
-              entity="projection"
-            />
-          </div>
-
-          <div className="flex min-w-0 flex-[1.1] flex-col">
+          <div className="flex min-w-0 flex-[1.1] flex-col border-r border-line">
             <PaneHeader
               label="Live draft preview"
               status={
@@ -107,18 +118,22 @@ export function ProjectionDraftEditor({
                     ? "drafting"
                     : session.phase === "applying"
                       ? "generating"
-                      : session.preview.length > 0
+                      : activeDraft && activeDraft.length > 0
                         ? "draft"
                         : "pending"}
                 </Pill>
               }
             />
-            <div className="flex-1 overflow-y-auto p-5">
-              {session.preview.length > 0 ? (
-                <div className="text-body leading-relaxed text-fg-1">
-                  <MarkdownContent streaming content={session.preview} />
-                </div>
-              ) : (
+            {activeDraft && activeDraft.length > 0 ? (
+              <ProjectionCanvasPane
+                triage={triage}
+                busy={
+                  session.phase === "drafting" || session.phase === "applying"
+                }
+                canHandEdit={Boolean(pendingId)}
+              />
+            ) : (
+              <div className="flex-1 overflow-y-auto p-6">
                 <p className="text-body-sm text-fg-2">
                   {session.phase === "drafting"
                     ? "Drafting the instruction…"
@@ -126,8 +141,27 @@ export function ProjectionDraftEditor({
                       ? "Generating the preview…"
                       : "Nothing drafted yet."}
                 </p>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex min-w-0 flex-[1.05] flex-col">
+            <RefineChatPanel
+              ref={chatPanelRef}
+              session={session}
+              title="Define via chat"
+              context={context}
+              onMention={(item) =>
+                setContext((prev) => withContextItem(prev, item))
+              }
+              onContextChange={setContext}
+              entity="projection"
+              highlightedEditId={highlightedEditId}
+              edits={edits}
+              onUndoEdit={triage.handleUndoEdit}
+              input={chatInput}
+              onInputChange={setChatInput}
+            />
           </div>
         </div>
       </PageCard>

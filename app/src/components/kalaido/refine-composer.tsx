@@ -33,6 +33,12 @@ export interface RefineComposerProps {
    * land in it exactly as it would in the chat panel after the session starts.
    */
   onMention?: (item: ContextItem) => void;
+  /**
+   * Replaces the helper text with content laid out like the tail of a chat
+   * stream — where a page puts a {@link DecisionCard} before any session
+   * exists, so the question sits where the conversation would.
+   */
+  children?: ReactNode;
 }
 
 export function RefineComposer({
@@ -50,6 +56,7 @@ export function RefineComposer({
   beforeInput,
   nameField,
   onMention,
+  children,
 }: RefineComposerProps) {
   if (preparing) {
     return (
@@ -70,7 +77,11 @@ export function RefineComposer({
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {title && <PaneHeader label={title} />}
-      {helperText && (
+      {children ? (
+        <div className="flex flex-1 flex-col justify-end space-y-3 overflow-y-auto p-4">
+          {children}
+        </div>
+      ) : helperText ? (
         <div className="flex flex-1 items-center justify-center px-4 py-2">
           <p
             className={cn(
@@ -81,7 +92,7 @@ export function RefineComposer({
             {helperText}
           </p>
         </div>
-      )}
+      ) : null}
       {nameField}
       {beforeInput}
       <div className="shrink-0 border-t border-line px-4 py-3">

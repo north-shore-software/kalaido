@@ -1,4 +1,4 @@
-import { GitForkIcon, TrashIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, GitForkIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { ContextSpec } from "@/api/kalaidoscope/chat";
@@ -31,7 +31,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProjectionDraftEditor } from "@/features/projections/components/projection-draft-editor";
@@ -62,16 +61,29 @@ export default function ProjectionDetail() {
   const [regenerating, setRegenerating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const pendingCandidate = snapshots.find((s) => s.status === "pending_review");
   const readOnly = !!snapshotId;
 
-  // The record is gone (deleted here, elsewhere, or never existed): there is
-  // nothing to show, so leave rather than render an empty shell — and never
-  // fall into the "no snapshots yet" authoring path below.
   useEffect(() => {
     if (state.status === "missing") {
       go(projectionDetailTransitions.backToList, { replace: true });
     }
   }, [state.status, go]);
+
+  useEffect(() => {
+    if (
+      state.status !== "loading" &&
+      !readOnly &&
+      !liveSnapshot &&
+      pendingCandidate &&
+      id
+    ) {
+      go(projectionDetailTransitions.reviewCandidate, {
+        params: { id, snapshotId: pendingCandidate.id },
+        replace: true,
+      });
+    }
+  }, [state.status, readOnly, liveSnapshot, pendingCandidate, id, go]);
 
   async function remove() {
     if (!id) return;
@@ -104,11 +116,9 @@ export default function ProjectionDetail() {
       },
     });
   }
+
   const title = projection?.name || "Projection";
 
-  // In read-only mode, load the viewed snapshot by id independently of the
-  // timeline list, so a direct link works even for a snapshot that isn't shown
-  // there (e.g. a discarded one).
   const historicalQuery = useLiveCollection("projection_snapshot", {
     filter: snapshotId ? `id="${snapshotId}"` : undefined,
     enabled: readOnly,
@@ -118,37 +128,24 @@ export default function ProjectionDetail() {
     ? parseProjectionOutput(historical.output).content
     : undefined;
 
-  // A projection with no snapshots may still have an uncommitted refinement
-  // draft — "New Projection" opens the refinement on the first message but only
-  // materializes a snapshot on approve. Resume that draft rather than showing an
-  // empty shell. Scoped to authoring sessions (empty projection_snapshot_id) so
-  // we never reopen a refinement that was started over a review candidate; once
-  // any snapshot exists this never triggers.
   const noSnapshots = !readOnly && state.status === "empty";
-  const session = useRefineSession({ target: "projection" });
-  const {
-    openRefinement,
-    context: refineContext,
-    resumed,
-  } = useResumeRefinement({
-    session,
+  const authoringSession = useRefineSession({ target: "projection" });
+  const { context: authoringRefineContext, resumed } = useResumeRefinement({
+    session: authoringSession,
     parentId: id,
     snapshotId: "",
     enabled: noSnapshots,
   });
 
-  // Naming for the resumed authoring draft. Ownership is inferred at adoption:
-  // if the stored name no longer matches the chat's latest suggestion, someone
-  // overrode it (rename, seed), so suggestions must keep their hands off.
   const draftName = useDraftName({
     target: "projection",
     entityId: id ?? null,
-    suggestedName: resumed ? session.suggestedName : "",
+    suggestedName: resumed ? authoringSession.suggestedName : "",
   });
   const { adopt: adoptDraftName } = draftName;
   useEffect(() => {
     if (!resumed || !projection || draftName.name !== null) return;
-    const suggestion = session.suggestedName;
+    const suggestion = authoringSession.suggestedName;
     adoptDraftName(
       projection.name || "Untitled projection",
       suggestion !== "" && projection.name !== suggestion,
@@ -157,20 +154,16 @@ export default function ProjectionDetail() {
     resumed,
     projection,
     draftName.name,
-    session.suggestedName,
+    authoringSession.suggestedName,
     adoptDraftName,
   ]);
 
   async function handleRefresh() {
     if (!id || regenerating) return;
     setRegenerating(true);
-    // Refresh regenerates a *pending* candidate rather than touching live, so
-    // send the user to review it.
     const res = await regenerateProjection(id);
     setRegenerating(false);
     if (res.isErr()) {
-      // 409s carry a specific reason (lens still preparing, generation
-      // already running) — surface the server's own message.
       toast.error("Couldn't refresh", { description: res.error.message });
       return;
     }
@@ -179,10 +172,6 @@ export default function ProjectionDetail() {
     });
   }
 
-  // Drive the side-rail card off the server's freshness plan (GET /api/rotation)
-  // so Refresh only appears when the live snapshot is actually out of date. A
-  // pending candidate awaiting review takes precedence over staleness.
-  const pendingCandidate = snapshots.find((s) => s.status === "pending_review");
   const {
     byId: statusById,
     isLoading: rotLoading,
@@ -191,34 +180,21 @@ export default function ProjectionDetail() {
   const info = id
     ? getProjectionStatus(statusById.get(id), !!pendingCandidate, {
         generating: generating || regenerating,
-        // Committed (snapshots exist) but the lens distillation hasn't
-        // finished yet — generation would be refused, so say "preparing".
         lensMissing: snapshots.length > 0 && !projection?.current_lens_id,
       })
     : undefined;
-  // In-scope fragments that arrived after the pending candidate was generated
-  // (rotation entropy counts against the *live* snapshot, so subtract what the
-  // candidate's own resolved context already covers).
-  const newSinceCandidate = useMemo(() => {
-    if (!id || !pendingCandidate) return 0;
-    const ctx = pendingCandidate.resolved_context as {
-      fragmentIds?: string[];
-    } | null;
-    const covered = new Set(ctx?.fragmentIds ?? []);
-    return (statusById.get(id)?.newFragmentIds ?? []).filter(
-      (fid) => !covered.has(fid),
-    ).length;
-  }, [id, pendingCandidate, statusById]);
-  // /api/rotation is a plain fetch, not realtime — recompute it whenever the
-  // snapshot set changes (approve, regenerate, or a new snapshot streaming in)
-  // so the card reflects the current state without a manual reload.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Trigger a refresh when new snapshots are available.
-  useEffect(() => {
-    refetchRotation();
-  }, [snapshots.length, liveSnapshot?.id, refetchRotation]);
 
-  // Name whatever this projection is waiting on. The picker's source lists are
-  // already loaded and SWR-cached app-wide, so this costs nothing extra.
+  const newSinceCandidate =
+    statusById.get(id ?? "")?.candidate?.newFragmentIds?.length ?? 0;
+
+  const snapshotCount = snapshots.length;
+  const liveSnapshotId = liveSnapshot?.id;
+  useEffect(() => {
+    if (snapshotCount >= 0 || liveSnapshotId) {
+      refetchRotation();
+    }
+  }, [snapshotCount, liveSnapshotId, refetchRotation]);
+
   const sources = useContextSources();
   const blockedNames = useMemo(() => {
     if (!info?.blockedBy.length) return [];
@@ -231,21 +207,6 @@ export default function ProjectionDetail() {
     return info.blockedBy.map((dep) => byId.get(dep) ?? "an upstream input");
   }, [info?.blockedBy, sources.projections, sources.reflections]);
 
-  /**
-   * Fork this projection into a new one. The two modes differ only in what the
-   * child reads:
-   *
-   * - `refine` — it reads *this projection's output*, i.e. a further stage in a
-   *   pipeline. Its draft starts empty: a refining stage is a different document,
-   *   so there is nothing sensible to pre-fill.
-   * - `orthogonal` — it reads *this projection's inputs*, i.e. a sibling view of
-   *   the same material under a different lens. Its draft starts from the current
-   *   output, which is the closest thing to "like this, but…".
-   *
-   * Neither writes anything here: the fork is born blank and its context is
-   * committed from the refinement, exactly like any other new projection. An
-   * abandoned fork is just an empty projection.
-   */
   function fork(mode: "refine" | "orthogonal") {
     if (!id) return;
     const parentSpec = projection?.current_context_spec;
@@ -286,7 +247,7 @@ export default function ProjectionDetail() {
       note: formatShortDateTime(snap.created),
       current: isLive,
       pending,
-      active: snap.id === snapshotId,
+      active: snap.id === (snapshotId ?? liveId),
       onClick: () => {
         if (pending)
           go(projectionDetailTransitions.reviewCandidate, {
@@ -306,11 +267,11 @@ export default function ProjectionDetail() {
     const draftTitle = draftName.name ?? title;
     return (
       <ProjectionDraftEditor
-        session={session}
+        session={authoringSession}
         projectionId={id}
         title={draftTitle}
         crumb={["Projections", draftTitle, "Draft"]}
-        initialContext={refineContext}
+        initialContext={authoringRefineContext}
         onTitleCommit={draftName.rename}
         onCancel={() => go(projectionDetailTransitions.backToList)}
         onApproveSuccess={(projId) =>
@@ -345,42 +306,54 @@ export default function ProjectionDetail() {
         }
         actions={
           !readOnly && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button size="sm" variant="outline">
-                    <GitForkIcon />
-                    Fork
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuItem onClick={() => fork("refine")}>
-                  <div className="flex flex-col gap-0.5">
-                    <span>Refine into a further stage</span>
-                    <span className="text-meta text-fg-3">
-                      Reads this projection's output
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => fork("orthogonal")}>
-                  <div className="flex flex-col gap-0.5">
-                    <span>Another view of the same material</span>
-                    <span className="text-meta text-fg-3">
-                      Reads this projection's inputs
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <TrashIcon />
-                  Delete projection
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button size="sm" variant="outline">
+                      <GitForkIcon />
+                      Branch
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuItem onClick={() => fork("refine")}>
+                    <div className="flex flex-col gap-0.5">
+                      <span>Refine into next stage</span>
+                      <span className="text-meta text-fg-3">
+                        Reads this projection's output
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fork("orthogonal")}>
+                    <div className="flex flex-col gap-0.5">
+                      <span>Alternate view</span>
+                      <span className="text-meta text-fg-3">
+                        Reads this projection's inputs
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button size="sm" variant="ghost" aria-label="More actions">
+                      <DotsThreeIcon />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <TrashIcon />
+                    Delete projection
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )
         }
       />
@@ -406,7 +379,7 @@ export default function ProjectionDetail() {
           <PanelErrorBoundary label="the preview" resetKey={snapshotId ?? id}>
             <SnapshotPreview
               state={state}
-              awaitingDraftResume={!!openRefinement}
+              awaitingDraftResume={!!resumed}
               readOnly={readOnly}
               historical={historical}
               historicalContent={historicalContent}

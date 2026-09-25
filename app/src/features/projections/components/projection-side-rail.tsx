@@ -57,19 +57,29 @@ export function ProjectionSideRail({
       </div>
     );
   } else if (info?.status === "pending" && onReviewCandidate) {
+    const isEngagedOutdated = info.candidateEngaged && info.candidateOutdated;
     freshnessCard = (
       <div className="rounded-none border border-line p-3.5">
         <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
-          A candidate is awaiting review.
-          {newSinceCandidate > 0 && (
+          {isEngagedOutdated ? (
+            <span className="text-drifting-ink">
+              Your edited candidate is out of date
+              {newSinceCandidate > 0 && ` · ${newSinceCandidate} new`}
+            </span>
+          ) : (
             <>
-              {" "}
-              <span className="text-drifting-ink">
-                {newSinceCandidate} new fragment
-                {newSinceCandidate > 1 ? "s" : ""} arrived since it was
-                generated
-              </span>{" "}
-              — refresh to fold them in.
+              A candidate is awaiting review.
+              {newSinceCandidate > 0 && (
+                <>
+                  {" "}
+                  <span className="text-drifting-ink">
+                    {newSinceCandidate} new fragment
+                    {newSinceCandidate > 1 ? "s" : ""} arrived since it was
+                    generated
+                  </span>{" "}
+                  — refresh to fold them in.
+                </>
+              )}
             </>
           )}
         </p>
@@ -77,15 +87,17 @@ export function ProjectionSideRail({
           <Button size="sm" className="w-full" onClick={onReviewCandidate}>
             Review candidate
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={onRefresh}
-            disabled={regenerating}
-          >
-            {regenerating ? "Refreshing…" : "Refresh candidate"}
-          </Button>
+          {!isEngagedOutdated && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={onRefresh}
+              disabled={regenerating}
+            >
+              {regenerating ? "Refreshing…" : "Refresh candidate"}
+            </Button>
+          )}
         </div>
       </div>
     );

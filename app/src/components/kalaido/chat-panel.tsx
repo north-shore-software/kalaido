@@ -1,17 +1,32 @@
 import { useChat } from "@ai-sdk/react";
 import { type ChatTransport, generateId, type UIMessage } from "ai";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
+  CONTEXT_CANCEL_PART_TYPE,
+  CONTEXT_CONFIRM_PART_TYPE,
+  type ContextSpec,
   createKalaidoChatTransport,
   itemsToSpec,
   parseActiveContext,
   parseActiveWindow,
+  REGENERATE_CANCEL_PART_TYPE,
+  REGENERATE_CONFIRM_PART_TYPE,
   specKey,
   type TimeWindow,
   timeWindowKey,
 } from "@/api/kalaidoscope/chat.ts";
 import { isQuotaError, QUOTA_MESSAGE } from "@/api/kalaidoscope/cloud/quota";
+import type { SnapshotEdit } from "@/api/kalaidoscope/projections";
 import { PaneHeader } from "@/components/layout/page-chrome";
 import { recordInferenceRate } from "@/hooks/app-state-actions.ts";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
@@ -23,7 +38,16 @@ import { ContextMeter } from "./context-meter/context-meter";
 import { usePromptEstimate } from "./context-meter/use-prompt-estimate";
 import type { ContextItem, EntityKind } from "./context-picker";
 
-interface ChatPanelProps {
+export interface ChatPanelHandle {
+  appendSystemNotice: (
+    type: string,
+    data?: Record<string, unknown>,
+    id?: string,
+  ) => void;
+  focus: () => void;
+}
+
+export interface ChatPanelProps {
   greeting?: string;
   placeholder?: string;
   /**
@@ -91,249 +115,376 @@ interface ChatPanelProps {
    * chat opts in: a refinement's context is the document's, not a session
    * that runs out.
    */
+  highlightedEditId?: string | null;
+  edits?: SnapshotEdit[];
+  onUndoEdit?: (editId: string) => void;
   meter?: { conversationId: string };
   /** Drop the card chrome when embedded in a column that already has a border. */
   flat?: boolean;
   className?: string;
+  input?: string;
+  onInputChange?: (value: string) => void;
   transport?: ChatTransport<UIMessage>;
   api?: string;
-}
-
-export function ChatPanel({
-  greeting = "Hello! How can I help you today?",
-  placeholder = "Message…",
-  context,
-  onMention,
-  onContextChange,
-  entity,
-  timeWindow,
-  chatId,
-  initialMessages,
-  initialPrompt,
-  onTurnComplete,
-  onMessagesChange,
-  title,
-  messageActions,
-  actionsVisibleFor,
-  meter,
-  flat,
-  className,
-  transport: transportProp,
-  api,
-}: ChatPanelProps) {
-  const client = useKalaidoscopeClient();
-  const [input, setInput] = useState("");
-
-  // Whether this panel manages context at all. A caller that omits `context`
-  // (e.g. the refine pages) is opting out: the panel must leave the
-  // conversation's existing pinned context untouched rather than treating the
-  // absence as an empty selection (which itemsToSpec would turn into
-  // `wholeScope`, silently resetting the context on the next turn).
-  const manageContextRef = useRef(context !== undefined);
-  manageContextRef.current = context !== undefined;
-
-  // Read live in the transport so the spec is always current when a turn fires.
-  const specRef = useRef(itemsToSpec(context ?? []));
-  specRef.current = itemsToSpec(context ?? []);
-  // The spec the backend already knows for this conversation: seeded from the
-  // resumed history's last context_spec (a fresh chat has none and starts
-  // empty). Switching conversations remounts the panel (keyed on chat id), so
-  // we never carry one conversation's baseline into another. We only emit a
-  // context_spec when the active spec diverges from this.
-  const lastSentSpecRef = useRef<string | null>(null);
-  if (lastSentSpecRef.current === null) {
-    lastSentSpecRef.current = specKey(
-      parseActiveContext(initialMessages ?? []) ?? {},
-    );
-  }
-
-  // Same machinery for the optional target window. A caller that omits
-  // `timeWindow` opts out (e.g. projections / plain chat); otherwise we emit a
-  // `window` part whenever it diverges from the last one sent — the baseline
-  // being the window the conversation was seeded/resumed with, so re-opening
-  // a session never re-announces its own window.
-  const manageWindowRef = useRef(timeWindow !== undefined);
-  manageWindowRef.current = timeWindow !== undefined;
-  const timeWindowRef = useRef(timeWindow);
-  timeWindowRef.current = timeWindow;
-  const lastSentWindowRef = useRef<string | null>(null);
-  if (lastSentWindowRef.current === null) {
-    lastSentWindowRef.current = timeWindowKey(
-      parseActiveWindow(initialMessages ?? []),
-    );
-  }
-
-  const [quotaHit, setQuotaHit] = useState(false);
-
-  const transport = useMemo(() => {
-    if (transportProp) return transportProp;
-    return createKalaidoChatTransport({ baseURL: client.baseURL, api });
-  }, [transportProp, client, api]);
-
-  const { messages, sendMessage, status, setMessages } = useChat({
-    id: chatId,
-    messages: initialMessages,
-    transport,
-    onFinish: () => onTurnComplete?.(messages),
-    onError: (err) => {
-      // Quota exhaustion has its own dedicated banner (see quotaHit); every other
-      // stream failure (provider down, bad model id, 500, network) is surfaced
-      // via toast so a failed turn is visible.
-      if (isQuotaError(err)) {
-        setQuotaHit(true);
-        return;
-      }
-      toast.error("Chat failed", { description: err.message });
-    },
-    onData: (dataPart) => {
-      if (dataPart.type === "data-inference_rate") {
-        const rate = (dataPart.data as { tokensPerSecond?: number })
-          ?.tokensPerSecond;
-        if (rate) {
-          recordInferenceRate(rate);
-        }
-      }
-    },
-  });
-
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const isLoading = status === "submitted" || status === "streaming";
-
-  const estimate = usePromptEstimate({
-    conversationId: meter?.conversationId ?? "",
-    items: context ?? [],
-    messages,
-    streaming: isLoading,
-    enabled: meter !== undefined,
-  });
-
-  const sentInitial = useRef(false);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges is intentionally unlisted — the send is a guarded one-shot
-  useEffect(() => {
-    if (sentInitial.current) return;
-    if (!initialPrompt?.trim()) return;
-    if (messages.some((m) => m.role !== "system")) return;
-    sentInitial.current = true;
-    appendSpecChanges();
-    sendMessage({ text: initialPrompt });
-  }, [initialPrompt, messages, sendMessage]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Tigger when messages updates and scroll to the bottom of the relevant DOM element.
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  useEffect(() => {
-    onMessagesChange?.(messages);
-  }, [messages, onMessagesChange]);
-
-  // A target-window change is acted on at once, not on the next message: the
-  // window part goes onto the transcript and a message-less send asks the
-  // server to re-apply the standing lens to it (the preview moves, the lens
-  // does not). Before the first assistant turn there is no lens to re-apply,
-  // so the window simply rides the first send.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges reads refs; messages/isLoading are the gates
-  useEffect(() => {
-    if (!manageWindowRef.current || !timeWindow) return;
-    if (timeWindowKey(timeWindow) === lastSentWindowRef.current) return;
-    if (isLoading || quotaHit) return;
-    if (!messages.some((m) => m.role === "assistant")) return;
-    appendSpecChanges();
-    sendMessage();
-  }, [timeWindow, isLoading, quotaHit, messages, sendMessage]);
-
   /**
-   * Append any spec change (context and/or window) to the live transcript as a
-   * system message before a send, so the transcript the user sees — including
-   * the context-change divider it renders — is exactly what goes to the
-   * backend and what a resumed conversation loads. `sendMessage` appends the
-   * user message after it, and the backend persists the spec message before
-   * streaming, so it is durably recorded even if the turn fails (e.g. quota) —
-   * matching the baselines, which advance here.
+   * Hold the conversation: the composer and context bar stop accepting input
+   * while the owner asks something through {@link trailing}. The transcript
+   * itself stays readable.
    */
-  function appendSpecChanges() {
-    const specParts: { type: string; data: unknown }[] = [];
-
-    const ctxKey = specKey(specRef.current);
-    if (manageContextRef.current && ctxKey !== lastSentSpecRef.current) {
-      specParts.push({ type: "context_spec", data: specRef.current });
-      lastSentSpecRef.current = ctxKey;
-    }
-
-    const winKey = timeWindowKey(timeWindowRef.current);
-    if (
-      manageWindowRef.current &&
-      timeWindowRef.current &&
-      winKey !== lastSentWindowRef.current
-    ) {
-      const { start, end, id } = timeWindowRef.current;
-      specParts.push({ type: "window", data: { start, end, id } });
-      lastSentWindowRef.current = winKey;
-    }
-
-    if (specParts.length === 0) return;
-    const specMsg = {
-      id: generateId(),
-      role: "system",
-      parts: specParts,
-    } as unknown as UIMessage;
-    setMessages((prev) => [...prev, specMsg]);
-  }
-
-  function submit() {
-    if (!input.trim() || isLoading || quotaHit) return;
-    appendSpecChanges();
-    sendMessage({ text: input });
-    setInput("");
-  }
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col flex-1 overflow-hidden",
-        !flat && "rounded-none border border-line bg-card",
-        className,
-      )}
-    >
-      {title && <PaneHeader label={title} />}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        <ChatMessages
-          messages={messages}
-          greeting={greeting}
-          pending={isLoading}
-          messageActions={messageActions}
-          actionsVisibleFor={actionsVisibleFor}
-        />
-        <div ref={bottomRef} />
-      </div>
-
-      {context !== undefined && onContextChange && (
-        <ContextBar
-          items={context}
-          onChange={onContextChange}
-          entity={entity}
-          timeWindow={timeWindow}
-        />
-      )}
-
-      <ChatComposer
-        value={input}
-        onChange={setInput}
-        onSubmit={submit}
-        placeholder={placeholder}
-        disabled={isLoading}
-        quotaMessage={quotaHit ? QUOTA_MESSAGE : undefined}
-        onMention={context !== undefined ? onMention : undefined}
-        footer={
-          meter && (
-            <ContextMeter
-              total={estimate.total}
-              limit={estimate.limit}
-              model={estimate.model}
-            />
-          )
-        }
-      />
-    </div>
-  );
+  disabled?: boolean;
+  /**
+   * Rendered after the last message, inside the scroll area — the page's own
+   * question in the stream (see {@link DecisionCard}), as opposed to a turn
+   * the model produced.
+   */
+  trailing?: ReactNode;
 }
+
+export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
+  function ChatPanel(
+    {
+      greeting = "Hello! How can I help you today?",
+      placeholder = "Message…",
+      context,
+      onMention,
+      onContextChange,
+      entity,
+      timeWindow,
+      chatId,
+      initialMessages,
+      initialPrompt,
+      onTurnComplete,
+      onMessagesChange,
+      title,
+      messageActions,
+      actionsVisibleFor,
+      highlightedEditId,
+      edits,
+      onUndoEdit,
+      meter,
+      flat,
+      className,
+      input: controlledInput,
+      onInputChange,
+      transport: transportProp,
+      api,
+      disabled = false,
+      trailing,
+    }: ChatPanelProps,
+    ref,
+  ) {
+    const client = useKalaidoscopeClient();
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [internalInput, setInternalInput] = useState("");
+    const input =
+      controlledInput !== undefined ? controlledInput : internalInput;
+    const setInput = onInputChange ?? setInternalInput;
+
+    // Whether this panel manages context at all. A caller that omits `context`
+    // (e.g. the refine pages) is opting out: the panel must leave the
+    // conversation's existing pinned context untouched rather than treating the
+    // absence as an empty selection (which itemsToSpec would turn into
+    // `wholeScope`, silently resetting the context on the next turn).
+    const manageContextRef = useRef(context !== undefined);
+    manageContextRef.current = context !== undefined;
+
+    // Read live in the transport so the spec is always current when a turn fires.
+    const specRef = useRef(itemsToSpec(context ?? []));
+    specRef.current = itemsToSpec(context ?? []);
+    // The spec the backend already knows for this conversation: seeded from the
+    // resumed history's last context_spec (a fresh chat has none and starts
+    // empty). Switching conversations remounts the panel (keyed on chat id), so
+    // we never carry one conversation's baseline into another. We only emit a
+    // context_spec when the active spec diverges from this.
+    const lastSentSpecRef = useRef<string | null>(null);
+    if (lastSentSpecRef.current === null) {
+      lastSentSpecRef.current = specKey(
+        parseActiveContext(initialMessages ?? []) ?? {},
+      );
+    }
+
+    // Same machinery for the optional target window. A caller that omits
+    // `timeWindow` opts out (e.g. projections / plain chat); otherwise we emit a
+    // `window` part whenever it diverges from the last one sent — the baseline
+    // being the window the conversation was seeded/resumed with, so re-opening
+    // a session never re-announces its own window.
+    const manageWindowRef = useRef(timeWindow !== undefined);
+    manageWindowRef.current = timeWindow !== undefined;
+    const timeWindowRef = useRef(timeWindow);
+    timeWindowRef.current = timeWindow;
+    const lastSentWindowRef = useRef<string | null>(null);
+    if (lastSentWindowRef.current === null) {
+      lastSentWindowRef.current = timeWindowKey(
+        parseActiveWindow(initialMessages ?? []),
+      );
+    }
+
+    const [quotaHit, setQuotaHit] = useState(false);
+
+    const transport = useMemo(() => {
+      if (transportProp) return transportProp;
+      return createKalaidoChatTransport({ baseURL: client.baseURL, api });
+    }, [transportProp, client, api]);
+
+    const { messages, sendMessage, status, setMessages } = useChat({
+      id: chatId,
+      messages: initialMessages,
+      transport,
+      onFinish: () => onTurnComplete?.(messages),
+      onError: (err) => {
+        // Quota exhaustion has its own dedicated banner (see quotaHit); every other
+        // stream failure (provider down, bad model id, 500, network) is surfaced
+        // via toast so a failed turn is visible.
+        if (isQuotaError(err)) {
+          setQuotaHit(true);
+          return;
+        }
+        toast.error("Chat failed", { description: err.message });
+      },
+      onData: (dataPart) => {
+        if (dataPart.type === "data-inference_rate") {
+          const rate = (dataPart.data as { tokensPerSecond?: number })
+            ?.tokensPerSecond;
+          if (rate) {
+            recordInferenceRate(rate);
+          }
+        }
+      },
+    });
+
+    const bottomRef = useRef<HTMLDivElement>(null);
+    const isLoading = status === "submitted" || status === "streaming";
+
+    const estimate = usePromptEstimate({
+      conversationId: meter?.conversationId ?? "",
+      items: context ?? [],
+      messages,
+      streaming: isLoading,
+      enabled: meter !== undefined,
+    });
+
+    const sentInitial = useRef(false);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges is intentionally unlisted — the send is a guarded one-shot
+    useEffect(() => {
+      if (sentInitial.current) return;
+      if (!initialPrompt?.trim()) return;
+      if (messages.some((m) => m.role !== "system")) return;
+      sentInitial.current = true;
+      appendSpecChanges();
+      sendMessage({ text: initialPrompt });
+    }, [initialPrompt, messages, sendMessage]);
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: messages and trailing are the re-run triggers — scroll to the bottom whenever the stream grows
+    useEffect(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages, trailing]);
+
+    useEffect(() => {
+      onMessagesChange?.(messages);
+    }, [messages, onMessagesChange]);
+
+    // A target-window change is acted on at once, not on the next message: the
+    // window part goes onto the transcript and a message-less send asks the
+    // server to re-apply the standing lens to it (the preview moves, the lens
+    // does not). Before the first assistant turn there is no lens to re-apply,
+    // so the window simply rides the first send.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: appendSpecChanges reads refs; messages/isLoading are the gates
+    useEffect(() => {
+      if (!manageWindowRef.current || !timeWindow) return;
+      if (timeWindowKey(timeWindow) === lastSentWindowRef.current) return;
+      if (isLoading || quotaHit) return;
+      if (!messages.some((m) => m.role === "assistant")) return;
+      appendSpecChanges();
+      sendMessage();
+    }, [timeWindow, isLoading, quotaHit, messages, sendMessage]);
+
+    /**
+     * Append any spec change (context and/or window) to the live transcript as a
+     * system message before a send, so the transcript the user sees — including
+     * the context-change divider it renders — is exactly what goes to the
+     * backend and what a resumed conversation loads. `sendMessage` appends the
+     * user message after it, and the backend persists the spec message before
+     * streaming, so it is durably recorded even if the turn fails (e.g. quota) —
+     * matching the baselines, which advance here.
+     */
+    function appendSpecChanges() {
+      const specParts: { type: string; data: unknown }[] = [];
+
+      const ctxKey = specKey(specRef.current);
+      if (manageContextRef.current && ctxKey !== lastSentSpecRef.current) {
+        specParts.push({ type: "context_spec", data: specRef.current });
+        lastSentSpecRef.current = ctxKey;
+      }
+
+      const winKey = timeWindowKey(timeWindowRef.current);
+      if (
+        manageWindowRef.current &&
+        timeWindowRef.current &&
+        winKey !== lastSentWindowRef.current
+      ) {
+        const { start, end, id } = timeWindowRef.current;
+        specParts.push({ type: "window", data: { start, end, id } });
+        lastSentWindowRef.current = winKey;
+      }
+
+      if (specParts.length === 0) return;
+      const specMsg = {
+        id: generateId(),
+        role: "system",
+        parts: specParts,
+      } as unknown as UIMessage;
+      setMessages((prev) => [...prev, specMsg]);
+    }
+
+    function submit() {
+      if (!input.trim() || isLoading || quotaHit) return;
+      appendSpecChanges();
+      sendMessage({ text: input });
+      setInput("");
+    }
+
+    const handleConfirmRegenerate = useCallback(() => {
+      const confirmMsg = {
+        id: generateId(),
+        role: "system",
+        parts: [{ type: REGENERATE_CONFIRM_PART_TYPE }],
+      } as unknown as UIMessage;
+      setMessages((prev) => [...prev, confirmMsg]);
+      sendMessage();
+    }, [sendMessage, setMessages]);
+
+    const handleCancelRegenerate = useCallback(() => {
+      const cancelMsg = {
+        id: generateId(),
+        role: "system",
+        parts: [
+          {
+            type: REGENERATE_CANCEL_PART_TYPE,
+            text: "The user cancelled the requested document regeneration.",
+          },
+        ],
+      } as unknown as UIMessage;
+      setMessages((prev) => [...prev, cancelMsg]);
+      sendMessage();
+    }, [sendMessage, setMessages]);
+
+    /**
+     * Accepting a proposed context change is an ordinary context change that
+     * happens to originate in the chat: the accepting system message carries
+     * the new `context_spec` (so the server resolves and announces it like
+     * one from the bar) plus the confirm marker, the bar is told the new
+     * selection, and the baseline advances so the next send does not
+     * re-emit it. The turn then continues so the model can act on it.
+     */
+    const handleConfirmContext = useCallback(
+      (spec: ContextSpec, items: ContextItem[]) => {
+        const confirmMsg = {
+          id: generateId(),
+          role: "system",
+          parts: [
+            { type: "context_spec", data: spec },
+            { type: CONTEXT_CONFIRM_PART_TYPE },
+          ],
+        } as unknown as UIMessage;
+        lastSentSpecRef.current = specKey(spec);
+        onContextChange?.(items);
+        setMessages((prev) => [...prev, confirmMsg]);
+        sendMessage();
+      },
+      [onContextChange, sendMessage, setMessages],
+    );
+
+    const handleCancelContext = useCallback(() => {
+      const cancelMsg = {
+        id: generateId(),
+        role: "system",
+        parts: [{ type: CONTEXT_CANCEL_PART_TYPE }],
+      } as unknown as UIMessage;
+      setMessages((prev) => [...prev, cancelMsg]);
+      sendMessage();
+    }, [sendMessage, setMessages]);
+
+    useImperativeHandle(ref, () => ({
+      appendSystemNotice: (
+        type: string,
+        data?: Record<string, unknown>,
+        id?: string,
+      ) => {
+        const part: Record<string, unknown> = { type, text: "" };
+        if (data !== undefined) {
+          part.data = data;
+        }
+        const msg = {
+          id: id ?? generateId(),
+          role: "system",
+          parts: [part],
+        } as unknown as UIMessage;
+        setMessages((prev) => [...prev, msg]);
+      },
+      focus: () => {
+        textareaRef.current?.focus();
+      },
+    }));
+
+    return (
+      <div
+        className={cn(
+          "flex flex-col flex-1 overflow-hidden",
+          !flat && "rounded-none border border-line bg-card",
+          className,
+        )}
+      >
+        {title && <PaneHeader label={title} />}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <ChatMessages
+            messages={messages}
+            greeting={greeting}
+            pending={isLoading}
+            highlightedEditId={highlightedEditId}
+            edits={edits}
+            onUndoEdit={onUndoEdit}
+            onConfirmRegenerate={handleConfirmRegenerate}
+            onCancelRegenerate={handleCancelRegenerate}
+            onConfirmContext={handleConfirmContext}
+            onCancelContext={handleCancelContext}
+            messageActions={messageActions}
+            actionsVisibleFor={actionsVisibleFor}
+          />
+          {trailing}
+          <div ref={bottomRef} />
+        </div>
+
+        {context !== undefined && onContextChange && (
+          <div inert={disabled}>
+            <ContextBar
+              items={context}
+              onChange={onContextChange}
+              entity={entity}
+              timeWindow={timeWindow}
+            />
+          </div>
+        )}
+
+        <ChatComposer
+          value={input}
+          onChange={setInput}
+          onSubmit={submit}
+          placeholder={placeholder}
+          disabled={isLoading || disabled}
+          quotaMessage={quotaHit ? QUOTA_MESSAGE : undefined}
+          onMention={context !== undefined ? onMention : undefined}
+          textareaRef={textareaRef}
+          footer={
+            meter && (
+              <ContextMeter
+                total={estimate.total}
+                limit={estimate.limit}
+                model={estimate.model}
+              />
+            )
+          }
+        />
+      </div>
+    );
+  },
+);

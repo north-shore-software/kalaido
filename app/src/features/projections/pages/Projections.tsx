@@ -64,7 +64,7 @@ export default function Projections() {
     filter:
       '(status="pending_review" || status="generating") && projection_id.deleted_at = ""',
     sort: "-created",
-    fields: "id,projection_id,resolved_context,status",
+    fields: "id,projection_id,status",
   });
   // Soft-deleted projections, newest deletion first. Dismissed proposals are
   // deleted the same way but are not worth restoring, so only real ones show.
@@ -74,16 +74,12 @@ export default function Projections() {
     fields: "id,name,deleted_at",
   });
   const candidateByProjection = useMemo(() => {
-    const map = new Map<string, { id: string; fragmentIds: Set<string> }>();
+    const map = new Map<string, { id: string }>();
     for (const s of pending.records) {
       if (s.status !== "pending_review") continue;
       // records are newest-first, so the first seen per projection is latest.
       if (!map.has(s.projection_id)) {
-        const ctx = s.resolved_context as { fragmentIds?: string[] } | null;
-        map.set(s.projection_id, {
-          id: s.id,
-          fragmentIds: new Set(ctx?.fragmentIds ?? []),
-        });
+        map.set(s.projection_id, { id: s.id });
       }
     }
     return map;
@@ -117,13 +113,8 @@ export default function Projections() {
 
   function renderCard(p: ProjectionResponse) {
     const candidate = candidateByProjection.get(p.id);
-    // Rotation entropy counts against the live (approved) snapshot; only the
-    // fragments the candidate's own resolved context misses make it outdated.
-    const newSinceCandidate = candidate
-      ? (statusById.get(p.id)?.newFragmentIds ?? []).filter(
-          (id) => !candidate.fragmentIds.has(id),
-        ).length
-      : 0;
+    const newSinceCandidate =
+      statusById.get(p.id)?.candidate?.newFragmentIds?.length ?? 0;
     return (
       <ProjCard
         key={p.id}
