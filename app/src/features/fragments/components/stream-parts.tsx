@@ -44,7 +44,7 @@ export function StreamCard({ f }: StreamCardProps) {
       type={f.type}
       title={f.title}
       preview={f.preview}
-      className="mb-3.5 flex-1 transition-colors group-hover:border-line-strong group-hover:bg-surface-2"
+      className="mb-3.5 w-full min-w-0 flex-1 transition-colors group-hover:border-line-strong group-hover:bg-surface-2"
     />
   );
 }

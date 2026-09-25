@@ -89,7 +89,7 @@ export function LocalAISection() {
   }
 
   return (
-    <div className="flex max-w-xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <SectionHeader
         title="Local AI"
         description="Kalaido generates locally with Ollama. Manage the model used for chat and projections in this kalaidoscope's backend."

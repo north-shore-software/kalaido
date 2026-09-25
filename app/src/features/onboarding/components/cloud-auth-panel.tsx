@@ -8,6 +8,7 @@ import { type OptionCard, OptionCards } from "@/components/kalaido";
 import { AuthForm } from "@/features/settings/components/auth-form";
 import { OAuthButtons } from "@/features/settings/components/oauth-buttons";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
+import { cn } from "@/lib/css-utils";
 
 export interface AuthOutcome {
   /** True when this was a registration rather than a returning sign-in. */
@@ -20,6 +21,7 @@ interface CloudAuthPanelProps {
   onAuthenticated?: (outcome: AuthOutcome) => void;
   mode?: AuthMode;
   onModeChange?: (mode: AuthMode) => void;
+  className?: string;
 }
 
 /** A failed attempt, remembered with the mode it happened in. */
@@ -34,6 +36,7 @@ export function CloudAuthPanel({
   onAuthenticated,
   mode: controlledMode,
   onModeChange,
+  className,
 }: CloudAuthPanelProps) {
   const [internalMode, setInternalMode] = useState<AuthMode>("signin");
   const mode = controlledMode ?? internalMode;
@@ -70,7 +73,7 @@ export function CloudAuthPanel({
   const error = failure?.mode === mode ? failure.message : null;
 
   return (
-    <div className="flex w-full max-w-lg flex-col gap-6">
+    <div className={cn("flex w-full max-w-lg flex-col gap-6", className)}>
       <OptionCards
         options={AUTH_MODES}
         value={mode}

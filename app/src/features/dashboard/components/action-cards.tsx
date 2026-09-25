@@ -1,4 +1,5 @@
 import {
+  ChatsIcon,
   FolderPlusIcon,
   type Icon,
   NotePencilIcon,
@@ -16,11 +17,12 @@ import { cn } from "@/lib/css-utils";
  */
 export type ActionCardLayout = "hero" | "row";
 
-type Tone = "section" | "commit";
+type Tone = "section" | "commit" | "explore";
 
 const HERO_CARD_CLASS: Record<Tone, string> = {
   section: "border-cyan-edge bg-cyan-veil hover:border-cyan",
   commit: "border-magenta-edge bg-magenta-wash hover:border-magenta",
+  explore: "border-section-edge bg-section-veil hover:border-section",
 };
 
 const HERO_MEDIA_CLASS: Record<Tone, string> = {
@@ -28,6 +30,23 @@ const HERO_MEDIA_CLASS: Record<Tone, string> = {
     "border-cyan-edge text-cyan group-hover:border-cyan group-hover:bg-cyan-wash",
   commit:
     "border-magenta-edge text-magenta group-hover:border-magenta group-hover:bg-magenta-wash",
+  explore:
+    "border-section-edge text-section-ink group-hover:border-section group-hover:bg-section-wash",
+};
+
+const ROW_CARD_HOVER_CLASS: Record<Tone, string> = {
+  section:
+    "hover:border-cyan-edge hover:bg-cyan-wash dark:hover:border-foreground/30 dark:hover:bg-surface-2",
+  commit:
+    "hover:border-cyan-edge hover:bg-cyan-wash dark:hover:border-foreground/30 dark:hover:bg-surface-2",
+  explore:
+    "hover:border-section-edge hover:bg-section-wash dark:hover:border-section-edge dark:hover:bg-section-wash",
+};
+
+const ROW_MEDIA_HOVER_CLASS: Record<Tone, string> = {
+  section: "group-hover:text-cyan dark:group-hover:text-fg-1",
+  commit: "group-hover:text-cyan dark:group-hover:text-fg-1",
+  explore: "group-hover:text-section-ink dark:group-hover:text-section-ink",
 };
 
 interface Copy {
@@ -58,10 +77,19 @@ function ActionCard({
     return (
       <button
         type="button"
+        data-section={tone === "explore" ? "explore" : undefined}
         onClick={onClick}
-        className="group flex w-full items-center gap-3.5 rounded-none border border-dashed border-line-strong px-4 py-3 text-left transition-colors hover:border-cyan-edge hover:bg-cyan-wash dark:hover:border-foreground/30 dark:hover:bg-surface-2"
+        className={cn(
+          "group flex w-full items-center gap-3.5 rounded-none border border-dashed border-line-strong px-4 py-3 text-left transition-colors",
+          ROW_CARD_HOVER_CLASS[tone],
+        )}
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-none border border-line bg-surface-1 text-fg-3 transition-colors group-hover:text-cyan dark:group-hover:text-fg-1">
+        <div
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-none border border-line bg-surface-1 text-fg-3 transition-colors",
+            ROW_MEDIA_HOVER_CLASS[tone],
+          )}
+        >
           <Icon className="size-4" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -75,6 +103,7 @@ function ActionCard({
   return (
     <button
       type="button"
+      data-section={tone === "explore" ? "explore" : undefined}
       onClick={onClick}
       className={cn(
         "group flex w-74 flex-col items-center gap-4 rounded-none border border-dashed px-5 py-10 text-center transition-colors hover:bg-surface-2",
@@ -95,7 +124,12 @@ function ActionCard({
       </div>
       {/* A span, not a Button: the whole card is the click target, so a nested
           interactive element would be invalid and need a stopPropagation hack. */}
-      <span className={cn(buttonVariants({ variant: tone }), "mt-auto")}>
+      <span
+        className={cn(
+          buttonVariants({ variant: tone === "explore" ? "section" : tone }),
+          "mt-auto clip-chamfer",
+        )}
+      >
         {action}
       </span>
     </button>
@@ -156,6 +190,31 @@ export function ImportNotesCard({ layout, onClick }: DashboardActionCardProps) {
       icon={FolderPlusIcon}
       copy={IMPORT_COPY}
       action="Import"
+      onClick={onClick}
+    />
+  );
+}
+
+const EXPLORE_COPY: Record<ActionCardLayout, Copy> = {
+  hero: {
+    title: "Start explore with AI",
+    description:
+      "Ask questions, discover patterns, or converse with your workspace.",
+  },
+  row: {
+    title: "Start explore with AI",
+    description: "Chat with AI across your fragments and notes.",
+  },
+};
+
+export function ExploreCard({ layout, onClick }: DashboardActionCardProps) {
+  return (
+    <ActionCard
+      layout={layout}
+      tone="explore"
+      icon={ChatsIcon}
+      copy={EXPLORE_COPY}
+      action="Explore"
       onClick={onClick}
     />
   );

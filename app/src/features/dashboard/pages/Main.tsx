@@ -22,6 +22,10 @@ import { FragmentDrawer } from "@/components/kalaido";
 import { PageHeader, PageLayout } from "@/components/layout/page-layout";
 import { resolveSources } from "@/features/projections/sources";
 import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
+import {
+  resolveSwatches,
+  useColourSwatches,
+} from "@/hooks/use-colour-swatches";
 import { useContextSources } from "@/hooks/use-context-sources";
 import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import {
@@ -37,6 +41,7 @@ import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import {
   CaptureFragmentCard,
+  ExploreCard,
   ImportNotesCard,
 } from "../components/action-cards";
 import { ImportNotesDialog } from "../components/import-notes-dialog";
@@ -45,18 +50,14 @@ import { ProposedSection } from "../components/proposed-section";
 import { RecentFragmentsSidebar } from "../components/recent-fragments-sidebar";
 import { ReconcileCard } from "../components/reconcile-card";
 import { summarizeReconcile } from "../reconcile-summary";
-import { useStartRitual } from "../use-start-ritual";
 import type {
   EntityKind,
   PinItem,
   ProposedItem,
   RecentFragment,
 } from "../types";
+import { useStartRitual } from "../use-start-ritual";
 import { mainTransitions } from "./Main.transitions";
-import {
-  resolveSwatches,
-  useColourSwatches,
-} from "@/hooks/use-colour-swatches";
 
 /** Projections and reflections share an id space only by accident; key on both. */
 function itemKey(it: { kind: EntityKind; id: string }): string {
@@ -212,12 +213,12 @@ export default function Main() {
   const [visibleProposed, hideProposed] = useOptimistic(
     proposed,
     (items: ProposedItem[], key: string) =>
-      items.filter((it) => itemKey(it) !== key),
+      items.filter((item) => itemKey(item) !== key),
   );
   const [visiblePinned, hidePinned] = useOptimistic(
     pinned,
     (items: PinItem[], key: string) =>
-      items.filter((it) => itemKey(it) !== key),
+      items.filter((item) => itemKey(item) !== key),
   );
 
   const summary = useMemo(
@@ -225,7 +226,6 @@ export default function Main() {
     [statuses, candidateByProjection, nameById],
   );
   const hasFragments = fragments.records.length > 0;
-  const cardLayout = hasFragments ? "row" : "hero";
 
   const recent = useMemo<RecentFragment[]>(
     () =>
@@ -299,35 +299,35 @@ export default function Main() {
     });
   }
 
-  function dismissProposal(it: ProposedItem) {
+  function dismissProposal(item: ProposedItem) {
     startTransition(async () => {
-      hideProposed(itemKey(it));
+      hideProposed(itemKey(item));
       const res =
-        it.kind === "projection"
-          ? await deleteProjection(it.id)
-          : await deleteReflection(it.id);
+        item.kind === "projection"
+          ? await deleteProjection(item.id)
+          : await deleteReflection(item.id);
       if (res.isErr()) {
         toast.error("Failed to dismiss", { description: res.error.message });
         return;
       }
       // Hold the optimistic row-less list until the live list agrees, so the
       // row never flashes back between the call and the realtime revalidation.
-      await revalidate(it.kind);
+      await revalidate(item.kind);
     });
   }
 
-  function unpin(it: PinItem) {
+  function unpin(item: PinItem) {
     startTransition(async () => {
-      hidePinned(itemKey(it));
+      hidePinned(itemKey(item));
       const res =
-        it.kind === "projection"
-          ? await updateProjection(it.id, { pinned: false })
-          : await updateReflection(it.id, { pinned: false });
+        item.kind === "projection"
+          ? await updateProjection(item.id, { pinned: false })
+          : await updateReflection(item.id, { pinned: false });
       if (res.isErr()) {
         toast.error("Failed to unpin", { description: res.error.message });
         return;
       }
-      await revalidate(it.kind);
+      await revalidate(item.kind);
     });
   }
 
@@ -351,22 +351,22 @@ export default function Main() {
               />
             )}
 
-            <div
-              className={
-                hasFragments
-                  ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
-                  : "flex flex-wrap items-stretch gap-4"
-              }
-            >
-              <ImportNotesCard
-                layout={cardLayout}
-                onClick={() => setImportDialogOpen(true)}
-              />
-              <CaptureFragmentCard
-                layout={cardLayout}
-                onClick={() => openAddFragmentModal()}
-              />
-            </div>
+            {!hasFragments && (
+              <div className="flex flex-wrap items-stretch gap-4">
+                <ImportNotesCard
+                  layout="hero"
+                  onClick={() => setImportDialogOpen(true)}
+                />
+                <CaptureFragmentCard
+                  layout="hero"
+                  onClick={() => openAddFragmentModal()}
+                />
+                <ExploreCard
+                  layout="hero"
+                  onClick={() => go(mainTransitions.openExplore)}
+                />
+              </div>
+            )}
 
             <ProposedSection
               items={visibleProposed}
