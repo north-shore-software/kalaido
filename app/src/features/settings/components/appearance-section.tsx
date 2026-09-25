@@ -1,4 +1,9 @@
-import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
+import {
+  type Icon,
+  MonitorIcon,
+  MoonIcon,
+  SunIcon,
+} from "@phosphor-icons/react";
 import { SectionHeader } from "@/components/layout/section";
 import { cn } from "@/lib/css-utils";
 import type { Theme } from "@/lib/theme";
@@ -7,7 +12,7 @@ import { useTheme } from "@/providers/theme-provider";
 const THEME_OPTIONS: readonly {
   value: Theme;
   label: string;
-  Icon: typeof SunIcon;
+  Icon: Icon;
 }[] = [
   { value: "light", label: "Light", Icon: SunIcon },
   { value: "dark", label: "Dark", Icon: MoonIcon },
@@ -31,6 +36,7 @@ export function AppearanceSection() {
             <button
               key={value}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => setTheme(value)}
               className={cn(
                 "group flex flex-col justify-between gap-6 rounded-none border p-5 text-left transition-all duration-150",

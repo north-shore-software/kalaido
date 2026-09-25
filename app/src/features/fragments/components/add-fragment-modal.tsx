@@ -14,7 +14,10 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ImportPreview } from "@/features/import/components/import-preview";
-import { useImportPicker } from "@/features/import/hooks/use-import-picker";
+import {
+  SUPPORTED_EXTENSIONS_HINT,
+  useImportPicker,
+} from "@/features/import/hooks/use-import-picker";
 import { useImportSubmit } from "@/features/import/hooks/use-import-submit";
 import { useNoteIngest } from "@/hooks/use-note-ingest";
 import { cn } from "@/lib/css-utils";
@@ -25,6 +28,15 @@ interface AddFragmentModalProps {
 }
 
 type FragmentTab = "write" | "import";
+
+function tabClass(active: boolean) {
+  return cn(
+    "flex h-9 items-center justify-center rounded-none text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer",
+    active
+      ? "border border-cyan-edge bg-cyan-wash text-cyan"
+      : "text-fg-3 hover:text-fg-1",
+  );
+}
 
 export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
   const [tab, setTab] = useState<FragmentTab>("write");
@@ -115,24 +127,16 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
                 setTab("write");
                 setTimeout(() => textareaRef.current?.focus(), 0);
               }}
-              className={cn(
-                "flex h-9 items-center justify-center rounded-none text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer",
-                tab === "write"
-                  ? "border border-cyan-edge bg-cyan-wash text-cyan"
-                  : "text-fg-3 hover:text-fg-1",
-              )}
+              aria-pressed={tab === "write"}
+              className={tabClass(tab === "write")}
             >
               Start writing
             </button>
             <button
               type="button"
               onClick={() => setTab("import")}
-              className={cn(
-                "flex h-9 items-center justify-center rounded-none text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer",
-                tab === "import"
-                  ? "border border-cyan-edge bg-cyan-wash text-cyan"
-                  : "text-fg-3 hover:text-fg-1",
-              )}
+              aria-pressed={tab === "import"}
+              className={tabClass(tab === "import")}
             >
               Import file
             </button>
@@ -177,7 +181,7 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
                         Choose a file to import
                       </span>
                       <span className="text-meta text-fg-4">
-                        .txt, .md, .docx, .zip, .mbox, .eml
+                        {SUPPORTED_EXTENSIONS_HINT}
                       </span>
                     </div>
                   </button>

@@ -24,6 +24,9 @@ import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { switcherTransitions } from "./nav-kalaidoscope-switcher.transitions";
 
+const MENU_ITEM_CLASS =
+  "h-[60px] cursor-pointer gap-3 px-3 normal-case tracking-normal hover:bg-cyan-wash hover:text-cyan focus:bg-cyan-wash focus:text-cyan data-[highlighted]:bg-cyan-wash data-[highlighted]:text-cyan";
+
 export function NavKalaidoscopeSwitcher() {
   const { go } = useAppNavigate();
   const { isMobile } = useSidebar();
@@ -86,7 +89,7 @@ export function NavKalaidoscopeSwitcher() {
                     key={kalaidoscope.id}
                     onClick={() => void handleSelect(kalaidoscope.id)}
                     disabled={switching}
-                    className="h-[60px] cursor-pointer gap-3 px-3 normal-case tracking-normal hover:bg-cyan-wash hover:text-cyan focus:bg-cyan-wash focus:text-cyan data-[highlighted]:bg-cyan-wash data-[highlighted]:text-cyan"
+                    className={MENU_ITEM_CLASS}
                   >
                     <div
                       className={cn(
@@ -117,7 +120,7 @@ export function NavKalaidoscopeSwitcher() {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="h-[60px] cursor-pointer gap-3 px-3 normal-case tracking-normal hover:bg-cyan-wash hover:text-cyan focus:bg-cyan-wash focus:text-cyan data-[highlighted]:bg-cyan-wash data-[highlighted]:text-cyan"
+              className={MENU_ITEM_CLASS}
               onClick={() =>
                 go(switcherTransitions.transitions.newKalaidoscope)
               }

@@ -59,6 +59,11 @@ import type {
 import { useStartRitual } from "../use-start-ritual";
 import { mainTransitions } from "./Main.transitions";
 
+/** Projections and reflections share an id space only by accident; key on both. */
+function itemKey(it: { kind: EntityKind; id: string }): string {
+  return `${it.kind}:${it.id}`;
+}
+
 export default function Main() {
   const { go } = useAppNavigate();
   const contextSources = useContextSources();
@@ -205,15 +210,15 @@ export default function Main() {
   // A row leaves the screen the moment it is acted on. The live collections
   // catch up behind it — or, if the call failed, React drops the optimistic
   // value and the row is back, with a toast saying why.
-  const [visibleProposed, hideProposed] = useOptimistic<ProposedItem[], string>(
+  const [visibleProposed, hideProposed] = useOptimistic(
     proposed,
     (items: ProposedItem[], key: string) =>
-      items.filter((item) => `${item.kind}:${item.id}` !== key),
+      items.filter((item) => itemKey(item) !== key),
   );
-  const [visiblePinned, hidePinned] = useOptimistic<PinItem[], string>(
+  const [visiblePinned, hidePinned] = useOptimistic(
     pinned,
     (items: PinItem[], key: string) =>
-      items.filter((item) => `${item.kind}:${item.id}` !== key),
+      items.filter((item) => itemKey(item) !== key),
   );
 
   const summary = useMemo(
@@ -295,9 +300,8 @@ export default function Main() {
   }
 
   function dismissProposal(item: ProposedItem) {
-    const key = `${item.kind}:${item.id}`;
     startTransition(async () => {
-      hideProposed(key);
+      hideProposed(itemKey(item));
       const res =
         item.kind === "projection"
           ? await deleteProjection(item.id)
@@ -313,9 +317,8 @@ export default function Main() {
   }
 
   function unpin(item: PinItem) {
-    const key = `${item.kind}:${item.id}`;
     startTransition(async () => {
-      hidePinned(key);
+      hidePinned(itemKey(item));
       const res =
         item.kind === "projection"
           ? await updateProjection(item.id, { pinned: false })
