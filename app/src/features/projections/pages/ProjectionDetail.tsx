@@ -130,7 +130,11 @@ export default function ProjectionDetail() {
 
   const noSnapshots = !readOnly && state.status === "empty";
   const authoringSession = useRefineSession({ target: "projection" });
-  const { context: authoringRefineContext, resumed } = useResumeRefinement({
+  const {
+    openRefinement,
+    context: authoringRefineContext,
+    resumed,
+  } = useResumeRefinement({
     session: authoringSession,
     parentId: id,
     snapshotId: "",
@@ -379,7 +383,7 @@ export default function ProjectionDetail() {
           <PanelErrorBoundary label="the preview" resetKey={snapshotId ?? id}>
             <SnapshotPreview
               state={state}
-              awaitingDraftResume={!!resumed}
+              awaitingDraftResume={!!openRefinement}
               readOnly={readOnly}
               historical={historical}
               historicalContent={historicalContent}

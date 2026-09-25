@@ -96,7 +96,7 @@ func BuildPrefix(sourceBlock string, windowStart, windowEnd types.DateTime) stri
 
 // UpdateLensToolName is the tool a refinement emits its drafted lens through.
 // It is model-facing three ways — the advertised tool name, quoted throughout
-// RefinementSystemPrompt, and echoed back via LensEcho — and it is also a wire
+// the refinement prompts, and echoed back via LensEcho — and it is also a wire
 // identifier: drafted lenses persist as parts of type "tool-"+UpdateLensToolName,
 // which the commit-time extraction and the client all have to agree on.
 // Renaming it is therefore never just a prompt change.
@@ -130,10 +130,9 @@ type RefineCandidateArgs struct {
 const ApplyResultToolName = "apply_result"
 
 // SuggestNameToolName carries the model's name suggestion on turns before the
-// first lens exists (after that, the name rides update_lens's
-// "suggested_name" argument instead). Same warning as UpdateLensToolName: the
+// first lens exists. Same warning as UpdateLensToolName: the
 // string is at once the advertised tool name, quoted in
-// RefinementSystemPrompt, and the wire identifier of persisted
+// the refinement prompts, and the wire identifier of persisted
 // "tool-"+SuggestNameToolName parts the client reads — renaming it is never
 // just a prompt change.
 const SuggestNameToolName = "suggest_name"
@@ -179,7 +178,7 @@ const RefinementCreationPrompt = `You are a professional assistant helping the u
 Your tools:
 1. "update_lens": Compiles and updates the standing instruction (the lens) that generates the document. Does not re-execute the document.
 2. "regenerate_from_lens": Executes the current standing lens against the workspace sources to generate a fresh candidate draft.
-3. "suggest_name": Proposes a display name ("suggested_name") for the document before the first lens exists.
+3. "suggest_name": Proposes a display name for the document before the first lens exists.
 4. "refine_candidate": Proposes a targeted edit to a specific passage in a draft. Only callable when a target passage is in scope via a notice.
 5. "update_context": Proposes a change to the active context — the documents the lens is applied to. The user confirms or declines it in the app before it takes effect.
 6. Plain conversation: Interview the user, explore source material, discuss trade-offs, and clarify intent without modifying the document.

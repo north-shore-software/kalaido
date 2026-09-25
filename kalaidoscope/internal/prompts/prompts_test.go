@@ -58,9 +58,6 @@ func TestRefinementToolInstructions(t *testing.T) {
 			t.Errorf("RefinementCreationPrompt does not quote tool %q", name)
 		}
 	}
-	if !strings.Contains(RefinementCreationPrompt, `"suggested_name"`) {
-		t.Error("RefinementCreationPrompt does not mention update_lens's suggested_name argument")
-	}
 }
 
 // The blindness guard: apply_result is a wire identifier the chat model must

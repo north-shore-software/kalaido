@@ -428,6 +428,18 @@ export interface SystemEditNotice {
   rawText?: string;
 }
 
+// The server-written notice naming which accepted edits a regeneration
+// superseded (and which still stand); rendered as a plain notice row.
+function supersededNoticeFor(msg: UIMessage): string | null {
+  for (const part of msg.parts) {
+    const p = part as { type?: string; text?: string };
+    if (p.type === "data-regenerate_superseded" && p.text?.trim()) {
+      return p.text;
+    }
+  }
+  return null;
+}
+
 function editNoticeFor(msg: UIMessage): SystemEditNotice | null {
   for (const part of msg.parts) {
     const p = part as {
@@ -898,7 +910,8 @@ export function ChatMessages({
           const spec = messageContextSpec(msg);
           const win = messageWindow(msg);
           const editNotice = editNoticeFor(msg);
-          if (!spec && !win && !editNotice) return null;
+          const supersededNotice = supersededNoticeFor(msg);
+          if (!spec && !win && !editNotice && !supersededNotice) return null;
           const before = prevSpec;
           if (spec) prevSpec = spec;
           const windowBefore = prevWindow;
@@ -924,6 +937,13 @@ export function ChatMessages({
                   onUndoEdit={onUndoEdit}
                   isBusy={pending}
                 />
+              )}
+              {supersededNotice && (
+                <div className="flex justify-start">
+                  <div className="max-w-[70%] rounded-none px-4 py-1.5 text-body-sm italic leading-relaxed text-fg-4">
+                    {supersededNotice}
+                  </div>
+                </div>
               )}
             </Fragment>
           );

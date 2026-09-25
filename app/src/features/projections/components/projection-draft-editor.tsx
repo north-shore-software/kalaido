@@ -65,7 +65,12 @@ export function ProjectionDraftEditor({
 
   const hasDraft =
     (activeDraft && activeDraft.length > 0) || session.previewReady;
-  const canApprove = hasDraft && !hasUnresolvedEdits && !session.committing;
+  const canApprove =
+    hasDraft &&
+    !hasUnresolvedEdits &&
+    !session.committing &&
+    session.phase !== "drafting" &&
+    session.phase !== "applying";
 
   async function approve() {
     if (!canApprove) return;

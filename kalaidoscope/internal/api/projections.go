@@ -23,9 +23,9 @@ type ReviewCandidateRequest struct {
 }
 
 // EditCandidateRequest is the body of
-// POST /api/projections/{id}/candidates/{rid}/edit: replace the one exact
-// occurrence of OldText in the pending candidate's output with NewText. The
-// client sends the raw markdown slice it selected, so the match is verbatim.
+// POST /api/projections/{id}/candidates/{rid}/edit: replace the markdown
+// block at BlockPosition (0-based, as segmented by the engine) of the pending
+// candidate's draft with NewText. An empty NewText deletes the block.
 type EditCandidateRequest struct {
 	BlockPosition int    `json:"blockPosition"`
 	NewText       string `json:"newText"`

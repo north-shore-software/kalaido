@@ -22,7 +22,7 @@ import (
 )
 
 // refineScript answers the turn's calls: the chat leg (its transcript opens
-// with RefinementSystemPrompt) replies with a scripted tool call or plain
+// with a refinement prompt) replies with a scripted tool call or plain
 // text; every other call is the stateless apply leg.
 type refineScript struct {
 	mu         sync.Mutex

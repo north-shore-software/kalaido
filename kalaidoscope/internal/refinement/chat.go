@@ -116,7 +116,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.RefinementChatRequest
 	if hasLens {
 		tools = []llm.Tool{UpdateLensTool, RegenerateFromLensTool, RefineCandidateTool, UpdateContextTool}
 	} else {
-		tools = []llm.Tool{UpdateLensTool, SuggestNameTool, RefineCandidateTool, UpdateContextTool}
+		tools = []llm.Tool{UpdateLensTool, RegenerateFromLensTool, SuggestNameTool, RefineCandidateTool, UpdateContextTool}
 	}
 
 	comp, err := usage.Stream(ctx, app, llm.RoleRefinement, assistantModel, hydratedMsgs, tools)
@@ -622,14 +622,6 @@ func extractSuggestedName(toolCalls []llm.ToolCall) string {
 			}
 			if json.Unmarshal(tc.Args, &args) == nil && strings.TrimSpace(args.Name) != "" {
 				return strings.TrimSpace(args.Name)
-			}
-		}
-		if tc.Name == prompts.UpdateLensToolName {
-			var args struct {
-				SuggestedName string `json:"suggested_name"`
-			}
-			if json.Unmarshal(tc.Args, &args) == nil && strings.TrimSpace(args.SuggestedName) != "" {
-				return strings.TrimSpace(args.SuggestedName)
 			}
 		}
 	}

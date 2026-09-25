@@ -19,6 +19,7 @@ import (
 // Version 1 is the launch schema, frozen in baseline/v1.go.
 // Version 2 adds the "edit" fragment type (deltas/v0002_add_fragment_type_edit.go).
 // Version 3 adds chat_message.bookmarked and .fragment_id (deltas/v0003_add_chat_message_bookmark.go).
+// Version 4 adds projection.deleted_at and reflection.deleted_at (deltas/v0004_add_entity_deleted_at.go).
 // Version 5 adds output_raw, output_draft, and edits (deltas/v0005_add_snapshot_outputs_and_edits.go).
 const Version = 5
 

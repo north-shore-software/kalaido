@@ -116,6 +116,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 			if merged == prev {
 				logger().Info("delta reported no semantic change; republishing the approved output verbatim", "target_type", strat.TargetType(), "id", rec.Id)
 				unchanged = true
+				outputStr = merged
 				edits = []api.SnapshotEdit{}
 			} else {
 				logger().Info("stored minimal-diff rewrite of the candidate", "target_type", strat.TargetType(), "id", rec.Id)

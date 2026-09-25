@@ -255,7 +255,7 @@ func HandleUpdateSnapshotEditStatus(app core.App) func(e *core.RequestEvent) err
 				return e.BadRequestError(err.Error(), err)
 			case errors.Is(err, projections.ErrEditNotFound):
 				return e.NotFoundError(err.Error(), err)
-			case errors.Is(err, projections.ErrEditNotPending), errors.Is(err, projections.ErrEditNotUndoable):
+			case errors.Is(err, projections.ErrEditNotPending), errors.Is(err, projections.ErrEditNotUndoable), errors.Is(err, projections.ErrEditAlreadyResolved):
 				return e.Error(http.StatusConflict, err.Error(), err)
 			case errors.Is(err, projections.ErrEditRejected):
 				return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
