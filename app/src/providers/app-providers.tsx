@@ -36,10 +36,8 @@ function PostHogIdentity() {
     if (identifiedUserId.current && identifiedUserId.current !== user.id) {
       resetPostHog();
     }
-    identifyUser(user.id, {
-      email: user.email,
-      name: user.name,
-    });
+    identifyUser(user.id);
+
     identifiedUserId.current = user.id;
   }, [user]);
 

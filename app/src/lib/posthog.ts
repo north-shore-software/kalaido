@@ -28,13 +28,14 @@ export const posthogConfig =
       }
     : null;
 
-export function captureEvent(
-  eventName: string,
-  properties?: Record<string, unknown>,
-): void {
-  if (!posthogConfig) return;
-  posthog.capture(eventName, properties);
-}
+// For later use
+// export function captureEvent(
+//   eventName: string,
+//   properties?: Record<string, unknown>,
+// ): void {
+//   if (!posthogConfig) return;
+//   posthog.capture(eventName, properties);
+// }
 
 export function identifyUser(
   distinctId: string,
@@ -49,10 +50,11 @@ export function resetPostHog(): void {
   posthog.reset();
 }
 
-export function captureException(
-  error: unknown,
-  properties?: Record<string, unknown>,
-): void {
-  if (!posthogConfig) return;
-  posthog.captureException(error, properties);
-}
+// For later use
+// export function captureException(
+//   error: unknown,
+//   properties?: Record<string, unknown>,
+// ): void {
+//   if (!posthogConfig) return;
+//   posthog.captureException(error, properties);
+// }

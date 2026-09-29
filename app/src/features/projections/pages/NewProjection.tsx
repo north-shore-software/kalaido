@@ -23,7 +23,6 @@ import { useDraftName } from "@/hooks/use-draft-name";
 import { useRefineSession } from "@/hooks/use-refine-session";
 import { withContextItem } from "@/lib/mentions";
 import { deriveName } from "@/lib/naming";
-import { captureEvent } from "@/lib/posthog";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppRouteState } from "@/routes/use-app-route-state";
@@ -95,10 +94,6 @@ export default function NewProjection() {
     const ok = await session.start({ parentId: newProjectionId, prompt: text });
     setCreating(false);
     if (ok) {
-      captureEvent("projection_created", {
-        creation_source: "prompt",
-        has_custom_name: !!typedName,
-      });
       adopt(initialName, !!typedName);
       setProjectionId(newProjectionId);
     }
@@ -115,7 +110,6 @@ export default function NewProjection() {
     async (seed: ProjectionSeed) => {
       setCreating(true);
       let newProjectionId = seed.id;
-      const createsProjection = !newProjectionId;
       if (!newProjectionId) {
         const created = await createProjection(seed.name, {
           description: seed.description,
@@ -141,14 +135,6 @@ export default function NewProjection() {
       });
       setCreating(false);
       if (ok) {
-        if (createsProjection) {
-          captureEvent("projection_created", {
-            creation_source: seed.draft.trim()
-              ? "existing_content"
-              : "seeded_context",
-            has_custom_name: true,
-          });
-        }
         // A seed name is a person's choice (fork/graduate) — suggestions keep off.
         adopt(seed.name, true);
         setProjectionId(newProjectionId);
