@@ -12,26 +12,18 @@ export async function restoreKalaidoscope(
   meta: KalaidoscopeMeta,
   backupId: string,
 ): Promise<Result<void, Error>> {
-  setAppStage({ stage: "kalaidoscope_loading" });
-
-  const restoreResult = await restoreBackup(backupId);
-  if (restoreResult.isErr()) {
-    setAppStage({
-      stage: "kalaidoscope_open",
-      selectedKalaidoscopeId: meta.id,
-    });
-    return err(restoreResult.error);
-  }
-
   if (meta.type !== "local_file") {
-    setAppStage({
-      stage: "kalaidoscope_open",
-      selectedKalaidoscopeId: meta.id,
-    });
     return err(
       new Error("Restore is not supported for this workspace type yet"),
     );
   }
+
+  const restoreResult = await restoreBackup(backupId);
+  if (restoreResult.isErr()) {
+    return err(restoreResult.error);
+  }
+
+  setAppStage({ stage: "kalaidoscope_loading" });
 
   let unlisten: UnlistenFn | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
