@@ -168,6 +168,8 @@ export default function ProjectionDetail() {
     const res = await regenerateProjection(id);
     setRegenerating(false);
     if (res.isErr()) {
+      // 409s carry a specific reason (lens still preparing, generation
+      // already running) — surface the server's own message.
       toast.error("Couldn't refresh", { description: res.error.message });
       return;
     }

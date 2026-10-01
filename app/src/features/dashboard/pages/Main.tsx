@@ -311,6 +311,7 @@ export default function Main() {
         toast.error("Failed to dismiss", { description: res.error.message });
         return;
       }
+
       // Hold the optimistic row-less list until the live list agrees, so the
       // row never flashes back between the call and the realtime revalidation.
       await revalidate(item.kind);
