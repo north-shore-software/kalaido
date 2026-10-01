@@ -28,6 +28,7 @@ const mockBackups: BackupSummary[] = [
 export const Empty: Story = () => (
   <div className="max-w-2xl bg-background p-6">
     <WorkspaceBackupsView
+      description="Snapshots of this workspace stored on this device."
       backups={[]}
       loading={false}
       busy={false}
@@ -43,6 +44,7 @@ export const Empty: Story = () => (
 export const WithBackups: Story = () => (
   <div className="max-w-2xl bg-background p-6">
     <WorkspaceBackupsView
+      description="Snapshots of this workspace stored on this device."
       backups={mockBackups}
       loading={false}
       busy={false}
@@ -58,6 +60,7 @@ export const WithBackups: Story = () => (
 export const Busy: Story = () => (
   <div className="max-w-2xl bg-background p-6">
     <WorkspaceBackupsView
+      description="Snapshots of this workspace stored on this device."
       backups={mockBackups}
       loading={false}
       busy={true}

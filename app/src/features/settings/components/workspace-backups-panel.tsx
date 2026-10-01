@@ -46,6 +46,7 @@ function kindLabel(kind: BackupSummary["kind"]): string {
 }
 
 export interface WorkspaceBackupsViewProps {
+  description: string;
   backups: BackupSummary[];
   loading: boolean;
   busy: boolean;
@@ -57,6 +58,7 @@ export interface WorkspaceBackupsViewProps {
 }
 
 export function WorkspaceBackupsView({
+  description,
   backups,
   loading,
   busy,
@@ -74,9 +76,7 @@ export function WorkspaceBackupsView({
       <div className="flex items-center gap-2.5">
         <div className="flex flex-col gap-0.5">
           <Label>Workspace backups</Label>
-          <span className="text-body-sm text-fg-3">
-            Snapshots of this workspace stored locally.
-          </span>
+          <span className="text-body-sm text-fg-3">{description}</span>
         </div>
         <div className="flex-1" />
         <Button disabled={busy} onClick={onBackUp}>
@@ -209,6 +209,11 @@ export function WorkspaceBackupsPanel({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const description =
+    kalaidoscope.type === "cloud"
+      ? "Snapshots of this workspace stored in Kalaido cloud."
+      : "Snapshots of this workspace stored on this device.";
+
   function handleBackup() {
     startTransition(async () => {
       setBusy(true);
@@ -290,6 +295,7 @@ export function WorkspaceBackupsPanel({
 
   return (
     <WorkspaceBackupsView
+      description={description}
       backups={data ?? []}
       loading={isLoading}
       busy={busy || isPending}
