@@ -3,13 +3,13 @@ import {
   registerSidecarStatusChangeListener,
   type UnlistenFn,
 } from "@/api/app/local-scopes.ts";
-import type { KaleidoscopeMeta } from "@/api/app/types.ts";
+import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { restoreBackup } from "@/api/kalaidoscope/backups.ts";
 import { setAppStage } from "@/hooks/app-state-actions.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 
 export async function restoreKalaidoscope(
-  meta: KaleidoscopeMeta,
+  meta: KalaidoscopeMeta,
   backupId: string,
 ): Promise<Result<void, Error>> {
   setAppStage({ stage: "kalaidoscope_loading" });
