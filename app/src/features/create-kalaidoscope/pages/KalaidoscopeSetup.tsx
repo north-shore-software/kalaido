@@ -80,7 +80,10 @@ export default function KalaidoscopeSetup() {
     setFields((prev) => ({ ...prev, ...next }));
 
   const [error, setError] = useState<string | null>(null);
-  const [gateOpen, setGateOpen] = useState(false);
+  // Why the sign-in gate is showing, or null when it isn't. Only a submit
+  // creates once the user is in: the notice's "Sign in" can be pressed before
+  // the form is filled, and creating then would send an empty cloudId.
+  const [gate, setGate] = useState<"create" | "signin" | null>(null);
   const [gateMode, setGateMode] = useState<"signin" | "signup">("signin");
   // Creation runs as a transition: React holds `isPending` for exactly as long
   // as the async work lasts, with nothing to reset by hand on any exit path.
@@ -187,7 +190,7 @@ export default function KalaidoscopeSetup() {
     }
 
     if (needsSignIn) {
-      setGateOpen(true);
+      setGate("create");
       return;
     }
 
@@ -202,15 +205,15 @@ export default function KalaidoscopeSetup() {
       <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
         <PageBackButton
           onClick={() => {
-            if (gateOpen) {
-              setGateOpen(false);
+            if (gate) {
+              setGate(null);
             } else {
               goBack();
             }
           }}
         />
 
-        {gateOpen ? (
+        {gate ? (
           <div className="my-auto flex w-full max-w-lg flex-col gap-6">
             <div className="flex flex-col gap-1">
               <span className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -230,8 +233,8 @@ export default function KalaidoscopeSetup() {
               mode={gateMode}
               onModeChange={setGateMode}
               onAuthenticated={() => {
-                setGateOpen(false);
-                create();
+                setGate(null);
+                if (gate === "create") create();
               }}
             />
           </div>
@@ -307,7 +310,7 @@ export default function KalaidoscopeSetup() {
                     onSignOut={() => void signOutOfCloud()}
                   />
                 ) : (
-                  <CloudSignInNotice onSignIn={() => setGateOpen(true)} />
+                  <CloudSignInNotice onSignIn={() => setGate("signin")} />
                 ))}
             </div>
 

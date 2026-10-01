@@ -38,8 +38,10 @@ async function serverError(res: Response, fallback: string): Promise<Error> {
   if (res.status === 401) {
     return new Error("Cloud session expired. Please sign in again.");
   }
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
-  return new Error(data.error ?? fallback);
+  // `error` is only a message when a route wrote it. A request the validator
+  // rejects carries the whole zod result there instead, an object.
+  const data = (await res.json().catch(() => ({}))) as { error?: unknown };
+  return new Error(typeof data.error === "string" ? data.error : fallback);
 }
 
 /**
