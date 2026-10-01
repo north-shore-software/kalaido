@@ -3,6 +3,7 @@ package handlers
 import (
 	"log/slog"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/backup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
@@ -20,7 +21,8 @@ func logger() *slog.Logger {
 // one with testDeps).
 type Deps struct {
 	*workers.Manager
-	Runner workerutil.Runner
+	Runner  workerutil.Runner
+	Backups *backup.Engine
 }
 
 func (d Deps) statusWorkers() status.Workers {
