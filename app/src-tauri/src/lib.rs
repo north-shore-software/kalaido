@@ -1,3 +1,4 @@
+mod downloads;
 mod files;
 mod kalaidoscope;
 mod llm;
@@ -6,6 +7,7 @@ mod sidecar;
 
 use tauri::RunEvent;
 
+use crate::downloads::download_to_file;
 use crate::files::{classify_path, read_file_bytes};
 use crate::kalaidoscope::{
     KalaidoscopeState, create_local_kalaidoscope, delete_local_kalaidoscope,
@@ -35,6 +37,7 @@ pub fn run() {
             classify_path,
             check_ollama_status,
             validate_llm_key,
+            download_to_file,
         ])
         .menu(build_menu)
         .on_menu_event(handle_menu_event)
