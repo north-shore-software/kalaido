@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/backup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
@@ -36,6 +37,7 @@ type Options struct {
 	// HandEditCreateFragment controls whether manual edits to a projection draft
 	// create an edit fragment (KALAIDO_HAND_EDIT_CREATE_FRAGMENT). Default false.
 	HandEditCreateFragment bool
+	Backups                backup.Options
 }
 
 func New(config pocketbase.Config) *pocketbase.PocketBase {
@@ -74,9 +76,16 @@ func NewWithSchemaWithOptions(config pocketbase.Config, schemaOpts schema.Option
 		return se.Next()
 	})
 
+	store := opts.Backups.Store
+	if store == nil {
+		store = backup.NewLocalStore(app.DataDir)
+	}
+	backupsEng := backup.New(app, store, opts.Backups)
+	backup.Install(app, backupsEng)
+
 	registerWriteEcho(app)
 
-	rt := newRuntime(app, opts)
+	rt := newRuntime(app, opts, backupsEng)
 
 	RegisterTriggers(app, rt)
 	RegisterRoutes(app, rt.deps())
@@ -158,6 +167,11 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		})
 
 		se.Router.GET("/api/status", handlers.HandleGetStatus(app, deps))
+		se.Router.GET("/api/kalaidoscope/backups", handlers.HandleListBackups(app, deps.Backups))
+		se.Router.POST("/api/kalaidoscope/backups", handlers.HandleCreateBackup(app, deps.Backups))
+		se.Router.GET("/api/kalaidoscope/backups/{id}/download", handlers.HandleDownloadBackup(app, deps.Backups))
+		se.Router.POST("/api/kalaidoscope/backups/{id}/restore", handlers.HandleRestoreBackup(app, deps.Backups))
+		se.Router.DELETE("/api/kalaidoscope/backups/{id}", handlers.HandleDeleteBackup(app, deps.Backups))
 		se.Router.POST("/api/ingest", handlers.HandleIngest(app))
 		se.Router.POST("/api/map", handlers.HandleMapKick(deps.Mapping))
 		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(deps.Discover))

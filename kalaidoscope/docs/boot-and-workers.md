@@ -1,3 +1,5 @@
+> **STALE** — code has changed since this document was generated.
+
 # Boot & Background Workers — Generated Audit Snapshot
 
 > **Generated:** 2026-09-25, from source at commit `1c94d69`.

@@ -32,6 +32,10 @@ const Version = 5
 // the same binary always does.
 var BuildRev string
 
+func BuildRevision() string {
+	return buildRev()
+}
+
 func buildRev() string {
 	if BuildRev != "" {
 		return BuildRev

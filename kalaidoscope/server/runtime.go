@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/backup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/handlers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
@@ -28,13 +29,14 @@ type runtime struct {
 	runner    *workerutil.TrackedRunner
 	scheduler *queue.Scheduler
 	logger    *slog.Logger
+	backups   *backup.Engine
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	group  *errgroup.Group
 }
 
-func newRuntime(app core.App, opts Options) *runtime {
+func newRuntime(app core.App, opts Options, backups *backup.Engine) *runtime {
 	ctx, cancel := context.WithCancel(context.Background())
 	mgr := workers.New(app, workers.Options{AutoWave: opts.AutoWave})
 	rt := &runtime{
@@ -42,6 +44,7 @@ func newRuntime(app core.App, opts Options) *runtime {
 		runner:    workerutil.NewTrackedRunner(ctx),
 		scheduler: queue.New(queue.ConfigForProvider(llm.ActiveProviderID())),
 		logger:    logger(),
+		backups:   backups,
 		cancel:    cancel,
 	}
 	app.Store().Set(usage.SchedulerStoreKey, rt.scheduler)
@@ -58,6 +61,7 @@ func (rt *runtime) deps() handlers.Deps {
 	return handlers.Deps{
 		Manager: rt.workers,
 		Runner:  rt.runner,
+		Backups: rt.backups,
 	}
 }
 

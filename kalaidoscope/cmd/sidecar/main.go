@@ -7,10 +7,12 @@ import (
 	"net"
 	"os"
 	"sync"
+	"syscall"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/backup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/config"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm/providers/gemini"
@@ -39,6 +41,14 @@ func main() {
 	a := server.NewWithSchemaWithOptions(pocketbase.Config{HideStartBanner: true}, schema.Options{}, server.Options{
 		AutoWave:               env.AutoWave,
 		HandEditCreateFragment: env.HandEditCreateFragment,
+		Backups: backup.Options{
+			Origin: "local",
+			Lifecycle: backup.Lifecycle{
+				Restart: func() error {
+					return syscall.Kill(os.Getpid(), syscall.SIGTERM)
+				},
+			},
+		},
 	})
 
 	resolveScopeModelSet(a, env)

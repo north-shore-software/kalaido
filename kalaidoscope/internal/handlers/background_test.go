@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/north-shore-software/kalaido/kalaidoscope/backup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 )
@@ -15,5 +16,6 @@ func testDeps(app core.App) Deps {
 	return Deps{
 		Manager: workers.New(app, workers.Options{}),
 		Runner:  workerutil.DiscardRunner{},
+		Backups: backup.New(app, backup.NewLocalStore(app.DataDir), backup.Options{Origin: "local"}),
 	}
 }
