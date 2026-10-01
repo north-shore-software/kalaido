@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import useSWR from "swr";
 import { downloadToFile } from "@/api/app/downloads.ts";
 import { saveFilePicker } from "@/api/app/os-integrations.ts";
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { restoreKalaidoscope } from "@/lib/restore-kalaidoscope.ts";
 
 function formatBytes(bytes: number): string {
@@ -46,19 +47,21 @@ function kindLabel(kind: BackupSummary["kind"]): string {
 
 export interface WorkspaceBackupsViewProps {
   backups: BackupSummary[];
+  loading: boolean;
   busy: boolean;
   error: string | null;
-  onBackup: () => void;
-  onRestore: (id: string) => void;
-  onExport: (id: string) => void;
-  onDelete: (id: string) => void;
+  onBackUp(): void;
+  onRestore(id: string): void;
+  onExport(id: string): void;
+  onDelete(id: string): void;
 }
 
 export function WorkspaceBackupsView({
   backups,
+  loading,
   busy,
   error,
-  onBackup,
+  onBackUp,
   onRestore,
   onExport,
   onDelete,
@@ -69,9 +72,14 @@ export function WorkspaceBackupsView({
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-2.5">
       <div className="flex items-center gap-2.5">
-        <Label>Backups</Label>
+        <div className="flex flex-col gap-0.5">
+          <Label>Workspace backups</Label>
+          <span className="text-body-sm text-fg-3">
+            Snapshots of this workspace stored locally.
+          </span>
+        </div>
         <div className="flex-1" />
-        <Button disabled={busy} onClick={onBackup}>
+        <Button disabled={busy} onClick={onBackUp}>
           Back up now
         </Button>
       </div>
@@ -82,7 +90,9 @@ export function WorkspaceBackupsView({
         </span>
       )}
 
-      {backups.length === 0 && !busy ? (
+      {loading ? (
+        <Spinner />
+      ) : backups.length === 0 && !busy ? (
         <span className="text-body text-muted-foreground">
           No backups yet. Create one before making large changes.
         </span>
@@ -100,14 +110,14 @@ export function WorkspaceBackupsView({
               </span>
               <div className="flex-1" />
               <div className="flex items-center gap-2">
-                <Button disabled={busy} onClick={() => onExport(backup.id)}>
-                  Export
-                </Button>
                 <Button
                   disabled={busy}
                   onClick={() => setRestoringId(backup.id)}
                 >
                   Restore
+                </Button>
+                <Button disabled={busy} onClick={() => onExport(backup.id)}>
+                  Export
                 </Button>
                 {deletingId === backup.id ? (
                   <>
@@ -184,20 +194,10 @@ export function WorkspaceBackupsPanel({
 }: {
   kalaidoscope: KalaidoscopeMeta;
 }) {
-  if (kalaidoscope.type === "cloud") {
-    return null;
-  }
-  return <LocalBackupsPanel kalaidoscope={kalaidoscope} />;
-}
-
-function LocalBackupsPanel({
-  kalaidoscope,
-}: {
-  kalaidoscope: KalaidoscopeMeta;
-}) {
   const {
     data,
     error: swrError,
+    isLoading,
     mutate,
   } = useSWR(["workspace-backups", kalaidoscope.id], async () => {
     const r = await listBackups();
@@ -207,20 +207,23 @@ function LocalBackupsPanel({
 
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  async function handleBackup() {
-    setBusy(true);
-    setActionError(null);
-    try {
-      const res = await createBackup();
-      if (res.isErr()) {
-        setActionError(res.error.message);
-        return;
+  function handleBackup() {
+    startTransition(async () => {
+      setBusy(true);
+      setActionError(null);
+      try {
+        const res = await createBackup();
+        if (res.isErr()) {
+          setActionError(res.error.message);
+          return;
+        }
+        await mutate();
+      } finally {
+        setBusy(false);
       }
-      await mutate();
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   async function handleRestore(id: string) {
@@ -288,9 +291,10 @@ function LocalBackupsPanel({
   return (
     <WorkspaceBackupsView
       backups={data ?? []}
-      busy={busy}
+      loading={isLoading}
+      busy={busy || isPending}
       error={actionError ?? (swrError ? swrError.message : null)}
-      onBackup={() => void handleBackup()}
+      onBackUp={handleBackup}
       onRestore={(id) => void handleRestore(id)}
       onExport={(id) => void handleExport(id)}
       onDelete={(id) => void handleDelete(id)}

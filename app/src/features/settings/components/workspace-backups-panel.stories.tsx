@@ -29,9 +29,10 @@ export const Empty: Story = () => (
   <div className="max-w-2xl bg-background p-6">
     <WorkspaceBackupsView
       backups={[]}
+      loading={false}
       busy={false}
       error={null}
-      onBackup={() => {}}
+      onBackUp={() => {}}
       onRestore={() => {}}
       onExport={() => {}}
       onDelete={() => {}}
@@ -43,9 +44,10 @@ export const WithBackups: Story = () => (
   <div className="max-w-2xl bg-background p-6">
     <WorkspaceBackupsView
       backups={mockBackups}
+      loading={false}
       busy={false}
       error={null}
-      onBackup={() => {}}
+      onBackUp={() => {}}
       onRestore={() => {}}
       onExport={() => {}}
       onDelete={() => {}}
@@ -57,9 +59,10 @@ export const Busy: Story = () => (
   <div className="max-w-2xl bg-background p-6">
     <WorkspaceBackupsView
       backups={mockBackups}
+      loading={false}
       busy={true}
       error={null}
-      onBackup={() => {}}
+      onBackUp={() => {}}
       onRestore={() => {}}
       onExport={() => {}}
       onDelete={() => {}}
