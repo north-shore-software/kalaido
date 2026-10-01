@@ -215,12 +215,12 @@ func (e *Engine) Create(ctx context.Context, kind Kind) (Summary, error) {
 
 	_ = os.Remove(origPath + ".attrs")
 
-	if err := e.store.Put(ctx, filename); err != nil {
+	fi, err := os.Stat(origPath)
+	if err != nil {
 		return Summary{}, err
 	}
 
-	fi, err := os.Stat(origPath)
-	if err != nil {
+	if err := e.store.Put(ctx, filename); err != nil {
 		return Summary{}, err
 	}
 

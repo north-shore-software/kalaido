@@ -314,3 +314,29 @@ func mustMarshal(t *testing.T, v any) []byte {
 	}
 	return b
 }
+
+func TestS3StoreEmptyConfig(t *testing.T) {
+	store := backup.NewS3Store(func() string { return t.TempDir() }, backup.S3Config{}, "backups/test")
+	_, err := store.List(context.Background())
+	if err == nil {
+		t.Fatal("expected error from empty s3 config, got nil")
+	}
+}
+
+func TestNormalizePrefix(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", "/"},
+		{"backups", "backups/"},
+		{"backups/", "backups/"},
+		{"backups///", "backups/"},
+		{"a/b/c", "a/b/c/"},
+	}
+	for _, tt := range tests {
+		if got := backup.NormalizePrefix(tt.input); got != tt.expected {
+			t.Errorf("NormalizePrefix(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}
