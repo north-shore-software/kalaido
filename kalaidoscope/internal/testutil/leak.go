@@ -16,6 +16,7 @@ func LeakOptions() []goleak.Option {
 		goleak.IgnoreTopFunction("database/sql.(*DB).connectionCleaner"),
 		// PocketBase internal background logger batch writer.
 		goleak.IgnoreTopFunction("github.com/pocketbase/pocketbase/core.(*BaseApp).initLogger.func3"),
+		goleak.IgnoreTopFunction("github.com/pocketbase/pocketbase/core.(*BaseApp).initLogger.func4"),
 	}
 }
 

@@ -27,6 +27,7 @@ func NewApp(t *testing.T) core.App {
 		t.Fatalf("bootstrap: %v", err)
 	}
 	t.Cleanup(func() {
+		_ = app.OnTerminate().Trigger(&core.TerminateEvent{App: app}, func(*core.TerminateEvent) error { return nil })
 		_ = app.ResetBootstrapState()
 		VerifyNoLeaks(t)
 	})
