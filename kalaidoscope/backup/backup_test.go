@@ -112,6 +112,9 @@ func TestCreateExcludesMigrationFailed(t *testing.T) {
 	if m.Origin != "test-origin" {
 		t.Fatalf("got origin %s, want test-origin", m.Origin)
 	}
+	if m.BuildRev == "" {
+		t.Fatal("got empty build_rev, want non-empty")
+	}
 }
 
 func TestListAndDelete(t *testing.T) {

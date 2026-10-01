@@ -198,7 +198,7 @@ func (e *Engine) Create(ctx context.Context, kind Kind) (Summary, error) {
 	if err := rewriteArchiveWithManifest(origPath, tmpPath, Manifest{
 		Version:       1,
 		SchemaVersion: schema.Version,
-		BuildRev:      schema.BuildRev,
+		BuildRev:      schema.BuildRevision(),
 		ScopeID:       e.opts.ScopeID,
 		CreatedAt:     now,
 		Origin:        e.opts.Origin,
@@ -212,6 +212,8 @@ func (e *Engine) Create(ctx context.Context, kind Kind) (Summary, error) {
 		_ = os.Remove(tmpPath)
 		return Summary{}, err
 	}
+
+	_ = os.Remove(origPath + ".attrs")
 
 	if err := e.store.Put(ctx, filename); err != nil {
 		return Summary{}, err
