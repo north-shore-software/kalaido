@@ -1,0 +1,69 @@
+import { ClientResponseError } from "pocketbase";
+import type { Result } from "neverthrow";
+import type { TypedPocketBase } from "@/api/kalaidoscope/types";
+import { withActiveClient } from "./_active";
+
+export type BackupKind = "manual" | "scheduled" | "pre-restore";
+
+export interface BackupSummary {
+  id: string;
+  kind: BackupKind;
+  created_at: string;
+  size_bytes: number;
+}
+
+export function backupDownloadUrl(baseURL: string, id: string): string {
+  const base = baseURL.replace(/\/+$/, "");
+  return `${base}/api/kalaidoscope/backups/${id}/download`;
+}
+
+async function sendRequest<T>(
+  client: TypedPocketBase,
+  path: string,
+  options: { method: string },
+): Promise<T> {
+  try {
+    return await client.send<T>(path, options);
+  } catch (e) {
+    if (e instanceof ClientResponseError && e.response?.message) {
+      throw new Error(e.response.message);
+    }
+    throw e;
+  }
+}
+
+export async function listBackups(): Promise<Result<BackupSummary[], Error>> {
+  return withActiveClient(async (client) => {
+    return sendRequest<BackupSummary[]>(client, "/api/kalaidoscope/backups", {
+      method: "GET",
+    });
+  });
+}
+
+export async function createBackup(): Promise<Result<BackupSummary, Error>> {
+  return withActiveClient(async (client) => {
+    return sendRequest<BackupSummary>(client, "/api/kalaidoscope/backups", {
+      method: "POST",
+    });
+  });
+}
+
+export async function restoreBackup(id: string): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    return sendRequest<void>(
+      client,
+      `/api/kalaidoscope/backups/${id}/restore`,
+      {
+        method: "POST",
+      },
+    );
+  });
+}
+
+export async function deleteBackup(id: string): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    return sendRequest<void>(client, `/api/kalaidoscope/backups/${id}`, {
+      method: "DELETE",
+    });
+  });
+}

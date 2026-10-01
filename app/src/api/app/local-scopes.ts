@@ -3,6 +3,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Result } from "neverthrow";
 import { tauriResult } from "@/api/app/_invoke.ts";
 
+export type { UnlistenFn };
+
 export type SidecarPhase =
   | "idle"
   | "spawning"
