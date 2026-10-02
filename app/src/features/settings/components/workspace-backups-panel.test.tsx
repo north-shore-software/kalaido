@@ -36,9 +36,9 @@ describe("sanitizeExportName", () => {
   });
 
   test("strips illegal characters and collapses to dashes", () => {
-    expect(sanitizeExportName('Research/Project:A*"B<C>D|E?F', "fallback")).toBe(
-      "Research-Project-A-B-C-D-E-F",
-    );
+    expect(
+      sanitizeExportName('Research/Project:A*"B<C>D|E?F', "fallback"),
+    ).toBe("Research-Project-A-B-C-D-E-F");
   });
 
   test("falls back to workspace id when empty or only illegal chars", () => {

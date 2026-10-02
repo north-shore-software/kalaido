@@ -183,8 +183,7 @@ describe("restoreKalaidoscope", () => {
     expect(mockSetAppStage).toHaveBeenCalledWith({
       stage: "kalaidoscope_load_error",
       error: {
-        message:
-          "archive has invalid signature\nYour workspace is unchanged.",
+        message: "archive has invalid signature\nYour workspace is unchanged.",
       },
       retryKalaidoscopeId: localMeta.id,
     });

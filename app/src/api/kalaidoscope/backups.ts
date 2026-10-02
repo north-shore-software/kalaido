@@ -162,7 +162,9 @@ export async function deleteBackup(id: string): Promise<Result<void, Error>> {
   });
 }
 
-export async function getRestoreStatus(): Promise<Result<RestoreStatusResponse, Error>> {
+export async function getRestoreStatus(): Promise<
+  Result<RestoreStatusResponse, Error>
+> {
   return withActiveClient(async (client) => {
     return sendRequest<RestoreStatusResponse>(
       client,
