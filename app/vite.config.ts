@@ -46,17 +46,18 @@ export default defineConfig(async () => ({
     // doesn't apply. The web target now exists, so code-splitting is owed
     // before this limit is lowered.
     chunkSizeWarningLimit: 2500,
-    rollupOptions: {
-      input: path.resolve(
-        __dirname,
-        target === "mobile"
-          ? "mobile.html"
-          : target === "web"
-            ? "web.html"
-            : "index.html",
-      ),
-    },
-    outDir: target === "web" ? "dist-web" : "dist",
+    // Desktop keeps Vite's defaults (index.html → dist). Ladle merges this
+    // config into its own build, so setting the input or outDir unconditionally
+    // breaks `ladle build`.
+    ...(target !== "desktop" && {
+      rollupOptions: {
+        input: path.resolve(
+          __dirname,
+          target === "mobile" ? "mobile.html" : "web.html",
+        ),
+      },
+    }),
+    ...(target === "web" && { outDir: "dist-web" }),
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

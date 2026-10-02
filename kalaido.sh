@@ -208,6 +208,8 @@ cmd_check_ts() {
   (cd "$APP" && pnpm check:routes)
   say "build"
   (cd "$APP" && pnpm build)
+  say "ladle build"
+  (cd "$APP" && pnpm ladle:build)
 }
 
 cmd_check_ts_typecheck_only() {
