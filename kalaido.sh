@@ -22,17 +22,6 @@ export VITE_CLOUD_PB_URL="${KALAIDO_CLOUD_PB_URL:-https://s.kalaido.co}"
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
-confirm() {
-  local what="$1"
-  # CI=1 skips the prompt so these commands stay usable from a workflow.
-  case "${CI:-}" in 1|true) return 0 ;; esac
-  printf '\n\033[33m%s\033[0m\n' "$what"
-  printf 'type "yes" to continue: '
-  local reply=""
-  read -r reply || true
-  [ "$reply" = "yes" ] || die "aborted"
-}
-
 build_schema_db() {
   rm -rf "$SCHEMA_ROOT"
   mkdir -p "$SCHEMA_DATA"
@@ -115,13 +104,6 @@ cmd_dev_web() {
 cmd_build_web() {
   say "web build (app/dist-web)"
   (cd "$APP" && pnpm build:web "$@")
-}
-
-cmd_deploy_web() {
-  confirm "This deploys the web app to PRODUCTION (app.kalaido.co)."
-  cmd_build_web
-  say "wrangler deploy (kalaido-web)"
-  (cd "$APP" && pnpm exec wrangler deploy "$@")
 }
 
 cmd_ladle() {
@@ -520,7 +502,6 @@ usage: ./kalaido.sh <command> [args...]
   build:android              debug-signed apk, sideloadable
   dev:web                    vite dev, web target (http://localhost:1420/web.html)
   build:web                  web build (app/dist-web)
-  deploy:web                 build:web, then wrangler deploy to app.kalaido.co
 
   gen:types                  rebuild the schema db, regenerate types.ts
   bump                       set the app version (prompts, defaults to a patch bump)
@@ -564,7 +545,6 @@ case "${1:-}" in
   build:android) shift; cmd_build_android "$@" ;;
   dev:web) shift; cmd_dev_web "$@" ;;
   build:web) shift; cmd_build_web "$@" ;;
-  deploy:web) shift; cmd_deploy_web "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
   bump) shift; cmd_bump "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;
