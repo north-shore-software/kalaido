@@ -52,9 +52,6 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
 
-      - name: require analytics config
-        run: test -n "$VITE_PUBLIC_POSTHOG_PROJECT_TOKEN" && test -n "$VITE_PUBLIC_POSTHOG_HOST"
-
       - uses: tauri-apps/tauri-action@v1
         id: build
         env:
@@ -112,9 +109,6 @@ jobs:
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
-
-      - name: require analytics config
-        run: test -n "$VITE_PUBLIC_POSTHOG_PROJECT_TOKEN" && test -n "$VITE_PUBLIC_POSTHOG_HOST"
 
       - uses: tauri-apps/tauri-action@v1
         env:

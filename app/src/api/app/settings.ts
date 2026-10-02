@@ -14,6 +14,19 @@ export type PersistentAppSetting = Pick<
   pinnedProjections: Record<string, string[]>;
 };
 
+type SettingsBackend = {
+  get<K extends keyof PersistentAppSetting>(
+    key: K,
+  ): Promise<PersistentAppSetting[K] | undefined>;
+  entries(): Promise<Partial<PersistentAppSetting>>;
+  set<K extends keyof PersistentAppSetting>(
+    key: K,
+    value: PersistentAppSetting[K],
+  ): Promise<void>;
+  delete(key: keyof PersistentAppSetting): Promise<void>;
+  clear(): Promise<void>;
+};
+
 const STORE_FILE = "kalaido-settings.json";
 const WEB_STORAGE_KEY = "kalaido-settings";
 
@@ -33,24 +46,9 @@ function writeWebSettings(data: Partial<PersistentAppSetting>): void {
 let storePromise: Promise<Store> | null = null;
 const getStore = (): Promise<Store> => (storePromise ??= load(STORE_FILE));
 
-export function getSetting<K extends keyof PersistentAppSetting>(
-  key: K,
-): Promise<Result<PersistentAppSetting[K] | undefined, Error>> {
-  if (!isTauri()) {
-    return tauriResult(Promise.resolve().then(() => readWebSettings()[key]));
-  }
-  return tauriResult(
-    getStore().then((s) => s.get<PersistentAppSetting[K]>(key)),
-  );
-}
-
-export function getAllSettings(): Promise<
-  Result<Partial<PersistentAppSetting>, Error>
-> {
-  if (!isTauri()) {
-    return tauriResult(Promise.resolve().then(() => readWebSettings()));
-  }
-  return tauriResult(
+const storeBackend: SettingsBackend = {
+  get: (key) => getStore().then((s) => s.get(key)),
+  entries: () =>
     getStore()
       .then((s) =>
         s.entries<PersistentAppSetting[keyof PersistentAppSetting]>(),
@@ -59,62 +57,68 @@ export function getAllSettings(): Promise<
         (entries) =>
           Object.fromEntries(entries) as Partial<PersistentAppSetting>,
       ),
-  );
+  set: async (key, value) => {
+    const s = await getStore();
+    await s.set(key, value);
+    await s.save();
+  },
+  delete: async (key) => {
+    const s = await getStore();
+    await s.delete(key);
+    await s.save();
+  },
+  clear: async () => {
+    const s = await getStore();
+    await s.clear();
+    await s.save();
+  },
+};
+
+const webBackend: SettingsBackend = {
+  get: async (key) => readWebSettings()[key],
+  entries: async () => readWebSettings(),
+  set: async (key, value) => {
+    const settings = readWebSettings();
+    settings[key] = value;
+    writeWebSettings(settings);
+  },
+  delete: async (key) => {
+    const settings = readWebSettings();
+    delete settings[key];
+    writeWebSettings(settings);
+  },
+  clear: async () => {
+    window.localStorage.removeItem(WEB_STORAGE_KEY);
+  },
+};
+
+const backend = (): SettingsBackend => (isTauri() ? storeBackend : webBackend);
+
+export function getSetting<K extends keyof PersistentAppSetting>(
+  key: K,
+): Promise<Result<PersistentAppSetting[K] | undefined, Error>> {
+  return tauriResult(backend().get(key));
+}
+
+export function getAllSettings(): Promise<
+  Result<Partial<PersistentAppSetting>, Error>
+> {
+  return tauriResult(backend().entries());
 }
 
 export function setSetting<K extends keyof PersistentAppSetting>(
   key: K,
   value: PersistentAppSetting[K],
 ): Promise<Result<void, Error>> {
-  if (!isTauri()) {
-    return tauriResult(
-      Promise.resolve().then(() => {
-        const settings = readWebSettings();
-        settings[key] = value;
-        writeWebSettings(settings);
-      }),
-    );
-  }
-  return tauriResult(
-    getStore().then(async (s) => {
-      await s.set(key, value);
-      await s.save();
-    }),
-  );
+  return tauriResult(backend().set(key, value));
 }
 
 export function deleteSetting(
   key: keyof PersistentAppSetting,
 ): Promise<Result<void, Error>> {
-  if (!isTauri()) {
-    return tauriResult(
-      Promise.resolve().then(() => {
-        const settings = readWebSettings();
-        delete settings[key];
-        writeWebSettings(settings);
-      }),
-    );
-  }
-  return tauriResult(
-    getStore().then(async (s) => {
-      await s.delete(key);
-      await s.save();
-    }),
-  );
+  return tauriResult(backend().delete(key));
 }
 
 export function resetAppSettings(): Promise<Result<void, Error>> {
-  if (!isTauri()) {
-    return tauriResult(
-      Promise.resolve().then(() => {
-        window.localStorage.removeItem(WEB_STORAGE_KEY);
-      }),
-    );
-  }
-  return tauriResult(
-    getStore().then(async (s) => {
-      await s.clear();
-      await s.save();
-    }),
-  );
+  return tauriResult(backend().clear());
 }

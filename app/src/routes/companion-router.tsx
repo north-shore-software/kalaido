@@ -8,7 +8,7 @@ import { routeById } from "./registry";
 import type { RouteDef } from "./route-kit";
 import { StateNavigationListener } from "./router-listeners";
 
-export const webRoutes: RouteDef[] = [
+export const companionRoutes: RouteDef[] = [
   routeById("splash"),
   routeById("boot-error"),
   { ...routeById("onboarding-login"), Component: CloudSignIn },
@@ -16,12 +16,12 @@ export const webRoutes: RouteDef[] = [
   { ...routeById("explore"), Component: ExploreCompact },
 ];
 
-export function WebRouter() {
+export function CompanionRouter() {
   return (
     <RootErrorBoundary>
       <MemoryRouter>
         <StateNavigationListener />
-        <Routes>{routeElements(webRoutes)}</Routes>
+        <Routes>{routeElements(companionRoutes)}</Routes>
       </MemoryRouter>
     </RootErrorBoundary>
   );
