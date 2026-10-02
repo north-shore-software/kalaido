@@ -1,5 +1,5 @@
-import { ClientResponseError } from "pocketbase";
 import type { Result } from "neverthrow";
+import { ClientResponseError } from "pocketbase";
 import type { TypedPocketBase } from "@/api/kalaidoscope/types";
 import { withActiveClient } from "./_active";
 import { kalaidoscopeAuthHeaders } from "./client";
@@ -59,41 +59,6 @@ export async function waitForCloudRestart(
       }
     } catch {
       // Treat connection errors / timeouts as "still restarting"
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (Date.now() >= deadline) {
-      break;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
-  }
-
-  return false;
-}
-
-export async function waitForCloudHealthy(
-  baseURL: string,
-  timeoutMs: number,
-): Promise<boolean> {
-  const base = baseURL.replace(/\/+$/, "");
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5_000);
-    try {
-      const headers = await kalaidoscopeAuthHeaders(baseURL);
-      const res = await fetch(`${base}/api/health`, {
-        headers,
-        signal: controller.signal,
-      });
-      if (res.status === 200) {
-        clearTimeout(timer);
-        return true;
-      }
-    } catch {
     } finally {
       clearTimeout(timer);
     }

@@ -1,4 +1,4 @@
-import { ok } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { SidecarStatus } from "@/api/app/local-scopes.ts";
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
@@ -251,5 +251,19 @@ describe("restoreKalaidoscope", () => {
       },
       retryKalaidoscopeId: localMeta.id,
     });
+  });
+
+  test("cloud: fails immediately if pre-restore getRestoreStatus fails", async () => {
+    mockGetRestoreStatus.mockResolvedValueOnce(
+      err(new Error("network error fetching restore status")),
+    );
+
+    const result = await restoreKalaidoscope(cloudMeta, "cloud-backup.zip");
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().message).toContain(
+      "Failed to check restore status before restoring: network error fetching restore status",
+    );
+    expect(mockRestoreBackup).not.toHaveBeenCalled();
   });
 });

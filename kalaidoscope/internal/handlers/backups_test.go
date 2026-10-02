@@ -218,12 +218,20 @@ func TestRestoreBackupRoutesAndStatus(t *testing.T) {
 	}
 
 	// Wait for fire-and-forget Apply to complete to avoid leaking goroutines in testutil
-	for attempt := 0; attempt < 50; attempt++ {
-		outcome, _ := eng.LastRestore()
+	var outcome *backup.RestoreOutcome
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		outcome, _ = eng.LastRestore()
 		if outcome != nil {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
+	}
+	if outcome == nil {
+		t.Fatal("timed out waiting for restore outcome to appear")
+	}
+	if !outcome.OK {
+		t.Fatalf("expected restore outcome.OK to be true, got error: %s", outcome.Error)
 	}
 }
 

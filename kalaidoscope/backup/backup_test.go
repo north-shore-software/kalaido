@@ -14,6 +14,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/backup"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 func TestFilenameAndParseFilename(t *testing.T) {
@@ -458,5 +459,113 @@ func TestNormalizePrefix(t *testing.T) {
 		if got := backup.NormalizePrefix(tt.input); got != tt.expected {
 			t.Errorf("NormalizePrefix(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
+	}
+}
+
+func TestApplySwapRevertsWhenSecondMoveFails(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	originalDataPath := filepath.Join(app.DataDir(), "data.db")
+	markerPath := filepath.Join(app.DataDir(), "sentinel.txt")
+	if err := os.WriteFile(markerPath, []byte("sentinel-content-before-swap"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	recovers := 0
+	eng := backup.New(app, backup.NewLocalStore(app.DataDir), backup.Options{
+		Origin: "local",
+		Lifecycle: backup.Lifecycle{
+			FaultAfterFirstMove: func() error {
+				return errors.New("simulated second move failure")
+			},
+			Recover: func() {
+				recovers++
+			},
+		},
+	})
+	backup.Install(app, eng)
+
+	sum, err := eng.Create(context.Background(), backup.KindManual)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = eng.Apply(context.Background(), sum.ID)
+	if err == nil {
+		t.Fatal("expected error from Apply with faulted second move, got nil")
+	}
+	if !strings.Contains(err.Error(), "simulated second move failure") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+
+	if recovers != 1 {
+		t.Fatalf("expected 1 call to Recover, got %d", recovers)
+	}
+
+	// Verify that original data.db still exists
+	if _, err := os.Stat(originalDataPath); err != nil {
+		t.Fatalf("data.db missing after reverted swap: %v", err)
+	}
+
+	// Verify sentinel file still exists with identical content
+	sentinelData, err := os.ReadFile(markerPath)
+	if err != nil {
+		t.Fatalf("failed to read sentinel file after reverted swap: %v", err)
+	}
+	if string(sentinelData) != "sentinel-content-before-swap" {
+		t.Fatalf("sentinel content was %q, want %q", string(sentinelData), "sentinel-content-before-swap")
+	}
+
+	// Verify outcome is ok: false
+	outcome, err := eng.LastRestore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome == nil {
+		t.Fatal("expected outcome to be written, got nil")
+	}
+	if outcome.OK {
+		t.Fatal("expected outcome.OK to be false, got true")
+	}
+	if !strings.Contains(outcome.Error, "simulated second move failure") {
+		t.Fatalf("unexpected outcome error: %q", outcome.Error)
+	}
+}
+
+func TestApplyBusyFailsAndWritesOutcome(t *testing.T) {
+	app := testutil.NewApp(t)
+	recovers := 0
+	eng := backup.New(app, backup.NewLocalStore(app.DataDir), backup.Options{
+		Origin: "local",
+		Lifecycle: backup.Lifecycle{
+			Recover: func() {
+				recovers++
+			},
+		},
+	})
+	backup.Install(app, eng)
+
+	app.Store().Set(core.StoreKeyActiveBackup, "manual-backup-in-progress")
+
+	err := eng.Apply(context.Background(), "some-id.zip")
+	if !errors.Is(err, backup.ErrBusy) {
+		t.Fatalf("got err %v, want ErrBusy", err)
+	}
+	if recovers != 1 {
+		t.Fatalf("expected 1 call to Recover, got %d", recovers)
+	}
+
+	outcome, err := eng.LastRestore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome == nil {
+		t.Fatal("expected outcome to be written, got nil")
+	}
+	if outcome.OK {
+		t.Fatal("expected outcome.OK to be false, got true")
+	}
+	if !strings.Contains(outcome.Error, backup.ErrBusy.Error()) {
+		t.Fatalf("expected outcome error to contain ErrBusy, got %q", outcome.Error)
 	}
 }

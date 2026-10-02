@@ -78,9 +78,14 @@ export async function restoreKalaidoscope(
     }
     baseURL = clientRes.value.baseURL;
     const statusRes = await getRestoreStatus();
-    if (statusRes.isOk()) {
-      initialBootId = statusRes.value.boot_id;
+    if (statusRes.isErr()) {
+      return err(
+        new Error(
+          `Failed to check restore status before restoring: ${statusRes.error.message}`,
+        ),
+      );
     }
+    initialBootId = statusRes.value.boot_id;
   }
 
   let stoppedWait:

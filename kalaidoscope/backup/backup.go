@@ -64,10 +64,11 @@ type S3Config struct {
 }
 
 type Lifecycle struct {
-	Drain      func()
-	BeforeSwap func() error
-	Restart    func() error
-	Recover    func()
+	Drain               func()
+	BeforeSwap          func() error
+	Restart             func() error
+	Recover             func()
+	FaultAfterFirstMove func() error
 }
 
 type Options struct {
@@ -353,15 +354,6 @@ func (e *Engine) Prepare(ctx context.Context, id string) error {
 }
 
 func (e *Engine) Apply(ctx context.Context, id string) error {
-	if e.app.Store().Has(core.StoreKeyActiveBackup) {
-		return ErrBusy
-	}
-
-	// 1. Drain workers
-	if e.opts.Lifecycle.Drain != nil {
-		e.opts.Lifecycle.Drain()
-	}
-
 	fail := func(err error) error {
 		_ = e.writeOutcome(RestoreOutcome{
 			ID:         id,
@@ -375,6 +367,15 @@ func (e *Engine) Apply(ctx context.Context, id string) error {
 			_ = e.opts.Lifecycle.Restart()
 		}
 		return err
+	}
+
+	if e.app.Store().Has(core.StoreKeyActiveBackup) {
+		return fail(ErrBusy)
+	}
+
+	// 1. Drain workers
+	if e.opts.Lifecycle.Drain != nil {
+		e.opts.Lifecycle.Drain()
 	}
 
 	// 2. Pre-restore snapshot
@@ -415,24 +416,29 @@ func (e *Engine) Apply(ctx context.Context, id string) error {
 
 	// 6. Swap
 	old := filepath.Join(tempDir, "old_"+security.PseudorandomString(8))
-	swapped := false
+	oldMoved := false
 
 	swapErr := e.app.RunInTransaction(func(txApp core.App) error {
 		return txApp.AuxRunInTransaction(func(txApp core.App) error {
 			if err := osutils.MoveDirContent(dataDir, old, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
 				return err
 			}
+			oldMoved = true
+			if e.opts.Lifecycle.FaultAfterFirstMove != nil {
+				if err := e.opts.Lifecycle.FaultAfterFirstMove(); err != nil {
+					return err
+				}
+			}
 			if err := osutils.MoveDirContent(staging, dataDir, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
 				return err
 			}
-			swapped = true
 			return nil
 		})
 	})
 
 	if swapErr != nil {
 		var revertErr error
-		if swapped {
+		if oldMoved {
 			revertErr = e.app.RunInTransaction(func(txApp core.App) error {
 				return txApp.AuxRunInTransaction(func(txApp core.App) error {
 					if err := osutils.MoveDirContent(dataDir, staging, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
