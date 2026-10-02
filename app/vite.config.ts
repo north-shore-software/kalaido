@@ -5,11 +5,14 @@ import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
-// Set by the Tauri CLI for its before-commands. Mobile builds bundle their own
-// entry point (mobile.html) instead of the desktop one (index.html).
-const mobile = ["android", "ios"].includes(
-  process.env.TAURI_ENV_PLATFORM ?? "",
-);
+// Set by the Tauri CLI for its before-commands (desktop or mobile) or overridden
+// by APP_TARGET for the web target. Mobile and web builds bundle their own
+// entry point instead of the desktop one (index.html).
+const target =
+  process.env.APP_TARGET ??
+  (["android", "ios"].includes(process.env.TAURI_ENV_PLATFORM ?? "")
+    ? "mobile"
+    : "desktop");
 
 // The cloud endpoints are written down in exactly one place, kalaido.sh, and
 // reach the bundle through the environment. Failing here rather than defaulting
@@ -40,12 +43,20 @@ export default defineConfig(async () => ({
   build: {
     // The bundle is loaded from local disk by the Tauri webview, not over a
     // network, so Vite's default 500 kB warning (which is about download time)
-    // doesn't apply. Revisit if this frontend is ever served as a web app —
-    // at that point transfer size becomes real and code-splitting is worth it.
+    // doesn't apply. The web target now exists, so code-splitting is owed
+    // before this limit is lowered.
     chunkSizeWarningLimit: 2500,
-    ...(mobile && {
-      rollupOptions: { input: path.resolve(__dirname, "mobile.html") },
-    }),
+    rollupOptions: {
+      input: path.resolve(
+        __dirname,
+        target === "mobile"
+          ? "mobile.html"
+          : target === "web"
+            ? "web.html"
+            : "index.html",
+      ),
+    },
+    outDir: target === "web" ? "dist-web" : "dist",
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

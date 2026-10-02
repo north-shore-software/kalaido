@@ -10,7 +10,9 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:web": "APP_TARGET=web vite --open /web.html",
     "build": "tsc && vite build",
+    "build:web": "tsc && APP_TARGET=web vite build && mv dist-web/web.html dist-web/index.html",
     "preview": "vite preview",
     "tauri": "tauri",
     "ladle": "ladle serve",

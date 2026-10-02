@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>Kalaido</title>
+    <!-- Pre-paint canvas and .dark class: same reasons as index.html. -->
+    <meta name="color-scheme" content="dark" />
+    <style>
+      html {
+        background-color: #252628;
+      }
+    </style>
+    <script>
+      document.documentElement.classList.add("dark");
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/web/main.tsx"></script>
+  </body>
+</html>

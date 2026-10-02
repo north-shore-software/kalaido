@@ -31,5 +31,8 @@
     "parser": {
       "tailwindDirectives": true
     }
+  },
+  "assist": {
+    "enabled": false
   }
 }
