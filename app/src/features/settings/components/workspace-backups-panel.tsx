@@ -189,6 +189,16 @@ export function WorkspaceBackupsView({
   );
 }
 
+export function sanitizeExportName(displayName: string, fallbackId: string): string {
+  const sanitized = displayName
+    .replace(/[/\\:*?"<>|\x00-\x1f\x7f-\x9f]+/g, "-")
+    .replace(/-+/g, "-")
+    .trim()
+    .replace(/^-+|-+$/g, "");
+
+  return sanitized || fallbackId;
+}
+
 export function WorkspaceBackupsPanel({
   kalaidoscope,
 }: {
@@ -248,8 +258,12 @@ export function WorkspaceBackupsPanel({
     setBusy(true);
     setActionError(null);
     try {
+      const baseName = sanitizeExportName(
+        kalaidoscope.displayName,
+        kalaidoscope.id,
+      );
       const pickRes = await saveFilePicker(
-        `${kalaidoscope.displayName}-${id}`,
+        `${baseName}-${id}`,
         [{ name: "Workspace backup", extensions: ["zip"] }],
       );
       if (pickRes.isErr()) {

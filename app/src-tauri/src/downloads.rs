@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::Path;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
 #[tauri::command]
 pub(crate) async fn download_to_file(
@@ -21,11 +22,13 @@ pub(crate) async fn download_to_file(
     }
 
     let download_result = async {
-        let mut file = std::fs::File::create(Path::new(&dest_path)).map_err(|e| e.to_string())?;
+        let mut file = File::create(Path::new(&dest_path))
+            .await
+            .map_err(|e| e.to_string())?;
         while let Some(chunk) = res.chunk().await.map_err(|e| e.to_string())? {
-            file.write_all(&chunk).map_err(|e| e.to_string())?;
+            file.write_all(&chunk).await.map_err(|e| e.to_string())?;
         }
-        file.flush().map_err(|e| e.to_string())?;
+        file.flush().await.map_err(|e| e.to_string())?;
         Ok::<(), String>(())
     }
     .await;
@@ -33,7 +36,7 @@ pub(crate) async fn download_to_file(
     match download_result {
         Ok(()) => Ok(()),
         Err(e) => {
-            let _ = std::fs::remove_file(&dest_path);
+            let _ = tokio::fs::remove_file(&dest_path).await;
             Err(e)
         }
     }
