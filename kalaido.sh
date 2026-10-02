@@ -96,6 +96,16 @@ cmd_build_android() {
   (cd "$APP" && pnpm tauri android build --apk --debug "$@")
 }
 
+cmd_dev_web() {
+  say "vite dev, web target (http://localhost:1420/web.html)"
+  (cd "$APP" && pnpm dev:web "$@")
+}
+
+cmd_build_web() {
+  say "web build (app/dist-web)"
+  (cd "$APP" && pnpm build:web "$@")
+}
+
 cmd_ladle() {
   say "ladle serve"
   (cd "$APP" && pnpm ladle "$@")
@@ -198,6 +208,8 @@ cmd_check_ts() {
   (cd "$APP" && pnpm check:routes)
   say "build"
   (cd "$APP" && pnpm build)
+  say "ladle build"
+  (cd "$APP" && pnpm ladle:build)
 }
 
 cmd_check_ts_typecheck_only() {
@@ -490,6 +502,8 @@ usage: ./kalaido.sh <command> [args...]
   init:android               generate src-tauri/gen/android (once)
   dev:android                tauri android dev (emulator or device, no sidecar)
   build:android              debug-signed apk, sideloadable
+  dev:web                    vite dev, web target (http://localhost:1420/web.html)
+  build:web                  web build (app/dist-web)
 
   gen:types                  rebuild the schema db, regenerate types.ts
   bump                       set the app version (prompts, defaults to a patch bump)
@@ -531,6 +545,8 @@ case "${1:-}" in
   init:android) shift; cmd_init_android "$@" ;;
   dev:android) shift; cmd_dev_android "$@" ;;
   build:android) shift; cmd_build_android "$@" ;;
+  dev:web) shift; cmd_dev_web "$@" ;;
+  build:web) shift; cmd_build_web "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
   bump) shift; cmd_bump "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;

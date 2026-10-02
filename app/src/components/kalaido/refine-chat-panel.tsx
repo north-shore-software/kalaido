@@ -1,13 +1,9 @@
 import { forwardRef, type ReactNode } from "react";
 import type { TimeWindow } from "@/api/kalaidoscope/chat";
-import {
-  ChatPanel,
-  type ChatPanelHandle,
-  type ContextItem,
-  type EntityKind,
-} from "@/components/kalaido";
 import type { SnapshotEdit } from "@/api/kalaidoscope/projections";
 import type { RefineSession } from "@/hooks/use-refine-session";
+import { ChatPanel, type ChatPanelHandle } from "./chat-panel";
+import type { ContextItem, EntityKind } from "./context-picker";
 import { PanelErrorBoundary } from "./panel-error-boundary";
 
 export interface RefineChatPanelProps {

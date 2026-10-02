@@ -1,7 +1,8 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { Result } from "neverthrow";
+import { ok, type Result } from "neverthrow";
 import { tauriResult } from "@/api/app/_invoke.ts";
 
 export type { UnlistenFn };
@@ -24,6 +25,10 @@ export function openDirectoryPicker(): Promise<Result<string | null, Error>> {
 }
 
 export function openSystemBrowser(url: string): Promise<Result<void, Error>> {
+  if (!isTauri()) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return Promise.resolve(ok(undefined));
+  }
   return tauriResult(openUrl(url));
 }
 
