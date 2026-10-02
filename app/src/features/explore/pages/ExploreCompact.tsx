@@ -175,10 +175,7 @@ export default function ExploreCompact() {
                 />
               );
             }}
-            actionsVisibleFor={(message) => {
-              const mark = bookmarks.marks.get(message.id);
-              return !!mark?.bookmarked || !!mark?.fragmentId;
-            }}
+            actionsVisibleFor={() => true}
             onMessagesChange={setLiveMessages}
             onTurnComplete={() => {
               refresh();
