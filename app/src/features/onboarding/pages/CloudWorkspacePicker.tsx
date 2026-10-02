@@ -8,8 +8,10 @@ import { useCloudSession } from "@/hooks/use-cloud-session";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
+import { useAppNavigate } from "@/routes/use-app-navigate";
 
 export default function CloudWorkspacePicker() {
+  const { goBack } = useAppNavigate();
   const { user } = useCloudSession();
   const { availableKalaidoscopes } = useSnapshot(appState);
   const [loading, setLoading] = useState(true);
@@ -30,6 +32,13 @@ export default function CloudWorkspacePicker() {
   }, [load]);
 
   async function handleOpen(id: string) {
+    if (
+      appState.appStage.stage === "kalaidoscope_open" &&
+      appState.appStage.selectedKalaidoscopeId === id
+    ) {
+      goBack();
+      return;
+    }
     setOpeningId(id);
     setOpenError(null);
     const result = await switchLocalKalaidoscope(id, { surfaceError: false });

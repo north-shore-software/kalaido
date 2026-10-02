@@ -19,4 +19,8 @@ export const exploreTransitions = defineTransitions({
     trigger: "Click 'New colour…' in the Bookmarks tray",
     when: "The bookmarked turns have been saved as fragments",
   },
+  chooseWorkspace: {
+    to: "cloud-workspaces",
+    trigger: "Tap back button in mobile explore header",
+  },
 });
