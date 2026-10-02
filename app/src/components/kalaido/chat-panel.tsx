@@ -252,7 +252,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
       },
     });
 
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const isLoading = status === "submitted" || status === "streaming";
 
     const estimate = usePromptEstimate({
@@ -276,7 +276,9 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: messages and trailing are the re-run triggers — scroll to the bottom whenever the stream grows
     useEffect(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      const el = messagesContainerRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }, [messages, trailing]);
 
     useEffect(() => {
@@ -435,7 +437,10 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
         )}
       >
         {title && <PaneHeader label={title} />}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-3"
+        >
           <ChatMessages
             messages={messages}
             greeting={greeting}
@@ -451,7 +456,6 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
             actionsVisibleFor={actionsVisibleFor}
           />
           {trailing}
-          <div ref={bottomRef} />
         </div>
 
         {context !== undefined && onContextChange && (

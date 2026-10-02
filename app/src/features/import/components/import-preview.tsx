@@ -40,7 +40,7 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
   const overflow = entries.length - shown.length;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex w-full min-w-0 flex-col gap-2">
       <div className="flex items-center justify-between text-body-sm">
         <span className="text-fg-4">Contents</span>
         <span className="tabular-nums font-mono text-mono-sm text-fg-4">
@@ -48,13 +48,13 @@ export function ImportPreview({ entries, scanning }: ImportPreviewProps) {
           {unsupported > 0 ? ` · ${unsupported} unsupported` : ""}
         </span>
       </div>
-      <ul className="max-h-48 divide-y divide-line overflow-auto rounded-none border border-line bg-surface-1">
+      <ul className="max-h-48 w-full min-w-0 divide-y divide-line overflow-y-auto overflow-x-hidden rounded-none border border-line bg-surface-1">
         {shown
           .map((e, i) => ({ e, key: `${i}-${e.path}` }))
           .map(({ e, key }) => (
             <li
               key={key}
-              className="flex items-center justify-between gap-3 px-3 py-1.5"
+              className="flex w-full min-w-0 items-center justify-between gap-3 px-3 py-1.5"
             >
               <span
                 className="block min-w-0 flex-1 truncate font-mono text-mono-sm text-fg-1"
