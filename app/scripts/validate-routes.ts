@@ -1,4 +1,5 @@
 import "./dom-prelude";
+import type { AppStage } from "../src/hooks/use-app-state";
 
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION:", err);
@@ -40,6 +41,42 @@ async function main() {
     }
   }
 
+  const { companionRoutes } = await import("../src/routes/companion-router");
+  const { setAppVariant } = await import("../src/lib/app-variant");
+  const { stageEntryRoute } = await import("../src/routes/route-kit");
+
+  const companionIds = new Set(companionRoutes.map((r) => r.id));
+  if (companionIds.size !== companionRoutes.length)
+    errors.push("companion: duplicate route ids in registry");
+
+  const companionPaths = new Set<string>();
+  for (const r of companionRoutes) {
+    for (const p of [r.path, ...(r.aliases ?? [])]) {
+      if (companionPaths.has(p))
+        errors.push(`companion: duplicate path "${p}" (route "${r.id}")`);
+      companionPaths.add(p);
+    }
+  }
+
+  setAppVariant("mobile");
+  const testStages: AppStage[] = [
+    { stage: "bootstrap" },
+    { stage: "kalaidoscope_loading" },
+    { stage: "no_kalaidoscopes_available" },
+    { stage: "bootstrap_error" },
+    { stage: "kalaidoscope_load_error" },
+    { stage: "kalaidoscope_open", selectedKalaidoscopeId: "x" },
+    { stage: "kalaidoscope_load_requested", loadKalaidoscopeId: "x" },
+  ];
+  for (const stage of testStages) {
+    const enteredId = stageEntryRoute(stage);
+    if (!companionIds.has(enteredId)) {
+      errors.push(
+        `companion: stage "${stage.stage}" enters "${enteredId}" which is not a companion route`,
+      );
+    }
+  }
+
   if (errors.length) {
     console.error(
       `validate-routes FAILED:\n${errors.map((e) => `  - ${e}`).join("\n")}`,
@@ -47,7 +84,7 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `validate-routes OK — ${appRoutes.length} routes, all transitions resolve.`,
+    `validate-routes OK — ${appRoutes.length} desktop routes, ${companionRoutes.length} companion routes, all transitions resolve.`,
   );
 }
 

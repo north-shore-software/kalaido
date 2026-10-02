@@ -208,6 +208,8 @@ cmd_check_ts() {
   (cd "$APP" && pnpm check:routes)
   say "build"
   (cd "$APP" && pnpm build)
+  say "web build"
+  (cd "$APP" && APP_TARGET=web pnpm exec vite build)
   say "ladle build"
   (cd "$APP" && pnpm ladle:build)
 }
@@ -318,8 +320,8 @@ cmd_setup() {
 
 cmd_clean() {
   say "clean"
-  rm -rf "$APP/dist" "$APP/build" "$TAURI/binaries" "$SCHEMA_ROOT"
-  echo "removed app/dist app/build app/src-tauri/binaries .schema"
+  rm -rf "$APP/dist" "$APP/dist-web" "$APP/build" "$TAURI/binaries" "$SCHEMA_ROOT"
+  echo "removed app/dist app/dist-web app/build app/src-tauri/binaries .schema"
 }
 
 cmd_clean_tauri() {
@@ -532,7 +534,7 @@ usage: ./kalaido.sh <command> [args...]
   setup:ts                   pnpm install --frozen-lockfile
   setup:go                   go mod download
   setup:rust                 cargo fetch
-  clean                      dist, build, binaries, .schema
+  clean                      dist, dist-web, build, binaries, .schema
   clean:tauri                clean + src-tauri/target
   clean:npm                  clean:tauri + node_modules
   doctor                     check the toolchain, android and providers

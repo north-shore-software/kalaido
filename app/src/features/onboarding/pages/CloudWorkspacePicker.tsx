@@ -17,7 +17,11 @@ export default function CloudWorkspacePicker() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [openError, setOpenError] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(() =>
+    appState.appStage.stage === "kalaidoscope_load_error"
+      ? (appState.appStage.error?.message ?? null)
+      : null,
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
