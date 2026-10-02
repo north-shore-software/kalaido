@@ -80,6 +80,22 @@ cmd_dev() {
   (cd "$APP" && pnpm tauri dev "$@")
 }
 
+# Mobile is cloud-only, so none of the android commands build the sidecar.
+cmd_init_android() {
+  say "tauri android init"
+  (cd "$APP" && pnpm tauri android init "$@")
+}
+
+cmd_dev_android() {
+  say "tauri android dev"
+  (cd "$APP" && pnpm tauri android dev "$@")
+}
+
+cmd_build_android() {
+  say "tauri android build (debug apk)"
+  (cd "$APP" && pnpm tauri android build --apk --debug "$@")
+}
+
 cmd_ladle() {
   say "ladle serve"
   (cd "$APP" && pnpm ladle "$@")
@@ -410,6 +426,37 @@ cmd_doctor() {
     failed=1
   fi
 
+  say "android"
+
+  local d
+  for d in JAVA_HOME ANDROID_HOME NDK_HOME; do
+    if [[ -n "${!d:-}" && -d "${!d}" ]]; then
+      report ok "$d" "${!d}"
+    else
+      report warn "$d" "${!d:-unset} (android commands will fail)"
+    fi
+  done
+
+  if have rustup; then
+    local installed t
+    installed="$(rustup target list --installed 2>/dev/null)"
+    for t in aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+      if grep -qx "$t" <<<"$installed"; then
+        report ok "$t" "installed"
+      else
+        report warn "$t" "missing (rustup target add $t)"
+      fi
+    done
+  else
+    report warn rustup "not found (cannot check android targets)"
+  fi
+
+  if [[ -d "$TAURI/gen/android" ]]; then
+    report ok "gen/android" "initialised"
+  else
+    report warn "gen/android" "missing (run ./kalaido.sh init:android)"
+  fi
+
   say "providers"
 
   if [[ -n "${GEMINI_API_KEY:-}" ]]; then
@@ -439,6 +486,10 @@ usage: ./kalaido.sh <command> [args...]
 
   dev                        tauri dev (rebuilds the sidecar first)
   ladle                      component workbench on :61000
+
+  init:android               generate src-tauri/gen/android (once)
+  dev:android                tauri android dev (emulator or device, no sidecar)
+  build:android              debug-signed apk, sideloadable
 
   gen:types                  rebuild the schema db, regenerate types.ts
   bump                       set the app version (prompts, defaults to a patch bump)
@@ -470,13 +521,16 @@ usage: ./kalaido.sh <command> [args...]
   clean                      dist, build, binaries, .schema
   clean:tauri                clean + src-tauri/target
   clean:npm                  clean:tauri + node_modules
-  doctor                     check the toolchain and providers
+  doctor                     check the toolchain, android and providers
 EOF
 }
 
 case "${1:-}" in
   dev) shift; cmd_dev "$@" ;;
   ladle) shift; cmd_ladle "$@" ;;
+  init:android) shift; cmd_init_android "$@" ;;
+  dev:android) shift; cmd_dev_android "$@" ;;
+  build:android) shift; cmd_build_android "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
   bump) shift; cmd_bump "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;

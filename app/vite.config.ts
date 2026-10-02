@@ -5,6 +5,12 @@ import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
+// Set by the Tauri CLI for its before-commands. Mobile builds bundle their own
+// entry point (mobile.html) instead of the desktop one (index.html).
+const mobile = ["android", "ios"].includes(
+  process.env.TAURI_ENV_PLATFORM ?? "",
+);
+
 // The cloud endpoints are written down in exactly one place, kalaido.sh, and
 // reach the bundle through the environment. Failing here rather than defaulting
 // keeps a build that bypassed the script from silently baking in the wrong
@@ -37,6 +43,9 @@ export default defineConfig(async () => ({
     // doesn't apply. Revisit if this frontend is ever served as a web app —
     // at that point transfer size becomes real and code-splitting is worth it.
     chunkSizeWarningLimit: 2500,
+    ...(mobile && {
+      rollupOptions: { input: path.resolve(__dirname, "mobile.html") },
+    }),
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
