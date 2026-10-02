@@ -86,6 +86,9 @@ func NewWithSchemaWithOptions(config pocketbase.Config, schemaOpts schema.Option
 	registerWriteEcho(app)
 
 	rt := newRuntime(app, opts, backupsEng)
+	if opts.Backups.Lifecycle.Drain == nil {
+		backupsEng.SetDrain(rt.stop)
+	}
 
 	RegisterTriggers(app, rt)
 	RegisterRoutes(app, rt.deps())
@@ -169,6 +172,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.GET("/api/status", handlers.HandleGetStatus(app, deps))
 		se.Router.GET("/api/kalaidoscope/backups", handlers.HandleListBackups(app, deps.Backups))
 		se.Router.POST("/api/kalaidoscope/backups", handlers.HandleCreateBackup(app, deps.Backups))
+		se.Router.GET("/api/kalaidoscope/backups/restore-status", handlers.HandleRestoreStatus(app, deps.Backups))
 		se.Router.GET("/api/kalaidoscope/backups/{id}/download", handlers.HandleDownloadBackup(app, deps.Backups))
 		se.Router.POST("/api/kalaidoscope/backups/{id}/restore", handlers.HandleRestoreBackup(app, deps.Backups))
 		se.Router.DELETE("/api/kalaidoscope/backups/{id}", handlers.HandleDeleteBackup(app, deps.Backups))

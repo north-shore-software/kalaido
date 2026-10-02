@@ -204,19 +204,15 @@ func TestPrepare(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Prepare does not create pre-restore snapshot; Apply does.
 	sums, err := eng.List(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	foundPreRestore := false
 	for _, s := range sums {
 		if s.Kind == backup.KindPreRestore {
-			foundPreRestore = true
-			break
+			t.Fatal("pre-restore backup should not be created by Prepare")
 		}
-	}
-	if !foundPreRestore {
-		t.Fatal("pre-restore backup not found in list")
 	}
 }
 
@@ -224,9 +220,13 @@ func TestApply(t *testing.T) {
 	app := testutil.NewApp(t)
 
 	restarts := 0
+	drains := 0
 	eng := backup.New(app, backup.NewLocalStore(app.DataDir), backup.Options{
 		Origin: "local",
 		Lifecycle: backup.Lifecycle{
+			Drain: func() {
+				drains++
+			},
 			Restart: func() error {
 				restarts++
 				return nil
@@ -254,8 +254,35 @@ func TestApply(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if drains != 1 {
+		t.Fatalf("got %d drains, want 1", drains)
+	}
 	if restarts != 1 {
 		t.Fatalf("got %d restarts, want 1", restarts)
+	}
+
+	outcome, err := eng.LastRestore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome == nil || !outcome.OK || outcome.ID != sum.ID {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+
+	// Pre-restore snapshot should have been created by Apply
+	sums, err := eng.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundPreRestore := false
+	for _, s := range sums {
+		if s.Kind == backup.KindPreRestore {
+			foundPreRestore = true
+			break
+		}
+	}
+	if !foundPreRestore {
+		t.Fatal("pre-restore backup not found in list after Apply")
 	}
 
 	tempDir := filepath.Join(app.DataDir(), ".pb_temp_to_delete")
@@ -281,6 +308,99 @@ func TestApply(t *testing.T) {
 	manifestPath := filepath.Join(app.DataDir(), backup.ManifestName)
 	if _, err := os.Stat(manifestPath); !os.IsNotExist(err) {
 		t.Fatalf("expected manifest to not exist at %s", manifestPath)
+	}
+}
+
+func TestApplyFailingExtractRestartsAndWritesOutcomeFalse(t *testing.T) {
+	app := testutil.NewApp(t)
+	backupsDir := filepath.Join(app.DataDir(), "backups")
+	if err := os.MkdirAll(backupsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	restarts := 0
+	eng := backup.New(app, backup.NewLocalStore(app.DataDir), backup.Options{
+		Origin: "local",
+		Lifecycle: backup.Lifecycle{
+			Restart: func() error {
+				restarts++
+				return nil
+			},
+		},
+	})
+	backup.Install(app, eng)
+
+	// Write an invalid zip that will fail extraction or missing data.db
+	invalidZip := "manual-20261001T203003Z.zip"
+	writeZip(t, filepath.Join(backupsDir, invalidZip), map[string][]byte{
+		backup.ManifestName: mustMarshal(t, backup.Manifest{
+			Version:       1,
+			SchemaVersion: schema.Version,
+			Kind:          backup.KindManual,
+		}),
+		"other.txt": []byte("no data.db"),
+	})
+
+	err := eng.Apply(context.Background(), invalidZip)
+	if err == nil {
+		t.Fatal("expected error from Apply with invalid archive, got nil")
+	}
+
+	if restarts != 1 {
+		t.Fatalf("got %d restarts on failure, want 1", restarts)
+	}
+
+	outcome, err := eng.LastRestore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome == nil {
+		t.Fatal("expected outcome to be written, got nil")
+	}
+	if outcome.OK {
+		t.Fatal("expected outcome.OK to be false, got true")
+	}
+	if outcome.ID != invalidZip {
+		t.Fatalf("got outcome ID %q, want %q", outcome.ID, invalidZip)
+	}
+	if outcome.Error == "" {
+		t.Fatal("expected non-empty outcome Error")
+	}
+}
+
+func TestApplyDrainCalledBeforeBeforeSwap(t *testing.T) {
+	app := testutil.NewApp(t)
+	var order []string
+
+	eng := backup.New(app, backup.NewLocalStore(app.DataDir), backup.Options{
+		Origin: "local",
+		Lifecycle: backup.Lifecycle{
+			Drain: func() {
+				order = append(order, "drain")
+			},
+			BeforeSwap: func() error {
+				order = append(order, "beforeswap")
+				return nil
+			},
+			Restart: func() error {
+				order = append(order, "restart")
+				return nil
+			},
+		},
+	})
+	backup.Install(app, eng)
+
+	sum, err := eng.Create(context.Background(), backup.KindManual)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := eng.Apply(context.Background(), sum.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(order) != 3 || order[0] != "drain" || order[1] != "beforeswap" || order[2] != "restart" {
+		t.Fatalf("unexpected execution order: %v, want [drain beforeswap restart]", order)
 	}
 }
 

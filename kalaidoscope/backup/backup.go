@@ -64,6 +64,7 @@ type S3Config struct {
 }
 
 type Lifecycle struct {
+	Drain      func()
 	BeforeSwap func() error
 	Restart    func() error
 	Recover    func()
@@ -76,10 +77,20 @@ type Options struct {
 	Store     Store
 }
 
+const LastRestoreFilename = ".last-restore.json"
+
+type RestoreOutcome struct {
+	ID         string    `json:"id"`
+	OK         bool      `json:"ok"`
+	Error      string    `json:"error,omitempty"`
+	FinishedAt time.Time `json:"finished_at"`
+}
+
 type Engine struct {
-	app   core.App
-	store Store
-	opts  Options
+	app    core.App
+	store  Store
+	opts   Options
+	bootID string
 }
 
 var (
@@ -91,10 +102,47 @@ var (
 
 func New(app core.App, store Store, opts Options) *Engine {
 	return &Engine{
-		app:   app,
-		store: store,
-		opts:  opts,
+		app:    app,
+		store:  store,
+		opts:   opts,
+		bootID: security.PseudorandomString(16),
 	}
+}
+
+func (e *Engine) BootID() string {
+	return e.bootID
+}
+
+func (e *Engine) SetDrain(drain func()) {
+	e.opts.Lifecycle.Drain = drain
+}
+
+func (e *Engine) LastRestore() (*RestoreOutcome, error) {
+	path := filepath.Join(e.app.DataDir(), "backups", LastRestoreFilename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var outcome RestoreOutcome
+	if err := json.Unmarshal(data, &outcome); err != nil {
+		return nil, err
+	}
+	return &outcome, nil
+}
+
+func (e *Engine) writeOutcome(outcome RestoreOutcome) error {
+	dir := filepath.Join(e.app.DataDir(), "backups")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(outcome)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, LastRestoreFilename), data, 0o644)
 }
 
 func Filename(kind Kind, at time.Time) string {
@@ -284,6 +332,10 @@ func rewriteArchiveWithManifest(origPath, tmpPath string, m Manifest) error {
 }
 
 func (e *Engine) Prepare(ctx context.Context, id string) error {
+	if e.app.Store().Has(core.StoreKeyActiveBackup) {
+		return ErrBusy
+	}
+
 	if err := e.store.Fetch(ctx, id); err != nil {
 		return err
 	}
@@ -297,43 +349,73 @@ func (e *Engine) Prepare(ctx context.Context, id string) error {
 		return ErrSchemaNewer
 	}
 
-	_, err = e.Create(ctx, KindPreRestore)
-	return err
+	return nil
 }
 
 func (e *Engine) Apply(ctx context.Context, id string) error {
 	if e.app.Store().Has(core.StoreKeyActiveBackup) {
 		return ErrBusy
 	}
+
+	// 1. Drain workers
+	if e.opts.Lifecycle.Drain != nil {
+		e.opts.Lifecycle.Drain()
+	}
+
+	fail := func(err error) error {
+		_ = e.writeOutcome(RestoreOutcome{
+			ID:         id,
+			OK:         false,
+			Error:      err.Error(),
+			FinishedAt: time.Now().UTC(),
+		})
+		if e.opts.Lifecycle.Recover != nil {
+			e.opts.Lifecycle.Recover()
+		} else if e.opts.Lifecycle.Restart != nil {
+			_ = e.opts.Lifecycle.Restart()
+		}
+		return err
+	}
+
+	// 2. Pre-restore snapshot
+	if _, err := e.Create(ctx, KindPreRestore); err != nil {
+		return fail(fmt.Errorf("pre-restore backup: %w", err))
+	}
+
 	e.app.Store().Set(core.StoreKeyActiveBackup, id)
 	defer e.app.Store().Remove(core.StoreKeyActiveBackup)
 
 	dataDir := e.app.DataDir()
 	tempDir := filepath.Join(dataDir, core.LocalTempDirName)
 	if err := os.MkdirAll(tempDir, 0o755); err != nil {
-		return err
+		return fail(err)
 	}
 
 	staging := filepath.Join(tempDir, "restore_"+security.PseudorandomString(8))
 	defer os.RemoveAll(staging)
 
+	// 3. Extract
 	if err := archive.Extract(filepath.Join(dataDir, "backups", id), staging); err != nil {
-		return err
+		return fail(err)
 	}
 
+	// 4. Verify data.db
 	if _, err := os.Stat(filepath.Join(staging, "data.db")); err != nil {
-		return err
+		return fail(err)
 	}
 
 	_ = os.Remove(filepath.Join(staging, ManifestName))
 
+	// 5. BeforeSwap
 	if e.opts.Lifecycle.BeforeSwap != nil {
 		if err := e.opts.Lifecycle.BeforeSwap(); err != nil {
-			return err
+			return fail(err)
 		}
 	}
 
+	// 6. Swap
 	old := filepath.Join(tempDir, "old_"+security.PseudorandomString(8))
+	swapped := false
 
 	swapErr := e.app.RunInTransaction(func(txApp core.App) error {
 		return txApp.AuxRunInTransaction(func(txApp core.App) error {
@@ -343,35 +425,43 @@ func (e *Engine) Apply(ctx context.Context, id string) error {
 			if err := osutils.MoveDirContent(staging, dataDir, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
 				return err
 			}
+			swapped = true
 			return nil
 		})
 	})
 
 	if swapErr != nil {
-		revertErr := e.app.RunInTransaction(func(txApp core.App) error {
-			return txApp.AuxRunInTransaction(func(txApp core.App) error {
-				if err := osutils.MoveDirContent(dataDir, staging, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
-					return err
-				}
-				if err := osutils.MoveDirContent(old, dataDir, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
-					return err
-				}
-				return nil
+		var revertErr error
+		if swapped {
+			revertErr = e.app.RunInTransaction(func(txApp core.App) error {
+				return txApp.AuxRunInTransaction(func(txApp core.App) error {
+					if err := osutils.MoveDirContent(dataDir, staging, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
+						return err
+					}
+					if err := osutils.MoveDirContent(old, dataDir, core.LocalBackupsDirName, core.LocalTempDirName); err != nil {
+						return err
+					}
+					return nil
+				})
 			})
-		})
+		}
 
 		retErr := swapErr
 		if revertErr != nil {
 			retErr = errors.Join(swapErr, revertErr)
 		}
 
-		if e.opts.Lifecycle.Recover != nil {
-			e.opts.Lifecycle.Recover()
-		}
-
-		return retErr
+		return fail(retErr)
 	}
 
+	// 7. Write outcome ok:true
+	_ = e.writeOutcome(RestoreOutcome{
+		ID:         id,
+		OK:         true,
+		FinishedAt: time.Now().UTC(),
+	})
+
+	// 8. Restart
 	if e.opts.Lifecycle.Restart != nil {
 		return e.opts.Lifecycle.Restart()
 	}

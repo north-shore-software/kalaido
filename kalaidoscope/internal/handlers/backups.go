@@ -64,6 +64,8 @@ func HandleDownloadBackup(app core.App, eng *backup.Engine) func(e *core.Request
 	}
 }
 
+var RestoreDelay = 1 * time.Second
+
 func HandleRestoreBackup(app core.App, eng *backup.Engine) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
@@ -89,7 +91,9 @@ func HandleRestoreBackup(app core.App, eng *backup.Engine) func(e *core.RequestE
 		}
 
 		routine.FireAndForget(func() {
-			time.Sleep(1 * time.Second)
+			if RestoreDelay > 0 {
+				time.Sleep(RestoreDelay)
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 
@@ -118,5 +122,18 @@ func HandleDeleteBackup(app core.App, eng *backup.Engine) func(e *core.RequestEv
 		}
 
 		return e.NoContent(http.StatusNoContent)
+	}
+}
+
+func HandleRestoreStatus(app core.App, eng *backup.Engine) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		outcome, err := eng.LastRestore()
+		if err != nil {
+			return e.InternalServerError("failed to read restore status", err)
+		}
+		return e.JSON(http.StatusOK, map[string]any{
+			"boot_id":      eng.BootID(),
+			"last_restore": outcome,
+		})
 	}
 }
