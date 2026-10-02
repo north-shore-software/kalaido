@@ -7,6 +7,7 @@ if (typeof globalThis.window === "undefined") {
   const g = globalThis as Record<string, unknown>;
   g.window = dom.window;
   g.document = dom.window.document;
+  g.location = dom.window.location;
 
   // Use Object.defineProperty for navigator as Node 22 defines it as a read-only getter on globalThis
   Object.defineProperty(globalThis, "navigator", {

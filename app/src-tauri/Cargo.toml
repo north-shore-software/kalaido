@@ -37,7 +37,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "time", "sync", "net"] }
+tokio = { version = "1", features = ["rt", "time", "sync", "net", "fs", "io-util"] }
 
 # Desktop-only: the sidecar, local files, Ollama and the menu bar. Mobile is
 # cloud-only and compiles none of the modules that use these (see lib.rs).

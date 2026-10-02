@@ -189,6 +189,20 @@ export function WorkspaceBackupsView({
   );
 }
 
+export function sanitizeExportName(
+  displayName: string,
+  fallbackId: string,
+): string {
+  const sanitized = displayName
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: sanitize control characters for filesystem safety
+    .replace(/[/\\:*?"<>|\x00-\x1f\x7f-\x9f]+/g, "-")
+    .replace(/-+/g, "-")
+    .trim()
+    .replace(/^-+|-+$/g, "");
+
+  return sanitized || fallbackId;
+}
+
 export function WorkspaceBackupsPanel({
   kalaidoscope,
 }: {
@@ -248,10 +262,13 @@ export function WorkspaceBackupsPanel({
     setBusy(true);
     setActionError(null);
     try {
-      const pickRes = await saveFilePicker(
-        `${kalaidoscope.displayName}-${id}`,
-        [{ name: "Workspace backup", extensions: ["zip"] }],
+      const baseName = sanitizeExportName(
+        kalaidoscope.displayName,
+        kalaidoscope.id,
       );
+      const pickRes = await saveFilePicker(`${baseName}-${id}`, [
+        { name: "Workspace backup", extensions: ["zip"] },
+      ]);
       if (pickRes.isErr()) {
         setActionError(pickRes.error.message);
         return;

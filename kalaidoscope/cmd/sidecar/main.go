@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -38,11 +40,15 @@ func main() {
 	logger = slog.Default().With("component", "sidecar")
 	llm.Trace = env.LLMTrace
 
+	dataDir := parseDirFlag(os.Args, "./pb_data")
+	scopeID := filepath.Base(dataDir)
+
 	a := server.NewWithSchemaWithOptions(pocketbase.Config{HideStartBanner: true}, schema.Options{}, server.Options{
 		AutoWave:               env.AutoWave,
 		HandEditCreateFragment: env.HandEditCreateFragment,
 		Backups: backup.Options{
-			Origin: "local",
+			ScopeID: scopeID,
+			Origin:  "local",
 			Lifecycle: backup.Lifecycle{
 				Restart: func() error {
 					return syscall.Kill(os.Getpid(), syscall.SIGTERM)
@@ -185,4 +191,20 @@ func createLocalAppUser(a *pocketbase.PocketBase, env config.Env) {
 
 		return se.Next()
 	})
+}
+
+// parseDirFlag scans os.Args for `--dir=X` or `--dir X`. PB's own flag parser
+// only runs inside app.Start(), but we need the data dir earlier — before
+// Start() opens the SQLite files. Falls back to def when unset.
+func parseDirFlag(args []string, def string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "--dir=") {
+			return strings.TrimPrefix(a, "--dir=")
+		}
+		if a == "--dir" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return def
 }
