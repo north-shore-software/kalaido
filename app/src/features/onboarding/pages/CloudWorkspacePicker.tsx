@@ -99,7 +99,9 @@ export default function CloudWorkspacePicker() {
                 disabled={openingId !== null}
                 className="flex h-14 w-full items-center rounded-none border bg-card px-4 text-left text-item font-medium disabled:opacity-60"
               >
-                {openingId === workspace.id ? "Opening…" : workspace.displayName}
+                {openingId === workspace.id
+                  ? "Opening…"
+                  : workspace.displayName}
               </button>
             ))}
           </div>

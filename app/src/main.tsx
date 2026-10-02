@@ -2,10 +2,7 @@ import "./index.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { snapshot, subscribe } from "valtio";
-import {
-  appState,
-  bootstrapStoredState,
-} from "@/hooks/use-app-state.ts";
+import { appState, bootstrapStoredState } from "@/hooks/use-app-state.ts";
 import { AppProviders } from "@/providers/app-providers";
 import { AppRouter } from "@/routes/app-router";
 
@@ -32,4 +29,3 @@ subscribe(appState, () => {
 // navigates there.
 render();
 void bootstrapStoredState();
-
