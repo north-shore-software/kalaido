@@ -1,3 +1,10 @@
 :root {
   --titlebar-height: env(safe-area-inset-top, 0px);
+  --keyboard-inset: 0px;
+  --keyboard-offset: 0px;
+  --page-height: calc(100svh - var(--titlebar-height) - var(--keyboard-inset));
+}
+
+#root {
+  margin-top: var(--keyboard-offset);
 }

@@ -52,7 +52,9 @@ export default function CloudWorkspacePicker() {
   return (
     <div
       className="flex flex-col overflow-y-auto bg-background"
-      style={{ height: "calc(100svh - var(--titlebar-height))" }}
+      style={{
+        height: "var(--page-height, calc(100svh - var(--titlebar-height)))",
+      }}
     >
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
         <header className="flex flex-col gap-1">

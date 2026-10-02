@@ -100,7 +100,9 @@ export default function ExploreCompact() {
   return (
     <div
       className="flex flex-col bg-background"
-      style={{ height: "calc(100svh - var(--titlebar-height))" }}
+      style={{
+        height: "var(--page-height, calc(100svh - var(--titlebar-height)))",
+      }}
     >
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-3">
         <Button

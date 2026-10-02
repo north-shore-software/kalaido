@@ -17,6 +17,7 @@ export function ComposerSendButton({
     <Button
       size="icon-sm"
       onClick={onClick}
+      onPointerDown={(e) => e.preventDefault()}
       disabled={disabled}
       className={cn(
         "size-[26px] clip-chamfer",
