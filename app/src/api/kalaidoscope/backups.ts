@@ -56,10 +56,13 @@ export async function waitForCloudHealthy(
 async function sendRequest<T>(
   client: TypedPocketBase,
   path: string,
-  options: { method: string },
+  options: { method: string; requestKey?: null },
 ): Promise<T> {
   try {
-    return await client.send<T>(path, options);
+    return await client.send<T>(path, {
+      ...options,
+      requestKey: null,
+    });
   } catch (e) {
     if (e instanceof ClientResponseError && e.response?.message) {
       throw new Error(e.response.message);

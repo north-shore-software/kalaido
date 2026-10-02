@@ -107,6 +107,10 @@ pub(crate) fn create_local_kalaidoscope(
     })
 }
 
+fn is_kalaidoscope_dir(path: &Path) -> bool {
+    path.join("pb_data").is_dir() || path.join("data.db").is_file()
+}
+
 #[tauri::command]
 pub(crate) fn delete_local_kalaidoscope(data_dir: String) -> Result<(), String> {
     let path = PathBuf::from(&data_dir);
@@ -115,9 +119,9 @@ pub(crate) fn delete_local_kalaidoscope(data_dir: String) -> Result<(), String> 
         return Ok(());
     }
 
-    if !path.join("pb_data").is_dir() {
+    if !is_kalaidoscope_dir(&path) {
         return Err(format!(
-            "Refusing to delete '{}': it does not look like a Kalaidoscope data directory (missing pb_data).",
+            "Refusing to delete '{}': it does not look like a Kalaidoscope data directory (missing pb_data and data.db).",
             path.display()
         ));
     }
@@ -175,12 +179,14 @@ pub(crate) async fn start_local_kalaidoscope(
         ));
     }
 
-    if !data_dir_path.join("pb_data").is_dir() {
+    if !is_kalaidoscope_dir(&data_dir_path) {
         return Err(format!(
-            "Directory '{}' does not appear to be a valid Kalaidoscope data directory (missing pb_data).",
+            "Directory '{}' does not appear to be a valid Kalaidoscope data directory (missing pb_data and data.db).",
             data_dir_path.display()
         ));
     }
+
+    init_kalaidoscope_data(&data_dir_path)?;
 
     let id_for_sidecar = data_dir_path
         .file_name()
