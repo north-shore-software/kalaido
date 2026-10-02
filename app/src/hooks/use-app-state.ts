@@ -81,3 +81,14 @@ export const loadStoredState = async (): Promise<Partial<AppState> | null> => {
 };
 
 export const appState = proxy<AppState>(DEFAULT_STATE);
+
+export async function bootstrapStoredState(): Promise<void> {
+  try {
+    const state = await loadStoredState();
+    console.log("Stored state loaded: ", state);
+    if (state) Object.assign(appState, state);
+  } catch (e) {
+    console.error("Failed to load stored state:", e);
+    appState.appStage = { stage: "bootstrap_error", error: stageError(e) };
+  }
+}

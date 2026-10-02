@@ -22,6 +22,7 @@ interface CloudAuthPanelProps {
   mode?: AuthMode;
   onModeChange?: (mode: AuthMode) => void;
   className?: string;
+  signInOnly?: boolean;
 }
 
 /** A failed attempt, remembered with the mode it happened in. */
@@ -37,9 +38,10 @@ export function CloudAuthPanel({
   mode: controlledMode,
   onModeChange,
   className,
+  signInOnly,
 }: CloudAuthPanelProps) {
   const [internalMode, setInternalMode] = useState<AuthMode>("signin");
-  const mode = controlledMode ?? internalMode;
+  const mode = signInOnly ? "signin" : (controlledMode ?? internalMode);
   const setMode = onModeChange ?? setInternalMode;
 
   // React owns the pending flag: it is on for exactly the life of the action,
@@ -78,12 +80,14 @@ export function CloudAuthPanel({
 
   return (
     <div className={cn("flex w-full max-w-lg flex-col gap-6", className)}>
-      <OptionCards
-        options={AUTH_MODES}
-        value={mode}
-        onChange={setMode}
-        disabled={busy}
-      />
+      {!signInOnly && (
+        <OptionCards
+          options={AUTH_MODES}
+          value={mode}
+          onChange={setMode}
+          disabled={busy}
+        />
+      )}
 
       <AuthForm
         mode={mode}
@@ -94,15 +98,19 @@ export function CloudAuthPanel({
         onSubmit={(input) => startTransition(() => submit(input))}
       />
 
-      <div className="flex items-center gap-3">
-        <div className="flex-1 border-t" />
-        <span className="font-mono text-meta uppercase text-muted-foreground">
-          or
-        </span>
-        <div className="flex-1 border-t" />
-      </div>
+      {!signInOnly && (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t" />
+            <span className="font-mono text-meta uppercase text-muted-foreground">
+              or
+            </span>
+            <div className="flex-1 border-t" />
+          </div>
 
-      <OAuthButtons />
+          <OAuthButtons />
+        </>
+      )}
     </div>
   );
 }

@@ -1,19 +1,20 @@
 import "@/index.css";
+import "./mobile.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Mark } from "@/components/kalaido/brand";
-import { EmptyState } from "@/components/kalaido/empty-state";
+import { bootstrapStoredState } from "@/hooks/use-app-state.ts";
+import { setAppVariant } from "@/lib/app-variant";
 import { AppProviders } from "@/providers/app-providers";
+import { MobileRouter } from "@/routes/mobile-router";
 
-/** Mobile entry point. Shares components and business logic with desktop,
- *  but never its router or boot sequence (src/main.tsx). */
+setAppVariant("mobile");
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <AppProviders>
-      <main className="flex min-h-[calc(100svh-var(--titlebar-height))] flex-col items-center justify-center gap-4">
-        <Mark className="size-12" />
-        <EmptyState>Kalaido mobile</EmptyState>
-      </main>
+      <MobileRouter />
     </AppProviders>
   </React.StrictMode>,
 );
+
+void bootstrapStoredState();

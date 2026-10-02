@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { AppStage } from "@/hooks/use-app-state.ts";
+import { appVariant } from "@/lib/app-variant";
 import type { FeatureFlag } from "@/lib/feature-flags";
 import type { ParamsOf } from "./route-contracts";
 import type { RouteId } from "./route-ids";
@@ -208,7 +209,7 @@ export function missingScope(
 export function stageEntryRoute(stage: AppStage): RouteId {
   switch (stage.stage) {
     case "kalaidoscope_open":
-      return stage.entry ?? "main";
+      return appVariant() === "desktop" ? (stage.entry ?? "main") : "explore";
     case "bootstrap":
     case "kalaidoscope_loading":
     case "kalaidoscope_load_requested":
@@ -217,7 +218,9 @@ export function stageEntryRoute(stage: AppStage): RouteId {
     case "kalaidoscope_load_error":
       return "boot-error";
     case "no_kalaidoscopes_available":
-      return "onboarding-landing";
+      return appVariant() === "desktop"
+        ? "onboarding-landing"
+        : "onboarding-login";
   }
 }
 
