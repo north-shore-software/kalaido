@@ -1,5 +1,5 @@
+import { ok } from "neverthrow";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { err, ok } from "neverthrow";
 import type { SidecarStatus } from "@/api/app/local-scopes.ts";
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { restoreKalaidoscope } from "./restore-kalaidoscope";
