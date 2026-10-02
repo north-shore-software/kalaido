@@ -104,7 +104,7 @@ export function RefineComposer({
             onMention={onMention}
             placeholder={placeholder}
             disabled={disabled || busy}
-            className="max-h-40 min-h-0 flex-1 overflow-y-auto"
+            className="flex-1 min-h-0 max-h-80 overflow-y-auto"
           />
           <ComposerSendButton onClick={onSubmit} disabled={isSubmitDisabled} />
         </div>

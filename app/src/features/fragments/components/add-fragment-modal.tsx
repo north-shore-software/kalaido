@@ -106,7 +106,7 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent
         showCloseButton={false}
-        className="flex w-full flex-col gap-4 border-line border-t-2 border-t-cyan bg-popover p-6 sm:w-[560px] sm:max-w-[560px]"
+        className="flex w-[560px] max-w-[calc(100vw-2rem)] flex-col gap-4 border-line border-t-2 border-t-cyan bg-popover p-6 overflow-hidden"
       >
         <DialogHeader className="shrink-0">
           <div className="flex items-center gap-3">
