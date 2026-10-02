@@ -17,6 +17,18 @@ import {
 } from "./route-kit";
 import { MenuEventListener, StateNavigationListener } from "./router-listeners";
 
+export function routeElements(defs: RouteDef[]) {
+  return defs.flatMap((def) =>
+    [def.path, ...(def.aliases ?? [])].map((path) => (
+      <Route
+        key={`${def.id}:${path}`}
+        path={path}
+        element={<RouteGatekeeper def={def} />}
+      />
+    )),
+  );
+}
+
 export function AppRouter() {
   return (
     <RootErrorBoundary>
@@ -24,17 +36,7 @@ export function AppRouter() {
       <MemoryRouter>
         <StateNavigationListener />
         <MenuEventListener />
-        <Routes>
-          {appRoutes.flatMap((def) =>
-            [def.path, ...(def.aliases ?? [])].map((path) => (
-              <Route
-                key={`${def.id}:${path}`}
-                path={path}
-                element={<RouteGatekeeper def={def} />}
-              />
-            )),
-          )}
-        </Routes>
+        <Routes>{routeElements(appRoutes)}</Routes>
       </MemoryRouter>
     </RootErrorBoundary>
   );
@@ -49,7 +51,7 @@ export function AppRouter() {
  * The same gate enforces feature flags, so a withheld feature is unreachable by
  * any route into it, not just unlinked from the sidebar.
  */
-function RouteGatekeeper({ def }: { def: RouteDef }) {
+export function RouteGatekeeper({ def }: { def: RouteDef }) {
   const snap = useSnapshot(appState);
   const section = sectionForRoute(def.id);
 

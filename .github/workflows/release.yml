@@ -21,6 +21,9 @@ jobs:
     env:
       VITE_BETTER_AUTH_URL: https://auth.kalaido.co
       VITE_CLOUD_PB_URL: https://s.kalaido.co
+      # TODO: set these.
+      # VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+      # VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -49,6 +52,9 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
 
+      - name: require analytics config
+        run: test -n "$VITE_PUBLIC_POSTHOG_PROJECT_TOKEN" && test -n "$VITE_PUBLIC_POSTHOG_HOST"
+
       - uses: tauri-apps/tauri-action@v1
         id: build
         env:
@@ -74,6 +80,9 @@ jobs:
     env:
       VITE_BETTER_AUTH_URL: https://auth.kalaido.co
       VITE_CLOUD_PB_URL: https://s.kalaido.co
+      # TODO: set these.
+      # VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+      # VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -103,6 +112,9 @@ jobs:
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: require analytics config
+        run: test -n "$VITE_PUBLIC_POSTHOG_PROJECT_TOKEN" && test -n "$VITE_PUBLIC_POSTHOG_HOST"
 
       - uses: tauri-apps/tauri-action@v1
         env:
