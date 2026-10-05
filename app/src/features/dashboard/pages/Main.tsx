@@ -353,7 +353,7 @@ export default function Main() {
               />
             )}
 
-            {!hasFragments && (
+            {!hasFragments && !fragments.isLoading && (
               <div className="flex flex-wrap items-stretch gap-4">
                 <ImportNotesCard
                   layout="hero"
