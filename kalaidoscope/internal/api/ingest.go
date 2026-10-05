@@ -10,6 +10,7 @@ type IngestMessage struct {
 	// Inline single-entry fields (sync endpoint).
 	Type        string `json:"type,omitempty"`
 	IngestedVia string `json:"ingestedVia,omitempty"`
+	IngestID    string `json:"ingestId,omitempty"`
 	Source      string `json:"source,omitempty"`
 	Content     string `json:"content,omitempty"`
 	OccurredAt  string `json:"occurredAt,omitempty"` // RFC3339; optional
@@ -26,6 +27,7 @@ type IngestMessage struct {
 // legacyIngestKeys maps each retired snake_case key to its current name.
 var legacyIngestKeys = map[string]string{
 	"ingested_via":    "ingestedVia",
+	"ingest_id":       "ingestId",
 	"occurred_at":     "occurredAt",
 	"fragment_limit":  "fragmentLimit",
 	"skip_duplicates": "skipDuplicates",

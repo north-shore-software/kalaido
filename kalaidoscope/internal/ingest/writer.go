@@ -18,13 +18,16 @@ import (
 const importBatch = 100
 
 type writer struct {
-	app    core.App
-	col    *core.Collection
-	limit  int                   // 0 = unlimited
-	seen   map[[32]byte]struct{} // nil when dedupe is disabled
-	count  int                   // records actually created
-	lastID string                // id of the most recently created fragment
-	origin string
+	app           core.App
+	col           *core.Collection
+	colourFragCol *core.Collection
+	limit         int                   // 0 = unlimited
+	seen          map[[32]byte]struct{} // nil when dedupe is disabled
+	count         int                   // records actually created
+	lastID        string                // id of the most recently created fragment
+	origin        string
+	ingestID      string
+	colourID      string
 	// batch is how many records one transaction commits; 1 saves each
 	// fragment as it arrives. pending holds the built records not yet saved.
 	batch   int
@@ -67,6 +70,7 @@ func (w *writer) addAt(fragType, source, content string, sourceTime time.Time) e
 	rec := core.NewRecord(w.col)
 	rec.Set("type", fragType)
 	rec.Set("ingested_via", w.origin)
+	rec.Set("ingest_id", w.ingestID)
 	rec.Set("source", source)
 	rec.Set("content", content)
 	if !sourceTime.IsZero() {
@@ -95,6 +99,15 @@ func (w *writer) flush() error {
 		for _, rec := range page {
 			if err := tx.Save(rec); err != nil {
 				return err
+			}
+			if w.colourID != "" {
+				link := core.NewRecord(w.colourFragCol)
+				link.Set("colour_id", w.colourID)
+				link.Set("fragment_id", rec.Id)
+				link.Set("match_type", schema.MatchManualPositive)
+				if err := tx.Save(link); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

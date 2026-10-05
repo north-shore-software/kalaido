@@ -60,10 +60,12 @@ var Canonical = []TableDef{
 			&core.DateField{Name: "occurred_at"},
 			&core.DateField{Name: "deleted_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
+			&core.TextField{Name: "ingest_id"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_fragment_occurred_at", Columns: "occurred_at"},
 			{Name: "idx_fragment_deleted_at", Columns: "deleted_at"},
+			{Name: "idx_fragment_ingest_id", Columns: "ingest_id"},
 		},
 	},
 
@@ -87,6 +89,7 @@ var Canonical = []TableDef{
 			&core.BoolField{Name: "organize_after"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+			&core.RelationField{Name: "colour_id", CollectionId: "colour", MaxSelect: 1},
 		},
 	},
 

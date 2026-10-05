@@ -19,6 +19,7 @@ func IngestSingle(app core.App, m api.IngestMessage) (string, error) {
 		origin = "sync"
 	}
 	w.origin = origin
+	w.ingestID = strings.TrimSpace(m.IngestID)
 	fragType := strings.TrimSpace(m.Type)
 	if fragType == "" {
 		fragType = "note"
