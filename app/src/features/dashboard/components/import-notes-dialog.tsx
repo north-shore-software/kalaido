@@ -9,14 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  type ImportColourChoice,
-  ImportColourField,
-  isImportColourReady,
-} from "@/features/import/components/import-colour-field";
+import { ImportColourField } from "@/features/import/components/import-colour-field";
 import { ImportFields } from "@/features/import/components/import-fields";
 import { useImportPicker } from "@/features/import/hooks/use-import-picker";
 import { useImportSubmit } from "@/features/import/hooks/use-import-submit";
+import {
+  type ImportColourChoice,
+  isImportColourReady,
+} from "@/features/import/submit-import";
 import { useCollection } from "@/hooks/use-collection";
 
 export interface ImportNotesDialogProps {

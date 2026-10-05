@@ -1,18 +1,20 @@
-import { Label } from "@/components/kalaido";
+import { useState } from "react";
 import {
   PageBody,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { useFileIngest } from "@/hooks/use-file-ingest";
+import { useCollection } from "@/hooks/use-collection";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
-import { FilePicker } from "../components/file-picker";
 import { ImportActions } from "../components/import-actions";
-import { ImportPreview } from "../components/import-preview";
+import { ImportColourField } from "../components/import-colour-field";
+import { ImportFields } from "../components/import-fields";
 import { ImportStatus } from "../components/import-status";
+import { useFileIngest } from "../hooks/use-file-ingest";
 import { useImportPicker } from "../hooks/use-import-picker";
+import { type ImportColourChoice, isImportColourReady } from "../submit-import";
 import { importTransitions } from "./Import.transitions";
 
 export default function Import() {
@@ -21,17 +23,22 @@ export default function Import() {
   const { phase, imported, errorMsg, runIngest, cancel, reset } =
     useFileIngest();
   const running = phase === "running";
-  const { path, entries, scanning, pickError, chooseFile, clear } =
-    useImportPicker(reset);
+  const picker = useImportPicker(reset);
+  const [colour, setColour] = useState<ImportColourChoice>({ kind: "none" });
+  const colours = useCollection("colour", {
+    sort: "-created",
+    fields: "id,name,swatch",
+  });
 
   function runImport() {
-    if (!path || running) return;
-    void runIngest({ path });
+    if (!picker.path || running) return;
+    void runIngest({ path: picker.path, colour });
   }
 
   function importAnother() {
     reset();
-    clear();
+    picker.clear();
+    setColour({ kind: "none" });
   }
 
   return (
@@ -51,12 +58,13 @@ export default function Import() {
       />
       <PageBody>
         <div className="flex max-w-2xl flex-col gap-8">
-          <section className="flex flex-col gap-2">
-            <Label>File</Label>
-            <FilePicker path={path} disabled={running} onChoose={chooseFile} />
-            {pickError && <p className="text-body-sm text-fg-3">{pickError}</p>}
-            {path && <ImportPreview entries={entries} scanning={scanning} />}
-          </section>
+          <ImportFields picker={picker} disabled={running} />
+          <ImportColourField
+            colours={colours.records}
+            value={colour}
+            onChange={setColour}
+            disabled={running}
+          />
 
           <ImportStatus phase={phase} imported={imported} errorMsg={errorMsg} />
 
@@ -67,7 +75,7 @@ export default function Import() {
             onCancel={cancel}
             onViewStream={() => go(importTransitions.viewStream)}
             onImportAnother={importAnother}
-            disabledImport={!path}
+            disabledImport={!picker.path || !isImportColourReady(colour)}
           />
         </div>
       </PageBody>

@@ -1,7 +1,7 @@
 import type { Story } from "@ladle/react";
 import { useState } from "react";
+import type { ImportColourChoice } from "../submit-import";
 import {
-  type ImportColourChoice,
   ImportColourField,
   type ImportColourOption,
 } from "./import-colour-field";

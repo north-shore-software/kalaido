@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { renderStory } from "@/testing/render-story";
-import { isImportColourReady } from "./import-colour-field";
+import { isImportColourReady } from "../submit-import";
 import { Existing, NewColour, None } from "./import-colour-field.stories";
 
 describe("ImportColourField", () => {

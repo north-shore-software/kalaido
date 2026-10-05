@@ -7,12 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-/** Where an import's fragments go: nowhere, an existing colour, or one made for it. */
-export type ImportColourChoice =
-  | { kind: "none" }
-  | { kind: "existing"; id: string }
-  | { kind: "new"; name: string };
+import type { ImportColourChoice } from "../submit-import";
 
 export interface ImportColourOption {
   id: string;
@@ -22,11 +17,6 @@ export interface ImportColourOption {
 
 const NONE = "none";
 const NEW = "new";
-
-/** A new colour needs a name before the import can go. */
-export function isImportColourReady(choice: ImportColourChoice): boolean {
-  return choice.kind !== "new" || choice.name.trim() !== "";
-}
 
 export interface ImportColourFieldProps {
   colours: ImportColourOption[];
