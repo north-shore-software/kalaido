@@ -151,6 +151,7 @@ export type ColourRecord<Tthing_ids = unknown> = {
 export const ColourFragmentMatchTypeOptions = {
 	"manual_positive": "manual_positive",
 	"manual_negative": "manual_negative",
+	"ingest": "ingest",
 	"thing": "thing",
 	"prompt": "prompt",
 } as const
@@ -210,6 +211,7 @@ export type FragmentRecord = {
 	created: IsoAutoDateString
 	deleted_at?: IsoDateString
 	id: string
+	ingest_ref?: string
 	ingested_via?: FragmentIngestedViaOptions
 	occurred_at?: IsoDateString
 	source?: string
@@ -246,6 +248,7 @@ export const IngestStatusOptions = {
 } as const
 export type IngestStatusOptions = typeof IngestStatusOptions[keyof typeof IngestStatusOptions]
 export type IngestRecord = {
+	colour_id?: RecordIdString
 	created: IsoAutoDateString
 	error?: string
 	extensions?: string

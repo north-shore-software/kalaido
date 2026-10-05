@@ -21,6 +21,7 @@ import (
 // Version 3 adds chat_message.bookmarked and .fragment_id (deltas/v0003_add_chat_message_bookmark.go).
 // Version 4 adds projection.deleted_at and reflection.deleted_at (deltas/v0004_add_entity_deleted_at.go).
 // Version 5 adds output_raw, output_draft, and edits (deltas/v0005_add_snapshot_outputs_and_edits.go).
+// Version 6 adds ingest.colour_id, fragment.ingest_ref and the "ingest" match_type (deltas/v0006_add_ingest_colour_and_fragment_ingest_ref.go).
 const Version = 6
 
 // BuildRev identifies the build, for the failed-migration marker: the same

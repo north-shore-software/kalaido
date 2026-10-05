@@ -18,6 +18,7 @@ import (
 const (
 	MatchManualNegative = schema.MatchManualNegative
 	MatchManualPositive = schema.MatchManualPositive
+	MatchIngest         = schema.MatchIngest
 	MatchThing          = schema.MatchThing
 	MatchPrompt         = schema.MatchPrompt
 )
@@ -164,8 +165,9 @@ func applyThingRows(app core.App, colourID string, want map[string]bool) error {
 }
 
 // MatchPair re-derives one pair mechanically after its manual row was removed:
-// if the fragment cites one of the colour's things it gets a "thing" row back.
-// A prompt match is not re-judged here; the next rematch does that.
+// if the import that created the fragment named the colour it gets an
+// "ingest" row back; else if the fragment cites one of the colour's things, a
+// "thing" row. A prompt match is not re-judged here; the next rematch does that.
 func MatchPair(app core.App, colourID, fragmentID string) error {
 	rematchMu.Lock()
 	defer rematchMu.Unlock()
@@ -173,6 +175,17 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 	col, err := app.FindRecordById(schema.ColColour.String(), colourID)
 	if err != nil {
 		return err
+	}
+	tagged, err := ingestNamesColour(app, colourID, fragmentID)
+	if err != nil {
+		return err
+	}
+	if tagged {
+		existing, err := findLink(app, colourID, fragmentID)
+		if err != nil || existing != nil {
+			return err
+		}
+		return insertLink(app, colourID, fragmentID, MatchIngest)
 	}
 	ids := ThingIDs(col)
 	if len(ids) == 0 {
@@ -213,6 +226,25 @@ func MatchPair(app core.App, colourID, fragmentID string) error {
 		}
 	}
 	return nil
+}
+
+// ingestNamesColour reports whether the fragment's ingest_ref resolves to an
+// ingest row whose colour_id is this colour. A ref that names no row (a sync
+// client's own label, or nothing) resolves to false.
+func ingestNamesColour(app core.App, colourID, fragmentID string) (bool, error) {
+	frag, err := app.FindRecordById(schema.ColFragment.String(), fragmentID)
+	if err != nil {
+		return false, err
+	}
+	ref := frag.GetString("ingest_ref")
+	if ref == "" {
+		return false, nil
+	}
+	ing, err := app.FindRecordById(schema.ColIngest.String(), ref)
+	if err != nil {
+		return false, nil
+	}
+	return ing.GetString("colour_id") == colourID, nil
 }
 
 // MemberIDs returns the fragments a colour currently holds: every row except

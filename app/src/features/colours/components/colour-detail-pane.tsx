@@ -52,6 +52,7 @@ const MATCH_BADGE: Record<
   { label: string; kind: StatusKind }
 > = {
   manual_positive: { label: "pinned", kind: "magenta" },
+  ingest: { label: "imported", kind: "yellow" },
   thing: { label: "from map", kind: "cyan" },
   prompt: { label: "matched", kind: "neutral" },
 };

@@ -64,7 +64,7 @@ type options struct {
 	SourceName     string
 	Data           []byte
 	ColourID       string
-	IngestID       string
+	IngestRef      string
 }
 
 var errBudget = errors.New("ingest: write budget reached")
@@ -92,14 +92,11 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 	}
 	w.origin = "import"
 	w.batch = importBatch
-	w.ingestID = opts.IngestID
-	w.colourID = opts.ColourID
+	w.ingestRef = opts.IngestRef
 	if opts.ColourID != "" {
-		cfCol, err := app.FindCollectionByNameOrId(schema.ColColourFragment.String())
-		if err != nil {
-			return 0, fmt.Errorf("colour_fragment collection missing: %w", err)
+		if err := w.tagColour(opts.ColourID); err != nil {
+			return 0, err
 		}
-		w.colourFragCol = cfCol
 	}
 
 	exts := opts.Extensions
@@ -175,7 +172,7 @@ func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID str
 			SourceName:     uf.name,
 			Data:           uf.data,
 			ColourID:       cfg.colourID,
-			IngestID:       recID,
+			IngestRef:      recID,
 		}, nil)
 		total += n
 		if err != nil {

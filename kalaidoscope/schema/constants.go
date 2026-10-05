@@ -37,6 +37,7 @@ func (c Collection) String() string { return string(c) }
 const (
 	MatchManualNegative = "manual_negative"
 	MatchManualPositive = "manual_positive"
+	MatchIngest         = "ingest"
 	MatchThing          = "thing"
 	MatchPrompt         = "prompt"
 )

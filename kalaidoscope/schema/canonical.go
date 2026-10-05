@@ -60,12 +60,19 @@ var Canonical = []TableDef{
 			&core.DateField{Name: "occurred_at"},
 			&core.DateField{Name: "deleted_at"},
 			&core.AutodateField{Name: "created", OnCreate: true},
-			&core.TextField{Name: "ingest_id"},
+			// Which ingest produced the fragment. A reference, not a relation
+			// (hence no _id): on a file import it is the ingest row's id; on
+			// POST /api/ingest it is whatever the client sent as ingestRef,
+			// stored as given and never validated against anything. Empty for
+			// every other path. Resolved only where an ingest row by that id
+			// would matter (re-deriving a colour membership, colour.MatchPair);
+			// a value that names no row simply resolves to nothing.
+			&core.TextField{Name: "ingest_ref"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_fragment_occurred_at", Columns: "occurred_at"},
 			{Name: "idx_fragment_deleted_at", Columns: "deleted_at"},
-			{Name: "idx_fragment_ingest_id", Columns: "ingest_id"},
+			{Name: "idx_fragment_ingest_ref", Columns: "ingest_ref"},
 		},
 	},
 
@@ -89,6 +96,11 @@ var Canonical = []TableDef{
 			&core.BoolField{Name: "organize_after"},
 			&core.AutodateField{Name: "created", OnCreate: true},
 			&core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true},
+			// Tag every fragment this import creates with a colour: each gets
+			// a colour_fragment row of match_type "ingest" in the same
+			// transaction as the fragment. Only created fragments are tagged;
+			// an entry skipped as a duplicate (skip_duplicates) is not linked,
+			// so the fragment it duplicates keeps whatever membership it had.
 			&core.RelationField{Name: "colour_id", CollectionId: "colour", MaxSelect: 1},
 		},
 	},
@@ -135,15 +147,18 @@ var Canonical = []TableDef{
 			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", Required: true, MaxSelect: 1, CascadeDelete: true},
 			// Why the fragment is linked. One row per pair; precedence when a
 			// pair could carry several reasons: manual_negative > manual_positive
-			// > thing > prompt. "thing": the fragment's annotation cites one of
-			// the colour's thing_ids (mechanical). "prompt": the colour role said
-			// yes to the colour's prompt. A manual_negative row is an exclusion,
-			// not a membership: every reader skips it.
+			// > ingest > thing > prompt. "ingest": the import that created the
+			// fragment named this colour (ingest.colour_id; mechanical, and
+			// unlike manual_positive never used as a few-shot example). "thing":
+			// the fragment's annotation cites one of the colour's thing_ids
+			// (mechanical). "prompt": the colour role said yes to the colour's
+			// prompt. A manual_negative row is an exclusion, not a membership:
+			// every reader skips it.
 			&core.SelectField{
 				Name:      "match_type",
 				Required:  true,
 				MaxSelect: 1,
-				Values:    []string{"manual_positive", "manual_negative", "thing", "prompt"},
+				Values:    []string{"manual_positive", "manual_negative", "ingest", "thing", "prompt"},
 			},
 			&core.AutodateField{Name: "created", OnCreate: true},
 		},

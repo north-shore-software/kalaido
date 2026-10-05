@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 func countFragments(t *testing.T, app core.App) int {
@@ -100,5 +101,50 @@ func TestSweepPendingFailsLeftovers(t *testing.T) {
 	}
 	if got.GetString("status") != "done" {
 		t.Errorf("finished record was touched: status=%q", got.GetString("status"))
+	}
+}
+
+func TestRunTagsCreatedFragmentsWithColour(t *testing.T) {
+	app := testutil.NewApp(t)
+	colour := testutil.NewRecord(t, app, "colour", map[string]any{"name": "c"})
+	// Already present: the import's duplicate of it must not be tagged.
+	testutil.NewRecord(t, app, "fragment", map[string]any{"content": "old news", "type": "note"})
+
+	n, err := run(context.Background(), app, options{
+		Format:         "text",
+		SourceName:     "notes.txt",
+		Data:           []byte("fresh"),
+		SkipDuplicates: true,
+		ColourID:       colour.Id,
+		IngestRef:      "ingest-row",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("run wrote %d, want 1", n)
+	}
+	frags, err := app.FindRecordsByFilter("fragment", "ingest_ref = 'ingest-row'", "", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(frags) != 1 || frags[0].GetString("content") != "fresh" {
+		t.Fatalf("fragments stamped with the ingest ref = %d, want the one created", len(frags))
+	}
+	links, err := app.FindRecordsByFilter("colour_fragment", "colour_id = {:c}", "", 0, 0, map[string]any{"c": colour.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(links) != 1 || links[0].GetString("fragment_id") != frags[0].Id || links[0].GetString("match_type") != schema.MatchIngest {
+		t.Fatalf("colour rows = %d, want one \"ingest\" row for the created fragment", len(links))
+	}
+
+	// A second run of the same file: everything is a duplicate, nothing is
+	// created, and the existing fragment is not retagged.
+	if _, err := run(context.Background(), app, options{Format: "text", SourceName: "notes.txt", Data: []byte("fresh"), SkipDuplicates: true, ColourID: colour.Id}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := app.CountRecords("colour_fragment"); got != 1 {
+		t.Fatalf("colour rows after a duplicate run = %d, want 1", got)
 	}
 }
