@@ -166,3 +166,41 @@ func TestPastWatermarkPagesInCreatedIDOrder(t *testing.T) {
 		t.Fatalf("vanished watermark = %d", len(rest))
 	}
 }
+
+func TestClearManualRestoresIngestMatch(t *testing.T) {
+	app, f := fixture(t)
+	c := newColour(t, app)
+	ing := testutil.NewRecord(t, app, "ingest", map[string]any{"status": "done", "colour_id": c.Id})
+	frag, err := app.FindRecordById("fragment", f[3])
+	if err != nil {
+		t.Fatal(err)
+	}
+	frag.Set("ingest_ref", ing.Id)
+	if err := app.Save(frag); err != nil {
+		t.Fatal(err)
+	}
+	// Exclude an imported fragment, then undo: the ingest row comes back.
+	if err := SetManual(app, c.Id, f[3], MatchManualNegative); err != nil {
+		t.Fatal(err)
+	}
+	if err := ClearManual(app, c.Id, f[3]); err != nil {
+		t.Fatal(err)
+	}
+	if got := links(t, app, c.Id)[f[3]]; got != MatchIngest {
+		t.Fatalf("after undo = %q, want %q", got, MatchIngest)
+	}
+	// A ref that names no ingest row re-derives nothing.
+	frag.Set("ingest_ref", "a-sync-client-label")
+	if err := app.Save(frag); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetManual(app, c.Id, f[3], MatchManualNegative); err != nil {
+		t.Fatal(err)
+	}
+	if err := ClearManual(app, c.Id, f[3]); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := links(t, app, c.Id)[f[3]]; ok {
+		t.Fatal("unresolvable ref should leave no row after undo")
+	}
+}

@@ -56,6 +56,7 @@ export const mockFragments: FragmentResponse[] = [
   {
     id: "frag_1",
     type: "email",
+    ingest_ref: "",
     ingested_via: "import",
     content:
       "Hi team, I really love the new dark mode design! But I noticed a slight lag when switching layouts. Can we optimize this?",
@@ -69,6 +70,7 @@ export const mockFragments: FragmentResponse[] = [
   {
     id: "frag_2",
     type: "note",
+    ingest_ref: "",
     ingested_via: "sync",
     content:
       "ALERT: Production database latency has exceeded 500ms for the past 5 minutes. Investigating now.",
@@ -82,6 +84,7 @@ export const mockFragments: FragmentResponse[] = [
   {
     id: "frag_3",
     type: "note",
+    ingest_ref: "",
     ingested_via: "app",
     content:
       "Self-note: Remember to follow up with Louis on the Step 17 layout chrome work. The colours stories need mock fragments.",

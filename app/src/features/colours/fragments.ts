@@ -4,6 +4,7 @@ import type { FragmentResponse } from "@/api/kalaidoscope/types";
 export type MatchType =
   | "manual_positive"
   | "manual_negative"
+  | "ingest"
   | "thing"
   | "prompt";
 

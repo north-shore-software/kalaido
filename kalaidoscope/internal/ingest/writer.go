@@ -18,13 +18,16 @@ import (
 const importBatch = 100
 
 type writer struct {
-	app    core.App
-	col    *core.Collection
-	limit  int                   // 0 = unlimited
-	seen   map[[32]byte]struct{} // nil when dedupe is disabled
-	count  int                   // records actually created
-	lastID string                // id of the most recently created fragment
-	origin string
+	app           core.App
+	col           *core.Collection
+	colourFragCol *core.Collection
+	limit         int                   // 0 = unlimited
+	seen          map[[32]byte]struct{} // nil when dedupe is disabled
+	count         int                   // records actually created
+	lastID        string                // id of the most recently created fragment
+	origin        string
+	ingestRef     string // fragment.ingest_ref for every record written
+	colourID      string // when set, every record also gets a colour_fragment row
 	// batch is how many records one transaction commits; 1 saves each
 	// fragment as it arrives. pending holds the built records not yet saved.
 	batch   int
@@ -50,6 +53,20 @@ func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
 	return w, nil
 }
 
+// tagColour makes every fragment the writer creates a member of the colour,
+// by an "ingest" row written in the same transaction as the fragment. Only
+// fragments actually created are tagged: an entry skipped as a duplicate is
+// not linked, and the fragment it duplicates keeps whatever membership it had.
+func (w *writer) tagColour(colourID string) error {
+	col, err := w.app.FindCollectionByNameOrId(schema.ColColourFragment.String())
+	if err != nil {
+		return fmt.Errorf("colour_fragment collection missing: %w", err)
+	}
+	w.colourFragCol = col
+	w.colourID = colourID
+	return nil
+}
+
 func (w *writer) full() bool { return w.limit > 0 && w.count+len(w.pending) >= w.limit }
 
 func (w *writer) addAt(fragType, source, content string, sourceTime time.Time) error {
@@ -67,6 +84,7 @@ func (w *writer) addAt(fragType, source, content string, sourceTime time.Time) e
 	rec := core.NewRecord(w.col)
 	rec.Set("type", fragType)
 	rec.Set("ingested_via", w.origin)
+	rec.Set("ingest_ref", w.ingestRef)
 	rec.Set("source", source)
 	rec.Set("content", content)
 	if !sourceTime.IsZero() {
@@ -95,6 +113,15 @@ func (w *writer) flush() error {
 		for _, rec := range page {
 			if err := tx.Save(rec); err != nil {
 				return err
+			}
+			if w.colourID != "" {
+				link := core.NewRecord(w.colourFragCol)
+				link.Set("colour_id", w.colourID)
+				link.Set("fragment_id", rec.Id)
+				link.Set("match_type", schema.MatchIngest)
+				if err := tx.Save(link); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

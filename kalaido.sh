@@ -258,9 +258,16 @@ cmd_test_ts() {
 }
 
 cmd_check_all() {
-  local failed="" target
+  local failed="" target status
   for target in ts go rust; do
-    "cmd_check_$target" || failed="$failed check:$target"
+    # Not `cmd || failed=...`: a function called on the left of || runs with
+    # errexit suspended, so a failing step would not stop it and only its
+    # last step's status would count. A subshell that sets -e itself does.
+    set +e
+    ( set -e; "cmd_check_$target" )
+    status=$?
+    set -e
+    [[ $status -eq 0 ]] || failed="$failed check:$target"
   done
   echo
   if [[ -n "$failed" ]]; then

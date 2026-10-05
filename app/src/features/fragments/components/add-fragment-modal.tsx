@@ -13,12 +13,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { ImportColourField } from "@/features/import/components/import-colour-field";
 import { ImportPreview } from "@/features/import/components/import-preview";
 import {
   SUPPORTED_EXTENSIONS_HINT,
   useImportPicker,
 } from "@/features/import/hooks/use-import-picker";
 import { useImportSubmit } from "@/features/import/hooks/use-import-submit";
+import {
+  type ImportColourChoice,
+  isImportColourReady,
+} from "@/features/import/submit-import";
+import { useCollection } from "@/hooks/use-collection";
 import { useNoteIngest } from "@/hooks/use-note-ingest";
 import { cn } from "@/lib/css-utils";
 
@@ -58,6 +64,11 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
     onCloseRef.current();
   });
   const picker = useImportPicker(clearImportError);
+  const [colour, setColour] = useState<ImportColourChoice>({ kind: "none" });
+  const colours = useCollection("colour", {
+    sort: "-created",
+    fields: "id,name,swatch",
+  });
 
   const wasOpenRef = useRef(false);
   useEffect(() => {
@@ -65,6 +76,7 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
       setText("");
       resetNote();
       picker.clear();
+      setColour({ kind: "none" });
       clearImportError();
       if (tab === "write") {
         setTimeout(() => textareaRef.current?.focus(), 0);
@@ -87,7 +99,7 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
 
   function handleImport() {
     if (!picker.path || importSubmitting) return;
-    void submitImport(picker.path);
+    void submitImport(picker.path, colour);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -227,6 +239,12 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
                     {picker.pickError}
                   </p>
                 )}
+                <ImportColourField
+                  colours={colours.records}
+                  value={colour}
+                  onChange={setColour}
+                  disabled={importSubmitting}
+                />
                 {importError && (
                   <p className="text-sm text-destructive break-words">
                     {importError}
@@ -256,7 +274,9 @@ export function AddFragmentModal({ open, onClose }: AddFragmentModalProps) {
           ) : (
             <Button
               onClick={handleImport}
-              disabled={!picker.path || importSubmitting}
+              disabled={
+                !picker.path || importSubmitting || !isImportColourReady(colour)
+              }
               className="border-transparent bg-cyan font-bold text-cyan-foreground hover:opacity-85"
             >
               <UploadSimpleIcon className="size-4" />

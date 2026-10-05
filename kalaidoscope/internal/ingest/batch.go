@@ -63,6 +63,8 @@ type options struct {
 	SkipDuplicates bool
 	SourceName     string
 	Data           []byte
+	ColourID       string
+	IngestRef      string
 }
 
 var errBudget = errors.New("ingest: write budget reached")
@@ -80,6 +82,7 @@ type ingestConfig struct {
 	extensions     []string
 	skipDuplicates bool
 	organizeAfter  bool
+	colourID       string
 }
 
 func run(ctx context.Context, app core.App, opts options, progress func(ingested int)) (int, error) {
@@ -89,6 +92,12 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 	}
 	w.origin = "import"
 	w.batch = importBatch
+	w.ingestRef = opts.IngestRef
+	if opts.ColourID != "" {
+		if err := w.tagColour(opts.ColourID); err != nil {
+			return 0, err
+		}
+	}
 
 	exts := opts.Extensions
 	if len(exts) == 0 {
@@ -129,6 +138,7 @@ func readConfig(rec *core.Record) ingestConfig {
 		extensions:     normalizeExtensions(rec.GetString("extensions")),
 		skipDuplicates: rec.GetBool("skip_duplicates"),
 		organizeAfter:  rec.GetBool("organize_after"),
+		colourID:       rec.GetString("colour_id"),
 	}
 }
 
@@ -161,6 +171,8 @@ func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID str
 			SkipDuplicates: cfg.skipDuplicates,
 			SourceName:     uf.name,
 			Data:           uf.data,
+			ColourID:       cfg.colourID,
+			IngestRef:      recID,
 		}, nil)
 		total += n
 		if err != nil {

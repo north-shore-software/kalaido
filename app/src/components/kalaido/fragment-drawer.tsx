@@ -108,6 +108,7 @@ type Link = { colour_id: string; match_type: ColourFragmentMatchTypeOptions };
 const MATCH_LABEL: Record<ColourFragmentMatchTypeOptions, string> = {
   manual_positive: "pinned",
   manual_negative: "excluded",
+  ingest: "imported",
   thing: "map",
   prompt: "matched",
 };

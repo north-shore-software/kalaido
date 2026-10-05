@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  type FileIngestOptions,
   getIngest,
   type IngestPhase,
   type IngestStatus,
-  ingestFile,
   subscribeIngest,
 } from "@/api/kalaidoscope/ingest";
+import { type ImportRequest, submitImport } from "../submit-import";
 
 /**
  * Path B — asynchronous batch file ingest. Thin React state around the
@@ -44,7 +43,7 @@ export function useFileIngest() {
   }, []);
 
   const runIngest = useCallback(
-    async (opts: FileIngestOptions) => {
+    async (req: ImportRequest) => {
       cleanup();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -52,7 +51,7 @@ export function useFileIngest() {
       setImported(0);
       setErrorMsg("");
 
-      const created = await ingestFile(opts, controller.signal);
+      const created = await submitImport(req, controller.signal);
       if (created.isErr()) {
         if (controller.signal.aborted) {
           setPhase("cancelled");
