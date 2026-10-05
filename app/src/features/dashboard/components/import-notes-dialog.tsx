@@ -1,4 +1,5 @@
 import { UploadSimpleIcon } from "@phosphor-icons/react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,9 +9,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  type ImportColourChoice,
+  ImportColourField,
+  isImportColourReady,
+} from "@/features/import/components/import-colour-field";
 import { ImportFields } from "@/features/import/components/import-fields";
 import { useImportPicker } from "@/features/import/hooks/use-import-picker";
 import { useImportSubmit } from "@/features/import/hooks/use-import-submit";
+import { useCollection } from "@/hooks/use-collection";
 
 export interface ImportNotesDialogProps {
   open: boolean;
@@ -26,9 +33,15 @@ export function ImportNotesDialog({
   const { submitting, submitError, submit, clearError } =
     useImportSubmit(onImportSuccess);
   const picker = useImportPicker(clearError);
+  const [colour, setColour] = useState<ImportColourChoice>({ kind: "none" });
+  const colours = useCollection("colour", {
+    sort: "-created",
+    fields: "id,name,swatch",
+  });
 
   function handleClose() {
     picker.clear();
+    setColour({ kind: "none" });
     clearError();
     onClose();
   }
@@ -54,6 +67,12 @@ export function ImportNotesDialog({
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
           <ImportFields picker={picker} disabled={submitting} />
+          <ImportColourField
+            colours={colours.records}
+            value={colour}
+            onChange={setColour}
+            disabled={submitting}
+          />
 
           {submitError && (
             <p className="text-meta text-destructive">{submitError}</p>
@@ -72,8 +91,10 @@ export function ImportNotesDialog({
           <Button
             type="button"
             variant="commit"
-            disabled={!picker.path || submitting}
-            onClick={() => void submit(picker.path)}
+            disabled={
+              !picker.path || submitting || !isImportColourReady(colour)
+            }
+            onClick={() => void submit(picker.path, colour)}
           >
             <UploadSimpleIcon />
             {submitting ? "Uploading…" : "Import"}

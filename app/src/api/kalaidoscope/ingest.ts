@@ -70,6 +70,8 @@ export interface FileIngestOptions {
   extensions?: string;
   skipDuplicates?: boolean;
   organizeAfter?: boolean;
+  /** Every fragment the import creates joins this colour. */
+  colourId?: string;
 }
 
 /**
@@ -123,6 +125,7 @@ export async function ingestFile(
     if (opts.extensions) form.append("extensions", opts.extensions);
     form.append("skip_duplicates", opts.skipDuplicates ? "true" : "false");
     if (opts.organizeAfter) form.append("organize_after", "true");
+    if (opts.colourId) form.append("colour_id", opts.colourId);
 
     const record = await client.value
       .collection("ingest")
