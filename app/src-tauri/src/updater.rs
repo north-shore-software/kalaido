@@ -1,5 +1,5 @@
-use std::sync::Mutex;
 use serde::Serialize;
+use std::sync::Mutex;
 use tauri::{AppHandle, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 

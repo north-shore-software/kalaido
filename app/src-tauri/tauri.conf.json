@@ -29,7 +29,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": true,
     "publisher": "North Shore Software Ltd.",
     "copyright": "Copyright (C) 2026 North Shore Software Ltd.",
     "licenseFile": "../../LICENSE",

@@ -7,13 +7,13 @@ import {
   registerMenuNavigateListener,
   registerMenuUpdateListener,
 } from "@/api/app/os-integrations.ts";
-import { checkForUpdate, installPendingUpdate } from "@/api/app/updater.ts";
 import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 import {
   closeFeedbackDialog,
   openFeedbackDialog,
 } from "@/hooks/app-state-actions.ts";
 import { type AppStage, appState } from "@/hooks/use-app-state.ts";
+import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { pathFor } from "./registry";
 import { stageEntryRoute } from "./route-kit";
@@ -60,48 +60,12 @@ export function MenuFeedbackListener() {
 
 export function MenuUpdateListener() {
   useEffect(() => {
-    const triggerCheck = async (interactive: boolean) => {
-      if (interactive) {
-        toast.info("Checking for updates…");
-      }
-      const res = await checkForUpdate();
-      if (res.isErr()) {
-        if (interactive) {
-          toast.error("Failed to check for updates", {
-            description: res.error.message,
-          });
-        }
-        return;
-      }
-      const update = res.value;
-      if (!update) {
-        if (interactive) {
-          toast.info("Kalaido is up to date");
-        }
-        return;
-      }
-      toast.info(`Kalaido v${update.version} is available`, {
-        action: {
-          label: "Update & Restart",
-          onClick: async () => {
-            const loadingToast = toast.loading(
-              "Downloading and installing update…",
-            );
-            const installRes = await installPendingUpdate();
-            toast.dismiss(loadingToast);
-            if (installRes.isErr()) {
-              toast.error("Failed to install update", {
-                description: installRes.error.message,
-              });
-            }
-          },
-        },
-      });
-    };
-
-    void triggerCheck(false);
+    if (!import.meta.env.DEV) {
+      void checkForUpdatesAndPrompt(false);
+    }
     const unlistenPromise = registerMenuUpdateListener(() => {
-      void triggerCheck(true);
+      toast.info("Checking for updates…");
+      void checkForUpdatesAndPrompt(true);
     });
     return () => {
       void unlistenPromise.then((result) => {

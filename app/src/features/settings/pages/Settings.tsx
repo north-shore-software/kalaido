@@ -1,8 +1,7 @@
 import { ArrowLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useState } from "react";
-import { toast } from "sonner";
-import { checkForUpdate, installPendingUpdate } from "@/api/app/updater.ts";
 import { Button } from "@/components/ui/button";
+import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
 import { cn } from "@/lib/css-utils";
 import { defineRoute } from "@/routes/route-kit";
 import { RouteLink } from "@/routes/route-link";
@@ -31,36 +30,8 @@ export default function Settings() {
 
   const handleCheckUpdates = async () => {
     setCheckingUpdates(true);
-    const res = await checkForUpdate();
+    await checkForUpdatesAndPrompt(true);
     setCheckingUpdates(false);
-    if (res.isErr()) {
-      toast.error("Failed to check for updates", {
-        description: res.error.message,
-      });
-      return;
-    }
-    const update = res.value;
-    if (!update) {
-      toast.info("Kalaido is up to date");
-      return;
-    }
-    toast.info(`Kalaido v${update.version} is available`, {
-      action: {
-        label: "Update & Restart",
-        onClick: async () => {
-          const loadingToast = toast.loading(
-            "Downloading and installing update…",
-          );
-          const installRes = await installPendingUpdate();
-          toast.dismiss(loadingToast);
-          if (installRes.isErr()) {
-            toast.error("Failed to install update", {
-              description: installRes.error.message,
-            });
-          }
-        },
-      },
-    });
   };
 
   return (
