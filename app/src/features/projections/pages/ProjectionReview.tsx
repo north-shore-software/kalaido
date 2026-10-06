@@ -1,15 +1,13 @@
 import { ArrowRightIcon, CheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { withActiveClient } from "@/api/kalaidoscope/_active";
 import { parseContextSpec, specToItems } from "@/api/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@/api/kalaidoscope/context-items";
 import {
   approveProjectionCandidate,
   regenerateProjection,
 } from "@/api/kalaidoscope/projections";
-import { withActiveClient } from "@/api/kalaidoscope/_active";
-import { EditsStatusPill } from "../components/edits-status-pill";
-import { useCandidateTriage } from "../hooks/use-candidate-triage";
 import {
   type ChatPanelHandle,
   ContextBar,
@@ -24,7 +22,6 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ProjectionCanvasPane } from "../components/projection-canvas-pane";
+import { Button } from "@/components/ui/button";
 import { findNextTarget } from "@/features/rotation/next-target";
 import {
   type ProjectionSnapshotWithEdits,
@@ -51,6 +48,9 @@ import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { useAppRouteState } from "@/routes/use-app-route-state";
+import { EditsStatusPill } from "../components/edits-status-pill";
+import { ProjectionCanvasPane } from "../components/projection-canvas-pane";
+import { useCandidateTriage } from "../hooks/use-candidate-triage";
 import { projectionReviewTransitions } from "./ProjectionReview.transitions";
 
 /**

@@ -4,6 +4,7 @@ import {
   CopyIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
+
 import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
@@ -17,6 +18,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
 import { appState, type StageError } from "@/hooks/use-app-state.ts";
+import { activeKalaidoscopes } from "@/lib/active-kalaidoscopes.ts";
 
 export interface RecoveryScreenProps {
   title: string;
@@ -46,7 +48,9 @@ export function RecoveryScreen({
 
   const showSwitcher =
     allowSwitch &&
-    availableKalaidoscopes.some((k) => k.id !== excludeKalaidoscopeId);
+    activeKalaidoscopes(availableKalaidoscopes).some(
+      (k) => k.id !== excludeKalaidoscopeId,
+    );
 
   async function handleReset() {
     setResetting(true);

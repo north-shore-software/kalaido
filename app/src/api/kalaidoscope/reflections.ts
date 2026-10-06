@@ -1,6 +1,6 @@
+import type { Result } from "neverthrow";
 import { ClientResponseError } from "pocketbase";
 import { GenerationInFlightError } from "@/api/kalaidoscope/projections";
-import type { Result } from "neverthrow";
 import { withActiveClient } from "./_active";
 import type { TimeWindow, WindowSpec } from "./chat";
 

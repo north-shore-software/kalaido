@@ -1,4 +1,4 @@
-import { CheckIcon, ChatCircleDotsIcon, XIcon } from "@phosphor-icons/react";
+import { ChatCircleDotsIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
 import type {
   SnapshotEdit,
   SnapshotEditStatus,

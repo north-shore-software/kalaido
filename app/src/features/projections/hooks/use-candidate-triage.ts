@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { type RefObject, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   EDIT_TRIAGE_PART_TYPE,
@@ -6,9 +6,9 @@ import {
   REFINE_TARGET_PART_TYPE,
 } from "@/api/kalaidoscope/chat";
 import {
+  editProjectionCandidate,
   type SnapshotEdit,
   type SnapshotEditStatus,
-  editProjectionCandidate,
   updateSnapshotEditStatus,
 } from "@/api/kalaidoscope/projections";
 import type { ChatPanelHandle } from "@/components/kalaido";

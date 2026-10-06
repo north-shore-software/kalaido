@@ -1,3 +1,4 @@
+import type { Story } from "@ladle/react";
 import {
   ClockCounterClockwiseIcon,
   FileTextIcon,
@@ -5,7 +6,6 @@ import {
   SquaresFourIcon,
   WavesIcon,
 } from "@phosphor-icons/react";
-import type { Story } from "@ladle/react";
 import { SidebarProvider } from "@/components/ui/sidebar.tsx";
 import { navSidebarTransitions } from "./nav-sidebar.transitions.ts";
 import { SidebarNav, type SidebarNavItem } from "./sidebar-nav.tsx";

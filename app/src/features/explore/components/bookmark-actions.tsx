@@ -1,7 +1,7 @@
 import { FileTextIcon, PlusIcon } from "@phosphor-icons/react";
 import { useState } from "react";
-import { Label } from "@/components/kalaido/text";
 import { ItemPicker } from "@/components/kalaido/context-picker/item-picker";
+import { Label } from "@/components/kalaido/text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

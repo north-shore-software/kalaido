@@ -1,10 +1,10 @@
+import type { Story } from "@ladle/react";
 import {
   ArrowRightIcon,
   PaperPlaneTiltIcon,
   PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import type { Story } from "@ladle/react";
 import { Button } from "@/components/ui/button";
 
 export default { title: "Kalaido / Button" };

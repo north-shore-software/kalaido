@@ -1,9 +1,9 @@
-import { BookmarkSimpleIcon } from "@phosphor-icons/react";
 import type { Story } from "@ladle/react";
+import { BookmarkSimpleIcon } from "@phosphor-icons/react";
 import type { UIMessage } from "ai";
 import { Button } from "@/components/ui/button";
-import { fixtureMessages } from "./fixtures";
 import { ChatMessages } from "./chat-messages";
+import { fixtureMessages } from "./fixtures";
 
 export default { title: "Kalaido / ChatMessages" };
 

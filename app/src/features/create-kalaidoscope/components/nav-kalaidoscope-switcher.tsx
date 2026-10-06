@@ -11,6 +11,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -18,6 +19,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { appState } from "@/hooks/use-app-state.ts";
+import { activeKalaidoscopes } from "@/lib/active-kalaidoscopes.ts";
 import { cn } from "@/lib/css-utils";
 import { kalaidoscopeTypeLabel } from "@/lib/labels";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
@@ -30,8 +32,8 @@ const MENU_ITEM_CLASS =
 export function NavKalaidoscopeSwitcher() {
   const { go } = useAppNavigate();
   const { isMobile } = useSidebar();
-  const { appStage, availableKalaidoscopes: kalaidoscopes } =
-    useSnapshot(appState);
+  const { appStage, availableKalaidoscopes } = useSnapshot(appState);
+  const kalaidoscopes = activeKalaidoscopes(availableKalaidoscopes);
   const currentKalaidoscopeId =
     appStage.stage === "kalaidoscope_open"
       ? appStage.selectedKalaidoscopeId

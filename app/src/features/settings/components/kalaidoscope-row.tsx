@@ -4,6 +4,8 @@ import { Pill, StatusPill, SurfaceCard } from "@/components/kalaido";
 import { LocationLabel } from "@/components/layout/location-label";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { isArchived } from "@/lib/active-kalaidoscopes.ts";
+import { setKalaidoscopeArchived } from "@/lib/cloud-workspaces.ts";
 import { cn } from "@/lib/css-utils";
 import { kalaidoscopeTypeLabel } from "@/lib/labels";
 import {
@@ -24,6 +26,15 @@ export function KalaidoscopeRow({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const isCloud = kalaidoscope.type === "cloud";
+  const archived = isArchived(kalaidoscope);
+
+  async function run(action: () => Promise<{ isErr(): boolean }>) {
+    setRemoving(true);
+    await action();
+    setRemoving(false);
+    setConfirming(false);
+  }
 
   return (
     <SurfaceCard
@@ -42,9 +53,10 @@ export function KalaidoscopeRow({
           {kalaidoscope.displayName}
         </span>
         <Pill tone="muted">{kalaidoscopeTypeLabel(kalaidoscope.type)}</Pill>
+        {archived && <Pill tone="muted">Archived</Pill>}
         {isActive && <StatusPill kind="cyan">active &amp; running</StatusPill>}
         <div className="flex-1" />
-        {!isActive && (
+        {!isActive && !archived && (
           <Button
             disabled={switching || removing}
             onClick={() => void switchLocalKalaidoscope(kalaidoscope.id)}
@@ -52,21 +64,36 @@ export function KalaidoscopeRow({
             Switch to
           </Button>
         )}
-        {confirming ? (
+        {archived ? (
+          <Button
+            variant="outline"
+            disabled={removing}
+            onClick={() =>
+              void run(() => setKalaidoscopeArchived(kalaidoscope.id, false))
+            }
+          >
+            {removing ? <Spinner /> : "Unarchive"}
+          </Button>
+        ) : confirming ? (
           <>
             <Button
               variant="destructive"
               disabled={removing}
-              onClick={async () => {
-                setRemoving(true);
-                const res = await removeKalaidoscope(kalaidoscope.id);
-                if (res.isErr()) {
-                  setRemoving(false);
-                  setConfirming(false);
-                }
-              }}
+              onClick={() =>
+                void run(() =>
+                  isCloud
+                    ? setKalaidoscopeArchived(kalaidoscope.id, true)
+                    : removeKalaidoscope(kalaidoscope.id),
+                )
+              }
             >
-              {removing ? <Spinner /> : "Yes, remove"}
+              {removing ? (
+                <Spinner />
+              ) : isCloud ? (
+                "Yes, archive"
+              ) : (
+                "Yes, remove"
+              )}
             </Button>
             <Button
               variant="ghost"
@@ -82,11 +109,17 @@ export function KalaidoscopeRow({
             disabled={switching || removing}
             onClick={() => setConfirming(true)}
           >
-            Remove
+            {isCloud ? "Archive" : "Remove"}
           </Button>
         )}
       </div>
       <LocationLabel location={kalaidoscope.locator} truncate={false} />
+      {archived && (
+        <p className="text-meta text-muted-foreground">
+          Hidden from workspace pickers. Still stored in the cloud and still on
+          its plan.
+        </p>
+      )}
       {children}
     </SurfaceCard>
   );
