@@ -36,11 +36,26 @@ pub(crate) fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         ],
     )?;
 
-    Menu::with_items(app, &[&app_menu, &edit_menu])
+    let help_menu = Submenu::with_items(
+        app,
+        "Help",
+        true,
+        &[&MenuItem::with_id(
+            app,
+            "feedback",
+            "Send Feedback…",
+            true,
+            None::<&str>,
+        )?],
+    )?;
+
+    Menu::with_items(app, &[&app_menu, &edit_menu, &help_menu])
 }
 
 pub(crate) fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
     if event.id() == "settings" {
         let _ = app.emit("menu:navigate", "/settings");
+    } else if event.id() == "feedback" {
+        let _ = app.emit("menu:feedback", ());
     }
 }

@@ -15,7 +15,11 @@ import {
   type RouteDef,
   stageEntryRoute,
 } from "./route-kit";
-import { MenuEventListener, StateNavigationListener } from "./router-listeners";
+import {
+  MenuEventListener,
+  MenuFeedbackListener,
+  StateNavigationListener,
+} from "./router-listeners";
 
 export function routeElements(defs: RouteDef[]) {
   return defs.flatMap((def) =>
@@ -36,6 +40,7 @@ export function AppRouter() {
       <MemoryRouter>
         <StateNavigationListener />
         <MenuEventListener />
+        <MenuFeedbackListener />
         <Routes>{routeElements(appRoutes)}</Routes>
       </MemoryRouter>
     </RootErrorBoundary>

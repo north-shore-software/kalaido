@@ -1,6 +1,8 @@
 #[cfg(desktop)]
 mod downloads;
 #[cfg(desktop)]
+mod feedback;
+#[cfg(desktop)]
 mod files;
 #[cfg(desktop)]
 mod kalaidoscope;
@@ -16,6 +18,8 @@ use tauri::RunEvent;
 
 #[cfg(desktop)]
 use crate::downloads::download_to_file;
+#[cfg(desktop)]
+use crate::feedback::get_feedback_diagnostics;
 #[cfg(desktop)]
 use crate::files::{classify_path, read_file_bytes};
 #[cfg(desktop)]
@@ -54,6 +58,7 @@ pub fn run() {
             check_ollama_status,
             validate_llm_key,
             download_to_file,
+            get_feedback_diagnostics,
         ])
         .menu(build_menu)
         .on_menu_event(handle_menu_event);
