@@ -46,7 +46,6 @@ async function serverError(res: Response, fallback: string): Promise<Error> {
 
 /**
  * Registers a cloud kalaidoscope to the signed-in user (first-come on cloudId).
- * Re-registering an id the user already owns succeeds idempotently.
  */
 export async function createCloudKalaidoscope(
   cloudId: string,
@@ -68,6 +67,37 @@ export async function createCloudKalaidoscope(
       `Could not create the cloud kalaidoscope (${res.value.status}).`,
     ),
   );
+}
+
+export interface CloudIdAvailability {
+  available: boolean;
+  suggestion?: string;
+}
+
+export async function checkCloudIdAvailability(
+  cloudId: string,
+): Promise<Result<CloudIdAvailability, Error>> {
+  const res = await registryFetch(
+    `/kalaidoscopes/available?cloudId=${encodeURIComponent(cloudId)}`,
+    { method: "GET" },
+  );
+  if (res.isErr()) return err(res.error);
+  if (!res.value.ok) {
+    return err(
+      await serverError(
+        res.value,
+        `Could not check the kalaidoscope ID (${res.value.status}).`,
+      ),
+    );
+  }
+  const data = (await res.value.json().catch(() => null)) as {
+    available?: boolean;
+    suggestion?: string;
+  } | null;
+  if (!data || typeof data.available !== "boolean") {
+    return err(new Error("Auth server returned an unexpected response."));
+  }
+  return ok({ available: data.available, suggestion: data.suggestion });
 }
 
 export async function listCloudKalaidoscopes(): Promise<

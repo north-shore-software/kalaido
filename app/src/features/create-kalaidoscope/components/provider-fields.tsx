@@ -54,7 +54,7 @@ export interface ProviderFieldsProps {
   defaultModel: string;
   roleModels: Partial<Record<LlmRole, string>>;
   disabled?: boolean;
-  highlightedFields?: ReadonlySet<"name" | "apiKey" | "model">;
+  highlightedFields?: ReadonlySet<string>;
   apiKeyFieldId?: string;
   modelFieldId?: string;
   apiKeyPlaceholder?: string;

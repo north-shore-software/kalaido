@@ -1,8 +1,19 @@
-import { startTransition, useId, useState, useTransition } from "react";
+import {
+  startTransition,
+  useEffect,
+  useId,
+  useState,
+  useTransition,
+} from "react";
 import {
   validateWorkspaceLlmConfig,
   validationMessage,
 } from "@/api/app/llm-validate.ts";
+import {
+  type CloudIdAvailability,
+  CloudIdTakenError,
+  checkCloudIdAvailability,
+} from "@/api/cloud/user.ts";
 import {
   type LlmProvider,
   type LlmRole,
@@ -44,6 +55,14 @@ function deriveCloudId(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+const CLOUD_ID_RE = /^[a-z0-9][a-z0-9-]{1,62}$/;
+const CLOUD_ID_CHECK_DELAY_MS = 300;
+
+type CloudIdCheck = { id: string } & (
+  | CloudIdAvailability
+  | { available: null; suggestion?: undefined }
+);
+
 /** What the user has typed and picked. Everything else on the page derives. */
 interface SetupFields {
   name: string;
@@ -55,6 +74,8 @@ interface SetupFields {
    * and never fights a deliberate choice.
    */
   storageChoice: StorageType | null;
+  /** The id the user typed themselves, or `null` while it still follows the name. */
+  cloudIdChoice: string | null;
   llmProvider: LlmProvider;
   apiKey: string;
   defaultModel: string;
@@ -64,6 +85,7 @@ interface SetupFields {
 const INITIAL_FIELDS: SetupFields = {
   name: "",
   storageChoice: null,
+  cloudIdChoice: null,
   llmProvider: "ollama",
   apiKey: "",
   defaultModel: "",
@@ -89,13 +111,18 @@ export default function KalaidoscopeSetup() {
   // as the async work lasts, with nothing to reset by hand on any exit path.
   const [isPending, startCreate] = useTransition();
 
+  const [idCheck, setIdCheck] = useState<CloudIdCheck | null>(null);
+  const [idChecking, setIdChecking] = useState(false);
+
   const nameFieldId = useId();
+  const cloudIdFieldId = useId();
   const storageLabelId = useId();
   const apiKeyFieldId = useId();
   const modelFieldId = useId();
   const { highlighted: highlightedFields, trigger: triggerHighlights } =
     useRequiredHighlights({
       name: nameFieldId,
+      cloudId: cloudIdFieldId,
       apiKey: apiKeyFieldId,
       model: modelFieldId,
     });
@@ -104,7 +131,44 @@ export default function KalaidoscopeSetup() {
     fields.storageChoice ??
     routeState.defaultStorage ??
     (signedIn ? "cloud" : "local_file");
-  const cloudId = deriveCloudId(fields.name);
+  const derivedCloudId = deriveCloudId(fields.name);
+  const idIsManual = fields.cloudIdChoice !== null;
+  const candidateId = fields.cloudIdChoice ?? derivedCloudId;
+  const idIsValid = CLOUD_ID_RE.test(candidateId);
+  const checked = idCheck?.id === candidateId ? idCheck : null;
+  const cloudId =
+    !idIsManual && checked?.available === false && checked.suggestion
+      ? checked.suggestion
+      : candidateId;
+  const idTaken =
+    checked?.available === false && (idIsManual || !checked.suggestion);
+  const cloudChecksApply = storage === "cloud" && signedIn;
+  const idReady =
+    !cloudChecksApply || (idIsValid && !idChecking && !!checked && !idTaken);
+
+  useEffect(() => {
+    if (!cloudChecksApply || !CLOUD_ID_RE.test(candidateId)) {
+      setIdChecking(false);
+      return;
+    }
+    let cancelled = false;
+    setIdChecking(true);
+    const handle = setTimeout(async () => {
+      const result = await checkCloudIdAvailability(candidateId);
+      if (cancelled) return;
+      setIdChecking(false);
+      if (result.isErr()) {
+        console.error("Failed to check cloud id:", result.error);
+        setIdCheck({ id: candidateId, available: null });
+        return;
+      }
+      setIdCheck({ id: candidateId, ...result.value });
+    }, CLOUD_ID_CHECK_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [candidateId, cloudChecksApply]);
 
   const byokSelected =
     storage === "local_file" && fields.llmProvider === "gemini";
@@ -116,7 +180,7 @@ export default function KalaidoscopeSetup() {
 
   const canCreate =
     !!fields.name.trim() &&
-    (storage === "local_file" || !!cloudId.trim()) &&
+    (storage === "local_file" || (!!cloudId.trim() && idReady)) &&
     (!byokSelected || (!!fields.apiKey.trim() && !!fields.defaultModel.trim()));
 
   /**
@@ -162,6 +226,11 @@ export default function KalaidoscopeSetup() {
 
     if (result.isErr()) {
       console.error("Failed to create kalaidoscope:", result.error);
+      if (result.error instanceof CloudIdTakenError) {
+        const fresh = await checkCloudIdAvailability(candidateId);
+        if (fresh.isOk()) setIdCheck({ id: candidateId, ...fresh.value });
+        return "That ID was just taken. A new one has been suggested — check it and try again.";
+      }
       return result.error.message;
     }
     return null;
@@ -179,8 +248,9 @@ export default function KalaidoscopeSetup() {
     e.preventDefault();
     if (isPending) return;
 
-    const missing: ("name" | "apiKey" | "model")[] = [];
+    const missing: ("name" | "cloudId" | "apiKey" | "model")[] = [];
     if (!fields.name.trim()) missing.push("name");
+    if (storage === "cloud" && !cloudId) missing.push("cloudId");
     if (byokSelected && !fields.apiKey.trim()) missing.push("apiKey");
     if (byokSelected && !fields.defaultModel.trim()) missing.push("model");
 
@@ -194,7 +264,37 @@ export default function KalaidoscopeSetup() {
       return;
     }
 
+    if (!idReady) return;
+
     create();
+  }
+
+  function idStatus(): { text: string; tone: "muted" | "error" } | null {
+    if (!cloudId) return null;
+    if (!idIsValid) {
+      return {
+        text: "Lowercase letters, numbers and dashes only; 2 to 63 characters, starting with a letter or number.",
+        tone: "error",
+      };
+    }
+    if (!cloudChecksApply) return null;
+    if (idChecking || !checked) {
+      return { text: "Checking availability…", tone: "muted" };
+    }
+    if (idTaken) return { text: "This ID is taken.", tone: "error" };
+    if (checked.available === null) {
+      return {
+        text: "Couldn't check availability. It will be checked when you create.",
+        tone: "muted",
+      };
+    }
+    if (cloudId !== candidateId) {
+      return {
+        text: `“${candidateId}” is taken, so this one was generated instead. You can change it.`,
+        tone: "muted",
+      };
+    }
+    return { text: "Available. IDs can't be changed later.", tone: "muted" };
   }
 
   return (
@@ -313,6 +413,76 @@ export default function KalaidoscopeSetup() {
                   <CloudSignInNotice onSignIn={() => setGate("signin")} />
                 ))}
             </div>
+
+            {storage === "cloud" && (
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor={cloudIdFieldId}
+                  className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
+                >
+                  Cloud ID
+                </label>
+                <div className="relative flex items-center">
+                  <Input
+                    id={cloudIdFieldId}
+                    type="text"
+                    value={cloudId}
+                    onChange={(e) =>
+                      patch({
+                        cloudIdChoice: e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9-]/g, ""),
+                      })
+                    }
+                    placeholder="my-kalaidoscope"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={cn(
+                      "font-mono text-mono-sm",
+                      (idTaken || (!!cloudId && !idIsValid)) &&
+                        "border-destructive focus-visible:ring-destructive",
+                      highlightedFields.has("cloudId") && [
+                        requiredHighlightClass,
+                        "pr-24",
+                      ],
+                    )}
+                  />
+                  {highlightedFields.has("cloudId") && (
+                    <RequiredPill className="right-2" />
+                  )}
+                </div>
+                {(() => {
+                  const status = idStatus();
+                  if (!status) return null;
+                  return (
+                    <p
+                      className={cn(
+                        "text-meta",
+                        status.tone === "error"
+                          ? "text-destructive"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {status.text}
+                      {idTaken && checked?.suggestion && (
+                        <>
+                          {" "}
+                          <button
+                            type="button"
+                            className="font-mono underline underline-offset-2"
+                            onClick={() =>
+                              patch({ cloudIdChoice: checked.suggestion })
+                            }
+                          >
+                            Use {checked.suggestion}
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
 
             {storage === "local_file" && (
               <ProviderFields
