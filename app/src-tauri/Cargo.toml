@@ -45,6 +45,7 @@ tokio = { version = "1", features = ["rt", "time", "sync", "net", "fs", "io-util
 tauri-plugin-shell = "2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 tauri-plugin-dialog = "2.7.1"
+tauri-plugin-updater = "2"
 rand = "0.9"
 zip = "2"
 

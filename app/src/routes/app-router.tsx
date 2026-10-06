@@ -18,6 +18,7 @@ import {
 import {
   MenuEventListener,
   MenuFeedbackListener,
+  MenuUpdateListener,
   StateNavigationListener,
 } from "./router-listeners";
 
@@ -41,6 +42,7 @@ export function AppRouter() {
         <StateNavigationListener />
         <MenuEventListener />
         <MenuFeedbackListener />
+        <MenuUpdateListener />
         <Routes>{routeElements(appRoutes)}</Routes>
       </MemoryRouter>
     </RootErrorBoundary>

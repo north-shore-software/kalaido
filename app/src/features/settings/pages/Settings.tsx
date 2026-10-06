@@ -1,5 +1,7 @@
 import { ArrowLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
 import { cn } from "@/lib/css-utils";
 import { defineRoute } from "@/routes/route-kit";
 import { RouteLink } from "@/routes/route-link";
@@ -24,6 +26,13 @@ export default function Settings() {
   const { go } = useAppNavigate();
   const { section = "kalaidoscopes" } = useAppParams<"settings">();
   const currentSection = sections.find((s) => s.id === section) ?? sections[0];
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+
+  const handleCheckUpdates = async () => {
+    setCheckingUpdates(true);
+    await checkForUpdatesAndPrompt(true);
+    setCheckingUpdates(false);
+  };
 
   return (
     <div className="flex -mt-[var(--titlebar-height)] h-svh overflow-hidden bg-background">
@@ -63,6 +72,17 @@ export default function Settings() {
               </RouteLink>
             );
           })}
+        </div>
+        <div className="mt-auto border-t border-line pt-3 flex flex-col gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={checkingUpdates}
+            onClick={handleCheckUpdates}
+            className="w-full justify-start text-xs text-fg-3 hover:text-fg-1"
+          >
+            {checkingUpdates ? "Checking for updates…" : "Check for Updates…"}
+          </Button>
         </div>
       </nav>
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden pt-[var(--titlebar-height)]">

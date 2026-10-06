@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useSnapshot } from "valtio/react";
 import {
   registerMenuFeedbackListener,
   registerMenuNavigateListener,
+  registerMenuUpdateListener,
 } from "@/api/app/os-integrations.ts";
 import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 import {
@@ -11,6 +13,7 @@ import {
   openFeedbackDialog,
 } from "@/hooks/app-state-actions.ts";
 import { type AppStage, appState } from "@/hooks/use-app-state.ts";
+import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { pathFor } from "./registry";
 import { stageEntryRoute } from "./route-kit";
@@ -53,6 +56,27 @@ export function MenuFeedbackListener() {
       }
     />
   );
+}
+
+export function MenuUpdateListener() {
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      void checkForUpdatesAndPrompt(false);
+    }
+    const unlistenPromise = registerMenuUpdateListener(() => {
+      toast.info("Checking for updates…");
+      void checkForUpdatesAndPrompt(true);
+    });
+    return () => {
+      void unlistenPromise.then((result) => {
+        if (result.isOk()) {
+          result.value();
+        }
+      });
+    };
+  }, []);
+
+  return null;
 }
 
 export function StateNavigationListener() {
