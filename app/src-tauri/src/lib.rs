@@ -12,6 +12,8 @@ mod llm;
 mod menu;
 #[cfg(desktop)]
 mod sidecar;
+#[cfg(desktop)]
+mod updater;
 
 #[cfg(desktop)]
 use tauri::RunEvent;
@@ -32,6 +34,8 @@ use crate::kalaidoscope::{
 use crate::llm::{check_ollama_status, validate_llm_key};
 #[cfg(desktop)]
 use crate::menu::{build_menu, handle_menu_event};
+#[cfg(desktop)]
+use crate::updater::{check_for_update, install_pending_update, PendingUpdate};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -45,7 +49,9 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(KalaidoscopeState::default())
+        .manage(PendingUpdate::default())
         .invoke_handler(tauri::generate_handler![
             create_local_kalaidoscope,
             start_local_kalaidoscope,
@@ -59,6 +65,8 @@ pub fn run() {
             validate_llm_key,
             download_to_file,
             get_feedback_diagnostics,
+            check_for_update,
+            install_pending_update,
         ])
         .menu(build_menu)
         .on_menu_event(handle_menu_event);

@@ -8,6 +8,7 @@ pub(crate) fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,
+            &MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "settings", "Settings", true, Some("CmdOrCtrl+,"))?,
             &PredefinedMenuItem::separator(app)?,
@@ -57,5 +58,7 @@ pub(crate) fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
         let _ = app.emit("menu:navigate", "/settings");
     } else if event.id() == "feedback" {
         let _ = app.emit("menu:feedback", ());
+    } else if event.id() == "check-updates" {
+        let _ = app.emit("menu:check-updates", ());
     }
 }

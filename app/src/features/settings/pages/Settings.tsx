@@ -1,4 +1,7 @@
 import { ArrowLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { checkForUpdate, installPendingUpdate } from "@/api/app/updater.ts";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
 import { defineRoute } from "@/routes/route-kit";
@@ -24,6 +27,41 @@ export default function Settings() {
   const { go } = useAppNavigate();
   const { section = "kalaidoscopes" } = useAppParams<"settings">();
   const currentSection = sections.find((s) => s.id === section) ?? sections[0];
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+
+  const handleCheckUpdates = async () => {
+    setCheckingUpdates(true);
+    const res = await checkForUpdate();
+    setCheckingUpdates(false);
+    if (res.isErr()) {
+      toast.error("Failed to check for updates", {
+        description: res.error.message,
+      });
+      return;
+    }
+    const update = res.value;
+    if (!update) {
+      toast.info("Kalaido is up to date");
+      return;
+    }
+    toast.info(`Kalaido v${update.version} is available`, {
+      action: {
+        label: "Update & Restart",
+        onClick: async () => {
+          const loadingToast = toast.loading(
+            "Downloading and installing update…",
+          );
+          const installRes = await installPendingUpdate();
+          toast.dismiss(loadingToast);
+          if (installRes.isErr()) {
+            toast.error("Failed to install update", {
+              description: installRes.error.message,
+            });
+          }
+        },
+      },
+    });
+  };
 
   return (
     <div className="flex -mt-[var(--titlebar-height)] h-svh overflow-hidden bg-background">
@@ -63,6 +101,17 @@ export default function Settings() {
               </RouteLink>
             );
           })}
+        </div>
+        <div className="mt-auto border-t border-line pt-3 flex flex-col gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={checkingUpdates}
+            onClick={handleCheckUpdates}
+            className="w-full justify-start text-xs text-fg-3 hover:text-fg-1"
+          >
+            {checkingUpdates ? "Checking for updates…" : "Check for Updates…"}
+          </Button>
         </div>
       </nav>
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden pt-[var(--titlebar-height)]">

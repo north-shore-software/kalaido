@@ -44,6 +44,12 @@ export function registerMenuFeedbackListener(
   return tauriResult(listen("menu:feedback", () => cb()));
 }
 
+export function registerMenuUpdateListener(
+  cb: () => void,
+): Promise<Result<UnlistenFn, Error>> {
+  return tauriResult(listen("menu:check-updates", () => cb()));
+}
+
 export function reloadAppWindow(): void {
   window.location.reload();
 }
