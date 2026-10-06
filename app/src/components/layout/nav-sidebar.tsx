@@ -24,7 +24,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -85,6 +84,15 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
     transition: navSidebarTransitions.transitions.openFragments,
     icon: WavesIcon,
   },
+  ...(isFeatureEnabled("connections")
+    ? [
+        {
+          title: "Connections",
+          transition: navSidebarTransitions.transitions.openConnections,
+          icon: ArrowsLeftRightIcon,
+        },
+      ]
+    : []),
 ];
 
 function CaptureButton() {
@@ -102,38 +110,6 @@ function CaptureButton() {
         <span>New Fragment</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
-  );
-}
-
-/**
- * Connections — the outward-facing hub (import today; export and live sync
- * later). Gated with the rest of the feature: while the flag is off the route
- * is unreachable too, so there is nothing to link to.
- */
-function NavConnections() {
-  const pathname = useCurrentPathname();
-  const { go } = useAppNavigate();
-  return (
-    <>
-      <SidebarSeparator />
-      <SidebarGroup className="py-1">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Connections"
-              isActive={pathname.startsWith(pathFor("connections"))}
-              className={NEUTRAL_DEST_CLASS}
-              onClick={() =>
-                go(navSidebarTransitions.transitions.openConnections)
-              }
-            >
-              <ArrowsLeftRightIcon className={RAIL_ICON_CLASS} />
-              <span>Connections</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarGroup>
-    </>
   );
 }
 
@@ -213,7 +189,6 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <SidebarNav items={WORKSPACE_NAV}>
           <CaptureButton />
         </SidebarNav>
-        {isFeatureEnabled("connections") && <NavConnections />}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
