@@ -17,6 +17,9 @@ export const posthogConfig =
           defaults: "2026-01-30" as const,
           capture_exceptions: true,
           disable_surveys: true,
+          disable_session_recording: true,
+          mask_all_text: true,
+          mask_all_element_attributes: true,
           debug: import.meta.env.DEV,
         },
       }
