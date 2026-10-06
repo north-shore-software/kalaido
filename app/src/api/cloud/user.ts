@@ -114,7 +114,11 @@ export async function listCloudKalaidoscopes(): Promise<
     );
   }
   const data = (await res.value.json().catch(() => null)) as {
-    kalaidoscopes?: { id: string; name?: string | null }[];
+    kalaidoscopes?: {
+      id: string;
+      name?: string | null;
+      archivedAt?: string | null;
+    }[];
   } | null;
   if (!data || !Array.isArray(data.kalaidoscopes)) {
     return err(new Error("Auth server returned an unexpected response."));
@@ -125,6 +129,25 @@ export async function listCloudKalaidoscopes(): Promise<
       type: "cloud" as const,
       locator: row.id,
       displayName: row.name ?? row.id,
+      archivedAt: row.archivedAt ?? undefined,
     })),
+  );
+}
+
+export async function setCloudArchived(
+  cloudId: string,
+  archived: boolean,
+): Promise<Result<void, Error>> {
+  const res = await registryFetch(
+    `/kalaidoscopes/${encodeURIComponent(cloudId)}`,
+    { method: "PATCH", body: JSON.stringify({ archived }) },
+  );
+  if (res.isErr()) return err(res.error);
+  if (res.value.ok) return ok(undefined);
+  return err(
+    await serverError(
+      res.value,
+      `Could not update the cloud kalaidoscope (${res.value.status}).`,
+    ),
   );
 }

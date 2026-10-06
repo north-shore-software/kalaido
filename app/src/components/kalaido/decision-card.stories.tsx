@@ -1,5 +1,5 @@
-import { WarningIcon } from "@phosphor-icons/react";
 import type { Story } from "@ladle/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { DecisionCard } from "./decision-card";
 
 export default { title: "Kalaido / DecisionCard" };

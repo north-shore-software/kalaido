@@ -30,10 +30,15 @@ export type {
   ContextKind,
   EntityKind,
 } from "./context-picker";
+export {
+  DecisionCard,
+  type DecisionCardProps,
+  type DecisionOption,
+} from "./decision-card";
 export { DiffLine } from "./diff";
 export { DocumentCard } from "./document-card";
-export { EditableText, type EditableTextProps } from "./editable-text";
 export { EditDiffBoxes, type EditDiffBoxesProps } from "./edit-diff-boxes";
+export { EditableText, type EditableTextProps } from "./editable-text";
 export { EmptyState } from "./empty-state";
 export { FragmentCard } from "./fragment-card";
 export { FragmentDrawer } from "./fragment-drawer";
@@ -55,11 +60,6 @@ export {
   PanelErrorBoundary,
   PanelErrorFallback,
 } from "./panel-error-boundary";
-export {
-  DecisionCard,
-  type DecisionCardProps,
-  type DecisionOption,
-} from "./decision-card";
 export { Pill } from "./pill";
 export { PinToggle } from "./pin-toggle";
 export {

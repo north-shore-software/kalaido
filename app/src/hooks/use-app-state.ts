@@ -1,6 +1,7 @@
 import { proxy } from "valtio";
 import { getAllSettings } from "@/api/app/settings.ts";
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
+import { isArchived } from "@/lib/active-kalaidoscopes.ts";
 import { toError } from "@/lib/errors.ts";
 import type { RouteId } from "@/routes/route-ids";
 
@@ -73,9 +74,16 @@ export const loadStoredState = async (): Promise<Partial<AppState> | null> => {
   }
 
   const lastOpenedId = storedState.value.lastOpenedKalaidoscopeId;
-  const appStage: AppStage = lastOpenedId
-    ? { stage: "kalaidoscope_load_requested", loadKalaidoscopeId: lastOpenedId }
-    : { stage: "no_kalaidoscopes_available" };
+  const lastOpenedArchived = storedState.value.availableKalaidoscopes?.some(
+    (k) => k.id === lastOpenedId && isArchived(k),
+  );
+  const appStage: AppStage =
+    lastOpenedId && !lastOpenedArchived
+      ? {
+          stage: "kalaidoscope_load_requested",
+          loadKalaidoscopeId: lastOpenedId,
+        }
+      : { stage: "no_kalaidoscopes_available" };
 
   return { ...storedState.value, appStage };
 };

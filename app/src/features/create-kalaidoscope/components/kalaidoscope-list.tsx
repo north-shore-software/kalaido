@@ -1,6 +1,7 @@
 import { useSnapshot } from "valtio/react";
 import { ListRow } from "@/components/kalaido";
 import { appState } from "@/hooks/use-app-state.ts";
+import { activeKalaidoscopes } from "@/lib/active-kalaidoscopes.ts";
 import { kalaidoscopeTypeLabel } from "@/lib/labels";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 
@@ -17,7 +18,9 @@ export function KalaidoscopeList({
 }: KalaidoscopeListProps) {
   const { appStage, availableKalaidoscopes } = useSnapshot(appState);
   const switching = appStage.stage === "kalaidoscope_loading";
-  const items = availableKalaidoscopes.filter((k) => k.id !== excludeId);
+  const items = activeKalaidoscopes(availableKalaidoscopes).filter(
+    (k) => k.id !== excludeId,
+  );
 
   async function handleSelect(id: string) {
     await switchLocalKalaidoscope(id);

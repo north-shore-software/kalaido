@@ -4,6 +4,7 @@ import {
   PlusIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
+
 import { useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
@@ -13,6 +14,7 @@ import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
 import { appState } from "@/hooks/use-app-state.ts";
 import { useCloudSession } from "@/hooks/use-cloud-session.ts";
+import { activeKalaidoscopes } from "@/lib/active-kalaidoscopes.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { PrimaryChoice, SecondaryChoice } from "../components/choice-cards";
@@ -138,7 +140,7 @@ export default function OnboardingLanding() {
           </div>
         </div>
 
-        {availableKalaidoscopes.length > 0 && (
+        {activeKalaidoscopes(availableKalaidoscopes).length > 0 && (
           <section className="flex flex-col gap-2 border-t pt-6">
             <span className="text-label uppercase text-muted-foreground">
               Your workspaces

@@ -17,9 +17,9 @@ import { Button } from "@/components/ui/button";
 import { useProjectionSnapshot } from "@/hooks/use-projection-snapshot";
 import type { RefineSession } from "@/hooks/use-refine-session";
 import { withContextItem } from "@/lib/mentions";
+import { useCandidateTriage } from "../hooks/use-candidate-triage";
 import { EditsStatusPill } from "./edits-status-pill";
 import { ProjectionCanvasPane } from "./projection-canvas-pane";
-import { useCandidateTriage } from "../hooks/use-candidate-triage";
 
 export interface ProjectionDraftEditorProps {
   session: RefineSession;

@@ -1,7 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { renderStory } from "@/testing/render-story";
-import { WithBackups } from "./workspace-backups-panel.stories";
 import { sanitizeExportName } from "./workspace-backups-panel";
+import { WithBackups } from "./workspace-backups-panel.stories";
 
 describe("WorkspaceBackupsPanel", () => {
   test("renders the three badges with their exact label text", () => {

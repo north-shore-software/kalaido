@@ -1,5 +1,5 @@
-import { CaretDownIcon, CaretUpIcon, CheckIcon } from "@phosphor-icons/react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
+import { CaretDownIcon, CaretUpIcon, CheckIcon } from "@phosphor-icons/react";
 import * as React from "react";
 import { cn } from "@/lib/css-utils";
 

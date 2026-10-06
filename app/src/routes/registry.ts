@@ -1,14 +1,13 @@
 import { bootErrorRoute } from "@/features/boot/pages/BootError";
 import { splashRoute } from "@/features/boot/pages/Splash";
-import { exploreRoute } from "@/features/explore/pages/Explore";
-import { mapRoute } from "@/features/map/pages/Map";
-import { statusRoute } from "@/features/status/pages/Status";
 import { coloursRoute } from "@/features/colours/pages/Colours";
 import { connectionsRoute } from "@/features/connections/pages/Connections";
 import { kalaidoscopeSetupRoute } from "@/features/create-kalaidoscope/pages/KalaidoscopeSetup";
 import { mainRoute } from "@/features/dashboard/pages/Main";
+import { exploreRoute } from "@/features/explore/pages/Explore";
 import { streamRoute } from "@/features/fragments/pages/Stream";
 import { importRoute } from "@/features/import/pages/Import";
+import { mapRoute } from "@/features/map/pages/Map";
 import { cloudWorkspacesRoute } from "@/features/onboarding/pages/CloudWorkspaces";
 import { onboardingImportRoute } from "@/features/onboarding/pages/OnboardingImport";
 import { onboardingLandingRoute } from "@/features/onboarding/pages/OnboardingLanding";
@@ -25,6 +24,7 @@ import {
 import { reflectionsRoute } from "@/features/reflections/pages/Reflections";
 import { rotationRoute } from "@/features/rotation/pages/Rotation";
 import { settingsRoute } from "@/features/settings/pages/Settings";
+import { statusRoute } from "@/features/status/pages/Status";
 import type { AnyParams, ParamsArg } from "./route-contracts";
 import { ROUTE_IDS, type RouteId } from "./route-ids";
 import { buildRoutePath, type RouteDef } from "./route-kit";

@@ -2,6 +2,7 @@ import { useSnapshot } from "valtio/react";
 import { Label, StatusPill } from "@/components/kalaido";
 import { SectionHeader } from "@/components/layout/section";
 import { appState } from "@/hooks/use-app-state.ts";
+import { isArchived } from "@/lib/active-kalaidoscopes.ts";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
 import { WorkspaceAiPanel } from "./workspace-ai-panel";
 import { WorkspaceBackupsPanel } from "./workspace-backups-panel";
@@ -15,7 +16,10 @@ export function KalaidoscopesSection() {
       : null;
   const switching = appStage.stage === "kalaidoscope_loading";
   const active = kalaidoscopes.find((k) => k.id === currentKalaidoscopeId);
-  const others = kalaidoscopes.filter((k) => k.id !== currentKalaidoscopeId);
+  const others = kalaidoscopes.filter(
+    (k) => k.id !== currentKalaidoscopeId && !isArchived(k),
+  );
+  const archived = kalaidoscopes.filter(isArchived);
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,6 +40,22 @@ export function KalaidoscopesSection() {
             <StatusPill>{others.length}</StatusPill>
           </div>
           {others.map((kalaidoscope) => (
+            <KalaidoscopeRow
+              key={kalaidoscope.id}
+              kalaidoscope={kalaidoscope}
+              isActive={false}
+              switching={switching}
+            />
+          ))}
+        </div>
+      )}
+      {archived.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2.5">
+            <Label>Archived</Label>
+            <StatusPill>{archived.length}</StatusPill>
+          </div>
+          {archived.map((kalaidoscope) => (
             <KalaidoscopeRow
               key={kalaidoscope.id}
               kalaidoscope={kalaidoscope}

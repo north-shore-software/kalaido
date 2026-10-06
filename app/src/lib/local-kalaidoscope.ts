@@ -91,6 +91,19 @@ export async function switchLocalKalaidoscope(
  * away never stops one, so a local workspace may still be running even when
  * it is not the open one.
  */
+export async function closeIfActive(targetId: string): Promise<void> {
+  const currentStage = appState.appStage;
+  const isActive =
+    currentStage.stage === "kalaidoscope_open" &&
+    currentStage.selectedKalaidoscopeId === targetId;
+
+  if (isActive) {
+    setActiveKalaidoscopeClient(null);
+    await deleteSetting("lastOpenedKalaidoscopeId");
+    setAppStage({ stage: "no_kalaidoscopes_available" });
+  }
+}
+
 export async function removeKalaidoscope(
   targetId: string,
 ): Promise<Result<void, Error>> {
@@ -106,16 +119,7 @@ export async function removeKalaidoscope(
     return err(persisted.error);
   }
 
-  const currentStage = appState.appStage;
-  const isActive =
-    currentStage.stage === "kalaidoscope_open" &&
-    currentStage.selectedKalaidoscopeId === targetId;
-
-  if (isActive) {
-    setActiveKalaidoscopeClient(null);
-    await deleteSetting("lastOpenedKalaidoscopeId");
-    setAppStage({ stage: "no_kalaidoscopes_available" });
-  }
+  await closeIfActive(targetId);
 
   if (meta?.type === "local_file") {
     // A no-op when nothing is running for this id; only a sidecar still

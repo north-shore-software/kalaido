@@ -26,8 +26,8 @@ import { deriveName } from "@/lib/naming";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppRouteState } from "@/routes/use-app-route-state";
-import type { ProjectionSeed } from "../types";
 import { PlaceholderPreviewPane } from "../components/placeholder-preview-pane";
+import type { ProjectionSeed } from "../types";
 import { newProjectionTransitions } from "./NewProjection.transitions";
 
 /**

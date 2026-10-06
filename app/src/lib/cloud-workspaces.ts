@@ -2,9 +2,10 @@ import type { Result } from "neverthrow";
 import { err, ok } from "neverthrow";
 import { setSetting } from "@/api/app/settings.ts";
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
-import { listCloudKalaidoscopes } from "@/api/cloud/user.ts";
+import { listCloudKalaidoscopes, setCloudArchived } from "@/api/cloud/user.ts";
 import { setAvailableKalaidoscopes } from "@/hooks/app-state-actions.ts";
 import { appState } from "@/hooks/use-app-state.ts";
+import { closeIfActive } from "@/lib/local-kalaidoscope.ts";
 
 /**
  * Reconciles the locally-known workspace list with what the signed-in account
@@ -40,7 +41,7 @@ export async function syncCloudWorkspaces(): Promise<Result<void, Error>> {
     const fresh = remote.get(known.id);
     if (!fresh) continue;
     // Locally-held fields the registry doesn't return (icon) survive the merge.
-    reconciled.push({ ...known, ...fresh });
+    reconciled.push({ ...known, ...fresh, archivedAt: fresh.archivedAt });
     remote.delete(known.id);
   }
 
@@ -58,6 +59,35 @@ export async function syncCloudWorkspaces(): Promise<Result<void, Error>> {
       persisted.error,
     );
   }
+
+  return ok(undefined);
+}
+
+export async function setKalaidoscopeArchived(
+  targetId: string,
+  archived: boolean,
+): Promise<Result<void, Error>> {
+  const meta = appState.availableKalaidoscopes.find((k) => k.id === targetId);
+  if (meta?.type !== "cloud") {
+    return err(new Error("Only cloud kalaidoscopes can be archived."));
+  }
+
+  const updated = await setCloudArchived(meta.locator, archived);
+  if (updated.isErr()) return err(updated.error);
+
+  const next = appState.availableKalaidoscopes.map((k) =>
+    k.id === targetId
+      ? { ...k, archivedAt: archived ? new Date().toISOString() : undefined }
+      : k,
+  );
+  setAvailableKalaidoscopes(next);
+
+  const persisted = await setSetting("availableKalaidoscopes", next);
+  if (persisted.isErr()) {
+    console.error("Failed to persist updated kalaidoscopes:", persisted.error);
+  }
+
+  if (archived) await closeIfActive(targetId);
 
   return ok(undefined);
 }

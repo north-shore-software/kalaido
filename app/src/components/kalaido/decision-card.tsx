@@ -1,6 +1,6 @@
+import type { VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { Button, type buttonVariants } from "@/components/ui/button";
-import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/css-utils";
 
 export interface DecisionOption {

@@ -1,6 +1,6 @@
 import { Pill } from "@/components/kalaido";
-import { cn } from "@/lib/css-utils";
 import { PaneHeader } from "@/components/layout/page-layout";
+import { cn } from "@/lib/css-utils";
 
 export function PlaceholderPreviewPane({
   className,

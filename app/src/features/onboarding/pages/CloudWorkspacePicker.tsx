@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { appState } from "@/hooks/use-app-state.ts";
 import { useCloudSession } from "@/hooks/use-cloud-session";
+import { activeKalaidoscopes } from "@/lib/active-kalaidoscopes.ts";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
@@ -50,7 +51,9 @@ export default function CloudWorkspacePicker() {
     setOpeningId(null);
   }
 
-  const workspaces = availableKalaidoscopes.filter((k) => k.type === "cloud");
+  const workspaces = activeKalaidoscopes(availableKalaidoscopes).filter(
+    (k) => k.type === "cloud",
+  );
   const banner = openError ?? listError;
 
   return (

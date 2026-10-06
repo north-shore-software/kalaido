@@ -4,4 +4,5 @@ export type KalaidoscopeMeta = {
   locator: string;
   displayName: string;
   icon?: string;
+  archivedAt?: string;
 };
