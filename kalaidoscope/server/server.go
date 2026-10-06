@@ -29,6 +29,13 @@ func logger() *slog.Logger {
 	return slog.Default().With("component", "server")
 }
 
+const backupEngineStoreKey = "kalaido.backup.engine"
+
+func BackupEngine(app core.App) *backup.Engine {
+	eng, _ := app.Store().Get(backupEngineStoreKey).(*backup.Engine)
+	return eng
+}
+
 // Options tune the server's own components; the zero value is the default.
 type Options struct {
 	// AutoWave controls the reconcile worker's automatic triggers
@@ -82,6 +89,7 @@ func NewWithSchemaWithOptions(config pocketbase.Config, schemaOpts schema.Option
 	}
 	backupsEng := backup.New(app, store, opts.Backups)
 	backup.Install(app, backupsEng)
+	app.Store().Set(backupEngineStoreKey, backupsEng)
 
 	registerWriteEcho(app)
 
