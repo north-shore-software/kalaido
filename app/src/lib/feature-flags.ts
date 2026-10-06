@@ -11,8 +11,8 @@
 export type FeatureFlag = "connections";
 
 const FEATURE_FLAGS: Record<FeatureFlag, boolean> = {
-  /** Import/export/live-sync hub — in development, not reachable yet. */
-  connections: false,
+  /** Import/export/live-sync hub — import live, the rest shown as coming soon. */
+  connections: true,
 };
 
 export function isFeatureEnabled(flag: FeatureFlag): boolean {
