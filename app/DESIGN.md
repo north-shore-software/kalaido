@@ -294,6 +294,9 @@ Consequences:
   per-entity swatches outside the Colours screens. Never use magenta for kind.
 - **Neutral sections are monochrome.** Settings, connections, onboarding and boot use
   `fg-2` where the recipe calls for a hue. Utility is deliberately colourless.
+  **Exception:** third-party brand marks on the Connections cards (Slack, WhatsApp,
+  Google Drive) render in their own colours — they are the brand's, not a section hue.
+  Monochrome marks (GitHub) and generic glyphs stay `fg-2`.
 
 ---
 
