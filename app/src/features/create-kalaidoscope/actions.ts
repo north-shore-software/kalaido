@@ -127,7 +127,7 @@ export async function createKalaidoscope(
   input: CreateKalaidoscopeInput,
 ): Promise<Result<KalaidoscopeMeta, Error>> {
   try {
-    const id = crypto.randomUUID();
+    let id: string = crypto.randomUUID();
     let locator = "";
     let type: KalaidoscopeMeta["type"] = "local_file";
 
@@ -136,6 +136,16 @@ export async function createKalaidoscope(
     if (input.storage === "cloud") {
       type = "cloud";
       locator = input.cloudId.trim();
+      id = locator;
+      if (
+        appState.availableKalaidoscopes.some(
+          (k) => k.type === "cloud" && k.locator === locator,
+        )
+      ) {
+        return err(
+          new Error("That cloud kalaidoscope is already in your workspaces."),
+        );
+      }
       // Cloud kalaidoscopes must be claimed (owner = signed-in user) before we persist.
       const registered = await createCloudKalaidoscope(locator, nameTrimmed);
       if (registered.isErr()) {
