@@ -21,11 +21,16 @@ impl SidecarLog {
     pub(crate) fn push(&self, line: String) {
         let mut lines = self.lines.lock().unwrap();
         lines.push(line);
-        // Keep only the tail; startup errors are what matter here.
+        // Keep only the tail.
         let len = lines.len();
-        if len > 50 {
-            lines.drain(0..len - 50);
+        if len > 500 {
+            lines.drain(0..len - 500);
         }
+    }
+
+    pub(crate) fn recent(&self, n: usize) -> Vec<String> {
+        let lines = self.lines.lock().unwrap();
+        lines[lines.len().saturating_sub(n)..].to_vec()
     }
 
     pub(crate) fn tail(&self) -> String {

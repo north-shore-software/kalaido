@@ -1,7 +1,15 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSnapshot } from "valtio/react";
-import { registerMenuNavigateListener } from "@/api/app/os-integrations.ts";
+import {
+  registerMenuFeedbackListener,
+  registerMenuNavigateListener,
+} from "@/api/app/os-integrations.ts";
+import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
+import {
+  closeFeedbackDialog,
+  openFeedbackDialog,
+} from "@/hooks/app-state-actions.ts";
 import { type AppStage, appState } from "@/hooks/use-app-state.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { pathFor } from "./registry";
@@ -23,6 +31,28 @@ export function MenuEventListener() {
     };
   }, [navigate]);
   return null;
+}
+
+export function MenuFeedbackListener() {
+  const { feedbackDialogOpen } = useSnapshot(appState);
+  useEffect(() => {
+    const unlistenPromise = registerMenuFeedbackListener(openFeedbackDialog);
+    return () => {
+      void unlistenPromise.then((result) => {
+        if (result.isOk()) {
+          result.value();
+        }
+      });
+    };
+  }, []);
+  return (
+    <FeedbackDialog
+      open={feedbackDialogOpen}
+      onOpenChange={(next) =>
+        next ? openFeedbackDialog() : closeFeedbackDialog()
+      }
+    />
+  );
 }
 
 export function StateNavigationListener() {

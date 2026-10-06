@@ -279,6 +279,7 @@ where
                 handle,
                 captured_lines,
                 status: status_arc,
+                log,
             })
         }
         Err(msg) => {

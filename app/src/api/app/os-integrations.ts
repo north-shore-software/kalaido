@@ -38,6 +38,12 @@ export function registerMenuNavigateListener(
   return tauriResult(listen<string>("menu:navigate", (e) => cb(e.payload)));
 }
 
+export function registerMenuFeedbackListener(
+  cb: () => void,
+): Promise<Result<UnlistenFn, Error>> {
+  return tauriResult(listen("menu:feedback", () => cb()));
+}
+
 export function reloadAppWindow(): void {
   window.location.reload();
 }

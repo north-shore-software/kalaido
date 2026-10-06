@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 use tauri_plugin_shell::process::CommandChild;
 use tokio::sync::Notify;
 
+use crate::sidecar::log::SidecarLog;
+
 /// Bundle of state the host needs to track one running sidecar process:
 /// the child handle (for sending kill) and an awaitable termination signal
 /// set by the per-child supervisor task.
@@ -51,4 +53,5 @@ pub(crate) struct SidecarInstance {
     pub handle: SidecarHandle,
     pub captured_lines: Arc<Mutex<Vec<String>>>,
     pub status: Arc<Mutex<SidecarStatus>>,
+    pub log: Arc<SidecarLog>,
 }
