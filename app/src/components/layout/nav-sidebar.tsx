@@ -6,6 +6,7 @@ import {
   GearIcon,
   MapTrifoldIcon,
   PaletteIcon,
+  PaperPlaneTiltIcon,
   PlusCircleIcon,
   PulseIcon,
   SidebarSimpleIcon,
@@ -32,7 +33,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
-import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
+import {
+  openAddFragmentModal,
+  openFeedbackDialog,
+} from "@/hooks/app-state-actions.ts";
 import { cn } from "@/lib/css-utils";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { pathFor } from "@/routes/registry";
@@ -133,6 +137,21 @@ function NavConnections() {
   );
 }
 
+function FeedbackButton() {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Send Feedback"
+        className={NEUTRAL_DEST_CLASS}
+        onClick={() => openFeedbackDialog()}
+      >
+        <PaperPlaneTiltIcon />
+        <span>Send Feedback</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 function StatusButton() {
   const pathname = useCurrentPathname();
   const { go } = useAppNavigate();
@@ -198,6 +217,7 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <FeedbackButton />
           <StatusButton />
           <SettingsButton />
           <SidebarToggleButton />

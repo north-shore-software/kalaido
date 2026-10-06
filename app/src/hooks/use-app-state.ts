@@ -50,6 +50,7 @@ export type AppState = {
   lightDarkMode: "light" | "dark";
   availableKalaidoscopes: KalaidoscopeMeta[];
   addFragmentModalOpen: boolean;
+  feedbackDialogOpen: boolean;
   latestInferenceRate?: { tokensPerSecond: number; at: number };
 };
 
@@ -58,6 +59,7 @@ const DEFAULT_STATE: AppState = {
   lightDarkMode: "light",
   availableKalaidoscopes: [],
   addFragmentModalOpen: false,
+  feedbackDialogOpen: false,
 };
 
 export const loadStoredState = async (): Promise<Partial<AppState> | null> => {

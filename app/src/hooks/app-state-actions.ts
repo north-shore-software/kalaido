@@ -10,6 +10,14 @@ export function closeAddFragmentModal() {
   appState.addFragmentModalOpen = false;
 }
 
+export function openFeedbackDialog() {
+  appState.feedbackDialogOpen = true;
+}
+
+export function closeFeedbackDialog() {
+  appState.feedbackDialogOpen = false;
+}
+
 export function recordInferenceRate(tokensPerSecond: number) {
   appState.latestInferenceRate = { tokensPerSecond, at: Date.now() };
 }
