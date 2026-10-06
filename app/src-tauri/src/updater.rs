@@ -52,6 +52,5 @@ pub async fn install_pending_update(
         .download_and_install(|_, _| {}, || {})
         .await
         .map_err(|e| e.to_string())?;
-    app.restart();
-    Ok(())
+    app.restart()
 }
