@@ -33,7 +33,11 @@ export default function Stream() {
   const { records, isLoading } = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment", "fragment_annotation"],
-    { sort: "-occurred_at,-created" },
+    {
+      sort: "-occurred_at,-created",
+      fields:
+        "id,type,occurred_at,created,title,colour_ids,content:excerpt(300)",
+    },
   );
   const swatches = useColourSwatches();
 

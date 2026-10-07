@@ -1,26 +1,8 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/css-utils";
 import { fragmentTypeIcon } from "./icons";
-import { MarkdownContent } from "./markdown-content";
 import { StatusPill } from "./status-pill";
 import { Mono } from "./text";
-
-const cardMarkdownComponents = {
-  p: ({ children }: { children?: ReactNode }) => (
-    <span className="block break-words">{children}</span>
-  ),
-  a: ({ children }: { children?: ReactNode }) => (
-    <span className="underline decoration-line-strong underline-offset-2 break-all">
-      {children}
-    </span>
-  ),
-  img: ({ src, alt }: { src?: string; alt?: string }) => (
-    <img src={src} alt={alt} className="max-h-24 max-w-full object-cover" />
-  ),
-  pre: ({ children }: { children?: ReactNode }) => (
-    <pre className="max-w-full overflow-x-auto">{children}</pre>
-  ),
-};
 
 export function FragmentCard({
   type,
@@ -66,14 +48,7 @@ export function FragmentCard({
       </div>
       {preview && (
         <div className="mt-2 line-clamp-3 font-mono text-mono-sm leading-relaxed text-fg-4 break-words [word-break:break-word]">
-          {typeof preview === "string" ? (
-            <MarkdownContent
-              content={preview}
-              components={cardMarkdownComponents}
-            />
-          ) : (
-            preview
-          )}
+          {preview}
         </div>
       )}
     </>
