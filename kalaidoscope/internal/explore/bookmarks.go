@@ -53,7 +53,7 @@ func MessageText(m api.UIMessage) string {
 // this must be transactional, and the writer's content-hash dedupe would
 // silently drop a legitimately repeated text. The fragment create hooks
 // (defaults, colour and annotate signals) fire on save as usual.
-func SaveBookmarks(ctx context.Context, app core.App, conv *core.Record) ([]api.SavedBookmark, error) {
+func SaveBookmarks(ctx context.Context, app core.App, conv *core.Record, titles map[string]string) ([]api.SavedBookmark, error) {
 	var saved []api.SavedBookmark
 	clientID := conv.GetString("external_conversation_id")
 
@@ -81,8 +81,15 @@ func SaveBookmarks(ctx context.Context, app core.App, conv *core.Record) ([]api.
 				continue
 			}
 
+			title := strings.TrimSpace(titles[msg.ID])
 			if existing := row.GetString("fragment_id"); existing != "" {
 				if frag, err := tx.FindRecordById(schema.ColFragment.String(), existing); err == nil && frag.GetString("deleted_at") == "" {
+					if title != "" && frag.GetString("title") != title {
+						frag.Set("title", title)
+						if err := tx.Save(frag); err != nil {
+							return fmt.Errorf("rename bookmark %s: %w", msg.ID, err)
+						}
+					}
 					saved = append(saved, api.SavedBookmark{MessageID: msg.ID, FragmentID: existing})
 					continue
 				}
@@ -93,6 +100,9 @@ func SaveBookmarks(ctx context.Context, app core.App, conv *core.Record) ([]api.
 			frag.Set("ingested_via", "app")
 			frag.Set("source", FragmentSource(clientID, msg.ID))
 			frag.Set("content", content)
+			if title != "" {
+				frag.Set("title", title)
+			}
 			// The turn's own time, so the fragment sits where the
 			// conversation happened rather than when it was saved.
 			frag.Set("occurred_at", row.GetDateTime("created"))

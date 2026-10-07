@@ -39,7 +39,7 @@ func WindowClause(win *api.Window) (string, dbx.Params) {
 // FindLiveFragments returns all non-deleted fragments matching the optional window.
 func FindLiveFragments(app core.App, win *api.Window) ([]*core.Record, error) {
 	winClause, winParams := WindowClause(win)
-	filter := schema.NotDeleted() + winClause
+	filter := schema.NotArchived() + winClause
 	return app.FindRecordsByFilter(schema.ColFragment.String(), filter, "", 0, 0, winParams)
 }
 

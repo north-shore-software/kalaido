@@ -28,6 +28,13 @@ type SavedBookmark struct {
 	Created    bool   `json:"created"`
 }
 
+// SaveBookmarksRequest is the optional body of the save: a name for the
+// fragment each bookmarked message becomes, keyed by message id. A message
+// without one is saved untitled; a message already saved takes the name.
+type SaveBookmarksRequest struct {
+	Titles map[string]string `json:"titles,omitempty"`
+}
+
 type SaveBookmarksResponse struct {
 	Saved []SavedBookmark `json:"saved"`
 }

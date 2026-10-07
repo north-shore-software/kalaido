@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "neverthrow";
-import { activeClient, toError } from "./_active";
+import { activeClient, toError, withActiveClient } from "./_active";
 import { kalaidoscopeAuthHeaders } from "./client";
 import type { FragmentTypeOptions } from "./types";
 
@@ -10,7 +10,12 @@ import type { FragmentTypeOptions } from "./types";
 export async function addFragment(
   type: FragmentTypeOptions,
   content: string,
-  opts?: { source?: string; occurredAt?: string; ingestedVia?: string },
+  opts?: {
+    source?: string;
+    occurredAt?: string;
+    ingestedVia?: string;
+    title?: string;
+  },
 ): Promise<Result<string, Error>> {
   const client = activeClient();
   if (client.isErr()) return err(client.error);
@@ -29,6 +34,7 @@ export async function addFragment(
         ingestedVia: opts?.ingestedVia ?? "app",
         source: opts?.source,
         occurredAt: opts?.occurredAt,
+        title: opts?.title,
       }),
     });
     if (!res.ok) {
@@ -44,4 +50,30 @@ export async function addFragment(
   } catch (e) {
     return err(toError(e));
   }
+}
+
+/**
+ * Archive a fragment: it stays on disk and readable by id, but leaves the
+ * stream and the whole-scope context. `unarchiveFragment` reverses it.
+ */
+export async function archiveFragment(
+  id: string,
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/fragments/${encodeURIComponent(id)}/archive`, {
+      method: "POST",
+      requestKey: null,
+    });
+  });
+}
+
+export async function unarchiveFragment(
+  id: string,
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/fragments/${encodeURIComponent(id)}/unarchive`, {
+      method: "POST",
+      requestKey: null,
+    });
+  });
 }

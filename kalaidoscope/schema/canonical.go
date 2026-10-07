@@ -77,6 +77,10 @@ var Canonical = []TableDef{
 			// (boilerplate stripped, formatting normalised). Empty means
 			// content has never been cleaned and is itself the original.
 			&core.TextField{Name: "raw_content", Max: longTextMax},
+			// A name the user gave the fragment. Optional; view_stream shows
+			// it over the annotation's title when set, and annotate never
+			// touches it.
+			&core.TextField{Name: "title"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_fragment_occurred_at", Columns: "occurred_at"},
@@ -654,7 +658,7 @@ var Canonical = []TableDef{
 				f.occurred_at as occurred_at,
 				f.created as created,
 				f.archived_at as archived_at,
-				fa.title as title,
+				COALESCE(NULLIF(f.title, ''), fa.title) as title,
 				COALESCE(
 					(SELECT json_group_array(cf.colour_id)
 					 FROM colour_fragment cf

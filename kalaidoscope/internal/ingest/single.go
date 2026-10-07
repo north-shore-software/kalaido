@@ -20,6 +20,7 @@ func IngestSingle(app core.App, m api.IngestMessage) (string, error) {
 	}
 	w.origin = origin
 	w.ingestRef = strings.TrimSpace(m.IngestRef)
+	w.title = strings.TrimSpace(m.Title)
 	fragType := strings.TrimSpace(m.Type)
 	if fragType == "" {
 		fragType = "note"

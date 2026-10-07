@@ -99,6 +99,7 @@ export default function Main() {
     ["fragment", "colour_fragment", "fragment_annotation"],
     {
       sort: "-occurred_at,-created",
+      filter: "archived_at = ''",
       fields: "id,type,occurred_at,created,title,colour_ids",
     },
   );
