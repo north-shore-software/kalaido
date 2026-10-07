@@ -494,14 +494,14 @@ export const ViewStreamTypeOptions = {
 	"edit": "edit",
 } as const
 export type ViewStreamTypeOptions = typeof ViewStreamTypeOptions[keyof typeof ViewStreamTypeOptions]
-export type ViewStreamRecord<Tcolour_ids = unknown> = {
+export type ViewStreamRecord<Tcolour_ids = unknown, Ttitle = unknown> = {
 	archived_at?: IsoDateString
 	colour_ids?: null | Tcolour_ids
 	content: string
 	created: IsoAutoDateString
 	id: string
 	occurred_at?: IsoDateString
-	title?: string
+	title?: null | Ttitle
 	type: ViewStreamTypeOptions
 }
 
@@ -533,7 +533,7 @@ export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tedits = unknown
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>
-export type ViewStreamResponse<Tcolour_ids = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolour_ids>> & BaseSystemFields<Texpand>
+export type ViewStreamResponse<Tcolour_ids = unknown, Ttitle = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolour_ids, Ttitle>> & BaseSystemFields<Texpand>
 
 // Types containing all Records and Responses, useful for creating typing helper functions
 
