@@ -1,11 +1,22 @@
-import { CaretRightIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import {
+  ArchiveIcon,
+  ArrowCounterClockwiseIcon,
+  CaretRightIcon,
+  PlusIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { updateColour } from "@/api/kalaidoscope/colours";
+import {
+  archiveFragment,
+  unarchiveFragment,
+} from "@/api/kalaidoscope/fragments";
 import type {
   ColourFragmentMatchTypeOptions,
   FragmentTypeOptions,
 } from "@/api/kalaidoscope/types.ts";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
@@ -28,6 +39,7 @@ import { ColourSwatch } from "./colour";
 import { ItemPicker } from "./context-picker/item-picker";
 import { fragmentTypeIcon } from "./icons";
 import { MarkdownContent } from "./markdown-content";
+import { StatusPill } from "./status-pill";
 import { Mono } from "./text";
 
 export function FragmentDrawer({
@@ -37,15 +49,34 @@ export function FragmentDrawer({
   id?: string;
   onClose: () => void;
 }) {
-  const { records, isLoading } = useLiveCollectionWatching(
+  const { records, isLoading, mutate } = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment"],
     { filter: id ? `id="${id}"` : undefined, enabled: !!id },
   );
+  const [archiving, setArchiving] = useState(false);
 
   const fragment = records[0];
   const Icon = fragment ? fragmentTypeIcon(fragment.type) : null;
   const occurredStr = fragment?.occurred_at || fragment?.created;
+  const archived = !!fragment?.archived_at;
+
+  async function toggleArchive() {
+    if (!fragment) return;
+    setArchiving(true);
+    const res = archived
+      ? await unarchiveFragment(fragment.id)
+      : await archiveFragment(fragment.id);
+    setArchiving(false);
+    if (res.isErr()) {
+      toast.error(archived ? "Couldn't restore" : "Couldn't archive", {
+        description: res.error.message,
+      });
+      return;
+    }
+    toast.success(archived ? "Fragment restored" : "Fragment archived");
+    await mutate();
+  }
 
   return (
     <Sheet open={!!id} onOpenChange={(open) => !open && onClose()}>
@@ -74,13 +105,24 @@ export function FragmentDrawer({
         ) : (
           <>
             <SheetHeader className="gap-2 border-b border-line p-6 md:p-8">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 pr-8">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-none bg-surface-2">
                   {Icon && <Icon className="size-3.5 text-fg-3" />}
                 </span>
                 <SheetTitle>
                   {fragmentTypeLabel(fragment.type as FragmentTypeOptions)}
                 </SheetTitle>
+                {archived && <StatusPill kind="neutral">archived</StatusPill>}
+                <div className="flex-1" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={archiving}
+                  onClick={() => void toggleArchive()}
+                >
+                  {archived ? <ArrowCounterClockwiseIcon /> : <ArchiveIcon />}
+                  {archived ? "Restore" : "Archive"}
+                </Button>
               </div>
               <SheetDescription className="font-mono text-meta text-fg-4">
                 {occurredStr ? formatShortDateTime(occurredStr) : "Fragment"}

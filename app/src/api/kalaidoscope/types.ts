@@ -207,6 +207,7 @@ export const FragmentIngestedViaOptions = {
 } as const
 export type FragmentIngestedViaOptions = typeof FragmentIngestedViaOptions[keyof typeof FragmentIngestedViaOptions]
 export type FragmentRecord = {
+	archived_at?: IsoDateString
 	content: string
 	created: IsoAutoDateString
 	deleted_at?: IsoDateString
@@ -214,7 +215,9 @@ export type FragmentRecord = {
 	ingest_ref?: string
 	ingested_via?: FragmentIngestedViaOptions
 	occurred_at?: IsoDateString
+	raw_content?: string
 	source?: string
+	title?: string
 	type: FragmentTypeOptions
 }
 
@@ -492,6 +495,7 @@ export const ViewStreamTypeOptions = {
 } as const
 export type ViewStreamTypeOptions = typeof ViewStreamTypeOptions[keyof typeof ViewStreamTypeOptions]
 export type ViewStreamRecord<Tcolour_ids = unknown> = {
+	archived_at?: IsoDateString
 	colour_ids?: null | Tcolour_ids
 	content: string
 	created: IsoAutoDateString
