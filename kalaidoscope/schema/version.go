@@ -22,7 +22,8 @@ import (
 // Version 4 adds projection.deleted_at and reflection.deleted_at (deltas/v0004_add_entity_deleted_at.go).
 // Version 5 adds output_raw, output_draft, and edits (deltas/v0005_add_snapshot_outputs_and_edits.go).
 // Version 6 adds ingest.colour_id, fragment.ingest_ref and the "ingest" match_type (deltas/v0006_add_ingest_colour_and_fragment_ingest_ref.go).
-const Version = 6
+// Version 7 raises chat_message.content to 8 MB and adds fragment.archived_at and .raw_content, archived_at on view_stream (deltas/v0007_chat_message_size_and_fragment_archive_raw.go).
+const Version = 7
 
 // BuildRev identifies the build, for the failed-migration marker: the same
 // build never retries a migration it already failed, a different build does.

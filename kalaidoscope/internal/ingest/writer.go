@@ -44,7 +44,11 @@ func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
 		w.seen = map[[32]byte]struct{}{}
 		if records, err := app.FindAllRecords(schema.ColFragment.String()); err == nil {
 			for _, r := range records {
-				w.seen[sha256.Sum256([]byte(r.GetString("content")))] = struct{}{}
+				original := r.GetString("raw_content")
+				if original == "" {
+					original = r.GetString("content")
+				}
+				w.seen[sha256.Sum256([]byte(original))] = struct{}{}
 			}
 		} else {
 			logger().Warn("preload existing fragments for dedupe failed", "error", err)
