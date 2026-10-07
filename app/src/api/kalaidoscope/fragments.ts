@@ -77,3 +77,17 @@ export async function unarchiveFragment(
     });
   });
 }
+
+/** Name a fragment. An empty title clears the name; the stream then shows the annotation's. */
+export async function renameFragment(
+  id: string,
+  title: string,
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send(`/api/fragments/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      requestKey: null,
+      body: { title },
+    });
+  });
+}
