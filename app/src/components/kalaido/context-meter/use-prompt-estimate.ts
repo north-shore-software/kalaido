@@ -13,6 +13,8 @@ export interface PromptEstimate {
   /** The model's prompt budget; 0 or `undefined` when it reports none. */
   limit?: number;
   model?: string;
+  /** `total` rests on the provider's real count for the last turn, not chars/4. */
+  measured?: boolean;
   loading: boolean;
 }
 
@@ -80,6 +82,7 @@ export function usePromptEstimate(args: {
             total: res.totalTokens,
             limit: res.limit,
             model: res.model,
+            measured: res.measured,
             loading: false,
           });
         })

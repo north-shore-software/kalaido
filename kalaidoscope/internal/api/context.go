@@ -82,6 +82,9 @@ type TokenResolutionResponse struct {
 	Model string `json:"model"`
 	Limit int    `json:"limit"`
 	Fits  bool   `json:"fits"`
+	// Measured is true under the conversation form when TotalTokens rests on
+	// the provider's own count for the last turn rather than chars/4 alone.
+	Measured bool `json:"measured"`
 }
 
 // TokenResolutionRequest is the body of POST /api/llm/count-tokens: the spec's

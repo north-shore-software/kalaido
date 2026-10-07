@@ -91,6 +91,7 @@ func resolvePromptTokens(e *core.RequestEvent, app core.App, clientID string, sp
 			"Context":    est.Context,
 			"Transcript": est.Transcript,
 		},
+		Measured: est.Measured > 0,
 	}
 	if model, err := llm.ResolveRoleFor(llm.RoleChat, est.Model); err == nil {
 		res.Model = model
