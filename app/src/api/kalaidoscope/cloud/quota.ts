@@ -11,7 +11,7 @@ export const QUOTA_MESSAGE =
  */
 export function isQuotaError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return msg === "quota_exhausted" || msg.toLowerCase().includes("quota");
+  return msg === "quota_exhausted";
 }
 
 export interface QuotaStatus {
@@ -26,5 +26,19 @@ export async function fetchQuota(): Promise<Result<QuotaStatus, Error>> {
       method: "GET",
       requestKey: null,
     }),
+  );
+}
+
+export interface UsageStatus {
+  period: string;
+  promptTokens: number;
+  cachedTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+export async function fetchUsage(): Promise<Result<UsageStatus, Error>> {
+  return withActiveClient((client) =>
+    client.send<UsageStatus>("/api/usage", { method: "GET", requestKey: null }),
   );
 }

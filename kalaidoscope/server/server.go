@@ -193,6 +193,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
 		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))
 		se.Router.POST("/api/llm/count-tokens", handlers.HandleResolveTokens(app))
+		se.Router.GET("/api/usage", handlers.HandleGetUsage(app))
 
 		// Explore
 		se.Router.POST("/api/explore", handlers.HandleExplore(app))

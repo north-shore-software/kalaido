@@ -299,7 +299,7 @@ func (sp *streamProcessor) handleChunk(chunk geminiStreamChunk) bool {
 	// usageMetadata is cumulative and present on later chunks; keep the latest.
 	if u := chunk.UsageMetadata; u != nil {
 		sp.usage.PromptTokens = u.PromptTokenCount
-		sp.usage.CompletionTokens = u.CandidatesTokenCount
+		sp.usage.CompletionTokens = u.CandidatesTokenCount + u.ThoughtsTokenCount
 		sp.usage.TotalTokens = u.TotalTokenCount
 		sp.usage.CachedTokens = u.CachedContentTokenCount
 		if u.TrafficType != "" {

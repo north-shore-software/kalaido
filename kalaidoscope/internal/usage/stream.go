@@ -81,7 +81,11 @@ func stream(ctx context.Context, app core.App, role llm.Role, model string, msgs
 			}
 			wrapped <- c
 		}
-		Record(ctx, app, comp.Wait())
+		u := comp.Wait()
+		if u != nil {
+			logger().Info("llm usage", "role", role, "model", u.Model, "prompt", u.PromptTokens, "cached", u.CachedTokens, "completion", u.CompletionTokens, "total", u.TotalTokens)
+		}
+		Record(ctx, app, u)
 	}()
 	return &llm.Completion{Events: wrapped, Wait: comp.Wait}, runCtx, nil
 }

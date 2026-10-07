@@ -60,6 +60,7 @@ type geminiPromptFeedback struct {
 type geminiUsageMetadata struct {
 	PromptTokenCount        int    `json:"promptTokenCount"`
 	CandidatesTokenCount    int    `json:"candidatesTokenCount"`
+	ThoughtsTokenCount      int    `json:"thoughtsTokenCount"`
 	TotalTokenCount         int    `json:"totalTokenCount"`
 	CachedContentTokenCount int    `json:"cachedContentTokenCount"`
 	TrafficType             string `json:"trafficType"`
