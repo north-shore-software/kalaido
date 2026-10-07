@@ -125,9 +125,10 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 		}
 		if len(parts) > 0 {
 			aMsg := api.UIMessage{
-				ID:    textID,
-				Role:  "assistant",
-				Parts: parts,
+				ID:       textID,
+				Role:     "assistant",
+				Parts:    parts,
+				Metadata: chat.UsageMetadata(turn.Usage),
 			}
 			if _, err := chat.PersistMessage(ctx, app, conv, aMsg, assistantModel); err != nil {
 				logger().Error("explore persist assistant message failed", "error", err)

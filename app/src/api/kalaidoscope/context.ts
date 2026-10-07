@@ -4,6 +4,8 @@ import { kalaidoscopeAuthHeaders } from "./client";
 
 export interface TokenResolutionResponse {
   totalTokens: number;
+  /** Under the conversation form: the count rests on the provider's own number for the last turn. */
+  measured?: boolean;
   breakdown: Record<string, number>;
   /** The chat model the estimate was checked against. */
   model: string;

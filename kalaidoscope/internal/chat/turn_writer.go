@@ -55,6 +55,29 @@ type TurnWriter struct {
 	id    string
 	model string
 	rec   *core.Record
+	usage *llm.Usage
+}
+
+// SetUsage records the provider's usage for the turn's latest round; the next
+// Write persists it as message metadata.
+func (w *TurnWriter) SetUsage(u *llm.Usage) {
+	if u != nil {
+		w.usage = u
+	}
+}
+
+// UsageMetadata is the message metadata for a provider usage report, nil
+// when there is none.
+func UsageMetadata(u *llm.Usage) *api.UIMetadata {
+	if u == nil {
+		return nil
+	}
+	return &api.UIMetadata{Usage: &api.TurnUsage{
+		PromptTokens:     u.PromptTokens,
+		CachedTokens:     u.CachedTokens,
+		CompletionTokens: u.CompletionTokens,
+		TotalTokens:      u.TotalTokens,
+	}}
 }
 
 // NewTurnWriter constructs a TurnWriter for a conversation record and assistant message id.
@@ -64,7 +87,7 @@ func NewTurnWriter(ctx context.Context, app core.App, conv *core.Record, id, mod
 
 // Write creates or updates the assistant turn message record.
 func (w *TurnWriter) Write(parts []api.UIMessagePart) {
-	msg := api.UIMessage{ID: w.id, Role: "assistant", Parts: parts}
+	msg := api.UIMessage{ID: w.id, Role: "assistant", Parts: parts, Metadata: UsageMetadata(w.usage)}
 	if w.rec != nil {
 		if err := RewriteMessage(w.app, w.rec, msg); err != nil {
 			logger().Error("persist assistant message rewrite failed", "message_id", w.id, "error", err)

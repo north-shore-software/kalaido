@@ -480,6 +480,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
                 total={estimate.total}
                 limit={estimate.limit}
                 model={estimate.model}
+                measured={estimate.measured}
               />
             )
           }

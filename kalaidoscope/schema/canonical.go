@@ -68,11 +68,25 @@ var Canonical = []TableDef{
 			// would matter (re-deriving a colour membership, colour.MatchPair);
 			// a value that names no row simply resolves to nothing.
 			&core.TextField{Name: "ingest_ref"},
+			// Archived fragments are kept in full and still read everywhere
+			// deleted_at = '' is the only filter; surfaces that want to hide
+			// them filter archived_at = '' themselves. Set when archived,
+			// cleared to unarchive.
+			&core.DateField{Name: "archived_at"},
+			// The content as it arrived, kept once content has been cleaned
+			// (boilerplate stripped, formatting normalised). Empty means
+			// content has never been cleaned and is itself the original.
+			&core.TextField{Name: "raw_content", Max: longTextMax},
+			// A name the user gave the fragment. Optional; view_stream shows
+			// it over the annotation's title when set, and annotate never
+			// touches it.
+			&core.TextField{Name: "title"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_fragment_occurred_at", Columns: "occurred_at"},
 			{Name: "idx_fragment_deleted_at", Columns: "deleted_at"},
 			{Name: "idx_fragment_ingest_ref", Columns: "ingest_ref"},
+			{Name: "idx_fragment_archived_at", Columns: "archived_at"},
 		},
 	},
 
@@ -444,7 +458,7 @@ var Canonical = []TableDef{
 			&core.RelationField{Name: "chat_conversation_id", CollectionId: "chat_conversation", Required: false, MaxSelect: 1, CascadeDelete: true},
 			&core.RelationField{Name: "projection_refinement_id", CollectionId: "projection_refinement", Required: false, MaxSelect: 1, CascadeDelete: true},
 			&core.RelationField{Name: "reflection_refinement_id", CollectionId: "reflection_refinement", Required: false, MaxSelect: 1, CascadeDelete: true},
-			&core.JSONField{Name: "content"},
+			&core.JSONField{Name: "content", MaxSize: 8 << 20},
 			// The model that generated this row.
 			&core.TextField{Name: "generated_by_model"},
 			&core.AutodateField{Name: "created", OnCreate: true},
@@ -643,7 +657,8 @@ var Canonical = []TableDef{
 				f.content as content,
 				f.occurred_at as occurred_at,
 				f.created as created,
-				fa.title as title,
+				f.archived_at as archived_at,
+				CAST(COALESCE(NULLIF(f.title, ''), fa.title) AS TEXT) as title,
 				COALESCE(
 					(SELECT json_group_array(cf.colour_id)
 					 FROM colour_fragment cf

@@ -1,16 +1,29 @@
-import { CaretRightIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import {
+  ArchiveIcon,
+  ArrowCounterClockwiseIcon,
+  CaretRightIcon,
+  PlusIcon,
+  XIcon,
+} from "@phosphor-icons/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { updateColour } from "@/api/kalaidoscope/colours";
+import {
+  archiveFragment,
+  renameFragment,
+  unarchiveFragment,
+} from "@/api/kalaidoscope/fragments";
 import type {
   ColourFragmentMatchTypeOptions,
   FragmentTypeOptions,
 } from "@/api/kalaidoscope/types.ts";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
@@ -28,6 +41,7 @@ import { ColourSwatch } from "./colour";
 import { ItemPicker } from "./context-picker/item-picker";
 import { fragmentTypeIcon } from "./icons";
 import { MarkdownContent } from "./markdown-content";
+import { StatusPill } from "./status-pill";
 import { Mono } from "./text";
 
 export function FragmentDrawer({
@@ -37,15 +51,34 @@ export function FragmentDrawer({
   id?: string;
   onClose: () => void;
 }) {
-  const { records, isLoading } = useLiveCollectionWatching(
+  const { records, isLoading, mutate } = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment"],
     { filter: id ? `id="${id}"` : undefined, enabled: !!id },
   );
+  const [archiving, setArchiving] = useState(false);
 
   const fragment = records[0];
   const Icon = fragment ? fragmentTypeIcon(fragment.type) : null;
   const occurredStr = fragment?.occurred_at || fragment?.created;
+  const archived = !!fragment?.archived_at;
+
+  async function toggleArchive() {
+    if (!fragment) return;
+    setArchiving(true);
+    const res = archived
+      ? await unarchiveFragment(fragment.id)
+      : await archiveFragment(fragment.id);
+    setArchiving(false);
+    if (res.isErr()) {
+      toast.error(archived ? "Couldn't restore" : "Couldn't archive", {
+        description: res.error.message,
+      });
+      return;
+    }
+    toast.success(archived ? "Fragment restored" : "Fragment archived");
+    await mutate();
+  }
 
   return (
     <Sheet open={!!id} onOpenChange={(open) => !open && onClose()}>
@@ -74,16 +107,34 @@ export function FragmentDrawer({
         ) : (
           <>
             <SheetHeader className="gap-2 border-b border-line p-6 md:p-8">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 pr-8">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-none bg-surface-2">
                   {Icon && <Icon className="size-3.5 text-fg-3" />}
                 </span>
-                <SheetTitle>
-                  {fragmentTypeLabel(fragment.type as FragmentTypeOptions)}
-                </SheetTitle>
+                <EditableTitle
+                  key={fragment.id}
+                  fragmentId={fragment.id}
+                  title={fragment.title ?? ""}
+                  fallback={fragmentTypeLabel(
+                    fragment.type as FragmentTypeOptions,
+                  )}
+                  onSaved={() => void mutate()}
+                />
+                {archived && <StatusPill kind="neutral">archived</StatusPill>}
+                <div className="flex-1" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={archiving}
+                  onClick={() => void toggleArchive()}
+                >
+                  {archived ? <ArrowCounterClockwiseIcon /> : <ArchiveIcon />}
+                  {archived ? "Restore" : "Archive"}
+                </Button>
               </div>
               <SheetDescription className="font-mono text-meta text-fg-4">
-                {occurredStr ? formatShortDateTime(occurredStr) : "Fragment"}
+                {fragmentTypeLabel(fragment.type as FragmentTypeOptions)}
+                {occurredStr && ` · ${formatShortDateTime(occurredStr)}`}
               </SheetDescription>
               <FragmentColours fragmentId={fragment.id} />
               <FragmentSummary fragmentId={fragment.id} />
@@ -100,6 +151,92 @@ export function FragmentDrawer({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * The drawer's heading: the fragment's title, click to rename. Enter or blur
+ * saves, Escape cancels; an empty name clears the user's title so the stream
+ * falls back to the annotation's.
+ */
+function EditableTitle({
+  fragmentId,
+  title,
+  fallback,
+  onSaved,
+}: {
+  fragmentId: string;
+  title: string;
+  fallback: string;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancelled = useRef(false);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  function start() {
+    setDraft(title);
+    cancelled.current = false;
+    setEditing(true);
+  }
+
+  async function commit() {
+    setEditing(false);
+    if (cancelled.current) return;
+    const next = draft.trim();
+    if (next === title.trim()) return;
+    const res = await renameFragment(fragmentId, next);
+    if (res.isErr()) {
+      toast.error("Couldn't rename", { description: res.error.message });
+      return;
+    }
+    onSaved();
+  }
+
+  if (editing) {
+    return (
+      <Input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            cancelled.current = true;
+            e.currentTarget.blur();
+          }
+        }}
+        placeholder={fallback}
+        aria-label="Fragment title"
+        className="h-7 min-w-0 flex-1"
+      />
+    );
+  }
+
+  return (
+    <SheetTitle
+      role="button"
+      tabIndex={0}
+      title="Click to rename"
+      onClick={start}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          start();
+        }
+      }}
+      className="min-w-0 cursor-text truncate hover:text-fg-2"
+    >
+      {title || fallback}
+    </SheetTitle>
   );
 }
 

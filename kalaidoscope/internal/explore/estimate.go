@@ -23,9 +23,25 @@ type PromptEstimate struct {
 	// Model the conversation would be answered by: its own override when
 	// set, else the chat role's default.
 	Model string
+	// Measured is the provider's own count for the last answered turn (its
+	// prompt plus what it generated), when the transcript carries one; the
+	// estimate is then only applied to what changed after that turn.
+	Measured int
+	// Since is the chars/4 estimate of how the prompt changed after the
+	// measured turn: later messages and the pending context delta. Negative
+	// when context was dropped, since the transcript re-renders against the
+	// current context and an unpinned fragment's body no longer replays.
+	Since int
 }
 
-func (p PromptEstimate) Total() int { return p.System + p.Context + p.Transcript }
+// Total is the size of the next turn: the measured anchor plus the estimate
+// of what changed after it, or the whole estimate when nothing was measured.
+func (p PromptEstimate) Total() int {
+	if p.Measured > 0 {
+		return max(p.Measured+p.Since, 0)
+	}
+	return p.System + p.Context + p.Transcript
+}
 
 // EstimatePrompt sizes the next turn of the explore conversation identified by the
 // client id, as if `spec` (and `win`, when given) were the context in effect
@@ -81,8 +97,25 @@ func EstimatePrompt(ctx context.Context, app core.App, clientID string, spec *ap
 			est.Transcript += tokens
 		}
 	}
+	if at, u := lastMeasured(dbMsgs); u != nil {
+		est.Measured = u.PromptTokens + u.CompletionTokens
+		upTo := llm.EstimateTokens(llm.MessagesChars(PrepareLLMPrompt(ctx, app, conv, dbMsgs[:at+1])))
+		est.Since = llm.EstimateTokens(llm.MessagesChars(msgs)) - upTo
+	}
 	if conv != nil {
 		est.Model = conv.GetString("generate_with_model")
 	}
 	return est, nil
+}
+
+// lastMeasured finds the latest assistant message that carries the provider's
+// usage, with its index; -1 and nil when none does.
+func lastMeasured(msgs []api.UIMessage) (int, *api.TurnUsage) {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
+		if m.Role == "assistant" && m.Metadata != nil && m.Metadata.Usage != nil && m.Metadata.Usage.PromptTokens > 0 {
+			return i, m.Metadata.Usage
+		}
+	}
+	return -1, nil
 }

@@ -6,6 +6,7 @@ import { isArchived } from "@/lib/active-kalaidoscopes.ts";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
 import { WorkspaceAiPanel } from "./workspace-ai-panel";
 import { WorkspaceBackupsPanel } from "./workspace-backups-panel";
+import { WorkspaceQuotaPanel } from "./workspace-quota-panel";
 
 export function KalaidoscopesSection() {
   const { appStage, availableKalaidoscopes: kalaidoscopes } =
@@ -30,6 +31,7 @@ export function KalaidoscopesSection() {
       {active && (
         <KalaidoscopeRow kalaidoscope={active} isActive>
           <WorkspaceAiPanel kalaidoscope={active} />
+          <WorkspaceQuotaPanel kalaidoscope={active} />
           <WorkspaceBackupsPanel kalaidoscope={active} />
         </KalaidoscopeRow>
       )}

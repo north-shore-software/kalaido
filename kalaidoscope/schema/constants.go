@@ -46,3 +46,7 @@ const (
 // collection. Soft-deleted rows carry a timestamp in deleted_at; live rows
 // carry the empty string, never NULL, so this is the whole test.
 func NotDeleted() string { return "deleted_at = ''" }
+
+// NotArchived is the filter clause for fragments still in play: not deleted
+// and not archived. Archived fragments stay on disk and readable by id.
+func NotArchived() string { return "deleted_at = '' && archived_at = ''" }

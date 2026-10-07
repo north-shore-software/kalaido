@@ -528,14 +528,23 @@ export interface SavedBookmark {
 /**
  * Save every bookmarked turn of a chat as a fragment, in one transaction.
  * Idempotent: turns already saved come back with their existing fragment.
+ * `titles` names the fragment a message becomes, keyed by message id; a
+ * message already saved takes the name.
  */
 export async function saveBookmarks(
   clientId: string,
+  titles?: Record<string, string>,
 ): Promise<Result<{ saved: SavedBookmark[] }, Error>> {
   return withActiveClient((client) =>
     client.send<{ saved: SavedBookmark[] }>(
       `/api/explore/conversations/${encodeURIComponent(clientId)}/bookmarks/save`,
-      { method: "POST", requestKey: null },
+      {
+        method: "POST",
+        requestKey: null,
+        ...(titles && Object.keys(titles).length > 0
+          ? { body: { titles } }
+          : {}),
+      },
     ),
   );
 }

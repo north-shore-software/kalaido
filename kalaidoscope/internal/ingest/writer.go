@@ -27,6 +27,7 @@ type writer struct {
 	lastID        string                // id of the most recently created fragment
 	origin        string
 	ingestRef     string // fragment.ingest_ref for every record written
+	title         string // fragment.title for every record written; the sync route's one entry
 	colourID      string // when set, every record also gets a colour_fragment row
 	// batch is how many records one transaction commits; 1 saves each
 	// fragment as it arrives. pending holds the built records not yet saved.
@@ -44,7 +45,11 @@ func newWriter(app core.App, limit int, skipDuplicates bool) (*writer, error) {
 		w.seen = map[[32]byte]struct{}{}
 		if records, err := app.FindAllRecords(schema.ColFragment.String()); err == nil {
 			for _, r := range records {
-				w.seen[sha256.Sum256([]byte(r.GetString("content")))] = struct{}{}
+				original := r.GetString("raw_content")
+				if original == "" {
+					original = r.GetString("content")
+				}
+				w.seen[sha256.Sum256([]byte(original))] = struct{}{}
 			}
 		} else {
 			logger().Warn("preload existing fragments for dedupe failed", "error", err)
@@ -87,6 +92,9 @@ func (w *writer) addAt(fragType, source, content string, sourceTime time.Time) e
 	rec.Set("ingest_ref", w.ingestRef)
 	rec.Set("source", source)
 	rec.Set("content", content)
+	if w.title != "" {
+		rec.Set("title", w.title)
+	}
 	if !sourceTime.IsZero() {
 		if dt, err := types.ParseDateTime(sourceTime); err == nil {
 			rec.Set("occurred_at", dt)

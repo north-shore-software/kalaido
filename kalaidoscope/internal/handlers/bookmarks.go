@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -54,9 +57,15 @@ func HandleSaveBookmarks(app core.App) func(e *core.RequestEvent) error {
 		if err != nil {
 			return err
 		}
+		var req api.SaveBookmarksRequest
+		if body, _ := io.ReadAll(e.Request.Body); len(bytes.TrimSpace(body)) > 0 {
+			if err := json.Unmarshal(body, &req); err != nil {
+				return e.BadRequestError("invalid request body", err)
+			}
+		}
 		// Detached from the request: a save that is half-committed when the
 		// client goes away should finish, not roll back.
-		saved, err := explore.SaveBookmarks(context.WithoutCancel(e.Request.Context()), app, conv)
+		saved, err := explore.SaveBookmarks(context.WithoutCancel(e.Request.Context()), app, conv, req.Titles)
 		if err != nil {
 			return e.InternalServerError("failed to save bookmarks", err)
 		}

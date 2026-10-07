@@ -13,19 +13,29 @@ export interface PromptEstimate {
   /** The model's prompt budget; 0 or `undefined` when it reports none. */
   limit?: number;
   model?: string;
+  /** `total` rests on the provider's real count for the last turn, not chars/4. */
+  measured?: boolean;
   loading: boolean;
 }
 
 const DEBOUNCE_MS = 300;
 
-/** Text the assistant has streamed so far in the last message, if it is live. */
+/**
+ * Text the assistant has streamed so far in the last message, if it is live,
+ * plus the output of every read it has made: in summaries mode a fragment
+ * read lands in the next round's prompt just like the answer text does.
+ */
 function streamingChars(messages: UIMessage[]): number {
   const last = messages[messages.length - 1];
   if (last?.role !== "assistant") return 0;
-  return last.parts.reduce(
-    (n, p) => n + (p.type === "text" ? (p.text?.length ?? 0) : 0),
-    0,
-  );
+  return last.parts.reduce((n, p) => {
+    if (p.type === "text") return n + (p.text?.length ?? 0);
+    if (p.type.startsWith("tool-") && "output" in p) {
+      const out = (p as { output?: unknown }).output;
+      return n + (typeof out === "string" ? out.length : 0);
+    }
+    return n;
+  }, 0);
 }
 
 /** The last completed assistant turn: the estimate's cue that the transcript grew. */
@@ -72,6 +82,7 @@ export function usePromptEstimate(args: {
             total: res.totalTokens,
             limit: res.limit,
             model: res.model,
+            measured: res.measured,
             loading: false,
           });
         })

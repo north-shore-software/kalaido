@@ -43,11 +43,32 @@ func requireUsagePeriodIndex(app core.App) error {
 }
 
 func currentPeriodUsed(app core.App) int64 {
-	rec, err := app.FindFirstRecordByData(schema.ColUsage.String(), "period", quota.PeriodKey(time.Now()))
+	return int64(CurrentPeriod(app).TotalTokens)
+}
+
+// Period is one usage row: the tokens spent in a calendar month, split the
+// way providers bill them. CachedTokens is the part of PromptTokens served
+// from the provider's cache; CompletionTokens includes any thinking tokens.
+type Period struct {
+	Period           string `json:"period"`
+	PromptTokens     int    `json:"promptTokens"`
+	CachedTokens     int    `json:"cachedTokens"`
+	CompletionTokens int    `json:"completionTokens"`
+	TotalTokens      int    `json:"totalTokens"`
+}
+
+// CurrentPeriod reads this month's usage; a month with no calls yet is all zeros.
+func CurrentPeriod(app core.App) Period {
+	p := Period{Period: quota.PeriodKey(time.Now())}
+	rec, err := app.FindFirstRecordByData(schema.ColUsage.String(), "period", p.Period)
 	if err != nil {
-		return 0
+		return p
 	}
-	return int64(rec.GetInt("total_tokens"))
+	p.PromptTokens = rec.GetInt("prompt_tokens")
+	p.CachedTokens = rec.GetInt("cached_tokens")
+	p.CompletionTokens = rec.GetInt("completion_tokens")
+	p.TotalTokens = rec.GetInt("total_tokens")
+	return p
 }
 
 func Authorized(ctx context.Context, app core.App) error {

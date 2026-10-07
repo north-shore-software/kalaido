@@ -17,6 +17,7 @@ type IngestMessage struct {
 	Source     string `json:"source,omitempty"`
 	Content    string `json:"content,omitempty"`
 	OccurredAt string `json:"occurredAt,omitempty"` // RFC3339; optional
+	Title      string `json:"title,omitempty"`      // a user-given name; optional
 
 	// File-ingestion config. These belong to the async `ingest` collection;
 	// the sync route rejects Format, Limit and Extensions since it has no

@@ -13,6 +13,7 @@ import (
 type AssistantTurn struct {
 	Text      string         `json:"text"`
 	ToolCalls []llm.ToolCall `json:"toolCalls"`
+	Usage     *llm.Usage     `json:"-"`
 }
 
 // SSE is an open AI-SDK v1 UI-message stream. It exists so a handler can keep
@@ -162,14 +163,17 @@ func (s *SSE) StreamTurn(comp *llm.Completion, textID string, onToolCall func(ll
 	if textStarted {
 		s.Send(map[string]string{"type": "text-end", "id": textID})
 	}
-	if usage := comp.Wait(); usage != nil && usage.TokensPerSecond > 0 {
-		s.sendRate(usage.TokensPerSecond)
-	}
-
-	return AssistantTurn{
+	turn := AssistantTurn{
 		Text:      assistant.String(),
 		ToolCalls: toolCalls,
 	}
+	if usage := comp.Wait(); usage != nil {
+		turn.Usage = usage
+		if usage.TokensPerSecond > 0 {
+			s.sendRate(usage.TokensPerSecond)
+		}
+	}
+	return turn
 }
 
 func (s *SSE) Finish() {

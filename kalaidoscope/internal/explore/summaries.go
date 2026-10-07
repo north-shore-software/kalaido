@@ -74,6 +74,9 @@ func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, m
 				}
 			}
 			turn := sse.StreamTurn(currentComp, fmt.Sprintf("%s-r%d", textID, round), nil)
+			if tw != nil {
+				tw.SetUsage(turn.Usage)
+			}
 			if turn.Text != "" {
 				parts = append(parts, api.UIMessagePart{Type: "text", Text: turn.Text})
 			}

@@ -97,7 +97,11 @@ export default function Main() {
   const fragments = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment", "fragment_annotation"],
-    { sort: "-occurred_at,-created" },
+    {
+      sort: "-occurred_at,-created",
+      filter: "archived_at = ''",
+      fields: "id,type,occurred_at,created,title,colour_ids",
+    },
   );
   const swatches = useColourSwatches();
   // Projections and reflections discovery keep running after onboarding lets

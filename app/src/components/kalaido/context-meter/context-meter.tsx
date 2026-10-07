@@ -7,6 +7,8 @@ export interface ContextMeterProps {
   /** The model's prompt budget; unknown or 0 renders the count alone. */
   limit?: number;
   model?: string;
+  /** The count is the provider's own for the last turn; drops the "~". */
+  measured?: boolean;
   className?: string;
 }
 
@@ -24,6 +26,7 @@ export function ContextMeter({
   total,
   limit,
   model,
+  measured,
   className,
 }: ContextMeterProps) {
   if (total === undefined) return null;
@@ -42,12 +45,13 @@ export function ContextMeter({
     critical: "text-critical-ink",
   }[tone];
 
+  const approx = measured ? "" : "~";
   const caption = hasLimit
-    ? `~${humanTokens(total)} / ${humanTokens(limit)}`
-    : `~${humanTokens(total)}`;
+    ? `${approx}${humanTokens(total)} / ${humanTokens(limit)}`
+    : `${approx}${humanTokens(total)}`;
   const title = hasLimit
-    ? `About ${humanTokens(total)} tokens of the ~${humanTokens(limit)} ${model ?? "the model"} accepts`
-    : `About ${humanTokens(total)} tokens`;
+    ? `${approx ? "About " : ""}${humanTokens(total)} tokens of the ~${humanTokens(limit)} ${model ?? "the model"} accepts`
+    : `${approx ? "About " : ""}${humanTokens(total)} tokens`;
 
   return (
     <div className={cn("flex items-center gap-2", className)} title={title}>
