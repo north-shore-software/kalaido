@@ -11,14 +11,8 @@ export function useColourSwatches(): Map<string, number> {
   }, [colours.records]);
 }
 
-/**
- * Resolve a `view_stream.colour_ids` cell (JSON string or array of colour
- * ids) to swatches. A colour that no longer exists is dropped.
- */
-export function resolveSwatches(
-  raw: unknown,
-  swatches: Map<string, number>,
-): number[] {
+/** Parse a `view_stream.colour_ids` cell (JSON string or array) to colour ids. */
+export function parseColourIds(raw: unknown): string[] {
   let ids: unknown = raw;
   if (typeof raw === "string") {
     try {
@@ -27,9 +21,19 @@ export function resolveSwatches(
       ids = [];
     }
   }
-  if (!Array.isArray(ids)) return [];
-  return ids.flatMap((id) => {
-    const s = swatches.get(String(id));
+  return Array.isArray(ids) ? ids.map(String) : [];
+}
+
+/**
+ * Resolve a `view_stream.colour_ids` cell to swatches. A colour that no
+ * longer exists is dropped.
+ */
+export function resolveSwatches(
+  raw: unknown,
+  swatches: Map<string, number>,
+): number[] {
+  return parseColourIds(raw).flatMap((id) => {
+    const s = swatches.get(id);
     return s == null ? [] : [s];
   });
 }

@@ -185,6 +185,8 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.POST("/api/kalaidoscope/backups/{id}/restore", handlers.HandleRestoreBackup(app, deps.Backups))
 		se.Router.DELETE("/api/kalaidoscope/backups/{id}", handlers.HandleDeleteBackup(app, deps.Backups))
 		se.Router.POST("/api/ingest", handlers.HandleIngest(app))
+		se.Router.POST("/api/fragments/archive", handlers.HandleArchiveFragments(app, true))
+		se.Router.POST("/api/fragments/unarchive", handlers.HandleArchiveFragments(app, false))
 		se.Router.POST("/api/fragments/{id}/archive", handlers.HandleArchiveFragment(app, true))
 		se.Router.POST("/api/fragments/{id}/unarchive", handlers.HandleArchiveFragment(app, false))
 		se.Router.PATCH("/api/fragments/{id}", handlers.HandleRenameFragment(app))
