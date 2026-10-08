@@ -78,6 +78,31 @@ export async function unarchiveFragment(
   });
 }
 
+/** Bulk `archiveFragment`, in one transaction; already-archived ids are skipped. */
+export async function archiveFragments(
+  ids: string[],
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send("/api/fragments/archive", {
+      method: "POST",
+      requestKey: null,
+      body: { ids },
+    });
+  });
+}
+
+export async function unarchiveFragments(
+  ids: string[],
+): Promise<Result<void, Error>> {
+  return withActiveClient(async (client) => {
+    await client.send("/api/fragments/unarchive", {
+      method: "POST",
+      requestKey: null,
+      body: { ids },
+    });
+  });
+}
+
 /** Name a fragment. An empty title clears the name; the stream then shows the annotation's. */
 export async function renameFragment(
   id: string,

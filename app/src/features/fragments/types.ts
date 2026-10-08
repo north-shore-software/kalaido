@@ -5,5 +5,6 @@ export interface LoadedFragment {
   time: string;
   day: string;
   colours: number[];
+  colourIds: string[];
   preview: string;
 }
