@@ -500,6 +500,7 @@ export type ViewStreamRecord<Tcolour_ids = unknown> = {
 	content: string
 	created: IsoAutoDateString
 	id: string
+	ingest_ref?: string
 	occurred_at?: IsoDateString
 	title?: string
 	type: ViewStreamTypeOptions

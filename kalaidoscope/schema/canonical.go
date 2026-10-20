@@ -658,6 +658,7 @@ var Canonical = []TableDef{
 				f.occurred_at as occurred_at,
 				f.created as created,
 				f.archived_at as archived_at,
+				f.ingest_ref as ingest_ref,
 				CAST(COALESCE(NULLIF(f.title, ''), fa.title) AS TEXT) as title,
 				COALESCE(
 					(SELECT json_group_array(cf.colour_id)

@@ -8,6 +8,7 @@ export const mockFragments: LoadedFragment[] = [
     day: "Today",
     colours: [1, 2],
     colourIds: ["c-1", "c-2"],
+    ingestRef: "",
     preview:
       "Successfully set up the new Next.js dashboard project with unified style guidelines.",
   },
@@ -18,6 +19,7 @@ export const mockFragments: LoadedFragment[] = [
     day: "Today",
     colours: [],
     colourIds: [],
+    ingestRef: "",
     preview:
       "Need to follow up with the team regarding the Tailwind vs Vanilla CSS decision. Currently leaning towards Vanilla CSS for maximum flexibility.",
   },
@@ -28,6 +30,7 @@ export const mockFragments: LoadedFragment[] = [
     day: "Yesterday",
     colours: [3],
     colourIds: ["c-3"],
+    ingestRef: "",
     preview:
       "Aesthetically pleasing designs aren't just pretty; they build immediate user trust and engagement. — Design Principles Handbook",
   },
@@ -38,6 +41,7 @@ export const mockFragments: LoadedFragment[] = [
     day: "Yesterday",
     colours: [4, 5],
     colourIds: ["c-4", "c-5"],
+    ingestRef: "",
     preview:
       "Read about CSS Nesting support in modern browsers. It's now safe to use nest structures without preprocessors in almost all targets.",
   },
@@ -48,6 +52,7 @@ export const mockFragments: LoadedFragment[] = [
     day: "July 4, 2026",
     colours: [2],
     colourIds: ["c-2"],
+    ingestRef: "",
     preview:
       "Morning reflection: Feeling incredibly productive today. The refactored components make the workspace so much cleaner and easier to navigate.",
   },

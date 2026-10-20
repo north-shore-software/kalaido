@@ -16,6 +16,11 @@ export interface StreamColourOption {
   swatch: number;
 }
 
+export interface StreamImportOption {
+  id: string;
+  label: string;
+}
+
 const ALL = "all";
 
 export interface StreamToolbarProps {
@@ -24,6 +29,9 @@ export interface StreamToolbarProps {
   colours: StreamColourOption[];
   colourId: string | null;
   onColourChange: (colourId: string | null) => void;
+  imports: StreamImportOption[];
+  importId: string | null;
+  onImportChange: (importId: string | null) => void;
   shown: number;
   total: number;
   selecting: boolean;
@@ -41,6 +49,9 @@ export function StreamToolbar({
   colours,
   colourId,
   onColourChange,
+  imports,
+  importId,
+  onImportChange,
   shown,
   total,
   selecting,
@@ -62,6 +73,10 @@ export function StreamToolbar({
         </span>
       ),
     })),
+  ];
+  const importItems = [
+    { value: ALL, label: "All imports" },
+    ...imports.map((i) => ({ value: i.id, label: i.label })),
   ];
   const filtered = shown !== total;
 
@@ -102,6 +117,26 @@ export function StreamToolbar({
             ))}
           </SelectContent>
         </Select>
+        {imports.length > 0 && (
+          <Select
+            items={importItems}
+            value={importId ?? ALL}
+            onValueChange={(next) =>
+              onImportChange(!next || next === ALL ? null : next)
+            }
+          >
+            <SelectTrigger className="w-44" aria-label="Filter by import">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {importItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Button
           variant={selecting ? "secondary" : "ghost"}
           size="sm"
