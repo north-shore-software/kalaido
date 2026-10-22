@@ -42,7 +42,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg5OTc3MTZBMkE3OUI4MkQKUldRdHVIa3FhbkdYaVpEbUVKalNhYlUyK2FySUdYakdXRFJOL3NWSnVZUEx1NHgzakpreTYyYmEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM4NjRDQzYzRDcxOTg2REEKUldUYWhoblhZOHhreUMrdXd0RFNEakxZMjlOUXR3ekhneGZhTkVMVjlJV1c5OGhxNG43SzVHTUYK",
       "endpoints": [
         "https://github.com/north-shore-software/kalaido/releases/latest/download/latest.json"
       ]
