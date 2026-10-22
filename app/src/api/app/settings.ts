@@ -6,7 +6,11 @@ import type { AppState } from "@/hooks/use-app-state.ts";
 
 export type PersistentAppSetting = Pick<
   AppState,
-  "lightDarkMode" | "availableKalaidoscopes"
+  | "lightDarkMode"
+  | "availableKalaidoscopes"
+  | "onboardingAcknowledged"
+  | "errorReportingEnabled"
+  | "usageStatisticsEnabled"
 > & {
   lastOpenedKalaidoscopeId: string;
   ollamaModel: string;

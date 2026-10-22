@@ -1,15 +1,22 @@
 import { PostHogProvider } from "posthog-js/react";
 import { type ReactNode, useEffect, useRef } from "react";
+import { useSnapshot } from "valtio/react";
 import { Toaster } from "@/components/ui/sonner";
+import { appState } from "@/hooks/use-app-state";
 import { useCloudSession } from "@/hooks/use-cloud-session";
-import { identifyUser, posthogConfig, resetPostHog } from "@/lib/posthog";
+import {
+  identifyUser,
+  posthogConfig,
+  resetPostHog,
+  syncTelemetryPreferences,
+} from "@/lib/posthog";
 import { ThemeProvider } from "./theme-provider";
 
 /** Composes every top-level integration while keeping main.tsx thin. */
 export function AppProviders({ children }: { children: ReactNode }) {
   const content = (
     <ThemeProvider>
-      {posthogConfig && <PostHogIdentity />}
+      {posthogConfig && <PostHogTelemetrySync />}
       {children}
       <Toaster />
     </ThemeProvider>
@@ -25,6 +32,31 @@ export function AppProviders({ children }: { children: ReactNode }) {
       {content}
     </PostHogProvider>
   );
+}
+
+function PostHogTelemetrySync() {
+  const {
+    onboardingAcknowledged,
+    errorReportingEnabled,
+    usageStatisticsEnabled,
+  } = useSnapshot(appState);
+
+  useEffect(() => {
+    syncTelemetryPreferences({
+      acknowledged: onboardingAcknowledged,
+      errorReportingEnabled,
+      usageStatisticsEnabled,
+    });
+  }, [onboardingAcknowledged, errorReportingEnabled, usageStatisticsEnabled]);
+
+  if (
+    !onboardingAcknowledged ||
+    (!errorReportingEnabled && !usageStatisticsEnabled)
+  ) {
+    return null;
+  }
+
+  return <PostHogIdentity />;
 }
 
 function PostHogIdentity() {
