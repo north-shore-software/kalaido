@@ -218,6 +218,10 @@ export function stageEntryRoute(stage: AppStage): RouteId {
       return "boot-error";
     case "kalaidoscope_load_error":
       return appVariant() === "desktop" ? "boot-error" : "onboarding-login";
+    case "onboarding_interstitial":
+      return appVariant() === "desktop"
+        ? "onboarding-interstitial"
+        : "onboarding-login";
     case "no_kalaidoscopes_available":
       return appVariant() === "desktop"
         ? "onboarding-landing"

@@ -61,6 +61,7 @@ async function main() {
   setAppVariant("mobile");
   const testStages: AppStage[] = [
     { stage: "bootstrap" },
+    { stage: "onboarding_interstitial" },
     { stage: "kalaidoscope_loading" },
     { stage: "no_kalaidoscopes_available" },
     { stage: "bootstrap_error" },

@@ -50,3 +50,13 @@ export function clearStageEntry() {
     selectedKalaidoscopeId: current.selectedKalaidoscopeId,
   };
 }
+
+export function completeOnboardingInterstitial(prefs: {
+  errorReportingEnabled: boolean;
+  usageStatisticsEnabled: boolean;
+}) {
+  appState.onboardingAcknowledged = true;
+  appState.errorReportingEnabled = prefs.errorReportingEnabled;
+  appState.usageStatisticsEnabled = prefs.usageStatisticsEnabled;
+  appState.appStage = { stage: "no_kalaidoscopes_available" };
+}

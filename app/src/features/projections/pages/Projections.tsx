@@ -22,11 +22,9 @@ import {
   tierProjections,
 } from "@/features/projections/tiers";
 import { useContextSources } from "@/hooks/use-context-sources";
-import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatShortDateTime } from "@/lib/datetime";
-import { isPinned } from "@/lib/pins";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { projectionsTransitions } from "./Projections.transitions";
@@ -43,10 +41,9 @@ async function restore(id: string) {
     toast.error("Failed to restore", { description: res.error.message });
 }
 
-async function togglePin(p: ProjectionResponse, currentUserId?: string | null) {
-  if (!currentUserId) return;
+async function togglePin(p: ProjectionResponse) {
   const res = await updateProjection(p.id, {
-    pinned: !isPinned(p.pinned_by, currentUserId),
+    pinned: !p.pinned,
   });
   if (res.isErr())
     toast.error("Failed to update pin", { description: res.error.message });
@@ -54,7 +51,6 @@ async function togglePin(p: ProjectionResponse, currentUserId?: string | null) {
 
 export default function Projections() {
   const { go } = useAppNavigate();
-  const currentUserId = useCurrentUserId();
 
   const { records: projections, isLoading } = useLiveCollection("projection", {
     filter: 'name != "" && status = "active" && deleted_at = ""',
@@ -139,7 +135,7 @@ export default function Projections() {
             params: { id, snapshotId: candId },
           })
         }
-        onTogglePin={() => void togglePin(p, currentUserId)}
+        onTogglePin={() => void togglePin(p)}
       />
     );
   }

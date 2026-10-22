@@ -9,8 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import type { SourceItem } from "@/features/projections/sources";
 import type { ProjectionStatusInfo } from "@/features/projections/status";
-import { useCurrentUserId } from "@/hooks/use-current-user-id";
-import { isPinned } from "@/lib/pins";
 
 export interface StatusBadgeProps {
   info: ProjectionStatusInfo;
@@ -61,8 +59,7 @@ export function ProjCard({
   onReview,
   onTogglePin,
 }: ProjCardProps) {
-  const currentUserId = useCurrentUserId();
-  const pinned = isPinned(p.pinned_by, currentUserId);
+  const pinned = Boolean(p.pinned);
   const isEngagedOutdated =
     status.status === "pending" &&
     status.candidateEngaged &&
@@ -105,13 +102,7 @@ export function ProjCard({
         <span className="size-[13px] bg-section rounded-none shrink-0" />
       }
       title={p.name || "Untitled projection"}
-      trailing={
-        <PinToggle
-          pinned={pinned}
-          onToggle={() => onTogglePin(p)}
-          disabled={!currentUserId}
-        />
-      }
+      trailing={<PinToggle pinned={pinned} onToggle={() => onTogglePin(p)} />}
       contentClassName="h-[110px]"
       footer={
         <div className="flex flex-col gap-2">

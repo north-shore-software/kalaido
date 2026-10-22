@@ -27,7 +27,6 @@ import {
   useColourSwatches,
 } from "@/hooks/use-colour-swatches";
 import { useContextSources } from "@/hooks/use-context-sources";
-import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import {
   useLiveCollection,
   useLiveCollectionWatching,
@@ -36,7 +35,6 @@ import { useOrganizeStatus } from "@/hooks/use-organize-status";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
 import { formatDayGroup, formatTime } from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels";
-import { isPinned } from "@/lib/pins";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import {
@@ -67,7 +65,6 @@ function itemKey(it: { kind: EntityKind; id: string }): string {
 export default function Main() {
   const { go } = useAppNavigate();
   const contextSources = useContextSources();
-  const currentUserId = useCurrentUserId();
   // Start was clicked: the first stop is being located (and, if the wave has
   // not prepared it yet, generated) before the ritual opens on it.
   const [selectedFragmentId, setSelectedFragmentId] = useState<string | null>(
@@ -195,21 +192,21 @@ export default function Main() {
   const pinned = useMemo<PinItem[]>(() => {
     const items: PinItem[] = [];
     for (const p of projections.records)
-      if (p.status === "active" && isPinned(p.pinned_by, currentUserId))
+      if (p.status === "active" && p.pinned)
         items.push({
           id: p.id,
           kind: "projection",
           name: p.name || "Untitled projection",
         });
     for (const r of reflections.records)
-      if (r.status === "active" && isPinned(r.pinned_by, currentUserId))
+      if (r.status === "active" && r.pinned)
         items.push({
           id: r.id,
           kind: "reflection",
           name: r.name || "Untitled reflection",
         });
     return items;
-  }, [projections.records, reflections.records, currentUserId]);
+  }, [projections.records, reflections.records]);
 
   // A row leaves the screen the moment it is acted on. The live collections
   // catch up behind it — or, if the call failed, React drops the optimistic

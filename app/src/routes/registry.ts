@@ -10,6 +10,7 @@ import { importRoute } from "@/features/import/pages/Import";
 import { mapRoute } from "@/features/map/pages/Map";
 import { cloudWorkspacesRoute } from "@/features/onboarding/pages/CloudWorkspaces";
 import { onboardingImportRoute } from "@/features/onboarding/pages/OnboardingImport";
+import { onboardingInterstitialRoute } from "@/features/onboarding/pages/OnboardingInterstitial";
 import { onboardingLandingRoute } from "@/features/onboarding/pages/OnboardingLanding";
 import { onboardingLoginRoute } from "@/features/onboarding/pages/OnboardingLogin";
 import { onboardingOrganizingRoute } from "@/features/onboarding/pages/OnboardingOrganizing";
@@ -32,6 +33,7 @@ import { buildRoutePath, type RouteDef } from "./route-kit";
 export const appRoutes: RouteDef[] = [
   splashRoute,
   bootErrorRoute,
+  onboardingInterstitialRoute,
   onboardingLandingRoute,
   onboardingLoginRoute,
   cloudWorkspacesRoute,

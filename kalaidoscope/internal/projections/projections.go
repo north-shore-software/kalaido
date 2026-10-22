@@ -12,7 +12,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -118,8 +117,8 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, error) 
 	if params.GenerateWithModel != nil {
 		rec.Set("generate_with_model", strings.TrimSpace(*params.GenerateWithModel))
 	}
-	if params.Pinned != nil && params.AuthID != "" {
-		pbutil.TogglePinnedBy(rec, params.AuthID, *params.Pinned)
+	if params.Pinned != nil {
+		rec.Set("pinned", *params.Pinned)
 	}
 	if err := app.Save(rec); err != nil {
 		return nil, err

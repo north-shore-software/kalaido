@@ -15,7 +15,10 @@ export const posthogConfig =
         options: {
           api_host: host,
           defaults: "2026-01-30" as const,
-          capture_exceptions: true,
+          capture_exceptions: false,
+          autocapture: false,
+          capture_pageview: false,
+          capture_pageleave: false,
           disable_surveys: true,
           disable_session_recording: true,
           mask_all_text: true,
@@ -24,6 +27,33 @@ export const posthogConfig =
         },
       }
     : null;
+
+export function syncTelemetryPreferences(prefs: {
+  acknowledged: boolean;
+  errorReportingEnabled: boolean;
+  usageStatisticsEnabled: boolean;
+}): void {
+  if (!posthogConfig) return;
+  if (!prefs.acknowledged) {
+    posthog.stopExceptionAutocapture();
+    posthog.set_config({
+      autocapture: false,
+      capture_pageview: false,
+      capture_pageleave: false,
+    });
+    return;
+  }
+  if (prefs.errorReportingEnabled) {
+    posthog.startExceptionAutocapture();
+  } else {
+    posthog.stopExceptionAutocapture();
+  }
+  posthog.set_config({
+    autocapture: prefs.usageStatisticsEnabled,
+    capture_pageview: prefs.usageStatisticsEnabled,
+    capture_pageleave: prefs.usageStatisticsEnabled,
+  });
+}
 
 // For later use
 // export function captureEvent(

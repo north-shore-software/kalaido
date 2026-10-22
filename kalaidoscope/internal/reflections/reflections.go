@@ -148,8 +148,8 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, error) 
 		versions = AppendWindowSpecVersion(versions, spec, time.Now())
 		rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 	}
-	if params.Pinned != nil && params.AuthID != "" {
-		pbutil.TogglePinnedBy(rec, params.AuthID, *params.Pinned)
+	if params.Pinned != nil {
+		rec.Set("pinned", *params.Pinned)
 	}
 
 	if err := app.Save(rec); err != nil {

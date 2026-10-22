@@ -17,6 +17,7 @@ export type AppStage =
   | {
       stage:
         | "bootstrap"
+        | "onboarding_interstitial"
         | "kalaidoscope_loading"
         | "no_kalaidoscopes_available";
     }
@@ -49,6 +50,9 @@ export type AppState = {
   appStage: AppStage;
   lightDarkMode: "light" | "dark";
   availableKalaidoscopes: KalaidoscopeMeta[];
+  onboardingAcknowledged: boolean;
+  errorReportingEnabled: boolean;
+  usageStatisticsEnabled: boolean;
   addFragmentModalOpen: boolean;
   feedbackDialogOpen: boolean;
   latestInferenceRate?: { tokensPerSecond: number; at: number };
@@ -58,6 +62,9 @@ const DEFAULT_STATE: AppState = {
   appStage: { stage: "bootstrap" },
   lightDarkMode: "light",
   availableKalaidoscopes: [],
+  onboardingAcknowledged: false,
+  errorReportingEnabled: true,
+  usageStatisticsEnabled: false,
   addFragmentModalOpen: false,
   feedbackDialogOpen: false,
 };
@@ -79,8 +86,9 @@ export const loadStoredState = async (): Promise<Partial<AppState> | null> => {
   const lastOpenedArchived = storedState.value.availableKalaidoscopes?.some(
     (k) => k.id === lastOpenedId && isArchived(k),
   );
-  const appStage: AppStage =
-    lastOpenedId && !lastOpenedArchived
+  const appStage: AppStage = !storedState.value.onboardingAcknowledged
+    ? { stage: "onboarding_interstitial" }
+    : lastOpenedId && !lastOpenedArchived
       ? {
           stage: "kalaidoscope_load_requested",
           loadKalaidoscopeId: lastOpenedId,
