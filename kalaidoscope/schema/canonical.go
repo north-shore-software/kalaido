@@ -210,6 +210,7 @@ var Canonical = []TableDef{
 			// a restore brings everything back; every reader of live entities
 			// filters deleted_at = ''.
 			&core.DateField{Name: "deleted_at"},
+			&core.BoolField{Name: "pinned"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_projection_status", Columns: "status"},
@@ -251,6 +252,7 @@ var Canonical = []TableDef{
 			// a restore brings everything back; every reader of live entities
 			// filters deleted_at = ''.
 			&core.DateField{Name: "deleted_at"},
+			&core.BoolField{Name: "pinned"},
 		},
 		Indexes: []IndexDef{
 			{Name: "idx_reflection_status", Columns: "status"},
