@@ -303,7 +303,7 @@ export default function Explore() {
           </PanelErrorBoundary>
 
           {historyOpen && (
-            <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-surface-1">
+            <aside className="flex w-80 shrink-0 min-h-0 flex-col overflow-hidden border-l border-line bg-surface-1">
               <PaneHeader
                 label="History"
                 status={
@@ -319,7 +319,7 @@ export default function Explore() {
               />
               <ConversationList
                 conversations={conversations}
-                selectedClientId={selected?.clientId}
+                selectedClientId={activeClientId}
                 loading={loadingList}
                 onSelect={handleSelect}
               />

@@ -26,8 +26,8 @@ export function ConversationList({
   onSelect,
 }: ConversationListProps) {
   return (
-    <div className="flex h-full flex-col">
-      <ScrollArea className="flex-1 px-3 pb-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ScrollArea className="min-h-0 flex-1 px-3 py-3">
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }, (_, i) => i).map((i) => (

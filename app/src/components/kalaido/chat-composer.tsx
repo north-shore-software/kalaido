@@ -47,7 +47,7 @@ export function ChatComposer({
           placeholder={placeholder}
           disabled={!!quotaMessage}
           textareaRef={textareaRef}
-          className="flex-1 min-h-0 max-h-40 overflow-y-auto"
+          className="flex-1 min-h-0 max-h-80 overflow-y-auto"
         />
         <ComposerSendButton onClick={onSubmit} disabled={isSendDisabled} />
       </div>
