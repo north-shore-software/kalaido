@@ -1,3 +1,4 @@
+import { createMathPlugin } from "@streamdown/math";
 import { createElement, type JSX, type ReactNode, useMemo } from "react";
 import { Streamdown, type StreamdownProps } from "streamdown";
 import { openSystemBrowser } from "@/api/app/os-integrations.ts";
@@ -155,6 +156,10 @@ const chatComponents: StreamdownProps["components"] = {
   hr: styled("hr", "my-3 border-t border-line"),
 };
 
+const markdownPlugins: StreamdownProps["plugins"] = {
+  math: createMathPlugin({ singleDollarTextMath: true }),
+};
+
 /**
  * The one markdown renderer for LLM output. All built-in Streamdown chrome
  * (copy buttons, link modals, line numbers) is off — surfaces stay quiet and
@@ -181,6 +186,7 @@ export function MarkdownContent({
       controls={false}
       lineNumbers={false}
       linkSafety={{ enabled: false }}
+      plugins={markdownPlugins}
       components={merged}
       allowedTags={allowedTags}
       literalTagContent={literalTagContent}

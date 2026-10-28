@@ -4,6 +4,7 @@
 @import "@fontsource-variable/archivo/wght.css";
 @import "@fontsource-variable/jetbrains-mono/wght.css";
 @import "@fontsource-variable/source-serif-4/opsz.css";
+@import "katex/dist/katex.min.css";
 
 /* Tailwind must scan our sources for class names regardless of which tool
    hosts Vite. Ladle sets the Vite root to its own internal app, so without

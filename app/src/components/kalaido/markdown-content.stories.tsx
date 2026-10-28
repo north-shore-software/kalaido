@@ -6,7 +6,7 @@ export default { title: "Kalaido / MarkdownContent" };
 
 const kitchenSink = `# Kitchen Sink
 
-Regular paragraph with **bold**, *italic*, ~~struck~~ text and \`inline code\`.
+Regular paragraph with **bold**, *italic*, ~~struck~~ text, \`inline code\`, and inline math $\\to$ and $\\rightarrow$.
 
 ## Lists
 
