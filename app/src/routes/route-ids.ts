@@ -2,6 +2,7 @@
 export const ROUTE_IDS = [
   "splash",
   "boot-error",
+  "onboarding-interstitial",
   "onboarding-landing",
   "onboarding-login",
   "cloud-workspaces",

@@ -25,7 +25,11 @@ import {
   useColourSwatches,
 } from "@/hooks/use-colour-swatches";
 import { useLiveCollectionWatching } from "@/hooks/use-live-collection";
-import { formatDayGroup, formatTime } from "@/lib/datetime";
+import {
+  formatDayGroup,
+  formatShortDateTime,
+  formatTime,
+} from "@/lib/datetime";
 import { fragmentTypeLabel } from "@/lib/labels.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -34,6 +38,12 @@ import { streamTransitions } from "./Stream.transitions";
 
 const formatType = (type: string) => {
   return fragmentTypeLabel(type as FragmentTypeOptions);
+};
+
+const importLabel = (files: string[], created: string) => {
+  const name = files[0]?.replace(/_[a-z0-9]{10}(\.[^.]*)?$/, "$1") ?? "Import";
+  const more = files.length > 1 ? ` +${files.length - 1}` : "";
+  return `${name}${more} · ${formatShortDateTime(created)}`;
 };
 
 export default function Stream() {
@@ -46,7 +56,7 @@ export default function Stream() {
       sort: "-occurred_at,-created",
       filter: "archived_at = ''",
       fields:
-        "id,type,occurred_at,created,title,colour_ids,content:excerpt(300)",
+        "id,type,occurred_at,created,title,colour_ids,ingest_ref,content:excerpt(300)",
     },
   );
   const swatches = useColourSwatches();
@@ -54,8 +64,22 @@ export default function Stream() {
     sort: "-created",
     fields: "id,name,swatch",
   });
+  const ingests = useCollection("ingest", {
+    sort: "-created",
+    filter: "status = 'done' && ingested > 0",
+    fields: "id,file,created",
+  });
+  const imports = useMemo(
+    () =>
+      ingests.records.map((i) => ({
+        id: i.id,
+        label: importLabel(i.file ?? [], i.created),
+      })),
+    [ingests.records],
+  );
   const [query, setQuery] = useState("");
   const [colourId, setColourId] = useState<string | null>(null);
+  const [importId, setImportId] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [archiving, setArchiving] = useState(false);
@@ -72,6 +96,7 @@ export default function Stream() {
           day: formatDayGroup(occurredStr),
           colours: resolveSwatches(f.colour_ids, swatches),
           colourIds: parseColourIds(f.colour_ids),
+          ingestRef: f.ingest_ref ?? "",
           preview: f.content || "",
         };
       }),
@@ -80,16 +105,17 @@ export default function Stream() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q && !colourId) return fragments;
+    if (!q && !colourId && !importId) return fragments;
     return fragments.filter(
       (f) =>
         (!colourId || f.colourIds.includes(colourId)) &&
+        (!importId || f.ingestRef === importId) &&
         (!q ||
           f.title?.toLowerCase().includes(q) ||
           f.preview.toLowerCase().includes(q) ||
           f.type.toLowerCase().includes(q)),
     );
-  }, [fragments, query, colourId]);
+  }, [fragments, query, colourId, importId]);
 
   const selectedVisible = useMemo(
     () => visible.filter((f) => selected.has(f.id)).map((f) => f.id),
@@ -178,6 +204,9 @@ export default function Stream() {
             }))}
             colourId={colourId}
             onColourChange={setColourId}
+            imports={imports}
+            importId={importId}
+            onImportChange={setImportId}
             shown={visible.length}
             total={fragments.length}
             selecting={selecting}
@@ -213,6 +242,7 @@ export default function Stream() {
                 onClick={() => {
                   setQuery("");
                   setColourId(null);
+                  setImportId(null);
                 }}
               >
                 Clear filters

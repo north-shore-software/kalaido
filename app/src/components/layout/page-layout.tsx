@@ -14,15 +14,18 @@ export function PageLayout({ children }: { children: ReactNode }) {
   const { addFragmentModalOpen } = useSnapshot(appState);
   return (
     <div
-      className="flex flex-col"
+      className="flex flex-col overflow-hidden"
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
       {/* Collapsed unless the user has said otherwise — the shell stays out of
           the page's way, and SidebarProvider restores their last choice. */}
-      <SidebarProvider defaultOpen={false}>
+      <SidebarProvider
+        defaultOpen={false}
+        className="min-h-0 flex-1 overflow-hidden"
+      >
         <NavSidebar />
-        <SidebarInset className="min-w-0">
-          <div className="flex min-h-0 flex-1 flex-col">
+        <SidebarInset className="min-h-0 flex-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <PanelErrorBoundary label="this screen">
               {children}
             </PanelErrorBoundary>

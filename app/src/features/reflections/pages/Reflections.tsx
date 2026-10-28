@@ -13,19 +13,16 @@ import {
   currentWindowSpec,
   describeWindow,
 } from "@/features/reflections/schedule";
-import { useCurrentUserId } from "@/hooks/use-current-user-id";
 import { useLiveCollection } from "@/hooks/use-live-collection";
-import { isPinned } from "@/lib/pins";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { ReflectionSeriesPanel } from "../components/reflection-series-panel";
 import { reflectionsTransitions } from "./Reflections.transitions";
 
-async function togglePin(r: ReflectionResponse, currentUserId?: string | null) {
-  if (!currentUserId) return;
+async function togglePin(r: ReflectionResponse) {
   const res = await updateReflection(r.id, {
-    pinned: !isPinned(r.pinned_by, currentUserId),
+    pinned: !r.pinned,
   });
   if (res.isErr())
     toast.error("Failed to update pin", { description: res.error.message });
@@ -33,7 +30,6 @@ async function togglePin(r: ReflectionResponse, currentUserId?: string | null) {
 
 export default function Reflections() {
   const { go } = useAppNavigate();
-  const currentUserId = useCurrentUserId();
   const { id, windowId } = useAppParams<"reflections">();
 
   const { records: reflections, isLoading } = useLiveCollection("reflection", {
@@ -91,9 +87,8 @@ export default function Reflections() {
                     subtitle={`${freq} · last ${win}`}
                     trailing={
                       <PinToggle
-                        pinned={isPinned(r.pinned_by, currentUserId)}
-                        onToggle={() => void togglePin(r, currentUserId)}
-                        disabled={!currentUserId}
+                        pinned={Boolean(r.pinned)}
+                        onToggle={() => void togglePin(r)}
                       />
                     }
                   />

@@ -1,4 +1,10 @@
-import { type KeyboardEvent, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { ContextItem } from "@/api/kalaidoscope/chat";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -77,6 +83,19 @@ export function MentionTextarea({
   // narrows, and a stale index must never point past it.
   const highlighted = Math.min(activeIndex, Math.max(options.length - 1, 0));
 
+  const adjustHeight = useCallback((_content?: string) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const nextHeight = Math.min(Math.max(el.scrollHeight, 64), 320);
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > 320 ? "auto" : "hidden";
+  }, []);
+
+  useEffect(() => {
+    adjustHeight(value);
+  }, [value, adjustHeight]);
+
   function syncCaret() {
     setCaret(textareaRef.current?.selectionStart ?? 0);
   }
@@ -145,6 +164,7 @@ export function MentionTextarea({
         onChange={(e) => {
           onChange(e.target.value);
           setCaret(e.target.selectionStart ?? 0);
+          adjustHeight();
         }}
         onSelect={syncCaret}
         onKeyDown={handleKeyDown}
