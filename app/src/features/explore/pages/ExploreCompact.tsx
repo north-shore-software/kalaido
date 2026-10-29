@@ -1,11 +1,14 @@
 import {
-  ArrowLeftIcon,
+  CaretDownIcon,
+  CheckIcon,
   ClockCounterClockwiseIcon,
   NotePencilIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { generateId, type UIMessage } from "ai";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useSnapshot } from "valtio/react";
 import {
   type Conversation,
   getConversationMessages,
@@ -18,19 +21,32 @@ import {
 } from "@/components/kalaido";
 import { PaneHeader } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ChatMessageActions, ConversationList } from "@/features/explore";
 import { useBookmarkActions } from "@/features/explore/hooks/use-bookmark-actions";
 import { useBookmarks } from "@/features/explore/hooks/use-bookmarks";
 import { useConversations } from "@/features/explore/hooks/use-conversations.ts";
 import { useActiveContext } from "@/hooks/use-active-context";
+import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
+import { appState } from "@/hooks/use-app-state";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
+import { activeKalaidoscopes } from "@/lib/active-kalaidoscopes";
+import { syncCloudWorkspaces } from "@/lib/cloud-workspaces";
+import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope";
 import { withContextItem } from "@/lib/mentions";
-import { useAppNavigate } from "@/routes/use-app-navigate";
-import { exploreTransitions } from "./Explore.transitions";
 
 export default function ExploreCompact() {
   const client = useKalaidoscopeClient();
-  const { go } = useAppNavigate();
+  const activeScope = useActiveKalaidoscope();
+  const { availableKalaidoscopes } = useSnapshot(appState);
+  const cloudScopes = activeKalaidoscopes(availableKalaidoscopes).filter(
+    (k) => k.type === "cloud",
+  );
   const { conversations, loading: loadingList, refresh } = useConversations();
   const [selected, setSelected] = useState<{
     id: string;
@@ -41,6 +57,11 @@ export default function ExploreCompact() {
   const [liveMessages, setLiveMessages] = useState<UIMessage[]>([]);
   const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [switchingScope, setSwitchingScope] = useState(false);
+
+  useEffect(() => {
+    void syncCloudWorkspaces();
+  }, []);
 
   const activeClientId = selected?.clientId ?? newChatId;
   const activeChatKey = selected?.id ?? newChatId;
@@ -95,6 +116,18 @@ export default function ExploreCompact() {
     setHistoryOpen(false);
   }
 
+  async function handleSelectScope(id: string) {
+    if (id === activeScope?.id || switchingScope) return;
+    setSwitchingScope(true);
+    const result = await switchLocalKalaidoscope(id, { surfaceError: false });
+    if (result.isErr()) {
+      toast.error(result.error.message);
+    } else {
+      handleNew();
+    }
+    setSwitchingScope(false);
+  }
+
   const save = () => void actions.saveAll();
 
   return (
@@ -105,16 +138,32 @@ export default function ExploreCompact() {
       }}
     >
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => go(exploreTransitions.chooseWorkspace)}
-          aria-label="Workspaces"
-        >
-          <ArrowLeftIcon className="size-4" />
-        </Button>
-        <span className="text-item font-medium">Explore</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex min-w-0 items-center gap-1.5 text-item font-medium text-foreground outline-none">
+            <span className="truncate">
+              {activeScope?.displayName ?? "Explore"}
+            </span>
+            <CaretDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" sideOffset={8} className="w-64">
+            {cloudScopes.map((scope) => {
+              const isActive = scope.id === activeScope?.id;
+              return (
+                <DropdownMenuItem
+                  key={scope.id}
+                  onClick={() => void handleSelectScope(scope.id)}
+                  disabled={switchingScope}
+                  className="cursor-pointer justify-between gap-2 px-3 py-2.5 text-item normal-case tracking-normal"
+                >
+                  <span className="truncate font-medium">
+                    {scope.displayName}
+                  </span>
+                  {isActive && <CheckIcon className="size-4 shrink-0" />}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="ml-auto flex items-center gap-1">
           <Button
             type="button"
