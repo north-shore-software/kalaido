@@ -3,3 +3,5 @@ export const invoke = async (cmd: string, _args?: Record<string, unknown>) => {
     `tauri stub: invoke called outside Tauri for command "${cmd}"`,
   );
 };
+
+export const isTauri = () => false;
