@@ -31,6 +31,13 @@ export const testingAliases = [
     ),
   },
   {
+    find: "@tauri-apps/plugin-clipboard-manager",
+    replacement: path.resolve(
+      __dirname,
+      "src/testing/tauri-stubs/plugin-clipboard-manager.ts",
+    ),
+  },
+  {
     find: "@tauri-apps/plugin-dialog",
     replacement: path.resolve(
       __dirname,
