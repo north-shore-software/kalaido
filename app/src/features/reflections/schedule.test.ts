@@ -33,9 +33,9 @@ describe("cadenceFromSpec", () => {
     expect(cadenceFromSpec({ period: "168h", duration: "5040h" }).cadence).toBe(
       1,
     );
-    expect(cadenceFromSpec({ period: "2160h", duration: "2160h" }).cadence).toBe(
-      2,
-    );
+    expect(
+      cadenceFromSpec({ period: "2160h", duration: "2160h" }).cadence,
+    ).toBe(2);
   });
 });
 
