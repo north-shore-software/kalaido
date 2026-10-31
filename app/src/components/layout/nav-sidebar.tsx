@@ -70,11 +70,6 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
     icon: ClockCounterClockwiseIcon,
   },
   {
-    title: "Map",
-    transition: navSidebarTransitions.transitions.openMap,
-    icon: MapTrifoldIcon,
-  },
-  {
     title: "Colours",
     transition: navSidebarTransitions.transitions.openColours,
     icon: PaletteIcon,
@@ -84,15 +79,6 @@ const WORKSPACE_NAV: readonly SidebarNavItem[] = [
     transition: navSidebarTransitions.transitions.openFragments,
     icon: WavesIcon,
   },
-  ...(isFeatureEnabled("connections")
-    ? [
-        {
-          title: "Connections",
-          transition: navSidebarTransitions.transitions.openConnections,
-          icon: ArrowsLeftRightIcon,
-        },
-      ]
-    : []),
 ];
 
 function CaptureButton() {
@@ -128,6 +114,24 @@ function FeedbackButton() {
   );
 }
 
+function MapButton() {
+  const pathname = useCurrentPathname();
+  const { go } = useAppNavigate();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Map"
+        isActive={pathname.startsWith(pathFor("map"))}
+        className={NEUTRAL_DEST_CLASS}
+        onClick={() => go(navSidebarTransitions.transitions.openMap)}
+      >
+        <MapTrifoldIcon />
+        <span>Map</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 function StatusButton() {
   const pathname = useCurrentPathname();
   const { go } = useAppNavigate();
@@ -141,6 +145,24 @@ function StatusButton() {
       >
         <PulseIcon />
         <span>Status</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function ConnectionsButton() {
+  const pathname = useCurrentPathname();
+  const { go } = useAppNavigate();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Connections"
+        isActive={pathname.startsWith(pathFor("connections"))}
+        className={NEUTRAL_DEST_CLASS}
+        onClick={() => go(navSidebarTransitions.transitions.openConnections)}
+      >
+        <ArrowsLeftRightIcon />
+        <span>Connections</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
@@ -194,6 +216,8 @@ export function NavSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <FeedbackButton />
           <StatusButton />
+          <MapButton />
+          {isFeatureEnabled("connections") && <ConnectionsButton />}
           <SettingsButton />
           <SidebarToggleButton />
         </SidebarMenu>
