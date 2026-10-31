@@ -1,7 +1,7 @@
 import { ClockIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Chip, Label, Mono } from "@/components/kalaido";
-import { FREQ, WIN } from "@/features/reflections/schedule";
+import { CADENCES, FREQ, WIN } from "@/features/reflections/schedule";
 import { cn } from "@/lib/css-utils";
 
 export interface ScheduleChipsProps {
@@ -46,6 +46,33 @@ export function ScheduleChips({
         </div>
       </div>
     </>
+  );
+}
+
+export interface CadenceChipsProps {
+  cadence: number;
+  onChange: (cadence: number) => void;
+  label?: ReactNode;
+  gap?: string;
+}
+
+export function CadenceChips({
+  cadence,
+  onChange,
+  label = "Frequency",
+  gap = "gap-1.5",
+}: CadenceChipsProps) {
+  return (
+    <div className={cn("flex flex-col", gap)}>
+      <Label>{label}</Label>
+      <div className="flex flex-wrap gap-1.5">
+        {CADENCES.map((c, i) => (
+          <Chip key={c} active={i === cadence} onClick={() => onChange(i)}>
+            {c}
+          </Chip>
+        ))}
+      </div>
+    </div>
   );
 }
 

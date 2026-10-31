@@ -14,6 +14,15 @@ export const WIN_DAYS = [1 / 24, 1, 7, 30, 210];
 export const DEFAULT_FREQ = 2; // Weekly
 export const DEFAULT_WIN = 2; // 7 days
 
+// The narrowed offering the refine screen shows: one cadence whose lookback is
+// the cadence itself (tumbling windows), anchored on a "starting from" date.
+// The FREQ/WIN tables above stay for schedules the UI may expose again.
+// Monthly is the backend's fixed 30 days, not a calendar month.
+export const CADENCES = ["Daily", "Weekly", "Monthly"] as const;
+export const CADENCE_DAYS = [1, 7, 30];
+export const CADENCE_WIN = ["24h", "7 days", "30 days"] as const;
+export const DEFAULT_CADENCE = 1; // Weekly
+
 // Go's time.ParseDuration has no "d" unit, so windows are expressed in hours.
 const hoursStr = (days: number) => `${Math.round(days * 24)}h`;
 
@@ -99,6 +108,73 @@ export function windowSpecToChips(raw: unknown): { freq: number; win: number } {
     freq: nearestIndex(durationHours(spec.period) / 24, FREQ_DAYS),
     win: nearestIndex(durationHours(spec.duration) / 24, WIN_DAYS),
   };
+}
+
+/**
+ * Reverse-map a reflection's current window spec to the nearest cadence, plus
+ * its grid origin, so the refine screen can seed its controls. Specs outside
+ * the narrowed offering (hourly, a lookback unlike the cadence) land on the
+ * nearest cadence for display only.
+ */
+export function cadenceFromSpec(raw: unknown): {
+  cadence: number;
+  startTime?: string;
+} {
+  const spec = parseWindowSpec(raw);
+  if (!spec?.period) return { cadence: DEFAULT_CADENCE };
+  return {
+    cadence: nearestIndex(durationHours(spec.period) / 24, CADENCE_DAYS),
+    startTime: spec.startTime,
+  };
+}
+
+/** A local calendar date as a date input holds it (YYYY-MM-DD). */
+export function toDateInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Local midnight of a date input's value, as RFC3339; undefined when empty. */
+export function dateInputToStartTime(value: string): string | undefined {
+  return value ? new Date(`${value}T00:00:00`).toISOString() : undefined;
+}
+
+/**
+ * One line on when a cadence regenerates: "New summary every Monday, covering
+ * the previous 7 days — next on Mon, Nov 2." The next grid point is the first
+ * `start + k·period` after now (k ≥ 1), the server's maths.
+ */
+export function describeRecurrence(
+  cadence: number,
+  startTime: string | undefined,
+  now: Date = new Date(),
+): string {
+  const start = startTime ? new Date(startTime) : null;
+  const valid = start && Number.isFinite(start.getTime()) ? start : null;
+  const every = [
+    "every day",
+    valid
+      ? `every ${valid.toLocaleDateString(undefined, { weekday: "long" })}`
+      : "every week",
+    "every 30 days",
+  ][cadence];
+  let line = `New summary ${every}, covering the previous ${CADENCE_WIN[cadence]}`;
+  if (valid) {
+    const periodMs = CADENCE_DAYS[cadence] * 24 * 60 * 60 * 1000;
+    const k = Math.max(
+      1,
+      Math.floor((now.getTime() - valid.getTime()) / periodMs) + 1,
+    );
+    // Fixed-length steps drift an hour across DST; round to the nearest
+    // local day so a midnight boundary isn't shown as the evening before.
+    const next = new Date(valid.getTime() + k * periodMs + 12 * 60 * 60 * 1000);
+    line += ` — next on ${next.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    })}`;
+  }
+  return `${line}.`;
 }
 
 export function describeWindow(raw: unknown): {

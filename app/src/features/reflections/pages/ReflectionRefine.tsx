@@ -30,15 +30,14 @@ import { SchedulePill } from "@/features/reflections/components/schedule-control
 import { WindowSelect } from "@/features/reflections/components/window-select";
 import {
   buildWindowSpec,
-  countGridWindows,
+  CADENCE_DAYS,
+  CADENCE_WIN,
+  CADENCES,
+  cadenceFromSpec,
   currentWindowSpec,
-  DEFAULT_FREQ,
-  DEFAULT_WIN,
-  FREQ,
-  FREQ_DAYS,
-  WIN,
-  WIN_DAYS,
-  windowSpecToChips,
+  DEFAULT_CADENCE,
+  dateInputToStartTime,
+  toDateInputValue,
 } from "@/features/reflections/schedule";
 import { usePersistSchedule } from "@/features/reflections/use-persist-schedule";
 import { useDraftName } from "@/hooks/use-draft-name";
@@ -75,10 +74,10 @@ export default function ReflectionRefine() {
   });
   const existing = existingQuery.records[0];
 
-  const [freq, setFreq] = useState(DEFAULT_FREQ);
-  const [win, setWin] = useState(DEFAULT_WIN);
-  // "Summarize from": a calendar date (local), or empty for "from now on".
-  const [fromDate, setFromDate] = useState("");
+  const [cadence, setCadence] = useState(DEFAULT_CADENCE);
+  // "Starting from": a local calendar date, the grid origin — where the first
+  // period begins and the phase it recurs on. In the past = backfill to it.
+  const [fromDate, setFromDate] = useState(() => toDateInputValue(new Date()));
   const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
   const [windowOverride, setWindowOverride] = useState<TimeWindow>();
   const [chipsSeeded, setChipsSeeded] = useState(isNew);
@@ -105,11 +104,13 @@ export default function ReflectionRefine() {
   useEffect(() => {
     if (isNew || !existing || seededFor.current === existing.id) return;
     seededFor.current = existing.id;
-    const chips = windowSpecToChips(
+    const sched = cadenceFromSpec(
       currentWindowSpec(existing.window_spec_versions),
     );
-    setFreq(chips.freq);
-    setWin(chips.win);
+    setCadence(sched.cadence);
+    setFromDate(
+      sched.startTime ? toDateInputValue(new Date(sched.startTime)) : "",
+    );
     const spec = parseContextSpec(existing.current_context_spec);
     setContext(spec ? specToItems(spec) : [WHOLE_SCOPE_ITEM]);
     setChipsSeeded(true);
@@ -125,15 +126,12 @@ export default function ReflectionRefine() {
   const preview = session.preview;
   const canCommit = started && session.previewReady && !session.committing;
 
-  const startTime = fromDate
-    ? new Date(`${fromDate}T00:00:00`).toISOString()
-    : undefined;
+  // An existing reflection's origin stays server-side: PATCHes omit it.
   const windowSpec = buildWindowSpec({
-    cadenceDays: FREQ_DAYS[freq],
-    lookbackDays: WIN_DAYS[win],
-    startTime,
+    cadenceDays: CADENCE_DAYS[cadence],
+    lookbackDays: CADENCE_DAYS[cadence],
+    startTime: isNew ? dateInputToStartTime(fromDate) : undefined,
   });
-  const historicalCount = countGridWindows(startTime, FREQ_DAYS[freq]);
   usePersistSchedule({
     reflectionId,
     spec: windowSpec,
@@ -230,44 +228,21 @@ export default function ReflectionRefine() {
         <div className="flex min-h-0 flex-1">
           <div className="flex w-[322px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-line p-4">
             <RefineConfigPanel
-              freq={freq}
-              onFreqChange={setFreq}
-              win={win}
-              onWinChange={setWin}
-              freqLabel="Frequency · how often it regenerates"
-              winLabel="Lookback window · fragments per run"
-              gap="gap-2"
-              className="gap-5"
+              cadence={cadence}
+              onCadenceChange={setCadence}
+              fromDate={fromDate}
+              onFromDateChange={setFromDate}
+              fromDisabled={!isNew || started}
+              fromNote={
+                isNew
+                  ? undefined
+                  : "Fixed once created. Use Backfill on the reflection to summarize further back."
+              }
             />
 
-            {isNew && (
-              <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="reflection-from"
-                  className="text-meta font-medium uppercase text-fg-4"
-                >
-                  Summarize from
-                </label>
-                <Input
-                  id="reflection-from"
-                  type="date"
-                  value={fromDate}
-                  max={new Date().toISOString().slice(0, 10)}
-                  onValueChange={setFromDate}
-                  disabled={started}
-                  aria-label="Summarize from date"
-                />
-                <p className="text-meta text-fg-4">
-                  {historicalCount > 0
-                    ? `Will generate ${historicalCount} ${FREQ[freq].toLowerCase()} ${historicalCount === 1 ? "summary" : "summaries"} back to that date once you finish.`
-                    : "Leave empty to summarize from now on."}
-                </p>
-              </div>
-            )}
-
             <SchedulePill
-              freq={FREQ[freq]}
-              win={`${WIN[win]} · auto-approved`}
+              freq={CADENCES[cadence]}
+              win={`${CADENCE_WIN[cadence]} · auto-approved`}
             />
           </div>
 
