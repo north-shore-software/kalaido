@@ -5,7 +5,7 @@ export default { title: "Kalaido / Brand" };
 
 export const Default: Story = () => (
   <div className="flex items-center gap-2 p-4">
-    <Mark />
+    <Mark small />
     <span className="text-sm font-semibold">Kalaido Mark</span>
   </div>
 );

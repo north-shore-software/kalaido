@@ -327,7 +327,7 @@ polygon(0 0, 100% 0, 100% 68%, 88% 100%, 0 100%)
 Clips the bottom-right corner. Applied to exactly two things: the primary action button,
 and the chat send button. It is the strongest signal in the system — treat it as scarce.
 
-The logo mark uses a deeper variant, `polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%)`.
+The `clip-mark` utility holds a deeper variant, `polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%)`. It is currently unused.
 
 ### Shadows
 
@@ -408,7 +408,7 @@ stay outside the workspace shell.
 | utility bar | 32px, bottom of every workspace screen, `bg-1`, `line` top border, 12px horizontal padding; carries the sidecar status dot and transient inference rate |
 | icon rail | 76px wide, `bg-1`, `line` right border, 16px top / 12px bottom padding, 16px gap |
 | rail item | collapsed, a square filling the rail between its 8px gutters, icon centred, stacked 8px apart so the space around every item is equal on all four sides; expanded, a 28px row. `border-left: 2px` in the destination's section hue when active. The kalaidoscope switcher is the one non-square item: a 56px row |
-| brand mark | a raster PNG, white; 24–28px in the rail, 64px on the onboarding hero. The chamfered mark polygon (`clip-mark`) is the brand shape, reserved for a future vector mark |
+| brand mark | the overprint K as an SVG, fixed artwork that is never inverted or recoloured; 28px in the rail using the small variant (32px and below), 64px on the onboarding hero |
 | settings nav | 216px wide, `bg-1`, 12px padding, 2px gap between items; a ghost "Back" button leads |
 | settings nav item | 8px/10px padding, `border-left: 2px` (transparent when inactive); active items add the accent `wash` fill, accent ink and semibold — the Danger Zone entry uses the `critical` treatment |
 | context panel | width per its content, 280–340px typical (300px on the review screen), `line` left border; `bg-1` where it must read as furniture (review, dashboard) |

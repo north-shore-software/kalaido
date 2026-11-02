@@ -61,7 +61,7 @@ export function NavKalaidoscopeSwitcher() {
                 tooltip={current?.displayName ?? "Kalaidoscope"}
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
-                <Mark className="size-7" />
+                <Mark small className="size-7" />
                 <div className="grid flex-1 text-left leading-tight">
                   <span className="truncate text-item font-semibold">
                     {current?.displayName ?? "…"}

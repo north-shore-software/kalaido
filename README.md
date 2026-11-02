@@ -1,5 +1,8 @@
 <p align="center">
-    <img src="app/src/assets/brand/kalaido-wordmark.png" alt="Kalaido" width="520">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="app/src/assets/brand/kalaido-wordmark-signature-dark.svg">
+        <img src="app/src/assets/brand/kalaido-wordmark-signature-light.svg" alt="Kalaido" width="520">
+    </picture>
 </p>
 
 <p align="center"><strong>From chaos, create.</strong></p>
