@@ -11,13 +11,19 @@ export const Default: Story = () => (
       bookmarked={false}
       pending={false}
       onToggle={() => {}}
+      contentElement={() => null}
     />
   </div>
 );
 
 export const Bookmarked: Story = () => (
   <div className={wrap}>
-    <ChatMessageActions bookmarked pending={false} onToggle={() => {}} />
+    <ChatMessageActions
+      bookmarked
+      pending={false}
+      onToggle={() => {}}
+      contentElement={() => null}
+    />
   </div>
 );
 
@@ -28,6 +34,7 @@ export const SavedAsFragment: Story = () => (
       fragmentId="frag_1"
       pending={false}
       onToggle={() => {}}
+      contentElement={() => null}
     />
   </div>
 );
@@ -35,6 +42,11 @@ export const SavedAsFragment: Story = () => (
 /** While the reply is still streaming the turn cannot be bookmarked yet. */
 export const Pending: Story = () => (
   <div className={wrap}>
-    <ChatMessageActions bookmarked={false} pending onToggle={() => {}} />
+    <ChatMessageActions
+      bookmarked={false}
+      pending
+      onToggle={() => {}}
+      contentElement={() => null}
+    />
   </div>
 );

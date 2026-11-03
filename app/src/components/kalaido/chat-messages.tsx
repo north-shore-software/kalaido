@@ -6,7 +6,14 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import type { UIMessage } from "ai";
-import { Fragment, type ReactNode, useEffect, useMemo, useRef } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   CONTEXT_CANCEL_PART_TYPE,
   CONTEXT_CONFIRM_PART_TYPE,
@@ -50,6 +57,7 @@ export interface MessageBubbleProps {
    * whose state (bookmarked, saved) the reader should see at a glance.
    */
   actionsVisible?: boolean;
+  contentRef?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -99,6 +107,7 @@ export function MessageBubble({
   content,
   actions,
   actionsVisible,
+  contentRef,
 }: MessageBubbleProps) {
   return (
     <div
@@ -108,6 +117,7 @@ export function MessageBubble({
       )}
     >
       <div
+        ref={contentRef}
         className={cn(
           "max-w-[70%] rounded-none px-4 py-2.5 text-body-sm leading-relaxed break-words",
           role === "user"
@@ -788,6 +798,7 @@ export interface MessageActionsArgs {
    * anything that addresses it server-side has to wait.
    */
   pending: boolean;
+  contentElement: () => HTMLElement | null;
 }
 
 interface RegenerateConfirmationCardProps {
@@ -878,6 +889,7 @@ export function ChatMessages({
   messageActions,
   actionsVisibleFor,
 }: ChatMessagesProps) {
+  const contentElements = useRef(new Map<string, HTMLElement>());
   // System messages carry no chat text. Those with a `context_spec` or
   // `window` part mark where the context / target window changed and render
   // as dividers at that position; the rest (`pinned_ids`) stay unrendered.
@@ -1056,6 +1068,7 @@ export function ChatMessages({
               content,
               role,
               pending: inFlightFrom >= 0 && index >= inFlightFrom,
+              contentElement: () => contentElements.current.get(msg.id) ?? null,
             }
           : null;
         return (
@@ -1065,6 +1078,13 @@ export function ChatMessages({
               content={content}
               actions={actionArgs ? messageActions?.(actionArgs) : undefined}
               actionsVisible={actionsVisibleFor?.(msg)}
+              contentRef={(el) => {
+                if (!el) return;
+                contentElements.current.set(msg.id, el);
+                return () => {
+                  contentElements.current.delete(msg.id);
+                };
+              }}
             />
             {cards}
             {noticeRows}

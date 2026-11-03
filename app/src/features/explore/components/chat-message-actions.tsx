@@ -12,6 +12,7 @@ interface ChatMessageActionsProps {
   /** The turn has no row on the server yet, so it cannot be marked. */
   pending: boolean;
   onToggle: (bookmarked: boolean) => void;
+  contentElement: () => HTMLElement | null;
 }
 
 /**
@@ -25,12 +26,12 @@ export function ChatMessageActions({
   fragmentId,
   pending,
   onToggle,
+  contentElement,
 }: ChatMessageActionsProps) {
   const [copied, setCopied] = useState(false);
 
-  async function handleCopy(button: HTMLButtonElement) {
-    const bubble = button.parentElement
-      ?.previousElementSibling as HTMLElement | null;
+  async function handleCopy() {
+    const bubble = contentElement();
     if (!bubble) return;
     const html = bubble.innerHTML;
     const text = bubble.innerText || bubble.textContent || "";
@@ -59,7 +60,7 @@ export function ChatMessageActions({
         variant="ghost"
         size="xs"
         className="text-fg-3"
-        onClick={(e) => void handleCopy(e.currentTarget)}
+        onClick={() => void handleCopy()}
       >
         {copied ? <CheckIcon /> : <CopyIcon />}
         {copied ? "Copied" : "Copy"}

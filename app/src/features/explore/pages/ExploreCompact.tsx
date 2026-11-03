@@ -228,7 +228,7 @@ export default function ExploreCompact() {
             }
             entity="chat"
             meter={{ conversationId: activeClientId }}
-            messageActions={({ message, pending }) => {
+            messageActions={({ message, pending, contentElement }) => {
               const mark = bookmarks.marks.get(message.id);
               return (
                 <ChatMessageActions
@@ -236,6 +236,7 @@ export default function ExploreCompact() {
                   fragmentId={mark?.fragmentId}
                   pending={pending}
                   onToggle={(on) => void bookmarks.toggle(message.id, on)}
+                  contentElement={contentElement}
                 />
               );
             }}

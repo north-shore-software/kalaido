@@ -280,7 +280,7 @@ export default function Explore() {
               onMention={(item) =>
                 setContext((prev) => withContextItem(prev, item))
               }
-              messageActions={({ message, pending }) => {
+              messageActions={({ message, pending, contentElement }) => {
                 const mark = bookmarks.marks.get(message.id);
                 return (
                   <ChatMessageActions
@@ -288,6 +288,7 @@ export default function Explore() {
                     fragmentId={mark?.fragmentId}
                     pending={pending}
                     onToggle={(on) => void bookmarks.toggle(message.id, on)}
+                    contentElement={contentElement}
                   />
                 );
               }}
