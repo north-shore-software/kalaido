@@ -17,10 +17,6 @@ import { Button } from "@/components/ui/button";
 import { ProjCard } from "@/features/projections/components/projection-card";
 import { resolveSources } from "@/features/projections/sources";
 import { getProjectionStatus } from "@/features/projections/status";
-import {
-  type ProjectionTier,
-  tierProjections,
-} from "@/features/projections/tiers";
 import { useContextSources } from "@/hooks/use-context-sources";
 import { useLiveCollection } from "@/hooks/use-live-collection";
 import { useRotationStatus } from "@/hooks/use-rotation-status";
@@ -28,12 +24,6 @@ import { formatShortDateTime } from "@/lib/datetime";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { projectionsTransitions } from "./Projections.transitions";
-
-const TIER_ORDER: { tier: ProjectionTier; label: string }[] = [
-  { tier: "direct", label: "Direct" },
-  { tier: "derived", label: "Derived" },
-  { tier: "composite", label: "Composite" },
-];
 
 async function restore(id: string) {
   const res = await restoreProjection(id);
@@ -105,7 +95,34 @@ export default function Projections() {
     refetchRotation();
   }, [planInputsKey, refetchRotation]);
   const contextSources = useContextSources();
-  const tiers = useMemo(() => tierProjections(projections), [projections]);
+
+  // When each projection's live output was generated: the newest approved
+  // snapshot per projection. Records are newest-first, so the first seen wins.
+  const approved = useLiveCollection("projection_snapshot", {
+    filter: 'status="approved" && projection_id.deleted_at = ""',
+    sort: "-generated_at,-created",
+    fields: "id,projection_id,generated_at,created",
+  });
+  const generatedAtByProjection = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of approved.records) {
+      if (!map.has(s.projection_id))
+        map.set(s.projection_id, s.generated_at || s.created);
+    }
+    return map;
+  }, [approved.records]);
+  // Most recently generated first; never-generated ones sort by creation date.
+  const ordered = useMemo(
+    () =>
+      projections
+        .map((p) => ({
+          p,
+          at: generatedAtByProjection.get(p.id) ?? p.created,
+        }))
+        .sort((a, b) => b.at.localeCompare(a.at))
+        .map(({ p }) => p),
+    [projections, generatedAtByProjection],
+  );
 
   function renderCard(p: ProjectionResponse) {
     const candidate = candidateByProjection.get(p.id);
@@ -115,6 +132,7 @@ export default function Projections() {
       <ProjCard
         key={p.id}
         p={p}
+        generatedAt={generatedAtByProjection.get(p.id)}
         candidateId={candidate?.id}
         newSinceCandidate={newSinceCandidate}
         status={getProjectionStatus(statusById.get(p.id), !!candidate, {
@@ -162,20 +180,8 @@ export default function Projections() {
               : "No projections yet. Create one to get started."}
           </EmptyState>
         ) : (
-          <div className="flex items-start gap-8 overflow-x-auto">
-            {TIER_ORDER.map(({ tier, label }) =>
-              tiers[tier].length === 0 ? null : (
-                <section key={tier} className="flex shrink-0 flex-col gap-3">
-                  <Mono className="flex items-center gap-2 text-label font-semibold uppercase text-fg-4">
-                    <span className="size-[5px] rounded-full bg-fg-3" />
-                    {label} · {tiers[tier].length}
-                  </Mono>
-                  <div className="flex flex-col gap-3">
-                    {tiers[tier].map(renderCard)}
-                  </div>
-                </section>
-              ),
-            )}
+          <div className="flex flex-wrap items-start gap-3">
+            {ordered.map(renderCard)}
           </div>
         )}
         {deleted.records.length > 0 && (

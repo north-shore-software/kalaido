@@ -9,34 +9,33 @@ import {
 import { Button } from "@/components/ui/button";
 import type { SourceItem } from "@/features/projections/sources";
 import type { ProjectionStatusInfo } from "@/features/projections/status";
+import { formatShortDateTime } from "@/lib/datetime";
 
 export interface StatusBadgeProps {
   info: ProjectionStatusInfo;
+  /** When the live output was generated; absent if it never has been. */
+  generatedAt?: string;
 }
 
-export function StatusBadge({ info }: StatusBadgeProps) {
-  switch (info.status) {
-    case "generating":
-      return <Mono className="text-mono-sm text-fg-3">generating…</Mono>;
-    case "preparing":
-      return <Mono className="text-mono-sm text-fg-3">preparing lens…</Mono>;
-    case "stale":
-      return (
-        <Mono className="text-mono-sm text-drifting-ink">
-          {info.entropy > 0 ? `${info.entropy} new · stale` : "stale"}
-        </Mono>
-      );
-    case "blocked":
-      return <Mono className="text-mono-sm text-fg-3">blocked upstream</Mono>;
-    default:
-      return (
-        <Mono className="text-mono-sm text-section-ink">✓ up to date</Mono>
-      );
-  }
+/** How old the live output is — information, never a prompt to act. */
+export function StatusBadge({ info, generatedAt }: StatusBadgeProps) {
+  if (info.status === "generating")
+    return <Mono className="text-mono-sm text-fg-3">generating…</Mono>;
+  if (info.status === "preparing")
+    return <Mono className="text-mono-sm text-fg-3">preparing lens…</Mono>;
+  const parts = [
+    generatedAt
+      ? `generated ${formatShortDateTime(generatedAt)}`
+      : "not generated yet",
+  ];
+  if (info.entropy > 0) parts.push(`${info.entropy} new since`);
+  return <Mono className="text-mono-sm text-fg-3">{parts.join(" · ")}</Mono>;
 }
 
 export interface ProjCardProps {
   p: ProjectionResponse;
+  /** When the live output was generated; absent if it never has been. */
+  generatedAt?: string;
   candidateId?: string;
   /** In-scope fragments the pending candidate's resolved context misses. */
   newSinceCandidate?: number;
@@ -50,6 +49,7 @@ export interface ProjCardProps {
 
 export function ProjCard({
   p,
+  generatedAt,
   candidateId,
   newSinceCandidate = 0,
   status,
@@ -86,13 +86,13 @@ export function ProjCard({
           {newSinceCandidate > 0 ? ` · ${newSinceCandidate} new` : ""}
         </Mono>
       ) : newSinceCandidate > 0 ? (
-        <Mono className="text-mono-sm text-drifting-ink">
-          {newSinceCandidate} new since candidate · stale
+        <Mono className="text-mono-sm text-fg-3">
+          {newSinceCandidate} new since candidate
         </Mono>
       ) : null}
     </>
   ) : (
-    <StatusBadge info={status} />
+    <StatusBadge info={status} generatedAt={generatedAt} />
   );
   return (
     <DocumentCard
