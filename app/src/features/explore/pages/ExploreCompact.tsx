@@ -7,7 +7,6 @@ import {
 } from "@phosphor-icons/react";
 import { generateId, type UIMessage } from "ai";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { useSnapshot } from "valtio/react";
 import {
   type Conversation,
@@ -25,17 +24,20 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChatMessageActions, ConversationList } from "@/features/explore";
 import { useBookmarkActions } from "@/features/explore/hooks/use-bookmark-actions";
 import { useBookmarks } from "@/features/explore/hooks/use-bookmarks";
 import { useConversations } from "@/features/explore/hooks/use-conversations.ts";
+import { setAppStage } from "@/hooks/app-state-actions";
 import { useActiveContext } from "@/hooks/use-active-context";
 import { useActiveKalaidoscope } from "@/hooks/use-active-kalaidoscope";
 import { appState } from "@/hooks/use-app-state";
 import { useKalaidoscopeClient } from "@/hooks/use-kalaidoscope-client";
 import { activeKalaidoscopes } from "@/lib/active-kalaidoscopes";
+import { signOutOfCloud } from "@/lib/cloud-sign-out";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope";
 import { withContextItem } from "@/lib/mentions";
@@ -121,9 +123,12 @@ export default function ExploreCompact() {
     setSwitchingScope(true);
     const result = await switchLocalKalaidoscope(id, { surfaceError: false });
     if (result.isErr()) {
-      toast.error(result.error.message);
-    } else {
-      handleNew();
+      setAppStage({
+        stage: "kalaidoscope_load_error",
+        error: { message: result.error.message },
+        retryKalaidoscopeId: id,
+      });
+      return;
     }
     setSwitchingScope(false);
   }
@@ -162,6 +167,14 @@ export default function ExploreCompact() {
                 </DropdownMenuItem>
               );
             })}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => void signOutOfCloud()}
+              disabled={switchingScope}
+              className="cursor-pointer px-3 py-2.5 text-item normal-case tracking-normal"
+            >
+              Sign out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="ml-auto flex items-center gap-1">
