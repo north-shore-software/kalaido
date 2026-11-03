@@ -1,0 +1,160 @@
+name: release desktop
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: bump to release version and tag
+        id: release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ./kalaido.sh bump release
+          version="$(awk -F'"' '/^  "version": / { print $4; exit }' app/src-tauri/tauri.conf.json)"
+          tag="v$version"
+          git add app/src-tauri/tauri.conf.json app/package.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock
+          git commit -m "release $tag"
+          git tag "$tag"
+          git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: bump to next dev version
+        run: |
+          ./kalaido.sh bump dev
+          version="$(awk -F'"' '/^  "version": / { print $4; exit }' app/src-tauri/tauri.conf.json)"
+          git add app/src-tauri/tauri.conf.json app/package.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock
+          git commit -m "bump to $version"
+          git push origin HEAD:main
+
+  aarch64:
+    runs-on: macos-latest
+    needs: bump
+    outputs:
+      releaseId: ${{ steps.build.outputs.releaseId }}
+    env:
+      VITE_BETTER_AUTH_URL: https://auth.kalaido.co
+      VITE_CLOUD_PB_URL: https://s.kalaido.co
+      # TODO: set these.
+      # VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+      # VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.bump.outputs.tag }}
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kalaidoscope/go.mod
+          cache-dependency-path: kalaidoscope/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - run: ./kalaido.sh setup:ts
+      - run: ./kalaido.sh setup:go
+      - run: ./kalaido.sh build:sidecar
+
+      - name: write app store connect key
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - uses: tauri-apps/tauri-action@v1
+        id: build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+        with:
+          projectPath: app
+          args: --target aarch64-apple-darwin --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          tagName: ${{ needs.bump.outputs.tag }}
+          releaseName: Kalaido ${{ needs.bump.outputs.tag }}
+          releaseDraft: true
+          uploadUpdaterJson: true
+
+  x86_64:
+    runs-on: macos-latest
+    needs: [bump, aarch64]
+    env:
+      VITE_BETTER_AUTH_URL: https://auth.kalaido.co
+      VITE_CLOUD_PB_URL: https://s.kalaido.co
+      # TODO: set these.
+      # VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+      # VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.bump.outputs.tag }}
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kalaidoscope/go.mod
+          cache-dependency-path: kalaidoscope/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - run: ./kalaido.sh setup:ts
+      - run: ./kalaido.sh setup:go
+      - run: ./kalaido.sh build:sidecar x86_64-apple-darwin
+
+      - name: write app store connect key
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+        with:
+          projectPath: app
+          args: --target x86_64-apple-darwin --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          releaseId: ${{ needs.aarch64.outputs.releaseId }}
+          uploadUpdaterJson: true

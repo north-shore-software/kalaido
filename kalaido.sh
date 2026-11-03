@@ -133,17 +133,35 @@ edit_inplace() {
 }
 
 cmd_bump() {
-  local current default new f
+  local current default new f mode="${1:-}" patch
+  [[ $# -le 1 ]] || die "usage: ./kalaido.sh bump [release|dev|<version>]"
   current="$(read_version)"
   [[ -n "$current" ]] || die "no version in app/src-tauri/tauri.conf.json"
 
-  if [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    default="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
-    read -r -p "new version [$default]: " new
-    new="${new:-$default}"
-  else
-    read -r -p "new version (current $current): " new
-  fi
+  case "$mode" in
+    release|--release)
+      [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || die "cannot auto-bump $current: expected major.minor.patch"
+      patch=$((10#${BASH_REMATCH[3]}))
+      new="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((patch + 2 - (patch % 2)))"
+      ;;
+    dev|--dev)
+      [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || die "cannot auto-bump $current: expected major.minor.patch"
+      patch=$((10#${BASH_REMATCH[3]}))
+      new="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((patch + 1 + (patch % 2)))"
+      ;;
+    "")
+      if [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        default="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((10#${BASH_REMATCH[3]} + 1))"
+        read -r -p "new version [$default]: " new
+        new="${new:-$default}"
+      else
+        read -r -p "new version (current $current): " new
+      fi
+      ;;
+    *)
+      new="$mode"
+      ;;
+  esac
 
   [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || die "not a version: $new"
   [[ "$new" != "$current" ]] || die "already at $current"
@@ -515,7 +533,9 @@ usage: ./kalaido.sh <command> [args...]
   build:web                  web build (app/dist-web)
 
   gen:types                  rebuild the schema db, regenerate types.ts
-  bump                       set the app version (prompts, defaults to a patch bump)
+  bump [release|dev|<ver>]   set the app version (prompts, or next release/dev revision)
+  bump:release               increment version to next release (even) revision
+  bump:dev                   increment version to next dev (odd) revision
 
   build:sidecar [target]     build the go sidecar into src-tauri/binaries (default: host arch)
   build:app                  tauri build (rebuilds the sidecar first)
@@ -558,6 +578,8 @@ case "${1:-}" in
   build:web) shift; cmd_build_web "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
   bump) shift; cmd_bump "$@" ;;
+  bump:release) shift; cmd_bump release "$@" ;;
+  bump:dev) shift; cmd_bump dev "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;
   build:app) shift; cmd_build_app "$@" ;;
   build:ladle) shift; cmd_build_ladle "$@" ;;
