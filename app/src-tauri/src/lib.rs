@@ -71,8 +71,13 @@ pub fn run() {
         .menu(build_menu)
         .on_menu_event(handle_menu_event);
 
+    let mut context = tauri::generate_context!();
+    if cfg!(any(dev, debug_assertions)) {
+        context.config_mut().identifier.push_str(".dev");
+    }
+
     let app = builder
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application");
 
     #[cfg(desktop)]
