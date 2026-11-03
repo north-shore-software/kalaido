@@ -4,5 +4,11 @@
   "description": "Capability for the main window",
   "windows": ["main"],
   "platforms": ["iOS", "android"],
-  "permissions": ["core:default", "opener:default", "store:default"]
+  "permissions": [
+    "core:default",
+    "clipboard-manager:allow-write-html",
+    "clipboard-manager:allow-write-text",
+    "opener:default",
+    "store:default"
+  ]
 }

@@ -1,4 +1,6 @@
-import { BookmarkSimpleIcon, CheckIcon } from "@phosphor-icons/react";
+import { BookmarkSimpleIcon, CheckIcon, CopyIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { writeClipboardHtml } from "@/api/app/os-integrations.ts";
 import { Pill } from "@/components/kalaido/pill";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/css-utils";
@@ -10,6 +12,7 @@ interface ChatMessageActionsProps {
   /** The turn has no row on the server yet, so it cannot be marked. */
   pending: boolean;
   onToggle: (bookmarked: boolean) => void;
+  contentElement: () => HTMLElement | null;
 }
 
 /**
@@ -23,7 +26,22 @@ export function ChatMessageActions({
   fragmentId,
   pending,
   onToggle,
+  contentElement,
 }: ChatMessageActionsProps) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    const bubble = contentElement();
+    if (!bubble) return;
+    const html = bubble.innerHTML;
+    const text = bubble.innerText || bubble.textContent || "";
+    const result = await writeClipboardHtml(html, text);
+    if (result.isOk()) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
   return (
     <>
       <Button
@@ -37,6 +55,15 @@ export function ChatMessageActions({
       >
         <BookmarkSimpleIcon className={cn(bookmarked && "fill-current")} />
         {bookmarked ? "Bookmarked" : "Bookmark"}
+      </Button>
+      <Button
+        variant="ghost"
+        size="xs"
+        className="text-fg-3"
+        onClick={() => void handleCopy()}
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+        {copied ? "Copied" : "Copy"}
       </Button>
       {fragmentId && (
         <Pill tone="muted">

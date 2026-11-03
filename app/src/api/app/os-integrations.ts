@@ -1,11 +1,32 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { writeHtml, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ok, type Result } from "neverthrow";
 import { tauriResult } from "@/api/app/_invoke.ts";
 
 export type { UnlistenFn };
+
+export function writeClipboardHtml(
+  html: string,
+  altText: string,
+): Promise<Result<void, Error>> {
+  if (!isTauri()) {
+    if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+      return tauriResult(
+        navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([altText], { type: "text/plain" }),
+          }),
+        ]),
+      );
+    }
+    return tauriResult(navigator.clipboard.writeText(altText));
+  }
+  return tauriResult(writeHtml(html, altText).catch(() => writeText(altText)));
+}
 
 export function openFilePicker(
   filters?: { name: string; extensions: string[] }[],
