@@ -1,17 +1,16 @@
-import {
-  ArrowsClockwiseIcon,
-  CheckIcon,
-  ClockIcon,
-} from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ClockIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Label, Timeline, type TimelineItem } from "@/components/kalaido";
 import { Button } from "@/components/ui/button";
 import type { ProjectionStatusInfo } from "@/features/projections/status";
+import { formatShortDateTime } from "@/lib/datetime";
 
 export interface ProjectionSideRailProps {
   readOnly: boolean;
   rotLoading: boolean;
   info: ProjectionStatusInfo | undefined;
+  /** When the live output was generated; absent if it never has been. */
+  generatedAt?: string;
   /** Set only while a pending candidate exists; navigates to its review. */
   onReviewCandidate?: () => void;
   /** In-scope fragments the pending candidate's resolved context misses. */
@@ -30,6 +29,7 @@ export function ProjectionSideRail({
   readOnly,
   rotLoading,
   info,
+  generatedAt,
   onReviewCandidate,
   newSinceCandidate = 0,
   blockedNames,
@@ -69,17 +69,10 @@ export function ProjectionSideRail({
           ) : (
             <>
               A candidate is awaiting review.
-              {newSinceCandidate > 0 && (
-                <>
-                  {" "}
-                  <span className="text-drifting-ink">
-                    {newSinceCandidate} new fragment
-                    {newSinceCandidate > 1 ? "s" : ""} arrived since it was
-                    generated
-                  </span>{" "}
-                  — refresh to fold them in.
-                </>
-              )}
+              {newSinceCandidate > 0 &&
+                ` ${newSinceCandidate} new fragment${
+                  newSinceCandidate > 1 ? "s" : ""
+                } arrived since it was generated.`}
             </>
           )}
         </p>
@@ -95,7 +88,7 @@ export function ProjectionSideRail({
               onClick={onRefresh}
               disabled={regenerating}
             >
-              {regenerating ? "Refreshing…" : "Refresh candidate"}
+              {regenerating ? "Regenerating…" : "Regenerate candidate"}
             </Button>
           )}
         </div>
@@ -109,62 +102,55 @@ export function ProjectionSideRail({
           <span className="text-item font-semibold">Preparing</span>
         </div>
         <p className="text-body-sm leading-relaxed text-fg-2">
-          This projection's lens is still being prepared. Refresh will be
+          This projection's lens is still being prepared. Regenerate will be
           available in a moment.
         </p>
       </div>
     );
-  } else if (info?.status === "blocked") {
-    // Refreshing now would build on output that is about to be superseded, and
-    // the server refuses it, so this card explains instead of offering a button.
+  } else {
+    // Freshness is information, not a call to action: say how old the live
+    // output is and what has arrived since, and leave regenerating to the user.
+    // The server still refuses to build on an upstream that is itself out of
+    // date, so that one case names the upstream instead of offering a button
+    // that would fail.
+    const blocked = info?.status === "blocked";
     const waitingOn =
       blockedNames && blockedNames.length > 0
         ? blockedNames.join(", ")
         : "an upstream input";
+    const entropy = info?.entropy ?? 0;
+    const since =
+      entropy > 0
+        ? `${entropy} new fragment${entropy === 1 ? "" : "s"} in scope since.`
+        : info?.status === "stale"
+          ? "Its sources have changed since."
+          : "Nothing new in scope since.";
     freshnessCard = (
       <div className="rounded-none border border-line p-3.5">
         <div className="mb-2 flex items-center gap-2.5">
           <ClockIcon className="size-4 text-fg-3" />
-          <span className="text-item font-semibold">Waiting upstream</span>
-        </div>
-        <p className="text-body-sm leading-relaxed text-fg-2">
-          {waitingOn} {blockedNames && blockedNames.length > 1 ? "have" : "has"}{" "}
-          changes still to approve. Approve those first — refreshing now would
-          use output that is about to change.
-        </p>
-      </div>
-    );
-  } else if (info?.status === "stale") {
-    freshnessCard = (
-      <div className="rounded-none border border-drifting/45 bg-drifting-wash p-3.5">
-        <div className="mb-2 flex items-center gap-2.5">
-          <ArrowsClockwiseIcon className="size-4 text-drifting-ink" />
-          <span className="text-item font-semibold text-fg-1">Refresh</span>
+          <span className="text-item font-semibold">
+            {generatedAt
+              ? `Generated ${formatShortDateTime(generatedAt)}`
+              : "Not generated yet"}
+          </span>
         </div>
         <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
-          Generate an updated candidate from this projection’s current context,
-          then review it before it goes live.
+          {since}
+          {blocked &&
+            ` It builds on ${waitingOn}, which ${
+              blockedNames && blockedNames.length > 1 ? "need" : "needs"
+            } regenerating first.`}
         </p>
         <Button
           size="sm"
+          variant="outline"
           className="w-full"
           onClick={onRefresh}
-          disabled={regenerating}
+          disabled={regenerating || blocked}
         >
-          {regenerating ? "Refreshing…" : "Refresh projection"}
+          {regenerating ? "Regenerating…" : "Regenerate"}
         </Button>
-      </div>
-    );
-  } else {
-    freshnessCard = (
-      <div className="rounded-none border border-line p-3.5">
-        <div className="mb-1 flex items-center gap-2.5">
-          <CheckIcon className="size-4 text-section-ink" />
-          <span className="text-item font-semibold">Up to date</span>
-        </div>
-        <p className="text-body-sm leading-relaxed text-fg-2">
-          No new context in scope.
-        </p>
       </div>
     );
   }

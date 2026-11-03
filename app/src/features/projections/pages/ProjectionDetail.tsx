@@ -170,7 +170,7 @@ export default function ProjectionDetail() {
     if (res.isErr()) {
       // 409s carry a specific reason (lens still preparing, generation
       // already running) — surface the server's own message.
-      toast.error("Couldn't refresh", { description: res.error.message });
+      toast.error("Couldn't regenerate", { description: res.error.message });
       return;
     }
     go(projectionDetailTransitions.reviewCandidate, {
@@ -397,6 +397,7 @@ export default function ProjectionDetail() {
             readOnly={readOnly}
             rotLoading={rotLoading}
             info={info}
+            generatedAt={liveSnapshot?.generated_at || liveSnapshot?.created}
             blockedNames={blockedNames}
             onReviewCandidate={
               pendingCandidate
