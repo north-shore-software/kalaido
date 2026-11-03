@@ -14,7 +14,10 @@ import {
   PageLayout,
 } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { ProjCard } from "@/features/projections/components/projection-card";
+import {
+  ProjectionRow,
+  ProjectionTableHeader,
+} from "@/features/projections/components/projection-row";
 import { resolveSources } from "@/features/projections/sources";
 import { getProjectionStatus } from "@/features/projections/status";
 import { useContextSources } from "@/hooks/use-context-sources";
@@ -124,21 +127,17 @@ export default function Projections() {
     [projections, generatedAtByProjection],
   );
 
-  function renderCard(p: ProjectionResponse) {
+  function renderRow(p: ProjectionResponse) {
     const candidate = candidateByProjection.get(p.id);
-    const newSinceCandidate =
-      statusById.get(p.id)?.candidate?.newFragmentIds?.length ?? 0;
     return (
-      <ProjCard
+      <ProjectionRow
         key={p.id}
         p={p}
         generatedAt={generatedAtByProjection.get(p.id)}
         candidateId={candidate?.id}
-        newSinceCandidate={newSinceCandidate}
         status={getProjectionStatus(statusById.get(p.id), !!candidate, {
           generating: generatingProjections.has(p.id),
         })}
-        description={p.description}
         sources={resolveSources(
           parseContextSpec(p.current_context_spec),
           contextSources,
@@ -180,8 +179,9 @@ export default function Projections() {
               : "No projections yet. Create one to get started."}
           </EmptyState>
         ) : (
-          <div className="flex flex-wrap items-start gap-3">
-            {ordered.map(renderCard)}
+          <div className="flex flex-col">
+            <ProjectionTableHeader />
+            {ordered.map(renderRow)}
           </div>
         )}
         {deleted.records.length > 0 && (
