@@ -8,6 +8,13 @@ import {
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { useTheme } from "@/providers/theme-provider";
 
+/**
+ * Sonner injects its stylesheet as a runtime `<style>` element. In release
+ * builds Tauri adds nonces to the CSP, which makes WebKit ignore
+ * `style-src 'unsafe-inline'` and block that stylesheet, leaving every toast
+ * invisible (dev is unaffected). `tauri.conf.json` therefore sets
+ * `app.security.dangerousDisableAssetCspModification: ["style-src"]`; keep it.
+ */
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme } = useTheme();
 
