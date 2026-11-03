@@ -60,12 +60,19 @@ export function MenuFeedbackListener() {
 
 export function MenuUpdateListener() {
   useEffect(() => {
-    if (!import.meta.env.DEV) {
-      void checkForUpdatesAndPrompt(false);
-    }
     const unlistenPromise = registerMenuUpdateListener(() => {
       toast.info("Checking for updates…");
       void checkForUpdatesAndPrompt(true);
+    });
+    void unlistenPromise.then((result) => {
+      if (result.isErr()) {
+        toast.error("Check for Updates menu unavailable", {
+          description: result.error.message,
+        });
+      }
+      if (!import.meta.env.DEV) {
+        void checkForUpdatesAndPrompt(false);
+      }
     });
     return () => {
       void unlistenPromise.then((result) => {
