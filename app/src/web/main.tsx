@@ -1,3 +1,7 @@
+if (import.meta.env.DEV) {
+  import("react-grab");
+}
+
 import "@/index.css";
 import "./web.css";
 import React from "react";
