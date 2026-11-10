@@ -2,6 +2,7 @@ import {
   startTransition,
   useEffect,
   useId,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -48,11 +49,27 @@ import {
 } from "../components/storage-option-cards";
 import { kalaidoscopeSetupTransitions } from "./KalaidoscopeSetup.transitions";
 
-function deriveCloudId(name: string): string {
-  return name
+const CLOUD_ID_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
+const FALLBACK_CLOUD_ID_LENGTH = 8;
+
+function randomFallbackCloudId(): string {
+  const bytes = crypto.getRandomValues(
+    new Uint8Array(FALLBACK_CLOUD_ID_LENGTH),
+  );
+  const suffix = Array.from(
+    bytes,
+    (b) => CLOUD_ID_ALPHABET[b % CLOUD_ID_ALPHABET.length],
+  ).join("");
+  return `kl-${suffix}`;
+}
+
+function deriveCloudId(name: string, fallback: string): string {
+  if (!name.trim()) return "";
+  const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+  return slug.length >= 2 ? slug : fallback;
 }
 
 const CLOUD_ID_RE = /^[a-z0-9][a-z0-9-]{1,62}$/;
@@ -98,6 +115,8 @@ export default function KalaidoscopeSetup() {
   const { user, signedIn } = useCloudSession();
 
   const [fields, setFields] = useState<SetupFields>(INITIAL_FIELDS);
+  const [fallbackCloudId] = useState(randomFallbackCloudId);
+  const isComposingRef = useRef(false);
   const patch = (next: Partial<SetupFields>) =>
     setFields((prev) => ({ ...prev, ...next }));
 
@@ -131,7 +150,7 @@ export default function KalaidoscopeSetup() {
     fields.storageChoice ??
     routeState.defaultStorage ??
     (signedIn ? "cloud" : "local_file");
-  const derivedCloudId = deriveCloudId(fields.name);
+  const derivedCloudId = deriveCloudId(fields.name, fallbackCloudId);
   const idIsManual = fields.cloudIdChoice !== null;
   const candidateId = fields.cloudIdChoice ?? derivedCloudId;
   const idIsValid = CLOUD_ID_RE.test(candidateId);
@@ -371,8 +390,19 @@ export default function KalaidoscopeSetup() {
                     id={nameFieldId}
                     autoFocus
                     type="text"
-                    value={fields.name}
-                    onChange={(e) => patch({ name: e.target.value })}
+                    defaultValue={fields.name}
+                    onCompositionStart={() => {
+                      isComposingRef.current = true;
+                    }}
+                    onCompositionEnd={(e) => {
+                      isComposingRef.current = false;
+                      patch({ name: e.currentTarget.value });
+                    }}
+                    onChange={(e) => {
+                      if (!isComposingRef.current) {
+                        patch({ name: e.target.value });
+                      }
+                    }}
                     placeholder="My kalaidoscope"
                     className={cn(
                       "h-12 w-full text-[20px] font-semibold tracking-wide transition-all duration-150 placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/80",
