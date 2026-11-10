@@ -121,7 +121,7 @@ export function MessageBubble({
         className={cn(
           "max-w-[70%] rounded-none px-4 py-2.5 text-body-sm leading-relaxed break-words",
           role === "user"
-            ? "bg-section text-section-foreground font-medium whitespace-pre-wrap"
+            ? "bg-section text-section-foreground font-medium whitespace-pre-wrap selection:bg-white selection:text-black dark:selection:bg-black dark:selection:text-white"
             : "bg-surface-2 text-fg-1",
         )}
       >
