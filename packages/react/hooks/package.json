@@ -5,14 +5,10 @@
   "type": "module",
   "exports": {
     "./host": "./src/host.tsx",
-    "./*.ts": "./src/*.ts",
-    "./*.tsx": "./src/*.tsx",
     "./*": "./src/*.ts"
   },
   "imports": {
     "#host": "./src/host.tsx",
-    "#*.ts": "./src/*.ts",
-    "#*.tsx": "./src/*.tsx",
     "#*": "./src/*.ts"
   },
   "scripts": {

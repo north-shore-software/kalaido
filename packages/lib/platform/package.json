@@ -9,7 +9,7 @@
     "./web": "./src/web.ts"
   },
   "imports": {
-    "#*": "./src/*"
+    "#*": "./src/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

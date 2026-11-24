@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import type { IngestPhase } from "@kalaido/client/kalaidoscope/ingest.ts";
-import { ingestNote } from "@kalaido/client/kalaidoscope/ingest.ts";
+import type { IngestPhase } from "@kalaido/client/kalaidoscope/ingest";
+import { ingestNote } from "@kalaido/client/kalaidoscope/ingest";
 
 /**
  * Path A — synchronous single-entry ingest. Thin React state around

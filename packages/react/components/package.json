@@ -12,8 +12,6 @@
     "./context-bar/state": "./src/context-bar/state.ts",
     "./context-bar/use-whole-scope-fits": "./src/context-bar/use-whole-scope-fits.ts",
     "./context-meter/use-prompt-estimate": "./src/context-meter/use-prompt-estimate.ts",
-    "./*.ts": "./src/*.ts",
-    "./*.tsx": "./src/*.tsx",
     "./*": "./src/*.tsx"
   },
   "imports": {
@@ -23,8 +21,6 @@
     "#context-bar/state": "./src/context-bar/state.ts",
     "#context-bar/use-whole-scope-fits": "./src/context-bar/use-whole-scope-fits.ts",
     "#context-meter/use-prompt-estimate": "./src/context-meter/use-prompt-estimate.ts",
-    "#*.ts": "./src/*.ts",
-    "#*.tsx": "./src/*.tsx",
     "#*": "./src/*.tsx"
   },
   "scripts": {

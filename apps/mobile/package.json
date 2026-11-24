@@ -1,0 +1,33 @@
+{
+  "name": "@kalaido/mobile",
+  "version": "0.0.15",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kalaido/client": "workspace:*",
+    "@kalaido/components": "workspace:*",
+    "@kalaido/features": "workspace:*",
+    "@kalaido/hooks": "workspace:*",
+    "@kalaido/platform": "workspace:*",
+    "@kalaido/primitives": "workspace:*",
+    "@tauri-apps/api": "^2.12.5",
+    "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
+    "@tauri-apps/plugin-opener": "^2.7.3",
+    "@tauri-apps/plugin-store": "^2.5.1",
+    "neverthrow": "^8.2.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.14.2",
+    "valtio": "^2.3.2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.6"
+  }
+}

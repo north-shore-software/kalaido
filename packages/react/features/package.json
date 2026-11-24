@@ -7,16 +7,12 @@
     "./styles.css": "./src/styles.css",
     "./auth": "./src/auth/index.ts",
     "./explore": "./src/explore/index.ts",
-    "./*.ts": "./src/*.ts",
-    "./*.tsx": "./src/*.tsx",
     "./explore/use-*": "./src/explore/use-*.ts",
     "./*": "./src/*.tsx"
   },
   "imports": {
     "#auth": "./src/auth/index.ts",
     "#explore": "./src/explore/index.ts",
-    "#*.ts": "./src/*.ts",
-    "#*.tsx": "./src/*.tsx",
     "#explore/use-*": "./src/explore/use-*.ts",
     "#*": "./src/*.tsx"
   },

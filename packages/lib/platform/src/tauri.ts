@@ -8,7 +8,7 @@ import type {
   HostAdapter,
   PersistentAppSetting,
   SettingsStore,
-} from "#index.ts";
+} from "#index";
 
 export interface CreateTauriHostOptions {
   variant: "desktop" | "mobile";

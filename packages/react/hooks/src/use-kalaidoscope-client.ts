@@ -1,5 +1,5 @@
 import { createContext, use } from "react";
-import type { TypedPocketBase } from "@kalaido/client/kalaidoscope/types.ts";
+import type { TypedPocketBase } from "@kalaido/client/kalaidoscope/types";
 
 export const KalaidoscopeClientContext = createContext<TypedPocketBase | null>(
   null,

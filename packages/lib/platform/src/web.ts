@@ -1,9 +1,5 @@
 import { err, ok, type Result } from "neverthrow";
-import type {
-  HostAdapter,
-  PersistentAppSetting,
-  SettingsStore,
-} from "#index.ts";
+import type { HostAdapter, PersistentAppSetting, SettingsStore } from "#index";
 
 export interface CreateWebHostOptions {
   appVersion?: string;

@@ -4,9 +4,9 @@ import {
   type UIMessage,
 } from "ai";
 import type { Result } from "neverthrow";
-import { kalaidoscopeAuthHeaders } from "#kalaidoscope/client.ts";
+import { kalaidoscopeAuthHeaders } from "#kalaidoscope/client";
 import { SUMMARIES_ITEM, WHOLE_SCOPE_ITEM } from "#kalaidoscope/context-items";
-import type { TypedPocketBase } from "#kalaidoscope/types.ts";
+import type { TypedPocketBase } from "#kalaidoscope/types";
 import { stripMentions } from "#lib/mentions";
 import { withActiveClient } from "./_active";
 

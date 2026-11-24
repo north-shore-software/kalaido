@@ -1,4 +1,4 @@
-import type { TypedPocketBase } from "#kalaidoscope/types.ts";
+import type { TypedPocketBase } from "#kalaidoscope/types";
 
 // The client for the currently open kalaidoscope. Created by
 // switchLocalKalaidoscope before the stage flips to `kalaidoscope_open`, so
