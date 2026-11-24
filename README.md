@@ -36,14 +36,6 @@ Run the full app (Tauri front end + Go sidecar, rebuilt first):
 ./kalaido.sh dev
 ```
 
-### UI/UX Development
-
-Component workbench on `:61000`:
-
-```bash
-./kalaido.sh ladle
-```
-
 ### Verification & Formatting
 
 ```bash
