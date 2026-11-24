@@ -1,119 +1,102 @@
 # AGENTS.md
 
-Rules of engagement for AI agents in this repo. Not advisory. They override any instinct toward
-helpfulness, completeness, or momentum. Following every rule and delivering nothing is success.
-Delivering a lot and breaking one is failure.
+Repository guide and working rules for agents in Kalaido.
 
-## Your role
+## Working Discipline
 
-Four things, never anything else:
+- **You do not make decisions:** Never choose product behaviour, technical choices with user-visible impact, architecture (boundaries, schemas, dependencies, layout), or scope. Propose options freely; adopt nothing without human direction. When in doubt, stop and ask — the interruption is cheaper than rework.
+- **Stop on out-of-scope discoveries:** If you notice a bug or broken assumption outside the current task, stop mid-task and report it. Do not fix it "while you're in there" or "because it blocks the task."
+- **Do the minimum:** Solve exactly what was asked with the smallest diff that works. No adjacent refactors, no preamble, no recap, no restating the request, and no re-reading or re-verifying what a tool already confirmed. Drop padding, never signal.
+- **No git operations:** Never run `git add`, `commit`, `branch`, `checkout`, `stash`, `merge`, `rebase`, `push`, `tag`, or create PRs unless explicitly authorized for that session. Edit the working tree only.
+- **Honest reporting:** State in full what you did and did not do. If something failed, say so and show the output. If you could not verify it, say so. If you broke a rule here, stop, state exactly what changed, and do not revert it yourself.
 
-- **Reviewer** — read code, report findings.
-- **Code monkey** — type out an implementation whose shape a human already approved.
-- **Rubber duck** — help a human think.
-- **Devil's advocate** — argue against proposals, including your own.
+## Repository Layout
 
-Reviewer, duck, and advocate are unrestricted. Code monkey is bounded by everything below.
+Kalaido is a pnpm + Cargo workspace with a Go PocketBase backend (`kalaidoscope/`):
 
-## You do not make decisions
+```text
+├── Cargo.toml                  # Rust workspace: apps/desktop/src-tauri, apps/mobile/src-tauri
+├── pnpm-workspace.yaml         # packages/lib/*, packages/react/*, apps/*
+├── biome.json                  # Format, lint, and import-boundary rules
+├── kalaido.sh                  # Entrypoint for all dev, build, check, test, and bump commands
+├── scripts/                    # Boundary, navigation, design-class, and route checks
+├── packages/
+│   ├── lib/                    # Pure TypeScript — ZERO React, ZERO import.meta.env
+│   │   ├── platform/           # @kalaido/platform (exports: ".", "./tauri", "./web")
+│   │   └── client/             # @kalaido/client (cloud auth/registry, PocketBase clients, pure utils)
+│   └── react/                  # React layer
+│       ├── primitives/         # @kalaido/primitives — ZERO @kalaido/* deps (tokens, shadcn/, stateless UI)
+│       ├── hooks/              # @kalaido/hooks (HostProvider, workspace contexts, shared data hooks)
+│       ├── components/         # @kalaido/components (reusable domain widgets across 2+ features)
+│       └── features/           # @kalaido/features (vertical feature slices shared across 2+ apps)
+├── apps/
+│   ├── desktop/                # @kalaido/desktop (macOS Tauri + Go sidecar, local + cloud, full UI)
+│   ├── mobile/                 # @kalaido/mobile (Android/iOS Tauri, 3 plugins, cloud-only)
+│   └── web/                    # @kalaido/web (Browser SPA, cloud-only, ZERO @tauri-apps/* deps)
+└── kalaidoscope/               # Go PocketBase backend / sidecar
+```
 
-A decision is any choice that could produce work that has to be undone. If you are choosing between
-two things and cannot point to a human who already chose, stop.
+## Dependency Graph & Cross-Package Invariants
 
-Never yours:
+Dependencies flow strictly one way:
 
-- **Product** — what the software does, for whom, why.
-- **Technical with product impact** — if a user could observe the difference, it is a product
-  decision in a technical costume.
-- **Architecture** — module boundaries, data models, schemas, dependencies, file layout.
-- **Scope** — you do not widen, narrow, or transform the task. If it seems wrong, say so, then stop.
+```text
+platform ──► client ──► hooks ──► components ──► features ──► apps/*
+primitives (zero @kalaido/* deps) ──► components ──► features ──► apps/*
+```
 
-Proposing is not deciding. Propose freely. Adopt nothing.
+Hard invariants (enforced by `biome.json`, `scripts/check-boundaries.mjs`, `scripts/check-navigation-discipline.mjs`, and `tsc --noEmit`):
 
-## Ambiguity: stop, always
+- **No React in `packages/lib/*`:** no `react`, `react-dom`, `better-auth/react`, or `.tsx` files.
+- **No `import.meta.env` in `packages/lib/*`:** no `vite/client` in `packages/lib/*/tsconfig.json`. Apps read env vars in `main.tsx` and pass them into `configureClient(...)`.
+- **No `@kalaido/*` deps in `packages/react/primitives`:** primitives must remain domain-free; external side-effects (such as opening links in `MarkdownContent`) are passed in via callback props.
+- **No `@tauri-apps/*` outside Tauri hosts:** allowed only in `packages/lib/platform/src/tauri.ts` (optional peerDeps), `apps/desktop/`, and `apps/mobile/`. Never in `platform/src/{index,web}.ts`, `client`, `packages/react/*`, or `apps/web/`.
+- **No `react-router-dom` in `packages/*`:** routing and route tables belong exclusively in `apps/*`. Shared components and features accept navigation callbacks as props.
+- **No `@/` aliases in `packages/*`:** internal package imports use package-scoped `#*` subpath `"imports"` (`"#*": "./src/*"`). Only `apps/*` map `@/*` to their own `src/`.
+- **No relative cross-package imports:** never import across package boundaries with `../..` (except test fixtures under `kalaidoscope/`).
+- **No cross-app imports:** `apps/desktop`, `apps/mobile`, and `apps/web` never import from each other.
+- **Source-consumed (JIT) packages with extensionless `exports`/`imports`:** `packages/*` export `./src/*` directly with no `dist/` build step. Do not use wildcard patterns with `.ts`/`.tsx` suffixes (e.g. `"./*.ts": "./src/*.ts"`) in `package.json` `exports`/`imports` — Vite's resolver treats the `.` unescaped and breaks extensionless filenames ending in `ts` (such as `fragments`).
 
-The moment two reasonable readings exist:
+## Per-Package Rules
 
-1. Stop. Write no code.
-2. State the fork, the options, your recommendation.
-3. Wait.
+| Package | Allowed `@kalaido/*` deps | Belongs here | Does NOT belong here |
+|---|---|---|---|
+| `packages/lib/platform` | None | `HostAdapter` interface, shared cross-layer types (`KalaidoscopeMeta`, `PersistentAppSetting`, `FeedbackDiagnostics`), `setHost`/`getHost`, `./tauri` (`createTauriHost`), `./web` (`createWebHost`). | React, PocketBase, domain APIs, desktop-only Tauri plugins (`dialog`, `shell`, `updater`, custom Rust `invoke`s). `@tauri-apps/*` only in `src/tauri.ts`. |
+| `packages/lib/client` | `platform` | `better-auth/client`, cloud workspace registry API, PocketBase cloud & `local_net` clients, generated `kalaidoscope/types.ts`, Blob-based `ingestFile`, lazy `configureClient(...)` + accessors (`getAuthClient`, `getAuthUrl`, `getCloudPbUrl`, `getPosthogConfig`), pure domain/text utils, PostHog wrapper. | React, `better-auth/react`, hooks, `import.meta.env`, eager module-scope client/config initialization, `@tauri-apps/*`, disk paths, sidecar IPC. |
+| `packages/react/primitives` | None | `src/index.css` (tokens + Tailwind theme + `@source "./";` + streamdown `@source`), `assets/brand/`, `lib/{css-utils,theme}.ts`, `hooks/use-mobile.ts`, `shadcn/` + `components.json`, stateless visual primitives (`kalaido/*`, `layout/*`), `ThemeProvider`. | Any `@kalaido/*` package, PocketBase, `better-auth`, AI SDK, `swr`, `valtio`, `react-router-dom`, `@tauri-apps/*`, domain concepts, global app state. |
+| `packages/react/hooks` | `platform`, `client` | `HostProvider`/`useHost`, `KalaidoscopeClientContext`, `ActiveKalaidoscopeContext`, `useCloudSession` (subscribing to `@kalaido/client`'s session atom), shared data/domain hooks. | UI components (beyond bare context providers), `react-router-dom`, `@tauri-apps/*`, app-specific `AppStage`. |
+| `packages/react/components` | `platform`, `client`, `primitives`, `hooks` | `src/styles.css` (`@source "./";`), domain-connected widgets reused across **2+ features** or app chrome (`ChatPanel`, `ContextPicker`, `FragmentDrawer`, `PageHeader`, `CloudAuthPanel`, `RecoveryView`, `SplashScreen`, `CoreProviders`, host-wired `MarkdownContent`). | `react-router-dom`, `@tauri-apps/*`, app-specific `appState`/`AppStage`, single-feature-only UI. |
+| `packages/react/features` | `platform`, `client`, `primitives`, `hooks`, `components` | `src/styles.css` (`@source "./";`), vertical feature slices shared across **2+ apps** (each directory owns its feature components, hooks, and screen views, e.g. `explore/`, `auth/`). | `react-router-dom`, `@tauri-apps/*`, desktop-only features, sidecar/local-workspace logic, app-specific `AppStage`. |
+| `apps/desktop` | Any `packages/*` | Desktop router & `registry.ts`, desktop `appState`/`AppStage`, `host.ts` (`@kalaido/platform/tauri` + Rust diagnostics), desktop-only `api/app/*` (`local-scopes`, `sidecar-client`, `downloads`, `ingest-file`, `llm-validate`, `ollama-status`, `updater`, `feedback`, dialogs, `menu:*`), desktop chrome (`TitleBar`, `NavSidebar`, `UtilityBar`, `PageLayout`), desktop-only features, macOS `src-tauri/`. | Mobile/web entrypoints, `#[cfg(mobile)]`, Android Tauri config. |
+| `apps/mobile` | Any `packages/*` | Mobile router, cloud-only state, `host.ts` (`@kalaido/platform/tauri`), `keyboard-inset.ts`, `mobile.css`, mobile-only `src-tauri/` (`clipboard-manager`, `opener`, `store` only). | Desktop Tauri plugins (`dialog`, `shell`, `updater`), `macos-private-api`, sidecar/local-workspace code, desktop routes. |
+| `apps/web` | Any `packages/*` except `@kalaido/platform/tauri` | Web router, cloud-only state, `host.ts` (`@kalaido/platform/web`), `web.css`, web deploy config. | Any `@tauri-apps/*` dep or import, sidecar/local-workspace code, desktop-only screens. |
 
-No assumptions — not conservative ones, not loudly-flagged ones. A stated assumption is a decision
-wearing a disclaimer, and the disclaimer does not make the rework cheaper. "I'll do it this way for
-now and we can change it later" is the exact failure this rule exists to prevent.
+## Key Architectural Conventions
 
-Delivering nothing this turn is a correct outcome, not a problem to route around.
+- **Startup wiring (`main.tsx`):** Every app initializes `setHost(createAppHost())` and `configureClient({ authUrl, cloudPbUrl, posthog? })` before rendering, and wraps the tree in `<HostProvider host={host}>`. Each app's `vite.config.ts` enforces `requireCloudEnv()` at build time.
+- **Desktop-only Tauri IPC:** Keep desktop-only Rust commands and wrappers inside `apps/desktop/src/api/app/` and `apps/desktop/src-tauri/`. Do not add desktop-only capabilities to `@kalaido/platform` unless multiple platforms need the contract (in which case model them as optional sub-adapters, not runtime-throwing stubs).
+- **Tailwind v4 `@source` stylesheets:** Tailwind v4 does not auto-scan symlinked workspace packages. `packages/react/primitives/src/index.css`, `packages/react/components/src/styles.css`, and `packages/react/features/src/styles.css` each declare `@source "./";`, and each app's entry CSS `@import`s them.
+- **shadcn components:** Live in `packages/react/primitives/src/shadcn/` (configured in `packages/react/primitives/components.json` with `#shadcn` and `#lib/css-utils`). Excluded from Biome lint and `check-design-classes.mjs`.
+- **Generated PocketBase types:** `packages/lib/client/src/kalaidoscope/types.ts` is generated from `kalaidoscope/` schema via `./kalaido.sh gen:types`. Never hand-edit it; `./kalaido.sh check:schema-freshness` verifies it matches.
+- **Desktop navigation discipline:** Inside `apps/desktop/src/`, never import raw `react-router-dom` navigation hooks/components (`useNavigate`, `Link`, `useParams`, etc.) outside `apps/desktop/src/routes/`. Use declared transitions (`useAppNavigate`, `RouteLink`).
+- **Design radius rule:** Zero border radius everywhere outside `packages/react/primitives/src/shadcn/` (`rounded-none`, `rounded-full`, or arbitrary `rounded-[…]` only; enforced by `check-design-classes.mjs`).
+- **Versioning:** Desktop (`Kalaido`) and mobile (`kalaido-mobile`) version independently via `./kalaido.sh bump:desktop` and `./kalaido.sh bump:mobile`.
 
-## Implementation ceiling
+## Commands & Checks
 
-One class-level API — one type and its methods, one module's public surface, one small group of
-functions. Anything larger needs human _direction_, not human approval of your plan for it.
+Always run repo tasks through `./kalaido.sh` (it exports `VITE_BETTER_AUTH_URL` and `VITE_CLOUD_PB_URL`):
 
-The API needs review before you build it:
+- `./kalaido.sh check:ts` — Biome format + lint (including import boundary rules), `check:boundaries`, `check:nav`, `check:design`, `check:routes`, `pnpm -r typecheck`, and production builds for `desktop`, `mobile`, and `web`.
+- `./kalaido.sh test:ts` — Vitest across `packages/` and `apps/`.
+- `./kalaido.sh fmt:ts` — Biome format `--write`.
+- `./kalaido.sh check:go` / `./kalaido.sh test:go` / `./kalaido.sh check:schema-freshness` — Go backend checks and schema typegen freshness.
+- `./kalaido.sh check:rust` / `./kalaido.sh test:rust` — `cargo fmt --check`, `cargo clippy --workspace`, `cargo test --workspace`.
+- `./kalaido.sh dev` / `dev:web` / `dev:android` — Run desktop, web, or Android dev targets.
+- `./kalaido.sh build:app` / `build:web` / `build:android` — Build targets.
 
-1. Propose it as text: signatures, types, names, error cases. No bodies, no files written.
-2. Stop. Wait for sign-off.
-3. Implement only after explicit approval.
+## Sub-Project Routing
 
-Skip the gate only at **zero** ambiguity: behaviour and signature already specified, exactly one
-way to type it out. If you are wondering whether it counts as zero, it does not.
+When working inside these areas, also read and follow their local instructions:
 
-## Do the minimum
-
-Tokens cost money and time, and both are scarce. Do the absolute minimum in one go, and produce the
-smallest output that meets the request.
-
-- Solve exactly what was asked. No adjacent improvements, no refactors, nothing "while I was in
-  there."
-- Smallest diff that works. Edit rather than rewrite.
-- No preamble, no recap, no restating the request back. Answer, then stop.
-- Do not explain code the human is looking at, or summarise what they just read.
-- One pass. Do not re-read files you have read or re-verify what a tool already confirmed.
-
-This is not terseness for its own sake. Never drop signal to save tokens — drop padding.
-
-## Code
-
-- **Never write comments.** None.
-- **Never write tests unless explicitly asked.**
-- **Code is the only source of truth.** Comments and stray markdown are stale, aspirational, or
-  wrong. Do not trust them, cite them, or reason from them — read the code and find out. This file
-  is the only exception.
-- **Verify behaviour by running it.** Reading a dependency's source is not verification — its
-  defaults, its config and your overrides all change the outcome. Write the three-line script and
-  observe the result. Never report behaviour you have only inferred.
-
-## Out-of-scope discoveries
-
-Notice a bug or a broken assumption elsewhere? **Stop mid-task and report it.** Do not finish
-first, do not fix it, do not fix it "because it blocks the task." The discovery may invalidate the
-task itself; the human may cancel it outright.
-
-## Git
-
-**No git operations.** No add, commit, branch, checkout, stash, merge, rebase, push, tag, or PR.
-Do not offer. Edit the working tree; a human types everything that enters history.
-
-## Sandbox
-
-You run in a Docker sandbox with restricted network egress. A URL that will not load is a sandbox
-policy block, not a dead host. Never conclude the resource is gone, and never route around it with
-a different source. Report the blocked URL and give the human the `sbx` command that allows it.
-
-## Reporting
-
-- Say what you did and what you did not do, in full.
-- If it failed, say it failed and show the output. Never dress a failure as partial success.
-- If you could not verify it works, say so. Never present unverified work as done.
-- If you broke a rule here, stop, say so, and state exactly what you changed. Do not revert it
-  yourself — deciding the correct state is a decision.
-
-## When in doubt
-
-Stop and ask. The interruption is cheaper than the rework.
-
-## Sub-project routing
-
-If working on files in sub-directories, read and follow the additional instructions provided there.
-
-- If modifying the UI of the app, read: `app/AGENTS.md`
+- **UI & design system:** `apps/desktop/AGENTS.md` and `apps/desktop/DESIGN.md`
+- **Go backend & generated audit docs:** `kalaidoscope/AGENTS.md`
