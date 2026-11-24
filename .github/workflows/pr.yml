@@ -11,7 +11,59 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ts: ${{ steps.filter.outputs.ts }}
+      go: ${{ steps.filter.outputs.go }}
+      schema: ${{ steps.filter.outputs.schema }}
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ts:
+              - 'packages/**'
+              - 'apps/web/**'
+              - 'apps/desktop/src/**'
+              - 'apps/desktop/public/**'
+              - 'apps/desktop/*.{ts,tsx,js,mjs,cjs,json,html,css}'
+              - 'apps/mobile/src/**'
+              - 'apps/mobile/public/**'
+              - 'apps/mobile/*.{ts,tsx,js,mjs,cjs,json,html,css}'
+              - 'scripts/**'
+              - '*.json'
+              - '*.ts'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'kalaido.sh'
+              - '.github/workflows/pr.yml'
+            go:
+              - 'kalaidoscope/**'
+              - 'kalaido.sh'
+              - '.github/workflows/pr.yml'
+            schema:
+              - 'kalaidoscope/**'
+              - 'packages/lib/client/src/kalaidoscope/types.ts'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'kalaido.sh'
+              - '.github/workflows/pr.yml'
+            rust:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'apps/desktop/src-tauri/**'
+              - 'apps/mobile/src-tauri/**'
+              - 'kalaido.sh'
+              - '.github/workflows/pr.yml'
+
   ts:
+    needs: changes
+    if: needs.changes.outputs.ts == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +80,8 @@ jobs:
       - run: ./kalaido.sh test:ts
 
   go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +95,8 @@ jobs:
       - run: ./kalaido.sh build:sidecar
 
   schema:
+    needs: changes
+    if: needs.changes.outputs.schema == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +117,8 @@ jobs:
       - run: ./kalaido.sh check:schema-freshness
 
   rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

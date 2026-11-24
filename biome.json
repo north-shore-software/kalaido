@@ -40,6 +40,155 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["packages/lib/platform/src/tauri.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "packages/lib/* must remain React-free.",
+                  "react-dom": "packages/lib/* must remain React-free.",
+                  "better-auth/react": "Use better-auth/client in packages/lib/*.",
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/lib/platform/src/index.ts",
+        "packages/lib/platform/src/web.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "packages/lib/* must remain React-free.",
+                  "react-dom": "packages/lib/* must remain React-free.",
+                  "better-auth/react": "Use better-auth/client in packages/lib/*.",
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                },
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                    "message": "Only packages/lib/platform/src/tauri.ts may import @tauri-apps/*."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/lib/client/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "packages/lib/* must remain React-free.",
+                  "react-dom": "packages/lib/* must remain React-free.",
+                  "better-auth/react": "Use better-auth/client in packages/lib/*.",
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*.",
+                  "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages."
+                },
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                    "message": "Shared packages must not import @tauri-apps/* directly."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/react/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                },
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                    "message": "Shared packages must not import @tauri-apps/* directly."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@kalaido/platform/tauri": "apps/web must use @kalaido/platform/web, not the Tauri adapter."
+                },
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                    "message": "apps/web must not import @tauri-apps/*."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/mobile/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@tauri-apps/plugin-dialog",
+                      "@tauri-apps/plugin-shell",
+                      "@tauri-apps/plugin-updater"
+                    ],
+                    "message": "Desktop-only Tauri plugins are not available in apps/mobile."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "css": {
     "parser": {
       "tailwindDirectives": true

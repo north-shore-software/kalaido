@@ -10,9 +10,25 @@ on:
   # Scans the PR's changed files and posts a sticky summary comment listing only the new issues introduced relative to the merge base of the target branch.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'packages/**'
+      - 'apps/**'
+      - '!apps/*/src-tauri/**'
+      - '!apps/**/*.md'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/react-doctor.yml'
   # Scans `main` on every push to track the health-score trend and catch regressions that slipped past PR review.
   push:
     branches: ["main"]
+    paths:
+      - 'packages/**'
+      - 'apps/**'
+      - '!apps/*/src-tauri/**'
+      - '!apps/**/*.md'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/react-doctor.yml'
 
 permissions:
   contents: read
