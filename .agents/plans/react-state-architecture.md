@@ -205,21 +205,42 @@ The target architecture enforces a strict separation into **five explicit state 
 
 | Current State / Hook | Target Category | Notes |
 |---|---|---|
-| `appState` (ephemeral fields), `cloudState.stage`, `lastExploreSession`, `inference-rate`, feature workflow states (`useRefineSession` non-stream control state, `useDraftName`, `useCandidateTriage`, `Rotation` skipped set, `Stream` filters/selection, `Import` picker) | **1. In-memory `createScope` / `useScope`** | Root app scope narrowed down to feature scopes; eliminates raw Valtio proxies and module singletons. |
-| `availableKalaidoscopes` (`local_file`, `local_net`), `lastOpenedKalaidoscopeId`, `onboardingAcknowledged`, telemetry prefs, `ollamaModel`, `theme` | **2. Persisted `createScope` / `useScope`** | Optimistic background write-through + boot hydration gate; dead keys (`lightDarkMode`, `pinnedProjections`) removed. |
-| `availableKalaidoscopes` (`cloud` entries) | **3. External live read + local offline cache exception** | Reconciled from Cloud Registry when online; persisted locally so cloud scopes remain visible offline. |
-| All `useLiveCollection`, `useLiveCollectionWatching`, `useCollection`, raw `useSWR` (`useConversations`, `WorkspaceAiPanel`, `WorkspaceBackupsPanel`, `WorkspaceQuotaPanel`), `useOrganizeStatus`, `useRotationStatus`, `useReflectionSeries`, `useFileIngest` status, `useCloudSession` | **3. Unified external live read** | Single live-updating read contract; shared/deduped subscriptions; non-live `colour`/`colour_fragment` become live. |
-| Direct imperative mutations (`create*`, `update*`, `delete*`, `restore*`, `approve*`, `regenerate*`, `archive*`, `setBookmark`, `saveBookmarks`, `writeWorkspaceLlmConfig`, backup create/delete/restore, `startMap`/`startDiscover`/`startReconcile`, cloud auth & archive mutations) | **4. Paired async write hook** | Returns status (+ new ID on creates); never returns entity payloads; triggers invalidation for non-push sources. |
+| `appState` (ephemeral fields), `cloudState.stage`, `SidecarStatus` (desktop Tauri events), `lastExploreSession`, `inference-rate`, feature workflow states (`useRefineSession` non-stream control state, `useDraftName`, `useCandidateTriage`, `Rotation` skipped set, `Stream` filters/selection, `Import` picker) | **1. In-memory `createScope` / `useScope`** | Root app scope narrowed down to feature scopes; eliminates raw Valtio proxies, module singletons, and ad-hoc Tauri event `useState`. |
+| `availableKalaidoscopes` (`local_file`, `local_net`), `lastOpenedKalaidoscopeId`, `onboardingAcknowledged`, telemetry prefs, `ollamaModel`, `theme`, `cloudSessionToken` | **2. Persisted `createScope` / `useScope` (unified on `HostAdapter.settings`)** | Single client-local persistence layer (`kalaido-settings.json` on Tauri, `localStorage["kalaido-settings"]` on web) with optimistic background write-through + boot hydration gate; eliminates direct `localStorage` usage in packages/apps and removes dead keys (`lightDarkMode`, `pinnedProjections`). |
+| `availableKalaidoscopes` (`cloud` entries) | **3. External live read + local offline cache exception** | Reconciled from Cloud Registry when online; persisted via `HostAdapter.settings` so cloud scopes remain visible offline. |
+| All `useLiveCollection`, `useLiveCollectionWatching`, `useCollection`, raw `useSWR` (`useConversations`, `WorkspaceAiPanel`, `WorkspaceBackupsPanel`, `WorkspaceQuotaPanel`), `useOrganizeStatus`, `useRotationStatus`, `useReflectionSeries`, `useFileIngest` status, `useCloudSession` | **3. Unified external live read (`useLiveRead` + `LiveSource` adapters on SWR)** | Single live-updating read contract; shared/ref-counted SSE subscriptions; paired-write invalidation for non-push sources; strictly server-authoritative (no cache patching). |
+| Direct imperative mutations (`create*`, `update*`, `delete*`, `restore*`, `approve*`, `regenerate*`, `archive*`, `setBookmark`, `saveBookmarks`, `writeWorkspaceLlmConfig`, backup create/delete/restore, `startMap`/`startDiscover`/`startReconcile`, cloud auth & archive mutations) | **4. Paired async write hook** | Returns status (+ new ID on creates); never returns entity payloads; invalidates paired non-push live reads. Optimistic overlays (Dashboard dismiss/unpin, Explore bookmarks) stay local to those UI surfaces. |
 | `ChatPanel` (`useChat`), `useColourPreview` (`previewColourStream`), `LocalAISection` (`pullModel`) | **5. Streaming (explicit category)** | Dedicated streaming primitives with clean handoff to live reads once settled. |
 | `lens`, `reflection_refinement`, `reflection_window`, `kalaidoscope_config.api_key`, historical `usage`, backend watermarks/blobs/migration files | **Backend-only (unchanged)** | Remains strictly server-owned; never cached in React. |
 
 ---
 
-### 2.7 Open Design Decisions (To Align Before Implementation)
+### 2.7 Locked Architectural Decisions
 
-1. **Client-local storage unification:** Should `theme` (`localStorage["theme"]`) and `kalaido.cloud.session-token` (`localStorage`) fold into `HostAdapter.settings` / persisted scopes, or keep `localStorage` for synchronous first-paint/auth-header access?
-2. **Underlying engine for unified live reads & paired writes:** Build on top of SWR (wrapping cache keys, shared subscription ref-counting, and paired mutation invalidation) or introduce a dedicated reactive cache/store?
-3. **Exact scope persistence API:** How should `createScope` / `useScope` declare persisted keys and plug into `HostAdapter.settings` (e.g., a `persist` option with adapter + serialization + `hydrated` flag, or a dedicated `createPersistedScope` wrapper)?
-4. **Desktop Rust host state (`SidecarStatus`, `PendingUpdate`):** Fold into the desktop root `createScope` via event listeners, or keep as a desktop-only live read?
-5. **Optimistic UI on external writes:** Where needed (e.g., `DashboardScreen` `useOptimistic` dismiss/unpin, `useBookmarks` `inFlight` toggle), should optimistic overlays live as a feature of the paired write/live-read contract or stay local to the specific UI surface?
-6. **Migration phasing:** Order of rollout across primitives → `packages/react/hooks` → `apps/{mobile,web}` (smaller surface) vs. `apps/desktop` + `packages/react/features`.
+1. **Unified live read architecture — Option A (shared SWR core + `LiveSource<T>` adapters):**
+   - One core hook (`useLiveRead`) built on **SWR** (reusing deduping, cache scoping, and focus/reconnect revalidation), extended with:
+     - a **shared, ref-counted subscription manager** (e.g., PocketBase SSE keyed by `(client, collection, filter)`),
+     - a **tag/key invalidation registry** triggered automatically by paired writes for non-push sources, and
+     - an optional **offline cache** hook-in for the cloud workspace list exception.
+   - Four small `LiveSource<T>` adapters plug into that core:
+     1. PocketBase collections & views (`getFullList` + SSE on self or `watched` collections)
+     2. PocketBase computed HTTP endpoints (`client.send` + SSE on underlying collections)
+     3. Non-push HTTP endpoints (backups, usage, quota, Cloud Registry + optional offline cache)
+     4. External push/atom stores (Better Auth session atom)
+2. **Client-local persistence — fully unified on `HostAdapter.settings`:**
+   - All local persisted state — including `theme` and `cloudSessionToken` — goes through `HostAdapter.settings` (`PersistentAppSetting`) and persisted `createScope`/`useScope` with an explicit boot hydration gate and optimistic background write-through.
+   - No direct `localStorage` reads/writes remain in `packages/react/*`, `packages/lib/client/*`, or `apps/*` (only `@kalaido/platform/web` uses `localStorage` as its `HostAdapter.settings` backing store, aside from third-party PostHog internals and dev-only test stubs).
+3. **Optimistic UI overlays — strictly UI-local:**
+   - External live reads remain purely server-authoritative. The few surfaces that want instant optimistic feedback (e.g., Dashboard dismiss/unpin, Explore bookmark toggle) keep local optimistic overlays rather than mutating live-read cache entries.
+4. **Desktop Rust host state (`SidecarStatus`) — desktop root scope:**
+   - Fed by Tauri event listeners into the desktop root `createScope` alongside `appStage` and `latestInferenceRate`.
+
+---
+
+### 2.8 Next Steps (To Design & Phase)
+
+1. **Concrete primitive API specs** in `packages/react/hooks` & `packages/lib/platform`:
+   - Persisted `createScope` / `useScope` extension (persisted key declaration, hydration lifecycle, write-through coalescing).
+   - `LiveSource<T>` + `useLiveRead` + shared subscription ref-counter + typed wrappers (`useLiveCollection`, `useLiveEndpoint`, `useCloudSession`, `useCloudWorkspaces`).
+   - Paired async write hook (`useExternalWrite` / `useCommand`) with status, `create` ID return, and tag invalidation.
+2. **Phased migration plan** across `@kalaido/platform`, `@kalaido/client`, `@kalaido/hooks`, `@kalaido/primitives`, `@kalaido/components`, `@kalaido/features`, `apps/mobile`, `apps/web`, and `apps/desktop`.
