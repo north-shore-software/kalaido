@@ -1,0 +1,568 @@
+import {
+  DefaultChatTransport,
+  type PrepareSendMessagesRequest,
+  type UIMessage,
+} from "ai";
+import type { Result } from "neverthrow";
+import { kalaidoscopeAuthHeaders } from "#kalaidoscope/client";
+import { SUMMARIES_ITEM, WHOLE_SCOPE_ITEM } from "#kalaidoscope/context-items";
+import type { TypedPocketBase } from "#kalaidoscope/types";
+import { stripMentions } from "#lib/mentions";
+import { withActiveClient } from "./_active";
+
+export type ContextKind =
+  | "Colour"
+  | "Type"
+  | "Fragment"
+  | "Projection"
+  | "Reflection"
+  /**
+   * Not a source — a marker meaning "the fragment population is the whole
+   * kalaidoscope". It exists because whole scope and source composition are not
+   * mutually exclusive: the domain model has Whole Scope suppress fragment-level
+   * criteria while still permitting Source Projections to be attached, and an
+   * item list with no way to say "everything" could only express that as "these
+   * sources and no fragments at all" — silently dropping the entire scope.
+   *
+   * Carries the id `*`. Never persisted on its own: it round-trips through
+   * `ContextSpec.wholeScope`.
+   */
+  | "WholeScope"
+  /**
+   * Not a source either — a marker meaning "present the whole scope as
+   * summaries, keep the pins in full, and let the model read fragments on
+   * demand". Round-trips through `ContextSpec.summaries`; always travels with
+   * the whole-scope marker.
+   */
+  | "Summaries";
+
+export {
+  isContentPin,
+  isSnapshotPin,
+  isSummariesSelection,
+  isWholeScopeSelection,
+  type ScopeMode,
+  SUMMARIES_ID,
+  SUMMARIES_ITEM,
+  scopeModeOf,
+  selectionPins,
+  setScopeMode,
+  WHOLE_SCOPE_ID,
+  WHOLE_SCOPE_ITEM,
+} from "./context-items";
+
+export interface ContextItem {
+  /** What sort of source this is — drives the icon and how it resolves later. */
+  kind: ContextKind;
+  /** Record id for Colour/Fragment/Projection/Reflection; the fragment-type enum value for Type. */
+  id: string;
+  label: string;
+  /** A colour's palette slot — Colour kind only. */
+  swatch?: number;
+}
+
+export type MessageRole = "user" | "assistant";
+
+export const REFINE_TARGET_PART_TYPE = "data-refine_target";
+export const HAND_EDIT_PART_TYPE = "data-hand_edit";
+export const EDIT_TRIAGE_PART_TYPE = "data-edit_triage";
+export const REFINE_RESULT_PART_TYPE = "data-refine_result";
+export const REGENERATE_CONFIRMATION_PART_TYPE = "data-regenerate_confirmation";
+export const REGENERATE_CONFIRM_PART_TYPE = "data-regenerate_confirm";
+export const REGENERATE_CANCEL_PART_TYPE = "data-regenerate_cancel";
+export const REFINE_PROPOSAL_RESULT_PART_TYPE = "data-refine_proposal_result";
+/** Rides the assistant turn that called update_context: the spec proposed. */
+export const CONTEXT_CONFIRMATION_PART_TYPE = "data-context_confirmation";
+/** Marks the system message that accepts it; travels with the `context_spec`. */
+export const CONTEXT_CONFIRM_PART_TYPE = "data-context_confirm";
+export const CONTEXT_CANCEL_PART_TYPE = "data-context_cancel";
+
+export interface ContextConfirmation {
+  spec: ContextSpec;
+  reason?: string;
+}
+
+// A persisted assistant thread. Backed by the `chat_conversation` collection,
+// with messages stored separately in `chat_message`.
+export interface Conversation {
+  id: string; // PocketBase record id — used to query its messages
+  clientId: string; // AI SDK chat id — used to resume via useChat `id`
+  preview: string; // first user message text, for the list label
+  createdAt: string;
+}
+
+/**
+ * The absolute desired state of the chat context, mirroring the backend's
+ * `api.ContextSpec`. It is sent to `/api/chat` as a `system` message carrying a
+ * `context_spec` part (see {@link contextSpecMessage}); the backend resolves it
+ * to concrete ids and diffs it against earlier specs to hydrate the prompt.
+ *
+ * An empty spec (`{}`) is meaningful: it clears all previously pinned context.
+ */
+export type WholeScopeMode = "full" | "summaries";
+
+export interface ContextSpec {
+  /**
+   * Individual fragments pinned by id, included whatever their type or colours.
+   * Unlike the rules below this set is static — it never grows as new fragments
+   * arrive — so it supplements them rather than replacing them.
+   */
+  fragmentIds?: string[];
+  fragmentTypes?: string[];
+  colourIds?: string[];
+  sourceProjectionIds?: string[];
+  sourceReflectionIds?: string[];
+  wholeScope?: WholeScopeMode;
+}
+
+/**
+ * Mirrors the backend's `api.WindowSpec` — a reflection's schedule. `period`
+ * is the regeneration cadence and `duration` the lookback length, both as Go
+ * duration strings in hours (e.g. "168h"); `startTime` is the grid origin
+ * (RFC3339) and, when it lies in the past at creation, the point history is
+ * summarized from. A reflection is "scheduled" iff `period` is non-empty.
+ *
+ * Persisted on the reflection itself (`POST /api/reflections` at creation,
+ * `PATCH /api/reflections/:id` to append a new version). It does not travel
+ * through the chat; the chat carries the {@link TimeWindow} a refinement
+ * targets instead.
+ */
+export interface WindowSpec {
+  startTime?: string;
+  period: string;
+  duration: string;
+}
+
+/**
+ * One window on a reflection's grid, mirroring the backend's `api.Window`:
+ * half-open `[start, end)` RFC3339 bounds and the server's stable id. A
+ * reflection refinement is bound to one — the server seeds the conversation
+ * with the current window, and the client re-targets by appending a `system`
+ * message with a `window` part (see ChatPanel), exactly as it does for a
+ * {@link ContextSpec}. The preview, the pinned context and the committed
+ * snapshot all follow it.
+ */
+export interface TimeWindow {
+  id?: string;
+  start: string;
+  end: string;
+}
+
+/** Identity of a window for change detection — the same `start_end` key the backend files snapshots under. */
+export function timeWindowKey(win: TimeWindow | undefined | null): string {
+  return win ? `${win.start}_${win.end}` : "";
+}
+
+/** The `window` part a system message carries, if it is one of those. */
+export function messageWindow(m: UIMessage): TimeWindow | null {
+  if (m.role !== "system" || !m.parts) return null;
+  const parts = m.parts as { type: string; data?: unknown }[];
+  const p = parts.find((p) => p.type === "window");
+  const d = p?.data as Partial<TimeWindow> | undefined;
+  return d && typeof d.start === "string" && typeof d.end === "string"
+    ? {
+        id: typeof d.id === "string" ? d.id : undefined,
+        start: d.start,
+        end: d.end,
+      }
+    : null;
+}
+
+/** The window a refinement conversation is currently bound to: its newest `window` part. */
+export function parseActiveWindow(messages: UIMessage[]): TimeWindow | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const win = messageWindow(messages[i]);
+    if (win) return win;
+  }
+  return null;
+}
+
+/**
+ * Collapse the context bar's selection into a {@link ContextSpec}. Each
+ * `ContextItem.kind` maps to one spec field; the bar's ids are exactly what
+ * the backend expects (the fragment-type enum value for a legacy `Type`,
+ * record ids for the rest). An empty selection yields `{}` — scope off,
+ * nothing pinned, which clears the conversation's context.
+ */
+export function itemsToSpec(items: ContextItem[]): ContextSpec {
+  return criteriaToSpec(items);
+}
+
+/** Fold items into the spec fields they select, with no whole-scope logic. */
+function criteriaToSpec(items: ContextItem[]): ContextSpec {
+  const fragmentIds: string[] = [];
+  const fragmentTypes: string[] = [];
+  const colourIds: string[] = [];
+  const sourceProjectionIds: string[] = [];
+  const sourceReflectionIds: string[] = [];
+
+  let wholeScope = false;
+  let summaries = false;
+
+  for (const it of items) {
+    switch (it.kind) {
+      case "WholeScope":
+        wholeScope = true;
+        break;
+      case "Summaries":
+        summaries = true;
+        break;
+      case "Type":
+        fragmentTypes.push(it.id);
+        break;
+      case "Fragment":
+        fragmentIds.push(it.id);
+        break;
+      case "Colour":
+        colourIds.push(it.id);
+        break;
+      case "Projection":
+        sourceProjectionIds.push(it.id);
+        break;
+      case "Reflection":
+        sourceReflectionIds.push(it.id);
+        break;
+    }
+  }
+
+  const spec: ContextSpec = {};
+  if (wholeScope) spec.wholeScope = summaries ? "summaries" : "full";
+  if (fragmentIds.length) spec.fragmentIds = fragmentIds;
+  if (fragmentTypes.length) spec.fragmentTypes = fragmentTypes;
+  if (colourIds.length) spec.colourIds = colourIds;
+  if (sourceProjectionIds.length)
+    spec.sourceProjectionIds = sourceProjectionIds;
+  if (sourceReflectionIds.length)
+    spec.sourceReflectionIds = sourceReflectionIds;
+
+  return spec;
+}
+
+/**
+ * A lens stores its {@link ContextSpec} as a JSON field; PocketBase may hand it
+ * back as a decoded object or a JSON string depending on the field. Normalise to
+ * a spec (or null when absent/unparseable).
+ */
+export function parseContextSpec(raw: unknown): ContextSpec | null {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw as ContextSpec;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as ContextSpec;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Normalise a {@link WindowSpec} JSON field (object or string, as PocketBase may
+ * hand it back) into a spec, or null when absent/unparseable.
+ */
+export function parseWindowSpec(raw: unknown): WindowSpec | null {
+  if (!raw) return null;
+  let obj: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      obj = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (obj && typeof obj === "object") {
+    const o = obj as Record<string, unknown>;
+    if (typeof o.period === "string" || typeof o.duration === "string") {
+      return {
+        startTime: typeof o.startTime === "string" ? o.startTime : undefined,
+        period: typeof o.period === "string" ? o.period : "",
+        duration: typeof o.duration === "string" ? o.duration : "",
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Inverse of {@link itemsToSpec}: expand a {@link ContextSpec} back into context
+ * items. Used to re-seed a fixed (non-editable) context into the refine chat so
+ * the entity's existing lens context is carried through and preserved when the
+ * lens is re-distilled. Labels aren't rendered for the fixed refine context, so
+ * the id doubles as the label. `wholeScope` comes back as its marker item, so a
+ * whole scope carrying source compositions survives the round trip intact.
+ */
+export function specToItems(spec: ContextSpec): ContextItem[] {
+  return criteriaToItems(spec);
+}
+
+function criteriaToItems(spec: ContextSpec): ContextItem[] {
+  const items: ContextItem[] = [];
+  if (spec.wholeScope) {
+    items.push(WHOLE_SCOPE_ITEM);
+    if (spec.wholeScope === "summaries") {
+      items.push(SUMMARIES_ITEM);
+    }
+  }
+  for (const id of spec.colourIds ?? [])
+    items.push({ kind: "Colour", id, label: id });
+  for (const t of spec.fragmentTypes ?? [])
+    items.push({ kind: "Type", id: t, label: t });
+  for (const id of spec.fragmentIds ?? [])
+    items.push({ kind: "Fragment", id, label: id });
+  for (const id of spec.sourceProjectionIds ?? [])
+    items.push({ kind: "Projection", id, label: id });
+  for (const id of spec.sourceReflectionIds ?? [])
+    items.push({ kind: "Reflection", id, label: id });
+  return items;
+}
+
+/**
+ * A canonical, order-independent string for a spec, used to tell whether the
+ * active context has actually changed since the last one we sent (so we only
+ * emit a `context_spec` message when it has).
+ */
+export function specKey(spec: ContextSpec): string {
+  return JSON.stringify({
+    fragmentIds: [...(spec.fragmentIds ?? [])].sort(),
+    fragmentTypes: [...(spec.fragmentTypes ?? [])].sort(),
+    colourIds: [...(spec.colourIds ?? [])].sort(),
+    sourceProjectionIds: [...(spec.sourceProjectionIds ?? [])].sort(),
+    sourceReflectionIds: [...(spec.sourceReflectionIds ?? [])].sort(),
+    wholeScope: spec.wholeScope ?? "",
+  });
+}
+
+/**
+ * Scans a message stream backwards to find the most recent ContextSpec
+ * that the frontend sent, returning it so the UI can reconstruct the panel state.
+ */
+export function parseActiveContext(messages: UIMessage[]): ContextSpec | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const spec = messageContextSpec(messages[i]);
+    if (spec) return spec;
+  }
+  return null;
+}
+
+/** The `context_spec` a system message carries, if it is one of those. */
+export function messageContextSpec(m: UIMessage): ContextSpec | null {
+  if (m.role !== "system" || !m.parts) return null;
+  // `context_spec` is a custom part type not in the SDK's part union (see
+  // its emission in chat-panel.tsx), so inspect parts as loosely-typed.
+  const parts = m.parts as { type: string; data?: unknown }[];
+  const p = parts.find((p) => p.type === "context_spec");
+  return p && typeof p.data === "object" && p.data !== null
+    ? (p.data as ContextSpec)
+    : null;
+}
+
+export interface ContextSpecDelta {
+  added: ContextItem[];
+  removed: ContextItem[];
+}
+
+/**
+ * The item-level difference between two specs, for rendering a context change
+ * where it took effect in the transcript. Spec-level deliberately: the model's
+ * hydrated delta is at the resolved-fragment level (a colour expands to its
+ * members server-side), but the human-facing change is the selection itself.
+ * Against a `null` previous spec everything is `added` — the first spec of a
+ * conversation renders as a summary, not a diff.
+ */
+export function diffContextSpecs(
+  prev: ContextSpec | null,
+  next: ContextSpec,
+): ContextSpecDelta {
+  const prevItems = prev ? specToItems(prev) : [];
+  const nextItems = specToItems(next);
+  const key = (it: ContextItem) => `${it.kind}:${it.id}`;
+  const prevKeys = new Set(prevItems.map(key));
+  const nextKeys = new Set(nextItems.map(key));
+  return {
+    added: nextItems.filter((it) => !prevKeys.has(key(it))),
+    removed: prevItems.filter((it) => !nextKeys.has(key(it))),
+  };
+}
+
+export function createKalaidoChatTransport(options: {
+  baseURL: string;
+  api?: string;
+  prepareSendMessagesRequest?: PrepareSendMessagesRequest<UIMessage>;
+}): DefaultChatTransport<UIMessage> {
+  const apiPath = options.api ?? "/api/explore";
+  return new DefaultChatTransport<UIMessage>({
+    // api is overridden by the custom fetch below — it always targets the
+    // ACTIVE kalaidoscope (local sidecar or <cloud gateway>/<cloudId>) and
+    // attaches the cloud JWT, so chat works on cloud kalaidoscopes and is metered.
+    api: apiPath,
+    prepareSendMessagesRequest: options.prepareSendMessagesRequest,
+    fetch: async (_url, init) => {
+      const headers = {
+        ...(init?.headers as Record<string, string> | undefined),
+        ...(await kalaidoscopeAuthHeaders(options.baseURL)),
+      };
+      const res = await fetch(`${options.baseURL}${apiPath}`, {
+        ...init,
+        headers,
+      });
+      // The AI SDK doesn't expose the status on its error; tag the 402 so
+      // onError can recognise the quota-exhausted case.
+      if (res.status === 402) throw new Error("quota_exhausted");
+      return res;
+    },
+  });
+}
+
+function previewText(content: unknown): string {
+  const msg = content as UIMessage | undefined;
+  if (!msg?.parts) return "";
+  return stripMentions(
+    msg.parts.map((p) => (p.type === "text" ? p.text : "")).join(""),
+  ).trim();
+}
+
+export async function listConversations(
+  client: TypedPocketBase,
+): Promise<Conversation[]> {
+  const records = await client.collection("chat_conversation").getFullList({
+    sort: "-created",
+    requestKey: null,
+  });
+
+  // Batch-fetch early messages for all conversations (chunked OR filter) instead
+  // of one request per conversation. A conversation can lead with `context_spec`/
+  // `pinned_ids` system messages, which carry no chat text to preview, so we take
+  // the earliest message with text. Conversations whose first text message falls
+  // outside the fetched page fall back to "New conversation".
+  const previews = new Map<string, string>();
+  const CHUNK = 30;
+  for (let i = 0; i < records.length; i += CHUNK) {
+    const chunk = records.slice(i, i + CHUNK);
+    const filter = chunk
+      .map((r, idx) =>
+        client.filter(`chat_conversation_id = {:id${idx}}`, {
+          [`id${idx}`]: r.id,
+        }),
+      )
+      .join(" || ");
+    try {
+      const { items } = await client
+        .collection("chat_message")
+        .getList(1, 200, {
+          filter,
+          sort: "created",
+          requestKey: null,
+        });
+      for (const m of items) {
+        const convId = m.chat_conversation_id;
+        if (previews.has(convId)) continue;
+        const text = previewText(m.content);
+        if (text) previews.set(convId, text);
+      }
+    } catch (e) {
+      console.warn("chat preview fetch failed", e);
+    }
+  }
+
+  return records.map(
+    (r) =>
+      ({
+        id: r.id,
+        clientId: r.external_conversation_id ?? "",
+        preview: previews.get(r.id) ?? "New conversation",
+        createdAt: r.created,
+      }) as Conversation,
+  );
+}
+
+export async function getConversationMessages(
+  client: TypedPocketBase,
+  conversationId: string,
+): Promise<UIMessage[]> {
+  const records = await client.collection("chat_message").getFullList({
+    filter: client.filter("chat_conversation_id = {:id}", {
+      id: conversationId,
+    }),
+    sort: "created",
+    requestKey: null,
+  });
+  return records.map((r) => r.content as UIMessage);
+}
+
+/**
+ * A message's bookmark state, keyed by its UIMessage id — the only id the
+ * client has for a message. `fragmentId` is set once the conversation's
+ * bookmarks have been saved; it outlives the bookmark itself, which is what
+ * keeps a saved message from being saved twice.
+ */
+export interface MessageMark {
+  messageId: string;
+  bookmarked: boolean;
+  fragmentId?: string;
+}
+
+/** Set or clear the bookmark on one message of a plain chat. */
+export async function setBookmark(
+  clientId: string,
+  messageId: string,
+  bookmarked: boolean,
+): Promise<Result<MessageMark, Error>> {
+  return withActiveClient((client) =>
+    client.send<MessageMark>(
+      `/api/explore/conversations/${encodeURIComponent(clientId)}/messages/${encodeURIComponent(messageId)}/bookmark`,
+      { method: "PATCH", body: { bookmarked } },
+    ),
+  );
+}
+
+export interface SavedBookmark {
+  messageId: string;
+  fragmentId: string;
+  /** This call created the fragment; false when the turn was already saved. */
+  created: boolean;
+}
+
+/**
+ * Save every bookmarked turn of a chat as a fragment, in one transaction.
+ * Idempotent: turns already saved come back with their existing fragment.
+ * `titles` names the fragment a message becomes, keyed by message id; a
+ * message already saved takes the name.
+ */
+export async function saveBookmarks(
+  clientId: string,
+  titles?: Record<string, string>,
+): Promise<Result<{ saved: SavedBookmark[] }, Error>> {
+  return withActiveClient((client) =>
+    client.send<{ saved: SavedBookmark[] }>(
+      `/api/explore/conversations/${encodeURIComponent(clientId)}/bookmarks/save`,
+      {
+        method: "POST",
+        requestKey: null,
+        ...(titles && Object.keys(titles).length > 0
+          ? { body: { titles } }
+          : {}),
+      },
+    ),
+  );
+}
+
+/** The projection a chat was working towards: a name and its opening message. */
+export interface ChatBrief {
+  name: string;
+  message: string;
+}
+
+/**
+ * Ask the model what projection the conversation was working towards. Nothing
+ * is created; the brief is shown for editing before the projection starts.
+ */
+export async function generateBrief(
+  clientId: string,
+): Promise<Result<ChatBrief, Error>> {
+  return withActiveClient((client) =>
+    client.send<ChatBrief>(
+      `/api/explore/conversations/${encodeURIComponent(clientId)}/brief`,
+      { method: "POST", requestKey: null },
+    ),
+  );
+}

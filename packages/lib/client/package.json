@@ -1,0 +1,26 @@
+{
+  "name": "@kalaido/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "imports": {
+    "#*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kalaido/platform": "workspace:*",
+    "ai": "^6.0.182",
+    "better-auth": "^1.6.11",
+    "date-fns": "^4.2.1",
+    "diff": "^9.0.0",
+    "jwt-decode": "^4.0.0",
+    "neverthrow": "^8.2.0",
+    "pocketbase": "^0.28.1",
+    "posthog-js": "^1.433.3"
+  }
+}

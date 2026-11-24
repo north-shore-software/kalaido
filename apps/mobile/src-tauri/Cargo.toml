@@ -1,0 +1,22 @@
+[package]
+name = "kalaido-mobile"
+version = "0.0.15"
+description = "Kalaido"
+authors = ["North Shore Software Ltd. <kalaido@northshoresoftware.ca>"]
+edition = "2024"
+license = "AGPL-3.0-only"
+
+[lib]
+name = "kalaido_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

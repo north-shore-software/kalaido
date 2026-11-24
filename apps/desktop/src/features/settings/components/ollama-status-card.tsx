@@ -1,0 +1,43 @@
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
+import { SurfaceCard } from "@kalaido/primitives/kalaido";
+import { Button } from "@kalaido/primitives/shadcn/button";
+import { cn } from "@kalaido/primitives/lib/css-utils";
+
+export interface OllamaStatusCardProps {
+  reachable: boolean;
+  modelCount?: number;
+  onRefresh: () => void;
+}
+
+export function OllamaStatusCard({
+  reachable,
+  modelCount = 0,
+  onRefresh,
+}: OllamaStatusCardProps) {
+  return (
+    <SurfaceCard className="flex items-center justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span
+          className={cn(
+            "size-2 shrink-0 rounded-full",
+            reachable ? "bg-stable" : "bg-critical",
+          )}
+        />
+        <div className="flex min-w-0 flex-col">
+          <span className="text-item font-medium text-fg-1">
+            {reachable ? "Connected to Ollama" : "Ollama not reachable"}
+          </span>
+          <span className="truncate text-meta text-fg-3">
+            {reachable
+              ? `${modelCount} model${modelCount === 1 ? "" : "s"} installed`
+              : "Make sure Ollama is installed and running, then refresh."}
+          </span>
+        </div>
+      </div>
+      <Button variant="ghost" onClick={onRefresh} className="shrink-0">
+        <ArrowsClockwiseIcon />
+        Refresh
+      </Button>
+    </SurfaceCard>
+  );
+}

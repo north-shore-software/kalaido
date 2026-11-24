@@ -1,0 +1,97 @@
+import { FolderOpenIcon } from "@phosphor-icons/react";
+import { useId } from "react";
+import { Button } from "@kalaido/primitives/shadcn/button";
+import { Input } from "@kalaido/primitives/shadcn/input";
+import type { LocationResult } from "@/features/create-kalaidoscope/actions.ts";
+import { cn } from "@kalaido/primitives/lib/css-utils";
+
+export interface AdvancedLocationFieldsProps {
+  storage: "local_file" | "cloud";
+  locationInput: string;
+  onLocationInput: (v: string) => void;
+  onBrowse: () => void;
+  parsedLocation: LocationResult;
+  cloudId: string;
+  onCloudId: (v: string) => void;
+}
+
+export function AdvancedLocationFields({
+  storage,
+  locationInput,
+  onLocationInput,
+  onBrowse,
+  parsedLocation,
+  cloudId,
+  onCloudId,
+}: AdvancedLocationFieldsProps) {
+  const locationId = useId();
+  const cloudFieldId = useId();
+  const locationIsInvalid = parsedLocation.kind === "invalid";
+
+  return (
+    <div className="flex flex-col gap-2 pl-5">
+      {storage === "local_file" ? (
+        <>
+          <label
+            htmlFor={locationId}
+            className="text-label uppercase text-muted-foreground"
+          >
+            Location
+          </label>
+          <div className="flex items-center gap-2">
+            <Input
+              id={locationId}
+              value={locationInput}
+              onChange={(e) => onLocationInput(e.target.value)}
+              placeholder="Default location"
+              className={cn(
+                "flex-1 min-w-0 text-mono-sm",
+                locationIsInvalid &&
+                  "border-destructive focus-visible:ring-destructive",
+              )}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="shrink-0"
+              onClick={onBrowse}
+            >
+              <FolderOpenIcon />
+            </Button>
+          </div>
+          {parsedLocation.kind === "invalid" && (
+            <p className="text-meta text-destructive">
+              {parsedLocation.reason ??
+                "Enter an absolute path (e.g. /Users/me/data) or a URL (e.g. http://localhost:8090)."}
+            </p>
+          )}
+          {parsedLocation.kind === "dev" && (
+            <p className="text-meta text-muted-foreground">
+              Dev kalaidoscope — connects to an existing PocketBase instance.
+              Include credentials in the URL
+              (http://user:password@localhost:8090); they are stored in plain
+              text on this machine.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <label
+            htmlFor={cloudFieldId}
+            className="text-label uppercase text-muted-foreground"
+          >
+            Kalaidoscope Global ID
+          </label>
+          <Input
+            id={cloudFieldId}
+            value={cloudId}
+            onChange={(e) => onCloudId(e.target.value)}
+            placeholder="my-kalaidoscope"
+            className="text-mono-sm"
+          />
+        </>
+      )}
+    </div>
+  );
+}

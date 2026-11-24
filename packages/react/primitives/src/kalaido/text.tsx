@@ -1,0 +1,38 @@
+import type { ReactNode } from "react";
+import { cn } from "#lib/css-utils";
+
+export function Label({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn("text-label font-semibold text-fg-3 uppercase", className)}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Monospace — "the voice of raw data": timestamps, counts, paths. */
+export function Mono({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "font-mono text-xs tabular-nums text-muted-foreground",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}

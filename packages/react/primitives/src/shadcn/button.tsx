@@ -1,0 +1,59 @@
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
+import { cva, type VariantProps } from "class-variance-authority";
+
+import { cn } from "#lib/css-utils";
+
+const buttonVariants = cva(
+  "group/button inline-flex shrink-0 items-center justify-center rounded-none font-semibold whitespace-nowrap uppercase transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+  {
+    variants: {
+      variant: {
+        default:
+          "border border-line-strong bg-transparent text-fg-2 hover:border-fg-3 hover:text-fg-1 aria-expanded:border-fg-3 aria-expanded:text-fg-1",
+        commit:
+          "border-0 bg-magenta font-bold text-magenta-foreground clip-chamfer hover:opacity-[0.86] focus-visible:ring-magenta/50",
+        section:
+          "border-0 bg-section font-bold text-section-foreground hover:text-section-foreground hover:clip-chamfer hover:opacity-[0.86] focus-visible:ring-section/50",
+        outline:
+          "border border-fg-3 bg-transparent text-fg-1 hover:border-fg-1 aria-expanded:border-fg-1",
+        secondary:
+          "border border-transparent bg-surface-2 text-fg-1 hover:bg-surface-3 aria-expanded:bg-surface-3",
+        ghost:
+          "border border-transparent bg-transparent text-fg-2 hover:bg-surface-2 hover:text-fg-1 aria-expanded:bg-surface-2 aria-expanded:text-fg-1",
+        destructive:
+          "border border-critical/40 bg-transparent text-critical-ink hover:border-critical hover:bg-critical hover:text-white focus-visible:ring-critical/40",
+      },
+      size: {
+        default:
+          "h-10 gap-2 px-5 text-btn has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4",
+        xs: "h-6 gap-1.5 px-2 text-btn-sm has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-[25px] gap-2 px-3 text-btn-sm has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+        icon: "size-10",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-7",
+        "icon-lg": "size-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+);
+
+function Button({
+  className,
+  variant = "default",
+  size = "default",
+  ...props
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  return (
+    <ButtonPrimitive
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  );
+}
+
+export { Button, buttonVariants };

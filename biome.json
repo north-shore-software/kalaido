@@ -1,0 +1,48 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "root": "."
+  },
+  "files": {
+    "includes": [
+      "packages/**",
+      "apps/**",
+      "scripts/**",
+      "*.json",
+      "*.ts",
+      "!**/dist",
+      "!**/target",
+      "!**/gen",
+      "!**/src-tauri"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "includes": ["**", "!packages/lib/client/src/kalaidoscope/types.ts"],
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 80
+  },
+  "linter": {
+    "enabled": true,
+    "includes": [
+      "**",
+      "!packages/react/primitives/src/shadcn",
+      "!packages/lib/client/src/kalaidoscope/types.ts"
+    ],
+    "rules": {
+      "preset": "recommended",
+      "performance": {
+        "useDomNodeTextContent": "off"
+      }
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
+}

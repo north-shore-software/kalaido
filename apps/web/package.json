@@ -1,0 +1,28 @@
+{
+  "name": "@kalaido/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kalaido/client": "workspace:*",
+    "@kalaido/components": "workspace:*",
+    "@kalaido/features": "workspace:*",
+    "@kalaido/hooks": "workspace:*",
+    "@kalaido/platform": "workspace:*",
+    "@kalaido/primitives": "workspace:*",
+    "neverthrow": "^8.2.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.14.2",
+    "valtio": "^2.3.2"
+  },
+  "devDependencies": {
+    "react-grab": "^0.2.0"
+  }
+}

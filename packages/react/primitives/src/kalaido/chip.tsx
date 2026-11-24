@@ -1,0 +1,35 @@
+import type { ReactNode } from "react";
+import { cn } from "#lib/css-utils";
+
+/**
+ * A pill-shaped toggle button for compact single/multi selection (frequency,
+ * window, context kind).
+ */
+export function Chip({
+  active,
+  accent,
+  children,
+  onClick,
+}: {
+  active?: boolean;
+  accent?: "cyan";
+  children: ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-none border px-2.5 py-1 text-meta font-medium transition-colors",
+        active
+          ? accent === "cyan"
+            ? "border-cyan-edge bg-cyan-wash text-cyan-ink"
+            : "border-fg-3 bg-surface-2 text-fg-1"
+          : "border-line-strong text-fg-3 hover:border-fg-3 hover:text-fg-1",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
