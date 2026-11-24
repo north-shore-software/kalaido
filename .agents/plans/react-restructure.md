@@ -1,10 +1,10 @@
 # React App Restructure Plan
 
-Status: **Decisions locked — awaiting API sign-off to begin implementation**
+Status: **Architecture & boundaries locked — ready for step-by-step API review and implementation**
 
 ## Goal
 
-Run a browser-hosted, cloud-only web version of Kalaido alongside the macOS desktop and Android mobile Tauri apps in a pnpm + Cargo monorepo, with strict dependency boundaries so each target only ships and depends on what it supports.
+Run a browser-hosted, cloud-only web version of Kalaido alongside the macOS desktop and Android mobile Tauri apps in a pnpm + Cargo monorepo, with strict, enforceable boundaries so each package and app only depends on and ships what it supports.
 
 ## Current Baseline (Verified in Repo)
 
@@ -20,13 +20,14 @@ Run a browser-hosted, cloud-only web version of Kalaido alongside the macOS desk
   - `app/src/api/kalaidoscope/client.ts` directly imports `getLocalKalaidoscopeStatus` / `getLocalKalaidoscopeAuthToken` from `@/api/app/local-scopes.ts`.
   - `app/src/api/kalaidoscope/ingest.ts` takes a disk `path` and calls `readLocalFileFromDisk` (Rust) even though it uploads a `Blob` in `FormData`.
   - `app/src/api/app/feedback.ts` calls `invoke("get_feedback_diagnostics")` unconditionally, even though that command is `#[cfg(desktop)]` in `app/src-tauri/src/lib.rs`.
+  - `app/src/components/kalaido/` currently mixes ~30 stateless visual primitives with ~10 backend-connected domain widgets (`ChatPanel`, `ContextPicker`, `FragmentDrawer`, etc.).
 
 ---
 
 ## Decisions Made
 
-### 1. Monorepo workspace layout (`apps/` + `packages/`) — workspace move first (1B)
-- **Decision:** Move directly to a pnpm workspace (`apps/` + `packages/`) rather than keeping `app/` or building a temporary sibling `web/`. Temporary breakage during the move is acceptable.
+### 1. Monorepo workspace layout (`apps/` + `packages/`) — workspace move first
+- **Decision:** Move directly to a pnpm workspace (`apps/` + `packages/`) rather than keeping `app/` or creating a temporary sibling `web/`. Temporary breakage during the migration is acceptable.
 - **Justification:**
   - Enforces hard dependency boundaries via `package.json` (`apps/web` never depends on `@tauri-apps/*`).
   - Avoids paying two migration costs (extracting into sibling `web/` and later relocating `app/` + rewiring `kalaido.sh` / CI).
@@ -36,110 +37,210 @@ Run a browser-hosted, cloud-only web version of Kalaido alongside the macOS desk
 - **Justification:**
   - macOS and Android share zero lines of custom Rust and only 3 plugin init lines (`clipboard-manager`, `opener`, `store`).
   - Mobile is an independent product target with separate store compliance, signing, versioning, and release cadence from macOS notarized DMG/updater builds.
-  - Gives structural symmetry across all three apps: single-entry Vite configs, dedicated `package.json` / `tsconfig.json`, and clean `src-tauri/` crates without `#[cfg(desktop)]` or `tauri.*.conf.json` overrides.
+  - Gives structural symmetry across all three apps: single-entry Vite configs, dedicated `package.json` / `tsconfig.json`, and clean `src-tauri/` crates free of `#[cfg(desktop)]` and `tauri.*.conf.json` overrides.
 
-### 3. Root Cargo workspace (3A)
+### 3. Root Cargo workspace
 - **Decision:** Add a root `Cargo.toml` workspace with `members = ["apps/desktop/src-tauri", "apps/mobile/src-tauri"]`.
-- **Justification:** Keeps one `Cargo.lock` and one shared `target/` build cache across both Tauri apps while letting each crate maintain its own minimal dependency list and `tauri.conf.json`.
+- **Justification:** Shares one `Cargo.lock` and one `target/` build cache across both Tauri apps while letting each crate keep its own minimal dependency list and `tauri.conf.json`.
 
-### 4. Coarse `packages/` layout first (2A)
-- **Decision:** Start with four shared packages:
-  - `packages/platform` (`@kalaido/platform`) — `HostAdapter` interface, shared types (`KalaidoscopeMeta`, `PersistentAppSetting`, etc.), and runtime/React host wiring. Zero Tauri deps.
-  - `packages/platform-tauri` (`@kalaido/platform-tauri`) — Tauri implementation of `HostAdapter` (`plugin-store`, `plugin-clipboard-manager`, `plugin-opener`, plus optional desktop diagnostics hook).
-  - `packages/platform-web` (`@kalaido/platform-web`) — Browser implementation of `HostAdapter` (`localStorage`, `navigator.clipboard`, `window.open`, JS diagnostics).
-  - `packages/core` (`@kalaido/core`) — Shared UI (`components/ui`, `components/kalaido`, `components/layout`, `components/feedback`, `error-boundary`), cloud + kalaidoscope API clients, shared hooks/lib, and shared screens.
-- **Justification:** Avoids fighting circular imports across prematurely split `ui` / `api` / `features` packages; those can be split later once the graph is acyclic.
+### 4. Two-tier `packages/` split: `packages/lib/*` (pure TS) vs `packages/react/*` (React)
+- **Decision:** Split shared packages into a pure TypeScript tier and a layered React tier:
+  - `packages/lib/platform` (`@kalaido/platform`) — single package with subpath exports (`.`, `./tauri`, `./web`).
+  - `packages/lib/client` (`@kalaido/client`) — backend clients (`cloud/`, `kalaidoscope/`), generated PocketBase types, pure utilities.
+  - `packages/react/primitives` (`@kalaido/primitives`) — design tokens (`index.css`), brand assets, `shadcn/` (renamed from `ui/`), stateless visual primitives, `ThemeProvider`. Zero `@kalaido/*` deps (`MarkdownContent` takes an `onOpenLink` prop).
+  - `packages/react/hooks` (`@kalaido/hooks`) — React contexts (`HostProvider`/`useHost`, `KalaidoscopeClientContext`, `ActiveKalaidoscopeContext`) and shared data hooks.
+  - `packages/react/components` (`@kalaido/components`) — domain-connected widgets reused across 2+ features or by app chrome.
+  - `packages/react/features` (`@kalaido/features`) — self-contained vertical feature slices shared across 2+ apps.
+- **Justification:**
+  - Makes the pure-TS vs React boundary visible directly in the directory tree (`packages/lib/*` can never import React).
+  - Avoids a catch-all `core` junk drawer and separates visual primitives (domain-free) from domain widgets (backend-connected) by *coupling*, not component size.
+  - Keeps `platform` as one package with `./tauri` (optional peerDeps on `@tauri-apps/*`) and `./web` subpaths so there is less package boilerplate while `apps/web` never installs Tauri.
+  - Renaming `ui/` → `shadcn/` with `components.json` inside `packages/react/primitives/` makes shadcn CLI targets and Biome / `check-design-classes` exclusions self-explanatory.
 
-### 5. Three-layer separation: Host Adapter → Shared UI/Core → Per-App State & Routing
+### 5. Host Adapter + Per-App Routing & Global State
 - **Decision:**
-  1. **Host Adapter:** One shared interface (`HostAdapter`) with required core capabilities and optional sub-adapters (`undefined` when unsupported) instead of runtime-throwing stubs. Purely desktop-only Rust APIs (`local-scopes`, `ollama-status`, `llm-validate`, `downloads`, `ingest-file`, `updater`, `menu:*`) stay in `apps/desktop`.
-  2. **Shared UI & Core:** Shared components, API clients, hooks, and shared screens live in `packages/core`, consuming `HostAdapter` and workspace/navigation props or contexts.
-  3. **Per-App Routing & Global State:** Each app owns its router, route table, lifecycle state machine, and window chrome (`TitleBar` in desktop, `keyboard-inset` in mobile, browser chrome in web).
-- **Justification:** Separates host runtime (Tauri vs Browser), workspace capability (local+cloud vs cloud-only), and form factor (desktop vs mobile) cleanly.
+  - Shared `HostAdapter` interface covers only common cross-platform capabilities (`settings`, `clipboard`, `openExternalUrl`, `diagnostics`, `reload`), with optional sub-adapters (`undefined` when unsupported) instead of runtime-throwing stubs.
+  - Purely desktop-only Tauri IPC (`local-scopes`, `sidecar-client`, `downloads`, `ingest-file`, `llm-validate`, `ollama-status`, `updater`, native dialogs, `menu:*` listeners) stays inside `apps/desktop/src/api/app/`.
+  - Routing, route tables, global lifecycle state (`AppStage`), and window chrome (`TitleBar`, `NavSidebar`, `UtilityBar`, `keyboard-inset`) are **not shared** — each app owns its own.
+- **Justification:** Keeps host runtime (Tauri vs Browser), workspace capability (local+cloud vs cloud-only), and form factor (desktop vs mobile) cleanly separated.
 
-### 6. Keep `apps/web` on existing companion routes for this pass (4A)
+### 6. Keep `apps/web` on existing companion routes for this pass
 - **Decision:** During the restructure, `apps/web` and `apps/mobile` stay at parity with the current 5 companion routes (`splash`, `boot-error`, `CloudSignIn`, `CloudWorkspacePicker`, `ExploreCompact`). Expanding `apps/web` to full cloud workspace UI and `BrowserRouter` happens in a follow-up pass.
-- **Justification:** Keeps the structural migration verifiable against existing behaviour without mixing architecture changes with product/UX design for the full web app. Desktop-only workspace screens stay in `apps/desktop` until promoted into `packages/core` for Web.
+- **Justification:** Keeps the structural migration verifiable against existing behaviour without mixing repo layout changes with product/UX design for the full web app.
 
-### 7. Mobile identity & per-target versioning (5A)
-- **Decision:** Both `apps/desktop` and `apps/mobile` start with identifier `com.northshoresoftware.kalaido` and version `0.0.15`. Split `kalaido.sh bump` into per-target bumping (`bump:desktop` / `bump:mobile`).
+### 7. Mobile identity & per-target versioning
+- **Decision:** Both `apps/desktop` and `apps/mobile` start with identifier `com.northshoresoftware.kalaido` and version `0.0.15`. Split `kalaido.sh bump` per target (`bump:desktop` / `bump:mobile`).
 - **Justification:** Preserves existing dev/APK identities while decoupling future desktop and mobile release cadences.
 
 ---
 
-## Target Directory Layout
+## Intended Repo Structure
 
 ```text
-Cargo.toml                    # Rust workspace (apps/desktop/src-tauri, apps/mobile/src-tauri)
-Cargo.lock
-pnpm-workspace.yaml           # packages/*, apps/*
-package.json                  # root workspace scripts & shared devDependencies (Biome, TS, Vitest)
-biome.json
-apps/
-  desktop/
-    package.json              # @kalaido/desktop
-    index.html
-    vite.config.ts
-    tsconfig.json
-    src/                      # desktop router, appState, desktop-only features & Tauri commands
-    src-tauri/                # macOS Tauri crate (sidecar, updater, dialog, shell, menu, etc.)
-  mobile/
-    package.json              # @kalaido/mobile
-    index.html
-    vite.config.ts
-    tsconfig.json
-    src/                      # mobile router, cloud-only state, keyboard-inset, mobile.css
-    src-tauri/                # Android/iOS Tauri crate (clipboard-manager, opener, store only)
-  web/
-    package.json              # @kalaido/web (zero @tauri-apps/* deps)
-    index.html
-    vite.config.ts
-    tsconfig.json
-    src/                      # web router, cloud-only state, web.css
-packages/
-  platform/                   # @kalaido/platform (HostAdapter interface & context)
-  platform-tauri/             # @kalaido/platform-tauri
-  platform-web/               # @kalaido/platform-web
-  core/                       # @kalaido/core (shared UI, cloud/kalaidoscope API, shared screens)
-kalaidoscope/                 # Go backend / sidecar (unchanged)
-scripts/                      # workspace-level check scripts (nav, routes, design)
+kalaido/
+├── Cargo.toml                        # Rust workspace: apps/desktop/src-tauri, apps/mobile/src-tauri
+├── Cargo.lock                        # Shared Rust lockfile
+├── pnpm-workspace.yaml               # packages/lib/*, packages/react/*, apps/*
+├── pnpm-lock.yaml                    # Shared JS/TS lockfile
+├── package.json                      # Root scripts + shared devDeps (Biome, TS, Vitest, Vite, Tailwind)
+├── tsconfig.base.json                # Shared strict TS compiler options
+├── biome.json                        # Root Biome config (!packages/react/primitives/src/shadcn/**, !types.ts)
+├── vitest.config.ts                  # Workspace test config
+├── kalaido.sh                        # Per-target dev/build/check/bump commands
+├── scripts/                          # Workspace checks (design classes, nav discipline, route validation)
+│
+├── packages/
+│   ├── lib/                          # Pure TypeScript — ZERO React
+│   │   ├── platform/                 # @kalaido/platform (exports: ".", "./tauri", "./web")
+│   │   │   ├── package.json
+│   │   │   ├── tsconfig.json
+│   │   │   └── src/
+│   │   │       ├── index.ts          # HostAdapter contract, shared types, setHost/getHost
+│   │   │       ├── tauri.ts          # createTauriHost() (store, clipboard, opener)
+│   │   │       └── web.ts            # createWebHost() (localStorage, navigator.clipboard, window.open)
+│   │   │
+│   │   └── client/                   # @kalaido/client
+│   │       ├── package.json
+│   │       ├── tsconfig.json
+│   │       └── src/
+│   │           ├── cloud/            # better-auth client, cloud workspace registry API
+│   │           ├── kalaidoscope/     # PocketBase cloud & local_net clients, generated types, Blob-based ingest, domain APIs
+│   │           └── lib/              # Pure domain & text utils (errors, mentions, markdown-diff, naming, ndjson, pins, datetime, labels, posthog, reconcile-cloud-workspaces)
+│   │
+│   └── react/                        # React layer
+│       ├── primitives/               # @kalaido/primitives — ZERO @kalaido/* deps
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   ├── components.json       # shadcn CLI config ("ui": "@/shadcn", "utils": "@/lib/css-utils")
+│       │   └── src/
+│       │       ├── index.css         # Design tokens + Tailwind v4 theme
+│       │       ├── assets/brand/     # SVGs, favicon, colors_and_type.css
+│       │       ├── lib/              # css-utils.ts (cn), theme.ts
+│       │       ├── shadcn/           # Generated shadcn primitives (excluded from Biome lint & design-class check)
+│       │       ├── kalaido/          # Stateless visual primitives (Pill, SurfaceCard, Metric, OptionCards, EmptyState, Diff, Timeline, EditableText, MarkdownContent [onOpenLink prop], etc.)
+│       │       ├── layout/           # Pure layout primitives (PaneHeader, Section, LocationLabel, ThemeToggle)
+│       │       └── providers/        # ThemeProvider
+│       │
+│       ├── hooks/                    # @kalaido/hooks
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   └── src/                  # HostProvider/useHost, KalaidoscopeClientContext, ActiveKalaidoscopeContext, useCloudSession, useCollection, useLiveCollection, useColourSwatches, useFragmentLabels, useActiveContext, etc.
+│       │
+│       ├── components/               # @kalaido/components — reusable domain-connected widgets
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   └── src/                  # ChatPanel, RefineChatPanel, ContextBar, ContextPicker, ContextMeter, FragmentCard, FragmentDrawer, DecisionCard, DocumentCard, SourceList, PinToggle, PageHeader, CloudAuthPanel, AuthForm, OAuthButtons, RecoveryView, SplashScreen, CoreProviders
+│       │
+│       └── features/                 # @kalaido/features — vertical feature slices shared by 2+ apps
+│           ├── package.json
+│           ├── tsconfig.json
+│           └── src/
+│               ├── explore/          # BookmarksTray, ChatMessageActions, ConversationList, useBookmarks, useBookmarkActions, useConversations, ExploreCompactScreen
+│               └── auth/             # CloudSignInScreen, CloudWorkspacePickerScreen
+│
+├── apps/
+│   ├── desktop/                      # @kalaido/desktop (macOS, local + cloud, full UI)
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   ├── vite.config.ts
+│   │   ├── index.html
+│   │   ├── DESIGN.md / AGENTS.md
+│   │   ├── src/                      # Desktop router, registry, appState, host.ts, desktop-only api/app/*, TitleBar/NavSidebar/UtilityBar, desktop-only features/*
+│   │   └── src-tauri/                # macOS-only Rust crate (sidecar, updater, dialog, shell, menu, feedback, local files)
+│   │
+│   ├── mobile/                       # @kalaido/mobile (Android/iOS, cloud-only, compact UI)
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   ├── vite.config.ts
+│   │   ├── index.html
+│   │   ├── public/favicon.svg
+│   │   ├── src/                      # Mobile router, cloud-only state, host.ts, keyboard-inset, mobile.css
+│   │   └── src-tauri/                # Mobile-only Rust crate (clipboard-manager, opener, store only)
+│   │
+│   └── web/                          # @kalaido/web (Browser, cloud-only)
+│       ├── package.json
+│       ├── tsconfig.json
+│       ├── vite.config.ts
+│       ├── index.html
+│       ├── public/favicon.svg
+│       └── src/                      # Web router, cloud-only state, host.ts, web.css
+│
+├── kalaidoscope/                     # Go backend / sidecar (unchanged)
+└── .github/workflows/                # CI / release workflows
 ```
+
+---
+
+## Dependency Graph & Directory Rules
+
+### Allowed Dependency Direction (Strictly Acyclic)
+
+```text
+packages/lib/platform  ──► (no @kalaido/* deps)
+packages/lib/client    ──► platform
+packages/react/primitives ──► (no @kalaido/* deps)
+packages/react/hooks      ──► platform, client
+packages/react/components ──► platform, client, primitives, hooks
+packages/react/features   ──► platform, client, primitives, hooks, components
+apps/desktop              ──► platform (., ./tauri), client, primitives, hooks, components, features
+apps/mobile               ──► platform (., ./tauri), client, primitives, hooks, components, features
+apps/web                  ──► platform (., ./web),   client, primitives, hooks, components, features
+```
+
+Cross-tier invariants:
+- **No upward imports:** `packages/lib/*` must never import from `packages/react/*` or `apps/*`.
+- **No sibling app imports:** `apps/*` must never import from another `apps/*`.
+- **No Tauri leakage:** `@tauri-apps/*` may only appear in `packages/lib/platform/src/tauri.ts`, `apps/desktop/`, and `apps/mobile/`. It must never appear in `packages/lib/platform/src/{index,web}.ts`, `packages/lib/client/`, `packages/react/*`, or `apps/web/`.
+- **No router leakage:** `react-router-dom` may only appear in `apps/*`. Shared components and features receive navigation triggers as callback props.
+
+### Per-Directory Rules
+
+| Directory / Package | Allowed `@kalaido/*` deps | Allowed runtime/framework deps | Must contain | Must NOT contain |
+|---|---|---|---|---|
+| **`packages/lib/platform`** (`@kalaido/platform`) | None | `neverthrow`. Optional peerDeps on `@tauri-apps/{api,plugin-store,plugin-clipboard-manager,plugin-opener}` used **only** in `src/tauri.ts`. | `HostAdapter` interface, shared cross-layer types (`AppVariant`, `KalaidoscopeMeta`, `PersistentAppSetting`, `FeedbackContext`, `FeedbackDiagnostics`), `setHost`/`getHost`, `./tauri` (`createTauriHost`), `./web` (`createWebHost`). | React, JSX, hooks, PocketBase, domain APIs, desktop-only Tauri plugins (`dialog`, `shell`, `updater`, custom Rust `invoke`s). `src/index.ts` and `src/web.ts` must never import `@tauri-apps/*`. |
+| **`packages/lib/client`** (`@kalaido/client`) | `platform` | `pocketbase`, `better-auth`, `jwt-decode`, `neverthrow`, `ai`, `diff`, `date-fns`, `posthog-js`. | Pure TypeScript backend clients (`cloud/`, `kalaidoscope/`), generated PocketBase `types.ts`, Blob-based `ingestFile`, `createCloudClient` / `createLocalNetClient`, pure domain/text utilities (`errors`, `mentions`, `markdown-diff`, `naming`, `ndjson`, `pins`, `datetime`, `labels`, `reconcile-cloud-workspaces`), PostHog client wrapper. | React, JSX, React hooks, DOM layout code, `react-router-dom`, `@tauri-apps/*`, local filesystem path reading, sidecar IPC (`createSidecarClient`). |
+| **`packages/react/primitives`** (`@kalaido/primitives`) | **None** | `react`, `react-dom`, `@base-ui/react`, `radix-ui`, `@phosphor-icons/react`, `class-variance-authority`, `clsx`, `tailwind-merge`, `cmdk`, `embla-carousel-react`, `input-otp`, `react-day-picker`, `react-resizable-panels`, `recharts`, `shadcn`, `sonner`, `streamdown`, `@streamdown/math`, `katex`, `vaul`, `tw-animate-css`, `@fontsource-variable/*`. | Design tokens (`src/index.css`), brand SVGs (`assets/brand/`), `lib/css-utils.ts` (`cn`), `lib/theme.ts`, generated `shadcn/` primitives + `components.json`, stateless visual primitives (`kalaido/*`, `layout/*`), `ThemeProvider`. Side-effects (such as opening links in `MarkdownContent`) are injected via callback props (`onOpenLink`). | Any `@kalaido/*` dependency, PocketBase, `better-auth`, `@ai-sdk/react`, `swr`, `valtio`, `react-router-dom`, `@tauri-apps/*`, domain concepts (fragments, projections, workspaces), global app state. |
+| **`packages/react/hooks`** (`@kalaido/hooks`) | `platform`, `client` | `react`, `swr`, `neverthrow`, `ai`, `pocketbase`, `sonner`. | React contexts (`HostProvider`/`useHost`, `KalaidoscopeClientContext`/`useKalaidoscopeClient`, `ActiveKalaidoscopeContext`/`useActiveKalaidoscope`) and shared domain/data hooks (`useCloudSession`, `useCollection`, `useLiveCollection`, `useColourSwatches`, `useFragmentLabels`, `useActiveContext`, `useNoteIngest`, `useOrganizeStatus`, `useProjectionSnapshot`, `useRefineSession`, `useReflectionSeries`, `useResumeRefinement`, `useRotationStatus`, `useMobile`, `useAutoScroll`, `useDraftName`, `useCurrentUserId`). | JSX UI components (except bare context `<Provider>` wrappers), `react-router-dom`, `@tauri-apps/*`, app-specific lifecycle state (`AppStage`). |
+| **`packages/react/components`** (`@kalaido/components`) | `platform`, `client`, `primitives`, `hooks` | `react`, `@ai-sdk/react`, `ai`, `@phosphor-icons/react`, `posthog-js`, `sonner`, `neverthrow`. | Domain-connected widgets reused across **2+ features** or by app chrome (`ChatPanel`, `RefineChatPanel`, `ContextBar`, `ContextPicker`, `ContextMeter`, `FragmentCard`, `FragmentDrawer`, `DecisionCard`, `DocumentCard`, `SourceList`, `PinToggle`, `PageHeader`, `CloudAuthPanel`, `AuthForm`, `OAuthButtons`, `RecoveryView`, `SplashScreen`, `CoreProviders`). | `react-router-dom`, `@tauri-apps/*`, app-specific global state (`appState`/`AppStage`), single-feature-only UI. |
+| **`packages/react/features`** (`@kalaido/features`) | `platform`, `client`, `primitives`, `hooks`, `components` | `react`, `ai`, `@phosphor-icons/react`, `neverthrow`, `sonner`. | Self-contained vertical feature slices shared across **2+ apps** (each directory owns its feature-specific components, hooks, and screen views, e.g. `explore/`, `auth/`). Navigation and workspace switching are injected via callback props. | `react-router-dom`, `@tauri-apps/*`, desktop-only features, local sidecar logic, app-specific `AppStage`. |
+| **`apps/desktop`** (`@kalaido/desktop`) | `platform` (`.`, `./tauri`), `client`, `primitives`, `hooks`, `components`, `features` | `react`, `react-dom`, `react-router-dom`, `valtio`, `neverthrow`, `@tauri-apps/{api,plugin-store,plugin-clipboard-manager,plugin-opener,plugin-dialog}` + `@tauri-apps/cli`. | Desktop router & `registry.ts`, desktop `appState`/`AppStage`, `host.ts` (wiring `createTauriHost({ variant: "desktop", collectDiagnostics })`), desktop-only `api/app/*` (`local-scopes`, `sidecar-client`, `downloads`, `ingest-file`, `llm-validate`, `ollama-status`, `updater`, `feedback`, dialogs, `menu:*`), desktop chrome (`TitleBar`, `NavSidebar`, `UtilityBar`, `PageLayout`, `FeedbackDialog`), desktop-only `features/*`, macOS `src-tauri/` crate. | Mobile or web entry points, `#[cfg(mobile)]`, `tauri.android.conf.json`, `capabilities/mobile.json`. |
+| **`apps/mobile`** (`@kalaido/mobile`) | `platform` (`.`, `./tauri`), `client`, `primitives`, `hooks`, `components`, `features` | `react`, `react-dom`, `react-router-dom`, `valtio`, `neverthrow`, `@tauri-apps/{api,plugin-store,plugin-clipboard-manager,plugin-opener}` + `@tauri-apps/cli`. | Mobile router, cloud-only state, `host.ts` (`createTauriHost({ variant: "mobile" })`), `keyboard-inset.ts`, `mobile.css`, mobile-only `src-tauri/` crate (3 plugins, zero custom Rust commands). | Desktop-only Tauri plugins (`dialog`, `shell`, `updater`), sidecar/local-workspace code, desktop routes/screens, `macos-private-api`. |
+| **`apps/web`** (`@kalaido/web`) | `platform` (`.`, `./web`), `client`, `primitives`, `hooks`, `components`, `features` | `react`, `react-dom`, `react-router-dom`, `valtio`, `neverthrow`. | Web router, cloud-only state, `host.ts` (`createWebHost()`), `web.css`, web build/deploy config. | **Any `@tauri-apps/*` dependency or import** (including `@kalaido/platform/tauri`), sidecar/local-workspace code, desktop-only screens. |
 
 ---
 
 ## Platform & Adapter Matrix
 
-### Shared `HostAdapter` Surface
+### Shared `HostAdapter` (`@kalaido/platform`)
 
-| Capability | macOS (`platform-tauri`) | Android (`platform-tauri`) | Web (`platform-web`) |
+| Capability | macOS (`apps/desktop` via `./tauri`) | Android (`apps/mobile` via `./tauri`) | Web (`apps/web` via `./web`) |
 |---|---|---|---|
 | `variant` | `"desktop"` | `"mobile"` | `"web"` |
 | `settings` | `plugin-store` (`kalaido-settings.json`) | `plugin-store` | `localStorage` |
 | `clipboard.writeHtml` | `plugin-clipboard-manager` | `plugin-clipboard-manager` | `navigator.clipboard` |
 | `openExternalUrl` | `plugin-opener` | `plugin-opener` | `window.open` |
-| `diagnostics.collect` | Optional desktop provider (`invoke("get_feedback_diagnostics")`) | JS fallback (version, UA, route, no sidecar) | JS fallback (version, UA, route, no sidecar) |
+| `diagnostics.collect` | Desktop hook (`invoke("get_feedback_diagnostics")`) | JS fallback (version, platform, route) | JS fallback (version, platform, route) |
 | `reload` | `window.location.reload()` | `window.location.reload()` | `window.location.reload()` |
 
-### Desktop-Only (lives in `apps/desktop/src/api/`)
+### Desktop-Only (lives exclusively in `apps/desktop`)
 
-- Local workspaces & Go sidecar (`local-scopes.ts`, `createSidecarClient`, `local-kalaidoscope.ts`)
+- Local workspaces & Go PocketBase sidecar (`api/app/local-scopes.ts`, `api/app/sidecar-client.ts`, `lib/local-kalaidoscope.ts`)
 - Local disk file pickers & file reading (`openFilePicker`, `saveFilePicker`, `openDirectoryPicker`, `classifyPath`, `readLocalFileFromDisk`)
 - Authenticated disk download (`downloadToFile`)
 - Pre-sidecar LLM validation (`llm-validate.ts`) & Ollama probe (`ollama-status.ts`)
-- Native OS menu listeners (`menu:*`) & auto-updater (`updater.ts`)
-- Frameless window chrome (`TitleBar`)
+- Native OS menu event listeners (`menu:*`) & auto-updater (`updater.ts`)
+- Frameless window chrome (`TitleBar`, `data-tauri-drag-region`)
 
 ---
 
-## Execution Sequence
+## Staged Implementation Plan (Gate Per Boundary)
 
-1. **API sign-off:** Review & approve `@kalaido/platform` signatures and `@kalaido/core` shared-screen/client seams before writing code.
-2. **Workspace scaffolding:** Create root `pnpm-workspace.yaml`, root `package.json`, root `Cargo.toml`, `biome.json`, and package manifests for `packages/*` and `apps/*`.
-3. **Implement `packages/platform`, `packages/platform-tauri`, `packages/platform-web`.**
-4. **Extract `packages/core`:** Move shared UI, `api/cloud`, `api/kalaidoscope` (decoupling `createSidecarClient` and `ingestFile` from Tauri), shared hooks/lib, and shared companion screens (`Splash`, `BootError`, `CloudSignIn`, `CloudWorkspacePicker`, `ExploreCompact`), wiring them to `@kalaido/platform`.
-5. **Split `apps/desktop`, `apps/mobile`, `apps/web`:**
-   - Move desktop app + desktop `src-tauri/` into `apps/desktop/` (strip `#[cfg(desktop)]` and `tauri.android.conf.json`).
-   - Create lean `apps/mobile/` + mobile `src-tauri/` (3 plugins only, own `tauri.conf.json` and `capabilities/mobile.json`).
-   - Create standalone `apps/web/` (zero `@tauri-apps/*` dependencies).
-6. **Update tooling, scripts & CI:** Update `kalaido.sh`, `scripts/check-*`, `vitest`, and `.github/workflows/*`.
-7. **Verify:** Run Biome format/lint, `tsc --noEmit` per package/app, Vitest, route/nav/design checks, desktop Vite + Rust `cargo check`, mobile Vite + Rust `cargo check`, and web Vite build.
+Each stage proposes its public API/surface as text for sign-off before files are written:
+
+1. **Workspace root + `packages/lib/platform`** — root pnpm/Cargo configs + `@kalaido/platform` (`.`, `./tauri`, `./web`).
+2. **`packages/lib/client`** — pure TS cloud & kalaidoscope clients (decoupling sidecar client and Blob-based `ingestFile`) + pure utils.
+3. **`packages/react/primitives`** — `index.css`, brand assets, `shadcn/` + `components.json`, stateless primitives (`MarkdownContent` with `onOpenLink`), `ThemeProvider`.
+4. **`packages/react/hooks`** — `HostProvider`/`useHost`, workspace contexts, shared data hooks.
+5. **`packages/react/components` + `packages/react/features`** — domain widgets (`ChatPanel`, `ContextPicker`, `CloudAuthPanel`, `RecoveryView`, etc.) and shared feature slices (`explore/`, `auth/`).
+6. **`apps/desktop`, `apps/mobile`, `apps/web`** — wire each app + split Rust `src-tauri/` crates, remove old `app/`.
+7. **Tooling, `kalaido.sh`, CI & full verification** — update check scripts, Vitest, `kalaido.sh` (including per-target `bump`), `.github/workflows/*`, and verify all builds/tests/checks.
