@@ -10,7 +10,6 @@ import {
   type ContextItem,
   PanelErrorBoundary,
 } from "@kalaido/components";
-import { useActiveContext } from "@kalaido/hooks/use-active-context";
 import { useActiveKalaidoscope } from "@kalaido/hooks/use-active-kalaidoscope";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import type { KalaidoscopeMeta } from "@kalaido/platform";
@@ -35,9 +34,10 @@ import type { Result } from "neverthrow";
 import { useEffect, useState } from "react";
 import { ChatMessageActions } from "./chat-message-actions";
 import { ConversationList } from "./conversation-list";
-import { useBookmarkActions } from "./use-bookmark-actions";
-import { useBookmarks } from "./use-bookmarks";
-import { useConversations } from "./use-conversations";
+import { useActiveContext } from "./hooks/use-active-context";
+import { useBookmarkActions } from "./hooks/use-bookmark-actions";
+import { useBookmarks } from "./hooks/use-bookmarks";
+import { useConversations } from "./hooks/use-conversations";
 
 export interface ExploreCompactScreenProps {
   workspaces: readonly KalaidoscopeMeta[];

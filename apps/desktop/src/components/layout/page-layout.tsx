@@ -15,8 +15,8 @@ import { AddFragmentModal } from "@kalaido/features/fragments";
 import { NavSidebar } from "@/components/layout/nav-sidebar";
 import { UtilityBar } from "@/components/layout/utility-bar";
 import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
-import { closeAddFragmentModal } from "@/hooks/app-state-actions";
-import { appState } from "@/hooks/use-app-state";
+import { closeAddFragmentModal } from "@/state/app-state-actions";
+import { appState } from "@/state/app-state";
 
 export { PageBody, PageCard, PageHeader, PaneHeader };
 

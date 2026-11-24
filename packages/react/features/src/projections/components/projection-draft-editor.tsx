@@ -13,10 +13,10 @@ import {
   PaneHeader,
 } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
-import { useProjectionSnapshot } from "@kalaido/hooks/use-projection-snapshot";
 import type { RefineSession } from "@kalaido/hooks/use-refine-session";
 import { withContextItem } from "@kalaido/client/lib/mentions";
 import { useCandidateTriage } from "../hooks/use-candidate-triage";
+import { useProjectionSnapshot } from "../hooks/use-projection-snapshot";
 import { EditsStatusPill } from "./edits-status-pill";
 import { ProjectionCanvasPane } from "./projection-canvas-pane";
 

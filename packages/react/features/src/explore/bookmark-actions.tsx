@@ -11,7 +11,7 @@ import { deriveName } from "@kalaido/client/lib/naming";
 import type {
   BookmarkActionPhase,
   BriefedBookmarks,
-} from "./use-bookmark-actions";
+} from "./hooks/use-bookmark-actions";
 
 export interface ProjectionStart {
   name: string;

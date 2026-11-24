@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { AppStage } from "@/hooks/use-app-state";
+import type { AppStage } from "@/state/app-state";
 import type { FeatureFlag } from "@/lib/feature-flags";
 import type { ParamsOf } from "./route-contracts";
 import type { RouteId } from "./route-ids";

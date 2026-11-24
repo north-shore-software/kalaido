@@ -15,7 +15,7 @@ import {
 
 import { Skeleton } from "@kalaido/primitives/shadcn/skeleton";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState } from "@/state/app-state.ts";
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";

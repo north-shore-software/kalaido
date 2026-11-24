@@ -6,7 +6,7 @@ import {
   Pill,
   StatusPill,
 } from "@kalaido/primitives/kalaido";
-import type { ProjectionSnapshotState } from "@kalaido/hooks/use-projection-snapshot";
+import type { ProjectionSnapshotState } from "../hooks/use-projection-snapshot";
 import { SnapshotEditMarkers } from "./snapshot-edit-markers";
 
 export interface SnapshotPreviewProps {

@@ -35,7 +35,7 @@ import { NavKalaidoscopeSwitcher } from "@/features/create-kalaidoscope";
 import {
   openAddFragmentModal,
   openFeedbackDialog,
-} from "@/hooks/app-state-actions.ts";
+} from "@/state/app-state-actions.ts";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { pathFor } from "@/routes/registry";

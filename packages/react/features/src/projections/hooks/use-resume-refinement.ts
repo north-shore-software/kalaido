@@ -7,8 +7,8 @@ import {
 import { normalizeRefinementMessages } from "@kalaido/client/kalaidoscope/refinements";
 import type { ProjectionRefinementResponse } from "@kalaido/client/kalaidoscope/types";
 import type { ContextItem } from "@kalaido/client/kalaidoscope/chat";
-import { useLiveCollection } from "#use-live-collection";
-import type { RefineSession } from "#use-refine-session";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import type { RefineSession } from "@kalaido/hooks/use-refine-session";
 
 /**
  * Finds the in-progress refinement for a projection scope and adopts it into a

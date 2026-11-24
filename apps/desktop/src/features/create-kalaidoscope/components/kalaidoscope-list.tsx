@@ -1,6 +1,6 @@
 import { useSnapshot } from "valtio/react";
 import { ListRow } from "@kalaido/primitives/kalaido";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState } from "@/state/app-state.ts";
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { kalaidoscopeTypeLabel } from "@kalaido/client/lib/labels";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";

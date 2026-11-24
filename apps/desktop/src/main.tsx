@@ -10,7 +10,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { snapshot, subscribe } from "valtio";
 import { createAppHost } from "@/host";
-import { appState, bootstrapStoredState } from "@/hooks/use-app-state";
+import { appState, bootstrapStoredState } from "@/state/app-state";
 import { AppProviders } from "@/providers/app-providers";
 import { AppRouter } from "@/routes/app-router";
 

@@ -2,8 +2,8 @@ import { subscribeInferenceRate } from "@kalaido/client/lib/inference-rate";
 import { CoreProviders } from "@kalaido/components/core-providers";
 import { type ReactNode, useEffect } from "react";
 import { useSnapshot } from "valtio/react";
-import { recordInferenceRate } from "@/hooks/app-state-actions";
-import { appState } from "@/hooks/use-app-state";
+import { recordInferenceRate } from "@/state/app-state-actions";
+import { appState } from "@/state/app-state";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const {

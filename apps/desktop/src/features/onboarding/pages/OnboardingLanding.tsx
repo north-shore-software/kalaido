@@ -12,7 +12,7 @@ import type { WorkspaceLlmConfig } from "@kalaido/client/kalaidoscope/llm-config
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState } from "@/state/app-state.ts";
 import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { defineRoute } from "@/routes/route-kit";

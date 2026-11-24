@@ -21,8 +21,8 @@ import {
   addAvailableKalaidoscope,
   openKalaidoscope,
   setAppStage,
-} from "@/hooks/app-state-actions.ts";
-import { appState, type StageEntry } from "@/hooks/use-app-state.ts";
+} from "@/state/app-state-actions.ts";
+import { appState, type StageEntry } from "@/state/app-state.ts";
 import { setActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
 import { toError } from "@kalaido/client/lib/errors";
 

@@ -6,8 +6,8 @@ import {
   listCloudKalaidoscopes,
   setCloudArchived,
 } from "@kalaido/client/cloud/user";
-import { setAvailableKalaidoscopes } from "@/hooks/app-state-actions.ts";
-import { appState } from "@/hooks/use-app-state.ts";
+import { setAvailableKalaidoscopes } from "@/state/app-state-actions.ts";
+import { appState } from "@/state/app-state.ts";
 import { closeIfActive } from "@/lib/local-kalaidoscope.ts";
 
 /**

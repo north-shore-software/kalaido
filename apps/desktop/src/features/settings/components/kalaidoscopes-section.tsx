@@ -1,7 +1,7 @@
 import { useSnapshot } from "valtio/react";
 import { Label, StatusPill } from "@kalaido/primitives/kalaido";
 import { SectionHeader } from "@kalaido/primitives/layout/section";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState } from "@/state/app-state.ts";
 import { isArchived } from "@kalaido/client/lib/active-kalaidoscopes";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
 import { WorkspaceAiPanel } from "./workspace-ai-panel";

@@ -1,5 +1,5 @@
 import { useCollection } from "@kalaido/hooks/use-collection";
-import { useNoteIngest } from "@kalaido/hooks/use-note-ingest";
+import { useNoteIngest } from "../hooks/use-note-ingest";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {

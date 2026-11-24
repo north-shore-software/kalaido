@@ -42,7 +42,7 @@ import {
   toDateInputValue,
 } from "./schedule";
 import type { ReflectionSeed } from "./types";
-import { usePersistSchedule } from "./use-persist-schedule";
+import { usePersistSchedule } from "./hooks/use-persist-schedule";
 
 export interface ReflectionRefineScreenProps {
   id?: string;

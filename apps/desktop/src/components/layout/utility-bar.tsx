@@ -16,7 +16,7 @@ import {
 import type { UnlistenFn } from "@/api/app/os-integrations.ts";
 import { Pill } from "@kalaido/primitives/kalaido";
 import { useActiveKalaidoscope } from "@kalaido/hooks/use-active-kalaidoscope";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState } from "@/state/app-state.ts";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
 import { cn } from "@kalaido/primitives/lib/css-utils";

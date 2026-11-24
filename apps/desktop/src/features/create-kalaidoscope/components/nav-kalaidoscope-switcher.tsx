@@ -18,7 +18,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@kalaido/primitives/shadcn/sidebar";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState } from "@/state/app-state.ts";
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { kalaidoscopeTypeLabel } from "@kalaido/client/lib/labels";

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { type AppStage, appState } from "@/hooks/use-app-state.ts";
+import { type AppStage, appState } from "@/state/app-state.ts";
 import { pathFor, routeById } from "./registry";
 import type { AnyParams, ParamsArg, StateArg } from "./route-contracts";
 import type { RouteId } from "./route-ids";

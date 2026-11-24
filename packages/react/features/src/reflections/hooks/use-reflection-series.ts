@@ -7,7 +7,7 @@ import type {
   ReflectionResponse,
   ReflectionSnapshotResponse,
 } from "@kalaido/client/kalaidoscope/types";
-import { useLiveCollection } from "#use-live-collection";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 
 export interface ReflectionOutput {
   content?: string;

@@ -3,6 +3,7 @@ import { parseContextSpec } from "@kalaido/client/kalaidoscope/chat";
 import {
   deleteProjection,
   GenerationInFlightError,
+  parseProjectionOutput,
   regenerateProjection,
   restoreProjection,
   updateProjection,
@@ -12,12 +13,7 @@ import { PageHeader, PanelErrorBoundary } from "@kalaido/components";
 import { useContextSources } from "@kalaido/hooks/use-context-sources";
 import { useDraftName } from "@kalaido/hooks/use-draft-name";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import {
-  parseProjectionOutput,
-  useProjectionSnapshot,
-} from "@kalaido/hooks/use-projection-snapshot";
 import { useRefineSession } from "@kalaido/hooks/use-refine-session";
-import { useResumeRefinement } from "@kalaido/hooks/use-resume-refinement";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
 import type { TimelineItem } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
@@ -43,6 +39,8 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ProjectionDraftEditor } from "./components/projection-draft-editor";
 import { ProjectionSideRail } from "./components/projection-side-rail";
+import { useProjectionSnapshot } from "./hooks/use-projection-snapshot";
+import { useResumeRefinement } from "./hooks/use-resume-refinement";
 import { SnapshotPreview } from "./components/snapshot-preview";
 import { getProjectionStatus } from "./status";
 import type { ProjectionSeed } from "./types";

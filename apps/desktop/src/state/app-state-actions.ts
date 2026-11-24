@@ -1,6 +1,6 @@
 import type { KalaidoscopeMeta } from "@kalaido/platform";
-import type { AppStage, StageEntry } from "@/hooks/use-app-state.ts";
-import { appState } from "@/hooks/use-app-state.ts";
+import type { AppStage, StageEntry } from "@/state/app-state.ts";
+import { appState } from "@/state/app-state.ts";
 
 export function openAddFragmentModal() {
   appState.addFragmentModalOpen = true;
