@@ -1,4 +1,3 @@
-import { anonymousClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { jwtDecode } from "jwt-decode";
 import { err, ok, type Result } from "neverthrow";
@@ -57,7 +56,6 @@ function clearAuthState(): void {
 
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
-  plugins: [anonymousClient()],
   fetchOptions: {
     // Header is skipped entirely when the token callback returns undefined.
     auth: { type: "Bearer", token: () => readSessionToken() ?? undefined },
