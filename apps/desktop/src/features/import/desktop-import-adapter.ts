@@ -1,5 +1,5 @@
 import type { ImportAdapter } from "@kalaido/features/import";
-import { ok } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { classifyPath, readLocalFileFromDisk } from "@/api/app/ingest-file";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
 
@@ -11,7 +11,7 @@ function basename(path: string): string {
 export const desktopImportAdapter: ImportAdapter = {
   async pickFile(filters) {
     const pickerResult = await openFilePicker(filters);
-    if (pickerResult.isErr()) return pickerResult;
+    if (pickerResult.isErr()) return err(pickerResult.error);
     const selected = pickerResult.value;
     if (typeof selected !== "string") return ok(null);
 
