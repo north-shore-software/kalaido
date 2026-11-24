@@ -12,10 +12,7 @@ export { SUPPORTED_EXTENSIONS_HINT, SUPPORTED_FORMATS_HINT };
 
 export type ImportPicker = ReturnType<typeof useImportPicker>;
 
-export function useImportPicker(
-  adapter: ImportAdapter,
-  onPicked?: () => void,
-) {
+export function useImportPicker(adapter: ImportAdapter, onPicked?: () => void) {
   const [file, setFile] = useState<PickedImportFile | null>(null);
   const [entries, setEntries] = useState<ImportFileEntry[]>([]);
   const [scanning, setScanning] = useState(false);
