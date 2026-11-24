@@ -29,18 +29,13 @@ function getFiles(dir) {
       if (
         filePath === path.join(SRC_DIR, "routes") ||
         filePath === path.join(SRC_DIR, "testing") ||
-        file === "node_modules" ||
-        filePath.includes(".stories.")
+        file === "node_modules"
       ) {
         continue;
       }
       files.push(...getFiles(filePath));
     } else {
-      if (
-        (file.endsWith(".ts") || file.endsWith(".tsx")) &&
-        !file.endsWith(".stories.tsx") &&
-        !file.endsWith(".stories.ts")
-      ) {
+      if (file.endsWith(".ts") || file.endsWith(".tsx")) {
         files.push(filePath);
       }
     }

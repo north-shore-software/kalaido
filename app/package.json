@@ -15,8 +15,6 @@
     "build:web": "tsc && APP_TARGET=web vite build && mv dist-web/web.html dist-web/index.html",
     "preview": "vite preview",
     "tauri": "tauri",
-    "ladle": "ladle serve",
-    "ladle:build": "ladle build",
     "check:nav": "node scripts/check-navigation-discipline.mjs",
     "check:routes": "vite-node -c vite.config.scripts.ts scripts/validate-routes.ts",
     "check:design": "node scripts/check-design-classes.mjs",
@@ -68,7 +66,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
-    "@ladle/react": "^5.1.1",
     "@tailwindcss/vite": "^4.2.4",
     "@tauri-apps/cli": "^2.12.6",
     "@testing-library/dom": "^10.4.1",

@@ -64,7 +64,7 @@ function styled(tag: keyof JSX.IntrinsicElements, classes: string) {
 /**
  * Links must leave the app via the OS browser — inside the Tauri webview a
  * plain anchor would navigate the app window itself. Falls back to
- * window.open outside Tauri (Ladle, tests).
+ * window.open outside Tauri (tests).
  */
 function MarkdownLink({
   node: _node,

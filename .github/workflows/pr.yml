@@ -26,7 +26,6 @@ jobs:
       - run: ./kalaido.sh setup:ts
       - run: ./kalaido.sh check:ts
       - run: ./kalaido.sh test:ts
-      - run: ./kalaido.sh build:ladle
 
   go:
     runs-on: ubuntu-latest

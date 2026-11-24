@@ -106,11 +106,6 @@ cmd_build_web() {
   (cd "$APP" && pnpm build:web "$@")
 }
 
-cmd_ladle() {
-  say "ladle serve"
-  (cd "$APP" && pnpm ladle "$@")
-}
-
 cmd_gen_types() {
   say "schema db"
   build_schema_db
@@ -208,11 +203,6 @@ cmd_build_app() {
   (cd "$APP" && pnpm tauri build "$@")
 }
 
-cmd_build_ladle() {
-  say "ladle build"
-  (cd "$APP" && pnpm ladle:build "$@")
-}
-
 cmd_check_ts() {
   say "biome format"
   (cd "$APP" && pnpm exec biome format .)
@@ -228,8 +218,6 @@ cmd_check_ts() {
   (cd "$APP" && pnpm build)
   say "web build"
   (cd "$APP" && APP_TARGET=web pnpm exec vite build)
-  say "ladle build"
-  (cd "$APP" && pnpm ladle:build)
 }
 
 cmd_check_ts_typecheck_only() {
@@ -345,8 +333,8 @@ cmd_setup() {
 
 cmd_clean() {
   say "clean"
-  rm -rf "$APP/dist" "$APP/dist-web" "$APP/build" "$TAURI/binaries" "$SCHEMA_ROOT"
-  echo "removed app/dist app/dist-web app/build app/src-tauri/binaries .schema"
+  rm -rf "$APP/dist" "$APP/dist-web" "$TAURI/binaries" "$SCHEMA_ROOT"
+  echo "removed app/dist app/dist-web app/src-tauri/binaries .schema"
 }
 
 cmd_clean_tauri() {
@@ -524,7 +512,6 @@ usage() {
 usage: ./kalaido.sh <command> [args...]
 
   dev                        tauri dev (rebuilds the sidecar first)
-  ladle                      component workbench on :61000
 
   init:android               generate src-tauri/gen/android (once)
   dev:android                tauri android dev (emulator or device, no sidecar)
@@ -539,7 +526,6 @@ usage: ./kalaido.sh <command> [args...]
 
   build:sidecar [target]     build the go sidecar into src-tauri/binaries (default: host arch)
   build:app                  tauri build (rebuilds the sidecar first)
-  build:ladle                build the component workbench
 
   check:ts                   biome, nav, routes, build
   check:ts-typecheck-only    tsc --noEmit
@@ -561,7 +547,7 @@ usage: ./kalaido.sh <command> [args...]
   setup:ts                   pnpm install --frozen-lockfile
   setup:go                   go mod download
   setup:rust                 cargo fetch
-  clean                      dist, dist-web, build, binaries, .schema
+  clean                      dist, dist-web, binaries, .schema
   clean:tauri                clean + src-tauri/target
   clean:npm                  clean:tauri + node_modules
   doctor                     check the toolchain, android and providers
@@ -570,7 +556,6 @@ EOF
 
 case "${1:-}" in
   dev) shift; cmd_dev "$@" ;;
-  ladle) shift; cmd_ladle "$@" ;;
   init:android) shift; cmd_init_android "$@" ;;
   dev:android) shift; cmd_dev_android "$@" ;;
   build:android) shift; cmd_build_android "$@" ;;
@@ -582,7 +567,6 @@ case "${1:-}" in
   bump:dev) shift; cmd_bump dev "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;
   build:app) shift; cmd_build_app "$@" ;;
-  build:ladle) shift; cmd_build_ladle "$@" ;;
   check:ts) shift; cmd_check_ts "$@" ;;
   check:ts-typecheck-only) shift; cmd_check_ts_typecheck_only "$@" ;;
   check:go) shift; cmd_check_go "$@" ;;
