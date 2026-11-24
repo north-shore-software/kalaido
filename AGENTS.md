@@ -16,16 +16,17 @@ Kalaido is a pnpm + Cargo workspace with a Go PocketBase backend (`kalaidoscope/
 
 ```text
 ├── Cargo.toml                  # Rust workspace: apps/desktop/src-tauri, apps/mobile/src-tauri
-├── pnpm-workspace.yaml         # packages/lib/*, packages/react/*, apps/*
+├── pnpm-workspace.yaml         # brand, packages/lib/*, packages/react/*, apps/*
 ├── biome.json                  # Format, lint, and import-boundary rules
 ├── kalaido.sh                  # Entrypoint for all dev, build, check, test, and bump commands
 ├── scripts/                    # Boundary, navigation, design-class, and route checks
+├── brand/                      # @kalaido/brand (static brand assets: logo marks, wordmarks)
 ├── packages/
 │   ├── lib/                    # Pure TypeScript — ZERO React, ZERO import.meta.env
 │   │   ├── platform/           # @kalaido/platform (exports: ".", "./tauri", "./web")
 │   │   └── client/             # @kalaido/client (cloud auth/registry, PocketBase clients, pure utils)
 │   └── react/                  # React layer
-│       ├── primitives/         # @kalaido/primitives — ZERO @kalaido/* deps (tokens, shadcn/, stateless UI)
+│       ├── primitives/         # @kalaido/primitives — only @kalaido/brand (tokens, shadcn/, stateless UI)
 │       ├── hooks/              # @kalaido/hooks (HostProvider, workspace contexts, shared data hooks)
 │       ├── components/         # @kalaido/components (reusable domain widgets across 2+ features)
 │       └── features/           # @kalaido/features (vertical feature slices shared across 2+ apps)
@@ -42,14 +43,15 @@ Dependencies flow strictly one way:
 
 ```text
 platform ──► client ──► hooks ──► components ──► features ──► apps/*
-primitives (zero @kalaido/* deps) ──► components ──► features ──► apps/*
+primitives (only @kalaido/brand) ──► components ──► features ──► apps/*
+brand ──► primitives, components
 ```
 
 Hard invariants (enforced by `biome.json`, `scripts/check-boundaries.mjs`, `scripts/check-navigation-discipline.mjs`, and `tsc --noEmit`):
 
 - **No React in `packages/lib/*`:** no `react`, `react-dom`, `better-auth/react`, or `.tsx` files.
 - **No `import.meta.env` in `packages/lib/*`:** no `vite/client` in `packages/lib/*/tsconfig.json`. Apps read env vars in `main.tsx` and pass them into `configureClient(...)`.
-- **No `@kalaido/*` deps in `packages/react/primitives`:** primitives must remain domain-free; external side-effects (such as opening links in `MarkdownContent`) are passed in via callback props.
+- **No `@kalaido/*` deps in `packages/react/primitives` except `@kalaido/brand`:** primitives must remain domain-free; external side-effects (such as opening links in `MarkdownContent`) are passed in via callback props.
 - **No `@tauri-apps/*` outside Tauri hosts:** allowed only in `packages/lib/platform/src/tauri.ts` (optional peerDeps), `apps/desktop/`, and `apps/mobile/`. Never in `platform/src/{index,web}.ts`, `client`, `packages/react/*`, or `apps/web/`.
 - **No `react-router-dom` in `packages/*`:** routing and route tables belong exclusively in `apps/*`. Shared components and features accept navigation callbacks as props.
 - **No `@/` aliases in `packages/*`:** internal package imports use package-scoped `#*` subpath `"imports"` (`"#*": "./src/*"`). Only `apps/*` map `@/*` to their own `src/`.
@@ -61,11 +63,12 @@ Hard invariants (enforced by `biome.json`, `scripts/check-boundaries.mjs`, `scri
 
 | Package | Allowed `@kalaido/*` deps | Belongs here | Does NOT belong here |
 |---|---|---|---|
+| `brand` | None | Static brand assets (logo marks, wordmarks) consumed by `primitives`, `components`, and repo docs. | Code, any dependency. |
 | `packages/lib/platform` | None | `HostAdapter` interface, shared cross-layer types (`KalaidoscopeMeta`, `PersistentAppSetting`, `FeedbackDiagnostics`), `setHost`/`getHost`, `./tauri` (`createTauriHost`), `./web` (`createWebHost`). | React, PocketBase, domain APIs, desktop-only Tauri plugins (`dialog`, `shell`, `updater`, custom Rust `invoke`s). `@tauri-apps/*` only in `src/tauri.ts`. |
 | `packages/lib/client` | `platform` | `better-auth/client`, cloud workspace registry API, PocketBase cloud & `local_net` clients, generated `kalaidoscope/types.ts`, Blob-based `ingestFile`, lazy `configureClient(...)` + accessors (`getAuthClient`, `getAuthUrl`, `getCloudPbUrl`, `getPosthogConfig`), pure domain/text utils, PostHog wrapper. | React, `better-auth/react`, hooks, `import.meta.env`, eager module-scope client/config initialization, `@tauri-apps/*`, disk paths, sidecar IPC. |
-| `packages/react/primitives` | None | `src/index.css` (tokens + Tailwind theme + `@source "./";` + streamdown `@source`), `assets/brand/`, `lib/{css-utils,theme}.ts`, `hooks/use-mobile.ts`, `shadcn/` + `components.json`, stateless visual primitives (`kalaido/*`, `layout/*`), `ThemeProvider`. | Any `@kalaido/*` package, PocketBase, `better-auth`, AI SDK, `swr`, `valtio`, `react-router-dom`, `@tauri-apps/*`, domain concepts, global app state. |
+| `packages/react/primitives` | `brand` | `src/index.css` (tokens + Tailwind theme + `@source "./";` + streamdown `@source`), `lib/{css-utils,theme}.ts`, `hooks/use-mobile.ts`, `shadcn/` + `components.json`, stateless visual primitives (`kalaido/*`, `layout/*`), `ThemeProvider`. | Any `@kalaido/*` package except `brand`, PocketBase, `better-auth`, AI SDK, `swr`, `valtio`, `react-router-dom`, `@tauri-apps/*`, domain concepts, global app state. |
 | `packages/react/hooks` | `platform`, `client` | `HostProvider`/`useHost`, `KalaidoscopeClientContext`, `ActiveKalaidoscopeContext`, `useCloudSession` (subscribing to `@kalaido/client`'s session atom), shared data/domain hooks. | UI components (beyond bare context providers), `react-router-dom`, `@tauri-apps/*`, app-specific `AppStage`. |
-| `packages/react/components` | `platform`, `client`, `primitives`, `hooks` | `src/styles.css` (`@source "./";`), domain-connected widgets reused across **2+ features** or app chrome (`ChatPanel`, `ContextPicker`, `FragmentDrawer`, `PageHeader`, `CloudAuthPanel`, `RecoveryView`, `SplashScreen`, `CoreProviders`, host-wired `MarkdownContent`). | `react-router-dom`, `@tauri-apps/*`, app-specific `appState`/`AppStage`, single-feature-only UI. |
+| `packages/react/components` | `brand`, `platform`, `client`, `primitives`, `hooks` | `src/styles.css` (`@source "./";`), domain-connected widgets reused across **2+ features** or app chrome (`ChatPanel`, `ContextPicker`, `FragmentDrawer`, `PageHeader`, `CloudAuthPanel`, `RecoveryView`, `SplashScreen`, `CoreProviders`, host-wired `MarkdownContent`). | `react-router-dom`, `@tauri-apps/*`, app-specific `appState`/`AppStage`, single-feature-only UI. |
 | `packages/react/features` | `platform`, `client`, `primitives`, `hooks`, `components` | `src/styles.css` (`@source "./";`), vertical feature slices shared across **2+ apps** (each directory owns its feature components, hooks, and screen views, e.g. `explore/`, `auth/`). | `react-router-dom`, `@tauri-apps/*`, desktop-only features, sidecar/local-workspace logic, app-specific `AppStage`. |
 | `apps/desktop` | Any `packages/*` | Desktop router & `registry.ts`, desktop `appState`/`AppStage`, `host.ts` (`@kalaido/platform/tauri` + Rust diagnostics), desktop-only `api/app/*` (`local-scopes`, `sidecar-client`, `downloads`, `ingest-file`, `llm-validate`, `ollama-status`, `updater`, `feedback`, dialogs, `menu:*`), desktop chrome (`TitleBar`, `NavSidebar`, `UtilityBar`, `PageLayout`), desktop-only features, macOS `src-tauri/`. | Mobile/web entrypoints, `#[cfg(mobile)]`, Android Tauri config. |
 | `apps/mobile` | Any `packages/*` | Mobile router, cloud-only state, `host.ts` (`@kalaido/platform/tauri`), `keyboard-inset.ts`, `mobile.css`, mobile-only `src-tauri/` (`clipboard-manager`, `opener`, `store` only). | Desktop Tauri plugins (`dialog`, `shell`, `updater`), `macos-private-api`, sidecar/local-workspace code, desktop routes. |

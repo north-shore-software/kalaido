@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.184",
+    "@kalaido/brand": "workspace:*",
     "@kalaido/client": "workspace:*",
     "@kalaido/hooks": "workspace:*",
     "@kalaido/platform": "workspace:*",

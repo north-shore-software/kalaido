@@ -27,6 +27,7 @@ jobs:
         with:
           filters: |
             ts:
+              - 'brand/**'
               - 'packages/**'
               - 'apps/web/**'
               - 'apps/desktop/src/**'
