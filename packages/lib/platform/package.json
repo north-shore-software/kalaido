@@ -1,0 +1,46 @@
+{
+  "name": "@kalaido/platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tauri": "./src/tauri.ts",
+    "./web": "./src/web.ts"
+  },
+  "imports": {
+    "#*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "neverthrow": "^8.2.0"
+  },
+  "peerDependencies": {
+    "@tauri-apps/api": "^2.12.5",
+    "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
+    "@tauri-apps/plugin-opener": "^2.7.3",
+    "@tauri-apps/plugin-store": "^2.5.1"
+  },
+  "peerDependenciesMeta": {
+    "@tauri-apps/api": {
+      "optional": true
+    },
+    "@tauri-apps/plugin-clipboard-manager": {
+      "optional": true
+    },
+    "@tauri-apps/plugin-opener": {
+      "optional": true
+    },
+    "@tauri-apps/plugin-store": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.12.5",
+    "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
+    "@tauri-apps/plugin-opener": "^2.7.3",
+    "@tauri-apps/plugin-store": "^2.5.1"
+  }
+}
