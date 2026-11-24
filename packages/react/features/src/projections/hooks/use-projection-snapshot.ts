@@ -1,21 +1,23 @@
 import { useMemo } from "react";
 
-import type { SnapshotEdit } from "@kalaido/client/kalaidoscope/projections";
+import {
+  type ProjectionOutput,
+  parseProjectionOutput,
+  type SnapshotEdit,
+} from "@kalaido/client/kalaidoscope/projections";
 import type {
   ProjectionResponse,
   ProjectionSnapshotResponse,
 } from "@kalaido/client/kalaidoscope/types";
-import { useLiveCollection } from "#use-live-collection";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+
+export type { ProjectionOutput };
+export { parseProjectionOutput };
 
 export type ProjectionSnapshotWithEdits = ProjectionSnapshotResponse<
   unknown,
   SnapshotEdit[]
 >;
-
-/** Snapshot payload: the generated markdown, wrapped by {@link parseProjectionOutput}. */
-export interface ProjectionOutput {
-  content?: string;
-}
 
 /**
  * What the detail view needs to render, as a discriminated union so the
@@ -153,9 +155,4 @@ export function useProjectionSnapshot(
     generating,
     mutate: snapshotsQuery.mutate,
   };
-}
-
-/** A snapshot's `output` column holds the generated markdown as plain text. */
-export function parseProjectionOutput(raw: unknown): ProjectionOutput {
-  return typeof raw === "string" ? { content: raw } : {};
 }

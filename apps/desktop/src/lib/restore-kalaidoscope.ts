@@ -10,7 +10,7 @@ import {
   restoreBackup,
   waitForCloudRestart,
 } from "@kalaido/client/kalaidoscope/backups";
-import { setAppStage } from "@/hooks/app-state-actions.ts";
+import { setAppStage } from "@/state/app-state-actions.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 
 async function prepareWaitForLocalStopped(

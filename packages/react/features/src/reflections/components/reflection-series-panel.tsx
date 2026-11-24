@@ -19,7 +19,7 @@ import {
   parseReflectionOutput,
   type SeriesWindow,
   useReflectionSeries,
-} from "@kalaido/hooks/use-reflection-series";
+} from "../hooks/use-reflection-series";
 import { currentWindowSpec, describeWindow } from "../schedule";
 import { BackfillCard } from "./backfill-card";
 import { ReflectionHeader } from "./reflection-header";

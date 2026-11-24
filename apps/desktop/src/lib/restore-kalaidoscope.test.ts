@@ -6,7 +6,7 @@ import { restoreKalaidoscope } from "./restore-kalaidoscope";
 
 // Mock setAppStage
 const mockSetAppStage = vi.fn();
-vi.mock("@/hooks/app-state-actions.ts", () => ({
+vi.mock("@/state/app-state-actions.ts", () => ({
   setAppStage: (stage: unknown) => mockSetAppStage(stage),
 }));
 

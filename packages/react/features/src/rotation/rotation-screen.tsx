@@ -1,5 +1,6 @@
 import {
   approveProjectionCandidate,
+  parseProjectionOutput,
   regenerateProjection,
 } from "@kalaido/client/kalaidoscope/projections";
 import { regenerateReflection } from "@kalaido/client/kalaidoscope/reflections";
@@ -7,7 +8,6 @@ import { hasDelta, isActionable } from "@kalaido/client/kalaidoscope/rotation";
 import { stripEditMarkers } from "@kalaido/client/lib/markdown-diff";
 import { PageHeader } from "@kalaido/components";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { parseProjectionOutput } from "@kalaido/hooks/use-projection-snapshot";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
 import { Mono } from "@kalaido/primitives/kalaido";
 import { useEffect, useMemo, useRef, useState } from "react";

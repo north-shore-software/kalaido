@@ -1,7 +1,7 @@
 import { DashboardScreen } from "@kalaido/features/dashboard";
 import { PageLayout } from "@/components/layout/page-layout";
 import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
-import { openAddFragmentModal } from "@/hooks/app-state-actions.ts";
+import { openAddFragmentModal } from "@/state/app-state-actions.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { mainTransitions } from "./Main.transitions";

@@ -11,8 +11,8 @@ import {
 import {
   closeFeedbackDialog,
   openFeedbackDialog,
-} from "@/hooks/app-state-actions.ts";
-import { type AppStage, appState } from "@/hooks/use-app-state.ts";
+} from "@/state/app-state-actions.ts";
+import { type AppStage, appState } from "@/state/app-state.ts";
 import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { pathFor } from "./registry";

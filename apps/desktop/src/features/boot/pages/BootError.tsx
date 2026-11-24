@@ -1,6 +1,6 @@
 import { useSnapshot } from "valtio/react";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
-import { appState } from "@/hooks/use-app-state.ts";
+import { appState } from "@/state/app-state.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { RecoveryScreen } from "../components/recovery-screen";

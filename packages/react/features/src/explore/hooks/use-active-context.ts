@@ -5,8 +5,8 @@ import {
   specToItems,
 } from "@kalaido/client/kalaidoscope/chat";
 import type { ContextItem } from "@kalaido/client/kalaidoscope/chat";
-import { useContextSources } from "./use-context-sources";
-import { useFragmentLabelsQuery } from "./use-fragment-labels";
+import { useContextSources } from "@kalaido/hooks/use-context-sources";
+import { useFragmentLabelsQuery } from "@kalaido/hooks/use-fragment-labels";
 
 /**
  * The context selection a resumed conversation was last using: its most recent

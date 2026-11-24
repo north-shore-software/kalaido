@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { WindowSpec } from "@kalaido/client/kalaidoscope/chat";
 import { updateReflection } from "@kalaido/client/kalaidoscope/reflections";
-import { scheduleKey } from "./schedule";
+import { scheduleKey } from "../schedule";
 
 /**
  * Persist schedule-chip edits onto the reflection (a new `window_spec_versions`

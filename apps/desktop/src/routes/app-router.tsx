@@ -4,7 +4,7 @@ import { useSnapshot } from "valtio/react";
 import { RootErrorBoundary } from "@/components/error-boundary";
 import { TitleBar } from "@/components/layout/title-bar";
 import { BootError } from "@/features/boot";
-import { type AppStage, appState } from "@/hooks/use-app-state.ts";
+import { type AppStage, appState } from "@/state/app-state.ts";
 import { getActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
 import { ActiveKalaidoscopeContext } from "@kalaido/hooks/use-active-kalaidoscope";
 import { KalaidoscopeClientContext } from "@kalaido/hooks/use-kalaidoscope-client";

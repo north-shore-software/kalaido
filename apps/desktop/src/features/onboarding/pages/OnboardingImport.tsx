@@ -7,7 +7,7 @@ import { Button } from "@kalaido/primitives/shadcn/button";
 import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
-import { clearStageEntry } from "@/hooks/app-state-actions.ts";
+import { clearStageEntry } from "@/state/app-state-actions.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { OnboardingShell } from "../components/onboarding-shell";

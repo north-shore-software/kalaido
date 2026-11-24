@@ -216,3 +216,13 @@ export async function restoreProjection(
     });
   });
 }
+
+/** Snapshot payload: the generated markdown, wrapped by {@link parseProjectionOutput}. */
+export interface ProjectionOutput {
+  content?: string;
+}
+
+/** A snapshot's `output` column holds the generated markdown as plain text. */
+export function parseProjectionOutput(raw: unknown): ProjectionOutput {
+  return typeof raw === "string" ? { content: raw } : {};
+}

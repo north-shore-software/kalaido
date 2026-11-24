@@ -3,7 +3,7 @@ import type { StageError } from "@kalaido/client/lib/errors";
 import { RecoveryView } from "@kalaido/components/recovery-view";
 import { useSnapshot } from "valtio/react";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
-import { appState } from "@/hooks/use-app-state";
+import { appState } from "@/state/app-state";
 
 export interface RecoveryScreenProps {
   title: string;

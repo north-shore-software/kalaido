@@ -6,6 +6,7 @@ import {
 import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
 import {
   approveProjectionCandidate,
+  parseProjectionOutput,
   regenerateProjection,
 } from "@kalaido/client/kalaidoscope/projections";
 import { formatShortDateTime } from "@kalaido/client/lib/datetime";
@@ -18,13 +19,7 @@ import {
   RefineChatPanel,
   RefineComposer,
 } from "@kalaido/components";
-import {
-  type ProjectionSnapshotWithEdits,
-  parseProjectionOutput,
-  useProjectionSnapshot,
-} from "@kalaido/hooks/use-projection-snapshot";
 import { useRefineSession } from "@kalaido/hooks/use-refine-session";
-import { useResumeRefinement } from "@kalaido/hooks/use-resume-refinement";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
 import { DecisionCard, StatusPill } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
@@ -43,6 +38,11 @@ import { ArrowRightIcon, CheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { findNextTarget } from "#rotation";
+import {
+  type ProjectionSnapshotWithEdits,
+  useProjectionSnapshot,
+} from "./hooks/use-projection-snapshot";
+import { useResumeRefinement } from "./hooks/use-resume-refinement";
 import { EditsStatusPill } from "./components/edits-status-pill";
 import { ProjectionCanvasPane } from "./components/projection-canvas-pane";
 import { useCandidateTriage } from "./hooks/use-candidate-triage";

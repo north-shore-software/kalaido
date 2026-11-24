@@ -7,16 +7,14 @@ import {
 } from "@kalaido/client/kalaidoscope/chat";
 import {
   editProjectionCandidate,
+  parseProjectionOutput,
   type SnapshotEdit,
   type SnapshotEditStatus,
   updateSnapshotEditStatus,
 } from "@kalaido/client/kalaidoscope/projections";
 import type { ChatPanelHandle } from "@kalaido/components";
-import {
-  type ProjectionSnapshotWithEdits,
-  parseProjectionOutput,
-} from "@kalaido/hooks/use-projection-snapshot";
 import type { RefineSession } from "@kalaido/hooks/use-refine-session";
+import type { ProjectionSnapshotWithEdits } from "./use-projection-snapshot";
 
 export interface UseCandidateTriageOptions {
   projectionId?: string;

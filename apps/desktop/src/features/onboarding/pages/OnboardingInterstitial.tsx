@@ -4,7 +4,7 @@ import { setSetting } from "@/api/app/settings.ts";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Checkbox } from "@kalaido/primitives/shadcn/checkbox";
 import { Label } from "@kalaido/primitives/shadcn/label";
-import { completeOnboardingInterstitial } from "@/hooks/app-state-actions.ts";
+import { completeOnboardingInterstitial } from "@/state/app-state-actions.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { OnboardingShell } from "../components/onboarding-shell";

@@ -1,8 +1,8 @@
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 import { deleteSetting, getSetting, setSetting } from "@/api/app/settings.ts";
 import { signOutCloudAuth } from "@kalaido/client/cloud/auth";
-import { setAvailableKalaidoscopes } from "@/hooks/app-state-actions.ts";
-import { appState } from "@/hooks/use-app-state.ts";
+import { setAvailableKalaidoscopes } from "@/state/app-state-actions.ts";
+import { appState } from "@/state/app-state.ts";
 import { resetPostHog } from "@kalaido/client/lib/posthog";
 
 /**

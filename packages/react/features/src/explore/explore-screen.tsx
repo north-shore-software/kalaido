@@ -12,7 +12,6 @@ import {
   PageHeader,
   PanelErrorBoundary,
 } from "@kalaido/components";
-import { useActiveContext } from "@kalaido/hooks/use-active-context";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import {
   PageCard,
@@ -31,9 +30,10 @@ import { BookmarkActions, type ProjectionStart } from "./bookmark-actions";
 import { type BookmarkRow, BookmarksTray } from "./bookmarks-tray";
 import { ChatMessageActions } from "./chat-message-actions";
 import { ConversationList } from "./conversation-list";
-import { useBookmarkActions } from "./use-bookmark-actions";
-import { useBookmarks } from "./use-bookmarks";
-import { useConversations } from "./use-conversations";
+import { useActiveContext } from "./hooks/use-active-context";
+import { useBookmarkActions } from "./hooks/use-bookmark-actions";
+import { useBookmarks } from "./hooks/use-bookmarks";
+import { useConversations } from "./hooks/use-conversations";
 
 /** The text a turn shows — what a bookmark of it keeps. */
 function messageText(msg: UIMessage): string {
