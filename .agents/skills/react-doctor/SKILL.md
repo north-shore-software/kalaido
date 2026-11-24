@@ -10,21 +10,21 @@ Scans React codebases for security, performance, correctness, and architecture i
 
 ## After making React code changes:
 
-Run `npx react-doctor@latest --verbose --scope changed` and check the score did not regress.
+Run `pnpm dlx react-doctor@latest --verbose --scope changed` and check the score did not regress.
 
 If the score dropped, fix the regressions before committing.
 
 ## For general cleanup or code improvement:
 
-Run `npx react-doctor@latest --verbose` (the default `--scope full`) to scan the full codebase. Fix issues by severity — errors first, then warnings.
+Run `pnpm dlx react-doctor@latest --verbose` (the default `--scope full`) to scan the full codebase. Fix issues by severity — errors first, then warnings.
 
 ## For a focused UI design audit:
 
-Run `npx react-doctor@latest design --verbose`. This selects only design-tagged UI composition, typography, interaction, accessibility, and motion rules, including focused rules that remain opt-in during a general health scan.
+Run `pnpm dlx react-doctor@latest design --verbose`. This selects only design-tagged UI composition, typography, interaction, accessibility, and motion rules, including focused rules that remain opt-in during a general health scan.
 
 ## For runtime performance problems:
 
-Run `npx react-doctor@latest scan <url> --format json` in an interactive terminal. React Doctor opens an isolated system Chrome profile, records a DevTools trace while the user reproduces the slow interaction, and flashes purple outlines with component names as React renders. It stops when they press Enter. Read the structured summary first, then inspect the returned local `.json.gz` trace for CPU, browser, and React component evidence.
+Run `pnpm dlx react-doctor@latest scan <url> --format json` in an interactive terminal. React Doctor opens an isolated system Chrome profile, records a DevTools trace while the user reproduces the slow interaction, and flashes purple outlines with component names as React renders. It stops when they press Enter. Read the structured summary first, then inspect the returned local `.json.gz` trace for CPU, browser, and React component evidence.
 
 If the user needs their authenticated browser state, use `--cdp <remote-debugging-url>`. This requires Chrome to already be running with remote debugging. Never ask for cookies or copy the user's browser profile. Treat the trace as sensitive local application data and never upload it without explicit permission.
 
@@ -50,12 +50,12 @@ Rules without wider ownership keep changed-line filtering.
 
 ## Configuring or explaining rules
 
-When the user wants to understand a rule, disagrees with one, or wants to disable / tune which rules run (not fix code), read [references/explain.md](references/explain.md) and follow it. Start with `npx react-doctor@latest rules explain <rule>`, then apply the narrowest control via `npx react-doctor@latest rules disable|set|category|ignore-tag …`, which edits your `doctor.config.*` (or `package.json#reactDoctor`).
+When the user wants to understand a rule, disagrees with one, or wants to disable / tune which rules run (not fix code), read [references/explain.md](references/explain.md) and follow it. Start with `pnpm dlx react-doctor@latest rules explain <rule>`, then apply the narrowest control via `pnpm dlx react-doctor@latest rules disable|set|category|ignore-tag …`, which edits your `doctor.config.*` (or `package.json#reactDoctor`).
 
 ## Command
 
 ```bash
-npx react-doctor@latest --verbose --scope changed
+pnpm dlx react-doctor@latest --verbose --scope changed
 ```
 
 | Flag                 | Purpose                                                                                 |
