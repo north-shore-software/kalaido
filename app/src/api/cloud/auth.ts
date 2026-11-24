@@ -47,32 +47,54 @@ function cacheJwt(token: string): void {
   }
 }
 
-function clearAuthState(): void {
+export function dropCloudSession(): void {
   try {
     window.localStorage.removeItem(SESSION_TOKEN_KEY);
   } catch {}
   cachedJwt = null;
+  const sessionAtom = authClient.$store.atoms.session;
+  if (sessionAtom) {
+    const current = sessionAtom.get();
+    sessionAtom.set({
+      ...current,
+      data: null,
+      error: null,
+      isPending: false,
+      isRefetching: false,
+    });
+  }
 }
 
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
   fetchOptions: {
-    // Header is skipped entirely when the token callback returns undefined.
     auth: { type: "Bearer", token: () => readSessionToken() ?? undefined },
     onSuccess: (ctx) => {
-      // bearer() echoes the (possibly rotated) session token on sign-in/up
-      // and session refresh.
       const sessionToken = ctx.response.headers.get("set-auth-token");
       if (sessionToken) {
         try {
           window.localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
         } catch {}
-        cachedJwt = null; // JWT minted under the old session is now suspect
+        cachedJwt = null;
       }
-      // jwt() exposes a fresh JWT on session responses — free cache fill.
       const jwt = ctx.response.headers.get("set-auth-jwt");
       if (jwt) cacheJwt(jwt);
-      if (String(ctx.request.url).includes("/sign-out")) clearAuthState();
+      const url = String(ctx.request.url);
+      if (url.includes("/sign-out")) {
+        dropCloudSession();
+      } else if (
+        url.includes("/get-session") &&
+        ctx.data === null &&
+        !sessionToken
+      ) {
+        const current = readSessionToken();
+        if (
+          current &&
+          ctx.request.headers.get("authorization") === `Bearer ${current}`
+        ) {
+          dropCloudSession();
+        }
+      }
     },
   },
 });
@@ -104,6 +126,7 @@ async function fetchFreshJwt(): Promise<Result<string, Error>> {
     if (res.error) {
       const { status, message } = res.error;
       if (status === 401 || status === 403) {
+        dropCloudSession();
         return err(new Error("Cloud session expired. Please sign in again."));
       }
       return err(
@@ -145,10 +168,19 @@ export type CloudUser = typeof authClient.$Infer.Session.user;
 export async function signInWithEmail(
   credentials: EmailCredentials,
 ): Promise<Result<CloudUser, Error>> {
+  dropCloudSession();
   try {
     const res = await authClient.signIn.email(credentials);
     if (res.error) {
       return err(new Error(res.error.message ?? "Sign in failed"));
+    }
+    if (!readSessionToken()) {
+      dropCloudSession();
+      return err(
+        new Error(
+          "Sign in succeeded, but the server returned no session token.",
+        ),
+      );
     }
     return ok(res.data.user);
   } catch (e) {
@@ -159,11 +191,19 @@ export async function signInWithEmail(
 export async function signUpWithEmail(
   credentials: EmailCredentials,
 ): Promise<Result<CloudUser, Error>> {
+  dropCloudSession();
   try {
-    // No display name is collected: where one would show, the email is.
     const res = await authClient.signUp.email({ ...credentials, name: "" });
     if (res.error) {
       return err(new Error(res.error.message ?? "Sign up failed"));
+    }
+    if (!readSessionToken()) {
+      dropCloudSession();
+      return err(
+        new Error(
+          "Sign up succeeded, but the server returned no session token.",
+        ),
+      );
     }
     return ok(res.data.user);
   } catch (e) {
