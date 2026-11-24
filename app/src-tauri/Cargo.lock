@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Kalaido"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "rand 0.9.5",
  "reqwest 0.12.28",
