@@ -507,6 +507,11 @@ cmd_doctor() {
   printf '\033[32mtoolchain ok\033[0m\n'
 }
 
+cmd_doctor_react() {
+  say "react-doctor"
+  (cd "$APP" && pnpm dlx react-doctor@latest "$@")
+}
+
 usage() {
   cat <<'EOF'
 usage: ./kalaido.sh <command> [args...]
@@ -551,6 +556,7 @@ usage: ./kalaido.sh <command> [args...]
   clean:tauri                clean + src-tauri/target
   clean:npm                  clean:tauri + node_modules
   doctor                     check the toolchain, android and providers
+  doctor:react [args]        run react-doctor on the app
 EOF
 }
 
@@ -588,6 +594,7 @@ case "${1:-}" in
   clean:tauri) shift; cmd_clean_tauri "$@" ;;
   clean:npm) shift; cmd_clean_npm "$@" ;;
   doctor) shift; cmd_doctor "$@" ;;
+  doctor:react) shift; cmd_doctor_react "$@" ;;
   ""|-h|--help|help) usage ;;
   *) usage >&2; die "unknown command: $1" ;;
 esac
