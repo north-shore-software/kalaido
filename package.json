@@ -15,6 +15,7 @@
     "build:mobile": "pnpm --filter @kalaido/mobile build",
     "build:web": "pnpm --filter @kalaido/web build",
     "typecheck": "pnpm -r typecheck",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:nav": "node scripts/check-navigation-discipline.mjs",
     "check:routes": "pnpm --filter @kalaido/desktop check:routes",
     "check:design": "node scripts/check-design-classes.mjs",

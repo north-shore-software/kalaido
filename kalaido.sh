@@ -219,6 +219,8 @@ cmd_check_ts() {
   (cd "$ROOT" && pnpm exec biome format .)
   say "biome lint"
   (cd "$ROOT" && pnpm exec biome lint --error-on-warnings .)
+  say "boundaries"
+  (cd "$ROOT" && pnpm check:boundaries)
   say "navigation discipline"
   (cd "$ROOT" && pnpm check:nav)
   say "design classes"
