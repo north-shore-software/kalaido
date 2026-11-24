@@ -1,0 +1,39 @@
+{
+  "name": "@kalaido/features",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./styles.css": "./src/styles.css",
+    "./auth": "./src/auth/index.ts",
+    "./explore": "./src/explore/index.ts",
+    "./*.ts": "./src/*.ts",
+    "./*.tsx": "./src/*.tsx",
+    "./explore/use-*": "./src/explore/use-*.ts",
+    "./*": "./src/*.tsx"
+  },
+  "imports": {
+    "#auth": "./src/auth/index.ts",
+    "#explore": "./src/explore/index.ts",
+    "#*.ts": "./src/*.ts",
+    "#*.tsx": "./src/*.tsx",
+    "#explore/use-*": "./src/explore/use-*.ts",
+    "#*": "./src/*.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kalaido/client": "workspace:*",
+    "@kalaido/components": "workspace:*",
+    "@kalaido/hooks": "workspace:*",
+    "@kalaido/platform": "workspace:*",
+    "@kalaido/primitives": "workspace:*",
+    "@phosphor-icons/react": "^2.1.10",
+    "ai": "^6.0.182",
+    "neverthrow": "^8.2.0",
+    "react": "^19.1.0",
+    "sonner": "^2.0.7",
+    "swr": "^2.4.1"
+  }
+}

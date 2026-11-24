@@ -34,7 +34,10 @@
       "!packages/lib/client/src/kalaidoscope/types.ts"
     ],
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "performance": {
+        "useDomNodeTextContent": "off"
+      }
     }
   },
   "css": {
