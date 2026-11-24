@@ -72,6 +72,18 @@ Run a browser-hosted, cloud-only web version of Kalaido alongside the macOS desk
 - **Decision:** Both `apps/desktop` and `apps/mobile` start with identifier `com.northshoresoftware.kalaido` and version `0.0.15`. Split `kalaido.sh bump` per target (`bump:desktop` / `bump:mobile`).
 - **Justification:** Preserves existing dev/APK identities while decoupling future desktop and mobile release cadences.
 
+### 8. Package consumption: source / JIT workspace packages
+- **Decision:** Internal `packages/*` export TypeScript/TSX source directly (`"exports"` pointing to `./src/*`); apps' Vite builds, `tsc`, and Vitest compile directly from source with no separate `dist/` build step.
+- **Justification:** Instant HMR across workspace packages and zero build-order / watch-daemon overhead for internal-only packages.
+
+### 9. No `import.meta.env` in `packages/lib/*` — explicit runtime config injection
+- **Decision:** Apps read `import.meta.env.VITE_*` in their own entrypoint (`main.tsx`) and call `configureClient({ authUrl, cloudPbUrl, posthog? })` alongside `setHost(host)`. `packages/lib/client` (`auth.ts`, `client.ts`, `posthog.ts`) has zero `import.meta.env` reads and no `vite/client` type dependency.
+- **Justification:** Keeps `packages/lib/*` genuinely Vite-free pure TypeScript (runnable in Node, scripts, and Vitest without env-var shims or `VITEST ? "" : ...` hacks).
+
+### 10. Tailwind v4 scanning via per-package `@source` stylesheets
+- **Decision:** Each React package that contains Tailwind classes owns its own stylesheet with `@source "./";` (`@kalaido/primitives/index.css` also includes `@source "../node_modules/streamdown/dist/*.js";`, while `@kalaido/components/styles.css` and `@kalaido/features/styles.css` each contain `@source "./";`). Apps `@import` the stylesheets of the React packages they use instead of writing relative `../../../packages/...` paths.
+- **Justification:** Keeps package paths encapsulated and prevents Tailwind v4 from silently dropping classes used only inside symlinked workspace packages. Behaviour will be verified empirically on the first Vite build.
+
 ---
 
 ## Intended Repo Structure
@@ -129,12 +141,13 @@ kalaido/
 │       ├── components/               # @kalaido/components — reusable domain-connected widgets
 │       │   ├── package.json
 │       │   ├── tsconfig.json
-│       │   └── src/                  # ChatPanel, RefineChatPanel, ContextBar, ContextPicker, ContextMeter, FragmentCard, FragmentDrawer, DecisionCard, DocumentCard, SourceList, PinToggle, PageHeader, CloudAuthPanel, AuthForm, OAuthButtons, RecoveryView, SplashScreen, CoreProviders
+│       │   └── src/                  # styles.css (@source "./";), ChatPanel, RefineChatPanel, ContextBar, ContextPicker, ContextMeter, FragmentCard, FragmentDrawer, DecisionCard, DocumentCard, SourceList, PinToggle, PageHeader, CloudAuthPanel, AuthForm, OAuthButtons, RecoveryView, SplashScreen, CoreProviders
 │       │
 │       └── features/                 # @kalaido/features — vertical feature slices shared by 2+ apps
 │           ├── package.json
 │           ├── tsconfig.json
 │           └── src/
+│               ├── styles.css        # @source "./";
 │               ├── explore/          # BookmarksTray, ChatMessageActions, ConversationList, useBookmarks, useBookmarkActions, useConversations, ExploreCompactScreen
 │               └── auth/             # CloudSignInScreen, CloudWorkspacePickerScreen
 │
@@ -198,7 +211,7 @@ Cross-tier invariants:
 | Directory / Package | Allowed `@kalaido/*` deps | Allowed runtime/framework deps | Must contain | Must NOT contain |
 |---|---|---|---|---|
 | **`packages/lib/platform`** (`@kalaido/platform`) | None | `neverthrow`. Optional peerDeps on `@tauri-apps/{api,plugin-store,plugin-clipboard-manager,plugin-opener}` used **only** in `src/tauri.ts`. | `HostAdapter` interface, shared cross-layer types (`AppVariant`, `KalaidoscopeMeta`, `PersistentAppSetting`, `FeedbackContext`, `FeedbackDiagnostics`), `setHost`/`getHost`, `./tauri` (`createTauriHost`), `./web` (`createWebHost`). | React, JSX, hooks, PocketBase, domain APIs, desktop-only Tauri plugins (`dialog`, `shell`, `updater`, custom Rust `invoke`s). `src/index.ts` and `src/web.ts` must never import `@tauri-apps/*`. |
-| **`packages/lib/client`** (`@kalaido/client`) | `platform` | `pocketbase`, `better-auth`, `jwt-decode`, `neverthrow`, `ai`, `diff`, `date-fns`, `posthog-js`. | Pure TypeScript backend clients (`cloud/`, `kalaidoscope/`), generated PocketBase `types.ts`, Blob-based `ingestFile`, `createCloudClient` / `createLocalNetClient`, pure domain/text utilities (`errors`, `mentions`, `markdown-diff`, `naming`, `ndjson`, `pins`, `datetime`, `labels`, `reconcile-cloud-workspaces`), PostHog client wrapper. | React, JSX, React hooks, DOM layout code, `react-router-dom`, `@tauri-apps/*`, local filesystem path reading, sidecar IPC (`createSidecarClient`). |
+| **`packages/lib/client`** (`@kalaido/client`) | `platform` | `pocketbase`, `better-auth`, `jwt-decode`, `neverthrow`, `ai`, `diff`, `date-fns`, `posthog-js`. | Pure TypeScript backend clients (`cloud/`, `kalaidoscope/`), `configureClient(...)` runtime config, generated PocketBase `types.ts`, Blob-based `ingestFile`, `createCloudClient` / `createLocalNetClient`, pure domain/text utilities (`errors`, `mentions`, `markdown-diff`, `naming`, `ndjson`, `pins`, `datetime`, `labels`, `reconcile-cloud-workspaces`), PostHog client wrapper. | React, JSX, React hooks, DOM layout code, `import.meta.env` / `vite/client`, `react-router-dom`, `@tauri-apps/*`, local filesystem path reading, sidecar IPC (`createSidecarClient`). |
 | **`packages/react/primitives`** (`@kalaido/primitives`) | **None** | `react`, `react-dom`, `@base-ui/react`, `radix-ui`, `@phosphor-icons/react`, `class-variance-authority`, `clsx`, `tailwind-merge`, `cmdk`, `embla-carousel-react`, `input-otp`, `react-day-picker`, `react-resizable-panels`, `recharts`, `shadcn`, `sonner`, `streamdown`, `@streamdown/math`, `katex`, `vaul`, `tw-animate-css`, `@fontsource-variable/*`. | Design tokens (`src/index.css`), brand SVGs (`assets/brand/`), `lib/css-utils.ts` (`cn`), `lib/theme.ts`, generated `shadcn/` primitives + `components.json`, stateless visual primitives (`kalaido/*`, `layout/*`), `ThemeProvider`. Side-effects (such as opening links in `MarkdownContent`) are injected via callback props (`onOpenLink`). | Any `@kalaido/*` dependency, PocketBase, `better-auth`, `@ai-sdk/react`, `swr`, `valtio`, `react-router-dom`, `@tauri-apps/*`, domain concepts (fragments, projections, workspaces), global app state. |
 | **`packages/react/hooks`** (`@kalaido/hooks`) | `platform`, `client` | `react`, `swr`, `neverthrow`, `ai`, `pocketbase`, `sonner`. | React contexts (`HostProvider`/`useHost`, `KalaidoscopeClientContext`/`useKalaidoscopeClient`, `ActiveKalaidoscopeContext`/`useActiveKalaidoscope`) and shared domain/data hooks (`useCloudSession`, `useCollection`, `useLiveCollection`, `useColourSwatches`, `useFragmentLabels`, `useActiveContext`, `useNoteIngest`, `useOrganizeStatus`, `useProjectionSnapshot`, `useRefineSession`, `useReflectionSeries`, `useResumeRefinement`, `useRotationStatus`, `useMobile`, `useAutoScroll`, `useDraftName`, `useCurrentUserId`). | JSX UI components (except bare context `<Provider>` wrappers), `react-router-dom`, `@tauri-apps/*`, app-specific lifecycle state (`AppStage`). |
 | **`packages/react/components`** (`@kalaido/components`) | `platform`, `client`, `primitives`, `hooks` | `react`, `@ai-sdk/react`, `ai`, `@phosphor-icons/react`, `posthog-js`, `sonner`, `neverthrow`. | Domain-connected widgets reused across **2+ features** or by app chrome (`ChatPanel`, `RefineChatPanel`, `ContextBar`, `ContextPicker`, `ContextMeter`, `FragmentCard`, `FragmentDrawer`, `DecisionCard`, `DocumentCard`, `SourceList`, `PinToggle`, `PageHeader`, `CloudAuthPanel`, `AuthForm`, `OAuthButtons`, `RecoveryView`, `SplashScreen`, `CoreProviders`). | `react-router-dom`, `@tauri-apps/*`, app-specific global state (`appState`/`AppStage`), single-feature-only UI. |
