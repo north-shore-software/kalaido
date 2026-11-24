@@ -2,20 +2,17 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP="$ROOT/app"
+DESKTOP="$ROOT/apps/desktop"
+MOBILE="$ROOT/apps/mobile"
+WEB="$ROOT/apps/web"
 KS="$ROOT/kalaidoscope"
-TAURI="$APP/src-tauri"
+DESKTOP_TAURI="$DESKTOP/src-tauri"
+MOBILE_TAURI="$MOBILE/src-tauri"
 SCHEMA_ROOT="$ROOT/.schema"
 SCHEMA_DATA="$SCHEMA_ROOT/pb_data"
-SIDECAR_DIR="$TAURI/binaries"
-TYPES_OUT="src/api/kalaidoscope/types.ts"
+SIDECAR_DIR="$DESKTOP_TAURI/binaries"
+TYPES_OUT="packages/lib/client/src/kalaidoscope/types.ts"
 
-# Cloud endpoints the app talks to. Vite picks these up from the environment and
-# they take precedence over any .env file, so setting KALAIDO_AUTH_URL /
-# KALAIDO_CLOUD_PB_URL before invoking this script points a dev build or a
-# release build at a different stack without touching the tree. The defaults are
-# production; the app carries the same defaults in code, so building without this
-# script still produces a working binary.
 export VITE_BETTER_AUTH_URL="${KALAIDO_AUTH_URL:-https://auth.kalaido.co}"
 export VITE_CLOUD_PB_URL="${KALAIDO_CLOUD_PB_URL:-https://s.kalaido.co}"
 
@@ -28,10 +25,6 @@ build_schema_db() {
   (cd "$KS" && go run ./cmd/sidecar schema bootstrap --dir "$SCHEMA_DATA" >/dev/null)
 }
 
-# Freeze the launch schema: copy schema/canonical.go into schema/baseline/v1.go
-# so the parity test can build "a database created by version 1" forever after.
-# Only meaningful while Version is 1 — after launch the baseline is history and
-# every schema change is Canonical + a delta.
 cmd_schema_freeze() {
   local version src dst
   version="$(awk '/^const Version = / { print $4; exit }' "$KS/schema/version.go")"
@@ -76,46 +69,46 @@ EOF
 
 cmd_dev() {
   cmd_build_sidecar
-  say "tauri dev"
-  (cd "$APP" && pnpm tauri dev "$@")
+  say "tauri dev (desktop)"
+  (cd "$DESKTOP" && pnpm tauri dev "$@")
 }
 
-# Mobile is cloud-only, so none of the android commands build the sidecar.
 cmd_init_android() {
-  say "tauri android init"
-  (cd "$APP" && pnpm tauri android init "$@")
+  say "tauri android init (mobile)"
+  (cd "$MOBILE" && pnpm tauri android init "$@")
 }
 
 cmd_dev_android() {
-  say "tauri android dev"
-  (cd "$APP" && pnpm tauri android dev "$@")
+  say "tauri android dev (mobile)"
+  (cd "$MOBILE" && pnpm tauri android dev "$@")
 }
 
 cmd_build_android() {
   say "tauri android build (debug apk)"
-  (cd "$APP" && pnpm tauri android build --apk --debug "$@")
+  (cd "$MOBILE" && pnpm tauri android build --apk --debug "$@")
 }
 
 cmd_dev_web() {
-  say "vite dev, web target (http://localhost:1420/web.html)"
-  (cd "$APP" && pnpm dev:web "$@")
+  say "vite dev, web target (http://localhost:1420)"
+  (cd "$WEB" && pnpm dev "$@")
 }
 
 cmd_build_web() {
-  say "web build (app/dist-web)"
-  (cd "$APP" && pnpm build:web "$@")
+  say "web build (apps/web/dist)"
+  (cd "$WEB" && pnpm build "$@")
 }
 
 cmd_gen_types() {
   say "schema db"
   build_schema_db
   say "pocketbase-typegen"
-  (cd "$APP" && pnpm exec pocketbase-typegen --db "$SCHEMA_DATA/data.db" --out "$TYPES_OUT")
-  echo "wrote app/$TYPES_OUT"
+  (cd "$ROOT" && pnpm exec pocketbase-typegen --db "$SCHEMA_DATA/data.db" --out "$TYPES_OUT")
+  echo "wrote $TYPES_OUT"
 }
 
 read_version() {
-  awk -F'"' '/^  "version": / { print $4; exit }' "$TAURI/tauri.conf.json"
+  local conf="$1"
+  awk -F'"' '/^  "version": / { print $4; exit }' "$conf"
 }
 
 edit_inplace() {
@@ -127,11 +120,29 @@ edit_inplace() {
   rm -f "$tmp"
 }
 
-cmd_bump() {
+cmd_bump_target() {
+  local target="$1"; shift
+  local app_dir tauri_dir crate_name
+  case "$target" in
+    desktop)
+      app_dir="$DESKTOP"
+      tauri_dir="$DESKTOP_TAURI"
+      crate_name="Kalaido"
+      ;;
+    mobile)
+      app_dir="$MOBILE"
+      tauri_dir="$MOBILE_TAURI"
+      crate_name="kalaido-mobile"
+      ;;
+    *)
+      die "unknown bump target: $target (expected desktop or mobile)"
+      ;;
+  esac
+
   local current default new f mode="${1:-}" patch
-  [[ $# -le 1 ]] || die "usage: ./kalaido.sh bump [release|dev|<version>]"
-  current="$(read_version)"
-  [[ -n "$current" ]] || die "no version in app/src-tauri/tauri.conf.json"
+  [[ $# -le 1 ]] || die "usage: ./kalaido.sh bump:$target [release|dev|<version>]"
+  current="$(read_version "$tauri_dir/tauri.conf.json")"
+  [[ -n "$current" ]] || die "no version in ${tauri_dir#"$ROOT"/}/tauri.conf.json"
 
   case "$mode" in
     release|--release)
@@ -147,10 +158,10 @@ cmd_bump() {
     "")
       if [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
         default="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((10#${BASH_REMATCH[3]} + 1))"
-        read -r -p "new version [$default]: " new
+        read -r -p "new $target version [$default]: " new
         new="${new:-$default}"
       else
-        read -r -p "new version (current $current): " new
+        read -r -p "new $target version (current $current): " new
       fi
       ;;
     *)
@@ -161,18 +172,18 @@ cmd_bump() {
   [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || die "not a version: $new"
   [[ "$new" != "$current" ]] || die "already at $current"
 
-  for f in "$TAURI/tauri.conf.json" "$APP/package.json"; do
+  for f in "$tauri_dir/tauri.conf.json" "$app_dir/package.json"; do
     edit_inplace "$f" sed '1,/^  "version": /s/^\(  "version": \)"[^"]*"/\1"'"$new"'"/'
   done
-  edit_inplace "$TAURI/Cargo.toml" sed '1,/^version = /s/^version = "[^"]*"/version = "'"$new"'"/'
-  edit_inplace "$TAURI/Cargo.lock" awk -v v="$new" '
-    /^name = "Kalaido"$/ { armed = 1 }
+  edit_inplace "$tauri_dir/Cargo.toml" sed '1,/^version = /s/^version = "[^"]*"/version = "'"$new"'"/'
+  edit_inplace "$ROOT/Cargo.lock" awk -v pkg="$crate_name" -v v="$new" '
+    $0 == "name = \"" pkg "\"" { armed = 1 }
     armed && /^version = / { $0 = "version = \"" v "\""; armed = 0 }
     { print }
   '
 
-  say "$current -> $new"
-  echo "updated app/src-tauri/tauri.conf.json app/package.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock"
+  say "$target: $current -> $new"
+  echo "updated ${tauri_dir#"$ROOT"/}/tauri.conf.json ${app_dir#"$ROOT"/}/package.json ${tauri_dir#"$ROOT"/}/Cargo.toml Cargo.lock"
 }
 
 host_target() {
@@ -199,30 +210,34 @@ cmd_build_sidecar() {
 
 cmd_build_app() {
   cmd_build_sidecar
-  say "tauri build"
-  (cd "$APP" && pnpm tauri build "$@")
+  say "tauri build (desktop)"
+  (cd "$DESKTOP" && pnpm tauri build "$@")
 }
 
 cmd_check_ts() {
   say "biome format"
-  (cd "$APP" && pnpm exec biome format .)
+  (cd "$ROOT" && pnpm exec biome format .)
   say "biome lint"
-  (cd "$APP" && pnpm exec biome lint --error-on-warnings .)
+  (cd "$ROOT" && pnpm exec biome lint --error-on-warnings .)
   say "navigation discipline"
-  (cd "$APP" && pnpm check:nav)
+  (cd "$ROOT" && pnpm check:nav)
   say "design classes"
-  (cd "$APP" && pnpm check:design)
+  (cd "$ROOT" && pnpm check:design)
   say "routes"
-  (cd "$APP" && pnpm check:routes)
-  say "build"
-  (cd "$APP" && pnpm build)
+  (cd "$ROOT" && pnpm check:routes)
+  say "typecheck"
+  (cd "$ROOT" && pnpm -r typecheck)
+  say "desktop build"
+  (cd "$ROOT" && pnpm build:desktop)
+  say "mobile build"
+  (cd "$ROOT" && pnpm build:mobile)
   say "web build"
-  (cd "$APP" && APP_TARGET=web pnpm exec vite build)
+  (cd "$ROOT" && pnpm build:web)
 }
 
 cmd_check_ts_typecheck_only() {
-  say "tsc --noEmit"
-  (cd "$APP" && pnpm exec tsc --noEmit)
+  say "typecheck"
+  (cd "$ROOT" && pnpm -r typecheck)
 }
 
 cmd_check_go() {
@@ -242,33 +257,29 @@ cmd_check_go() {
 
 cmd_test_go() {
   say "go test"
-  # Extra flags pass straight to go test: ./kalaido.sh test:go -race -count=1
   (cd "$KS" && go test "$@" ./...)
 }
 
 cmd_check_rust() {
   say "cargo fmt"
-  (cd "$TAURI" && cargo fmt --check)
+  (cd "$ROOT" && cargo fmt --check)
   say "cargo clippy"
-  (cd "$TAURI" && cargo clippy --all-targets -- -D warnings)
+  (cd "$ROOT" && cargo clippy --workspace --all-targets -- -D warnings)
 }
 
 cmd_test_rust() {
   say "cargo test"
-  (cd "$TAURI" && cargo test)
+  (cd "$ROOT" && cargo test --workspace)
 }
 
 cmd_test_ts() {
   say "pnpm test run"
-  (cd "$APP" && pnpm test run)
+  (cd "$ROOT" && pnpm test run)
 }
 
 cmd_check_all() {
   local failed="" target status
   for target in ts go rust; do
-    # Not `cmd || failed=...`: a function called on the left of || runs with
-    # errexit suspended, so a failing step would not stop it and only its
-    # last step's status would count. A subshell that sets -e itself does.
     set +e
     ( set -e; "cmd_check_$target" )
     status=$?
@@ -288,16 +299,16 @@ cmd_check_schema_freshness() {
   build_schema_db
   local tmp="$SCHEMA_ROOT/types.ts"
   say "pocketbase-typegen"
-  (cd "$APP" && pnpm exec pocketbase-typegen --db "$SCHEMA_DATA/data.db" --out "$tmp")
-  if ! diff -u "$APP/$TYPES_OUT" "$tmp"; then
-    die "app/$TYPES_OUT is stale (run ./kalaido.sh gen:types)"
+  (cd "$ROOT" && pnpm exec pocketbase-typegen --db "$SCHEMA_DATA/data.db" --out "$tmp")
+  if ! diff -u "$ROOT/$TYPES_OUT" "$tmp"; then
+    die "$TYPES_OUT is stale (run ./kalaido.sh gen:types)"
   fi
-  echo "app/$TYPES_OUT is up to date"
+  echo "$TYPES_OUT is up to date"
 }
 
 cmd_fmt_ts() {
   say "biome format --write"
-  (cd "$APP" && pnpm exec biome format --write .)
+  (cd "$ROOT" && pnpm exec biome format --write .)
 }
 
 cmd_fmt_go() {
@@ -307,12 +318,12 @@ cmd_fmt_go() {
 
 cmd_fmt_rust() {
   say "cargo fmt"
-  (cd "$TAURI" && cargo fmt)
+  (cd "$ROOT" && cargo fmt)
 }
 
 cmd_setup_ts() {
   say "pnpm install"
-  (cd "$APP" && pnpm install --frozen-lockfile)
+  (cd "$ROOT" && pnpm install --frozen-lockfile)
 }
 
 cmd_setup_go() {
@@ -322,7 +333,7 @@ cmd_setup_go() {
 
 cmd_setup_rust() {
   say "cargo fetch"
-  (cd "$TAURI" && cargo fetch)
+  (cd "$ROOT" && cargo fetch)
 }
 
 cmd_setup() {
@@ -333,22 +344,22 @@ cmd_setup() {
 
 cmd_clean() {
   say "clean"
-  rm -rf "$APP/dist" "$APP/dist-web" "$TAURI/binaries" "$SCHEMA_ROOT"
-  echo "removed app/dist app/dist-web app/src-tauri/binaries .schema"
+  rm -rf "$DESKTOP/dist" "$MOBILE/dist" "$WEB/dist" "$DESKTOP_TAURI/binaries" "$SCHEMA_ROOT"
+  echo "removed apps/*/dist apps/desktop/src-tauri/binaries .schema"
 }
 
 cmd_clean_tauri() {
   cmd_clean
   say "clean:tauri"
-  rm -rf "$TAURI/target"
-  echo "removed app/src-tauri/target"
+  rm -rf "$ROOT/target"
+  echo "removed target"
 }
 
 cmd_clean_npm() {
   cmd_clean_tauri
   say "clean:npm"
-  rm -rf "$APP/node_modules"
-  echo "removed app/node_modules (run ./kalaido.sh setup)"
+  rm -rf "$ROOT/node_modules" "$ROOT"/apps/*/node_modules "$ROOT"/packages/*/*/node_modules
+  echo "removed node_modules (run ./kalaido.sh setup)"
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -400,8 +411,8 @@ cmd_doctor() {
   if have node; then
     local nodev range
     nodev="$(node --version)"
-    range="$(cd "$APP" && node -p 'require("./package.json").engines.node')"
-    if (cd "$APP" && engine_ok node "$nodev"); then
+    range="$(cd "$ROOT" && node -p 'require("./package.json").engines.node')"
+    if (cd "$ROOT" && engine_ok node "$nodev"); then
       report ok node "$nodev"
     else
       report fail node "$nodev (need $range)"
@@ -420,10 +431,10 @@ cmd_doctor() {
       failed=1
     elif ! have node; then
       report warn pnpm "$pnpmv (cannot check engines without node)"
-    elif (cd "$APP" && engine_ok pnpm "$pnpmv"); then
+    elif (cd "$ROOT" && engine_ok pnpm "$pnpmv"); then
       report ok pnpm "$pnpmv"
     else
-      range="$(cd "$APP" && node -p 'require("./package.json").engines.pnpm')"
+      range="$(cd "$ROOT" && node -p 'require("./package.json").engines.pnpm')"
       report fail pnpm "$pnpmv (need $range)"
       failed=1
     fi
@@ -439,9 +450,9 @@ cmd_doctor() {
     failed=1
   fi
 
-  if [[ -x "$APP/node_modules/.bin/tauri" ]]; then
+  if [[ -x "$DESKTOP/node_modules/.bin/tauri" ]]; then
     local tauriv
-    tauriv="$("$APP/node_modules/.bin/tauri" --version 2>/dev/null | tail -1 || true)"
+    tauriv="$("$DESKTOP/node_modules/.bin/tauri" --version 2>/dev/null | tail -1 || true)"
     if [[ -n "$tauriv" ]]; then
       report ok "tauri cli" "$tauriv"
     else
@@ -478,7 +489,7 @@ cmd_doctor() {
     report warn rustup "not found (cannot check android targets)"
   fi
 
-  if [[ -d "$TAURI/gen/android" ]]; then
+  if [[ -d "$MOBILE_TAURI/gen/android" ]]; then
     report ok "gen/android" "initialised"
   else
     report warn "gen/android" "missing (run ./kalaido.sh init:android)"
@@ -509,54 +520,56 @@ cmd_doctor() {
 
 cmd_doctor_react() {
   say "react-doctor"
-  (cd "$APP" && pnpm dlx react-doctor@latest "$@")
+  (cd "$ROOT" && pnpm dlx react-doctor@latest "$@")
 }
 
 usage() {
   cat <<'EOF'
 usage: ./kalaido.sh <command> [args...]
 
-  dev                        tauri dev (rebuilds the sidecar first)
+  dev                                tauri dev (desktop, rebuilds sidecar first)
 
-  init:android               generate src-tauri/gen/android (once)
-  dev:android                tauri android dev (emulator or device, no sidecar)
-  build:android              debug-signed apk, sideloadable
-  dev:web                    vite dev, web target (http://localhost:1420/web.html)
-  build:web                  web build (app/dist-web)
+  init:android                       generate apps/mobile/src-tauri/gen/android (once)
+  dev:android                        tauri android dev (mobile, no sidecar)
+  build:android                      debug-signed apk, sideloadable
+  dev:web                            vite dev, web target (http://localhost:1420)
+  build:web                          web build (apps/web/dist)
 
-  gen:types                  rebuild the schema db, regenerate types.ts
-  bump [release|dev|<ver>]   set the app version (prompts, or next release/dev revision)
-  bump:release               increment version to next release (even) revision
-  bump:dev                   increment version to next dev (odd) revision
+  gen:types                          rebuild the schema db, regenerate types.ts
+  bump [release|dev|<ver>]           set desktop version (alias for bump:desktop)
+  bump:desktop [release|dev|<ver>]   set desktop app version
+  bump:mobile [release|dev|<ver>]    set mobile app version
+  bump:release                       increment desktop version to next release (even) revision
+  bump:dev                           increment desktop version to next dev (odd) revision
 
-  build:sidecar [target]     build the go sidecar into src-tauri/binaries (default: host arch)
-  build:app                  tauri build (rebuilds the sidecar first)
+  build:sidecar [target]             build the go sidecar into apps/desktop/src-tauri/binaries
+  build:app                          tauri build (desktop, rebuilds sidecar first)
 
-  check:ts                   biome, nav, routes, build
-  check:ts-typecheck-only    tsc --noEmit
-  check:go                   vet, gofmt, go mod tidy
-  check:rust                 cargo fmt, clippy
-  check:all                  ts + go + rust
-  check:schema-freshness     types.ts matches the canonical schema
-  schema:freeze              copy canonical.go into schema/baseline/v1.go (launch only)
+  check:ts                           biome, nav, design, routes, typecheck, desktop/mobile/web builds
+  check:ts-typecheck-only            pnpm -r typecheck
+  check:go                           vet, gofmt, go mod tidy
+  check:rust                         cargo fmt, clippy (--workspace)
+  check:all                          ts + go + rust
+  check:schema-freshness             types.ts matches the canonical schema
+  schema:freeze                      copy canonical.go into schema/baseline/v1.go (launch only)
 
-  test:go [flags]            go test (flags forwarded, e.g. -race -count=1)
-  test:rust                  cargo test
-  test:ts                    pnpm test run
+  test:go [flags]                    go test (flags forwarded, e.g. -race -count=1)
+  test:rust                          cargo test --workspace
+  test:ts                            pnpm test run
 
-  fmt:ts                     biome format --write
-  fmt:go                     gofmt -w
-  fmt:rust                   cargo fmt
+  fmt:ts                             biome format --write
+  fmt:go                             gofmt -w
+  fmt:rust                           cargo fmt
 
-  setup                      install js, go and rust dependencies
-  setup:ts                   pnpm install --frozen-lockfile
-  setup:go                   go mod download
-  setup:rust                 cargo fetch
-  clean                      dist, dist-web, binaries, .schema
-  clean:tauri                clean + src-tauri/target
-  clean:npm                  clean:tauri + node_modules
-  doctor                     check the toolchain, android and providers
-  doctor:react [args]        run react-doctor on the app
+  setup                              install js, go and rust dependencies
+  setup:ts                           pnpm install --frozen-lockfile
+  setup:go                           go mod download
+  setup:rust                         cargo fetch
+  clean                              apps/*/dist, binaries, .schema
+  clean:tauri                        clean + target
+  clean:npm                          clean:tauri + node_modules
+  doctor                             check the toolchain, android and providers
+  doctor:react [args]                run react-doctor on the workspace
 EOF
 }
 
@@ -568,9 +581,11 @@ case "${1:-}" in
   dev:web) shift; cmd_dev_web "$@" ;;
   build:web) shift; cmd_build_web "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
-  bump) shift; cmd_bump "$@" ;;
-  bump:release) shift; cmd_bump release "$@" ;;
-  bump:dev) shift; cmd_bump dev "$@" ;;
+  bump) shift; cmd_bump_target desktop "$@" ;;
+  bump:desktop) shift; cmd_bump_target desktop "$@" ;;
+  bump:mobile) shift; cmd_bump_target mobile "$@" ;;
+  bump:release) shift; cmd_bump_target desktop release "$@" ;;
+  bump:dev) shift; cmd_bump_target desktop dev "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;
   build:app) shift; cmd_build_app "$@" ;;
   check:ts) shift; cmd_check_ts "$@" ;;

@@ -31,10 +31,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          ./kalaido.sh bump release
-          version="$(awk -F'"' '/^  "version": / { print $4; exit }' app/src-tauri/tauri.conf.json)"
+          ./kalaido.sh bump:desktop release
+          version="$(awk -F'"' '/^  "version": / { print $4; exit }' apps/desktop/src-tauri/tauri.conf.json)"
           tag="v$version"
-          git add app/src-tauri/tauri.conf.json app/package.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock
+          git add apps/desktop/src-tauri/tauri.conf.json apps/desktop/package.json apps/desktop/src-tauri/Cargo.toml Cargo.lock
           git commit -m "release $tag"
           git tag "$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -42,9 +42,9 @@ jobs:
         env:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
-          ./kalaido.sh bump dev
-          version="$(awk -F'"' '/^  "version": / { print $4; exit }' app/src-tauri/tauri.conf.json)"
-          git add app/src-tauri/tauri.conf.json app/package.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock
+          ./kalaido.sh bump:desktop dev
+          version="$(awk -F'"' '/^  "version": / { print $4; exit }' apps/desktop/src-tauri/tauri.conf.json)"
+          git add apps/desktop/src-tauri/tauri.conf.json apps/desktop/package.json apps/desktop/src-tauri/Cargo.toml Cargo.lock
           git commit -m "bump to $version"
           git push --atomic origin HEAD:main "$TAG"
 
@@ -66,12 +66,12 @@ jobs:
           ref: refs/tags/${{ needs.bump.outputs.tag }}
       - uses: pnpm/action-setup@v4
         with:
-          package_json_file: app/package.json
+          package_json_file: package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: app/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: kalaidoscope/go.mod
@@ -79,7 +79,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri
+          workspaces: .
 
       - run: ./kalaido.sh setup:ts
       - run: ./kalaido.sh setup:go
@@ -103,7 +103,7 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
         with:
-          projectPath: app
+          projectPath: apps/desktop
           args: --target aarch64-apple-darwin --config '{"bundle":{"createUpdaterArtifacts":true}}'
           tagName: ${{ needs.bump.outputs.tag }}
           releaseName: Kalaido ${{ needs.bump.outputs.tag }}
@@ -126,12 +126,12 @@ jobs:
           ref: refs/tags/${{ needs.bump.outputs.tag }}
       - uses: pnpm/action-setup@v4
         with:
-          package_json_file: app/package.json
+          package_json_file: package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: app/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: kalaidoscope/go.mod
@@ -141,7 +141,7 @@ jobs:
           targets: x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri
+          workspaces: .
 
       - run: ./kalaido.sh setup:ts
       - run: ./kalaido.sh setup:go
@@ -164,7 +164,7 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
         with:
-          projectPath: app
+          projectPath: apps/desktop
           args: --target x86_64-apple-darwin --config '{"bundle":{"createUpdaterArtifacts":true}}'
           releaseId: ${{ needs.aarch64.outputs.releaseId }}
           uploadUpdaterJson: true

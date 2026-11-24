@@ -1,6 +1,6 @@
 # React App Restructure Plan
 
-Status: **Architecture & boundaries locked — ready for step-by-step API review and implementation**
+Status: **Implemented — TS/Vite/Vitest/Go/Biome verified; Rust workspace `cargo fmt` & `cargo metadata` verified (native `cargo clippy`/`test` pending macOS host)**
 
 ## Goal
 

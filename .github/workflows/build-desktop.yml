@@ -26,12 +26,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          package_json_file: app/package.json
+          package_json_file: package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: app/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: kalaidoscope/go.mod
@@ -39,7 +39,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri
+          workspaces: .
 
       - run: ./kalaido.sh setup:ts
       - run: ./kalaido.sh setup:go
@@ -63,7 +63,7 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
         with:
-          projectPath: app
+          projectPath: apps/desktop
           args: --target aarch64-apple-darwin --config '{"bundle":{"createUpdaterArtifacts":true}}'
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Kalaido ${{ github.ref_name }}
@@ -85,12 +85,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          package_json_file: app/package.json
+          package_json_file: package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: app/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: kalaidoscope/go.mod
@@ -100,7 +100,7 @@ jobs:
           targets: x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri
+          workspaces: .
 
       - run: ./kalaido.sh setup:ts
       - run: ./kalaido.sh setup:go
@@ -123,7 +123,7 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
         with:
-          projectPath: app
+          projectPath: apps/desktop
           args: --target x86_64-apple-darwin --config '{"bundle":{"createUpdaterArtifacts":true}}'
           releaseId: ${{ needs.aarch64.outputs.releaseId }}
           uploadUpdaterJson: true
