@@ -1,5 +1,5 @@
-import markSrc from "#assets/brand/kalaido-k-dark.svg";
-import smallMarkSrc from "#assets/brand/kalaido-k-small-dark.svg";
+import markSrc from "@kalaido/brand/kalaido-k-dark.svg";
+import smallMarkSrc from "@kalaido/brand/kalaido-k-small-dark.svg";
 import { cn } from "#lib/css-utils";
 
 export function Mark({

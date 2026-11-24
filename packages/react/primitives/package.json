@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     "./index.css": "./src/index.css",
-    "./assets/*": "./src/assets/*",
     "./kalaido": "./src/kalaido/index.ts",
     "./kalaido/icons": "./src/kalaido/icons.ts",
     "./lib/*": "./src/lib/*.ts",
@@ -16,7 +15,6 @@
     "./providers/*": "./src/providers/*.tsx"
   },
   "imports": {
-    "#assets/*": "./src/assets/*",
     "#kalaido": "./src/kalaido/index.ts",
     "#kalaido/icons": "./src/kalaido/icons.ts",
     "#lib/*": "./src/lib/*.ts",
@@ -34,6 +32,7 @@
     "@fontsource-variable/archivo": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/source-serif-4": "^5.3.0",
+    "@kalaido/brand": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",
     "@streamdown/math": "^1.0.3",
     "class-variance-authority": "^0.7.1",

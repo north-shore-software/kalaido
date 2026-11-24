@@ -1,4 +1,4 @@
-import wordmarkSrc from "@kalaido/primitives/assets/brand/kalaido-wordmark-signature-dark.svg";
+import wordmarkSrc from "@kalaido/brand/kalaido-wordmark-signature-dark.svg";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 
 export function SplashScreen() {

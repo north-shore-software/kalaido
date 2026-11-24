@@ -258,6 +258,8 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0(react@19.3.1)
 
+  brand: {}
+
   packages/lib/client:
     dependencies:
       '@kalaido/platform':
@@ -312,6 +314,9 @@ importers:
       '@ai-sdk/react':
         specifier: ^3.0.184
         version: 3.0.339(react@19.3.1)(zod@4.6.7)
+      '@kalaido/brand':
+        specifier: workspace:*
+        version: link:../../../brand
       '@kalaido/client':
         specifier: workspace:*
         version: link:../../lib/client
@@ -423,6 +428,9 @@ importers:
       '@fontsource-variable/source-serif-4':
         specifier: ^5.3.0
         version: 5.3.1
+      '@kalaido/brand':
+        specifier: workspace:*
+        version: link:../../../brand
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

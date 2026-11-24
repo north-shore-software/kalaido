@@ -1,4 +1,5 @@
 packages:
+  - "brand"
   - "packages/lib/*"
   - "packages/react/*"
   - "apps/*"
