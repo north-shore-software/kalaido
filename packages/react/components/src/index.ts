@@ -32,6 +32,10 @@ export {
   type EntityKind,
 } from "./context-picker";
 export { CoreProviders, type TelemetryPreferences } from "./core-providers";
+export {
+  FeedbackDialog,
+  type FeedbackDialogProps,
+} from "./feedback-dialog";
 export { FragmentDrawer } from "./fragment-drawer";
 export { KindPill, type PillKind } from "./kind-pill";
 export {

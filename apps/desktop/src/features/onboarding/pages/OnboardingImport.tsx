@@ -1,9 +1,12 @@
+import {
+  ImportFields,
+  useImportPicker,
+  useImportSubmit,
+} from "@kalaido/features/import";
+import { Button } from "@kalaido/primitives/shadcn/button";
 import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import { ImportFields } from "@/features/import/components/import-fields";
-import { useImportPicker } from "@/features/import/hooks/use-import-picker";
-import { useImportSubmit } from "@/features/import/hooks/use-import-submit";
+import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
 import { clearStageEntry } from "@/hooks/app-state-actions.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -16,7 +19,7 @@ export default function OnboardingImport() {
     (ingestId) =>
       go(transitions.startPipeline, { params: { ingestId }, replace: true }),
   );
-  const picker = useImportPicker(clearError);
+  const picker = useImportPicker(desktopImportAdapter, clearError);
 
   useEffect(() => {
     clearStageEntry();
@@ -44,8 +47,10 @@ export default function OnboardingImport() {
         </Button>
         <Button
           variant="commit"
-          disabled={!picker.path || submitting}
-          onClick={() => void submit(picker.path)}
+          disabled={!picker.file || submitting}
+          onClick={() => {
+            if (picker.file) void submit(picker.file);
+          }}
         >
           <UploadSimpleIcon />
           {submitting ? "Uploading…" : "Import"}

@@ -1,20 +1,24 @@
+import {
+  ImportActions,
+  ImportColourField,
+  type ImportColourChoice,
+  ImportFields,
+  ImportStatus,
+  isImportColourReady,
+  useFileIngest,
+  useImportPicker,
+} from "@kalaido/features/import";
+import { useCollection } from "@kalaido/hooks/use-collection";
+import { Button } from "@kalaido/primitives/shadcn/button";
 import { useState } from "react";
 import {
   PageBody,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import { useCollection } from "@kalaido/hooks/use-collection";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
-import { ImportActions } from "../components/import-actions";
-import { ImportColourField } from "../components/import-colour-field";
-import { ImportFields } from "../components/import-fields";
-import { ImportStatus } from "../components/import-status";
-import { useFileIngest } from "../hooks/use-file-ingest";
-import { useImportPicker } from "../hooks/use-import-picker";
-import { type ImportColourChoice, isImportColourReady } from "../submit-import";
+import { desktopImportAdapter } from "../desktop-import-adapter";
 import { importTransitions } from "./Import.transitions";
 
 export default function Import() {
@@ -23,7 +27,7 @@ export default function Import() {
   const { phase, imported, errorMsg, runIngest, cancel, reset } =
     useFileIngest();
   const running = phase === "running";
-  const picker = useImportPicker(reset);
+  const picker = useImportPicker(desktopImportAdapter, reset);
   const [colour, setColour] = useState<ImportColourChoice>({ kind: "none" });
   const colours = useCollection("colour", {
     sort: "-created",
@@ -31,8 +35,8 @@ export default function Import() {
   });
 
   function runImport() {
-    if (!picker.path || running) return;
-    void runIngest({ path: picker.path, colour });
+    if (!picker.file || running) return;
+    void runIngest({ file: picker.file, colour });
   }
 
   function importAnother() {
@@ -75,7 +79,7 @@ export default function Import() {
             onCancel={cancel}
             onViewStream={() => go(importTransitions.viewStream)}
             onImportAnother={importAnother}
-            disabledImport={!picker.path || !isImportColourReady(colour)}
+            disabledImport={!picker.file || !isImportColourReady(colour)}
           />
         </div>
       </PageBody>

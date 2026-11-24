@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { PageBackButton } from "@kalaido/primitives/layout/page-back-button";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";

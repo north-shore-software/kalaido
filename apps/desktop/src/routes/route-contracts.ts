@@ -1,7 +1,7 @@
-import type { ColourSeed } from "@/features/colours/types";
+import type { ColourSeed } from "@kalaido/features/colours";
+import type { ProjectionSeed } from "@kalaido/features/projections";
+import type { ReflectionSeed } from "@kalaido/features/reflections";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
-import type { ProjectionSeed } from "@/features/projections/types";
-import type { ReflectionSeed } from "@/features/reflections/types";
 import type { RouteId } from "./route-ids";
 
 /**
