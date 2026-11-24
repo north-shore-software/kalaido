@@ -9,15 +9,6 @@
 /apps/desktop/src-tauri/binaries/pocketbase-*
 /apps/*/.env
 /apps/*/.env.local
-/app/src-tauri/target/
-/app/node_modules/
-/app/.claude/
-/app/dist/
-/app/dist-web/
-/app/.env.local
-/app/.env
-/app/src-tauri/gen/
-/app/src-tauri/binaries/pocketbase-aarch64-apple-darwin
 /.claude/
 /apps/*/.claude/
 /.schema/

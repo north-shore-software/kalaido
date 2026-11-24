@@ -1,0 +1,266 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { specToItems } from "@kalaido/client/kalaidoscope/chat";
+import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
+import {
+  createProjection,
+  deleteProjection,
+} from "@kalaido/client/kalaidoscope/projections";
+import {
+  ContextBar,
+  type ContextItem,
+  RefineComposer,
+} from "@kalaido/components";
+import {
+  PageCard,
+  PageHeader,
+  PageLayout,
+} from "@/components/layout/page-layout";
+import { Button } from "@kalaido/primitives/shadcn/button";
+import { Input } from "@kalaido/primitives/shadcn/input";
+import { ProjectionDraftEditor } from "@/features/projections/components/projection-draft-editor";
+import { useDraftName } from "@kalaido/hooks/use-draft-name";
+import { useRefineSession } from "@kalaido/hooks/use-refine-session";
+import { withContextItem } from "@kalaido/client/lib/mentions";
+import { deriveName } from "@kalaido/client/lib/naming";
+import { defineRoute } from "@/routes/route-kit";
+import { useAppNavigate } from "@/routes/use-app-navigate";
+import { useAppRouteState } from "@/routes/use-app-route-state";
+import { PlaceholderPreviewPane } from "../components/placeholder-preview-pane";
+import type { ProjectionSeed } from "../types";
+import { newProjectionTransitions } from "./NewProjection.transitions";
+
+/**
+ * Frames seed material as the session's first user message. Written from the
+ * user's voice (it is their message, composed by the app on their behalf): it
+ * hands over the text they chose and asks for the standing format to keep
+ * producing it — which is exactly what the model's lens must capture.
+ */
+function seedPrompt(draft: string): string {
+  return (
+    "I'm creating this from an existing document. Derive the format, structure and emphasis it should keep producing:\n\n" +
+    draft
+  );
+}
+
+export default function NewProjection() {
+  const { go } = useAppNavigate();
+
+  // Captured once: navigating away and back must not re-run the seeding.
+  const seedRef = useRef(useAppRouteState<"new-projection">().seed);
+
+  const [context, setContext] = useState<ContextItem[]>(
+    seedRef.current?.contextSpec
+      ? specToItems(seedRef.current.contextSpec)
+      : [WHOLE_SCOPE_ITEM],
+  );
+  const [projectionId, setProjectionId] = useState<string | null>(null);
+  const [input, setInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const session = useRefineSession({ target: "projection" });
+  const started = projectionId != null && session.started;
+
+  const { name, adopt, rename } = useDraftName({
+    target: "projection",
+    entityId: projectionId,
+    suggestedName: session.suggestedName,
+  });
+
+  // The first message brings the projection into being: create the container via
+  // the projection endpoint, then open a refinement session over it (no lens or
+  // parent snapshot yet — both are born when this refinement is committed). Both
+  // must land before the editor mounts (its ChatPanel auto-sends `firstPrompt`),
+  // since /api/chat routes to the refinement handler only once the session row
+  // exists for this client id.
+  async function startProjection() {
+    const text = input.trim();
+    if (!text || creating || session.creating) return;
+    setCreating(true);
+
+    const typedName = nameInput.trim();
+    const initialName = typedName || deriveName(text, "Untitled projection");
+    const created = await createProjection(initialName);
+    if (created.isErr()) {
+      setCreating(false);
+      toast.error("Failed to create projection", {
+        description: created.error.message,
+      });
+      return;
+    }
+    const newProjectionId = created.value.projectionId;
+
+    const ok = await session.start({ parentId: newProjectionId, prompt: text });
+    setCreating(false);
+    if (ok) {
+      adopt(initialName, !!typedName);
+      setProjectionId(newProjectionId);
+    }
+  }
+
+  /**
+   * The same flow, with the seed material as the auto-sent first message: the
+   * model's first turn derives a lens from it and the server's apply renders
+   * the first preview. Approve stays disabled until that preview lands (the
+   * document only exists once a lens produces it). A seed without draft text
+   * opens the editor with the context pinned and lets the user type first.
+   */
+  const startFromSeed = useCallback(
+    async (seed: ProjectionSeed) => {
+      setCreating(true);
+      let newProjectionId = seed.id;
+      if (!newProjectionId) {
+        const created = await createProjection(seed.name, {
+          description: seed.description,
+        });
+        if (created.isErr()) {
+          setCreating(false);
+          toast.error("Failed to create projection", {
+            description: created.error.message,
+          });
+          go(newProjectionTransitions.cancel);
+          return;
+        }
+        newProjectionId = created.value.projectionId;
+      }
+
+      const prompt =
+        seed.message?.trim() ||
+        (seed.draft.trim() ? seedPrompt(seed.draft.trim()) : undefined);
+      const ok = await session.start({
+        parentId: newProjectionId,
+        contextSpec: seed.contextSpec,
+        prompt,
+      });
+      setCreating(false);
+      if (ok) {
+        // A seed name is a person's choice (fork/graduate) — suggestions keep off.
+        adopt(seed.name, true);
+        setProjectionId(newProjectionId);
+      }
+    },
+    [session, go, adopt],
+  );
+
+  const seedStarted = useRef(false);
+  useEffect(() => {
+    const seed = seedRef.current;
+    if (!seed || seedStarted.current) return;
+    seedStarted.current = true;
+    void startFromSeed(seed);
+  }, [startFromSeed]);
+
+  // Once the projection + refinement exist, hand off to the shared editor (chat,
+  // live preview, Approve) — identical to resuming an uncommitted draft from the
+  // projection detail page.
+  if (started && projectionId) {
+    return (
+      <ProjectionDraftEditor
+        session={session}
+        projectionId={projectionId}
+        title={
+          name ?? (seedRef.current ? seedRef.current.name : "New Projection")
+        }
+        crumb={["Projections", "New"]}
+        initialContext={context}
+        approveLabel="Create projection"
+        onTitleCommit={rename}
+        onCancel={() => {
+          if (projectionId) void deleteProjection(projectionId);
+          go(newProjectionTransitions.cancel);
+        }}
+        onApproveSuccess={(projId) =>
+          go(newProjectionTransitions.approveSuccess, {
+            params: { id: projId },
+          })
+        }
+      />
+    );
+  }
+
+  // A seeded projection never shows the composer — its first message is the
+  // seed material, auto-sent by the editor. Hold the frame while the container
+  // and session are created rather than flashing a form the user can't use.
+  if (seedRef.current) {
+    return (
+      <PageLayout>
+        <PageHeader
+          title={seedRef.current.name}
+          crumb={["Projections", "New"]}
+        />
+        <PageCard>
+          <div className="flex flex-1 items-center justify-center">
+            <p className="text-body-sm text-fg-2">Preparing the draft…</p>
+          </div>
+        </PageCard>
+      </PageLayout>
+    );
+  }
+
+  return (
+    <PageLayout>
+      <PageHeader
+        title="New Projection"
+        crumb={["Projections", "New"]}
+        actions={
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => go(newProjectionTransitions.cancel)}
+          >
+            Cancel
+          </Button>
+        }
+      />
+      <PageCard>
+        <div className="flex min-h-0 flex-1">
+          <PlaceholderPreviewPane className="border-r border-line" />
+
+          <div className="flex min-w-0 flex-[1.05] flex-col">
+            <RefineComposer
+              title="Define via chat"
+              helperText="Describe the view you want. Your first message creates the projection and starts generating a draft."
+              helperTextClassName="max-w-[70%]"
+              value={input}
+              onChange={setInput}
+              placeholder="‘A live PRD for the checkout redesign’…"
+              disabled={creating}
+              onSubmit={() => void startProjection()}
+              onMention={(item) =>
+                setContext((prev) => withContextItem(prev, item))
+              }
+              nameField={
+                <div className="shrink-0 px-4 pb-3">
+                  <Input
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="Name (optional — Kalaido will suggest one)"
+                    aria-label="Projection name"
+                    disabled={creating}
+                  />
+                </div>
+              }
+              beforeInput={
+                <ContextBar
+                  items={context}
+                  onChange={setContext}
+                  entity="projection"
+                />
+              }
+            />
+          </div>
+        </div>
+      </PageCard>
+    </PageLayout>
+  );
+}
+
+export const newProjectionRoute = defineRoute({
+  id: "new-projection",
+  path: "/projections/new",
+  feature: "Projections",
+  requiredScope: ["kalaidoscope"],
+  transitions: newProjectionTransitions,
+  Component: NewProjection,
+});

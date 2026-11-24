@@ -1,0 +1,212 @@
+import { err, ok, type Result } from "neverthrow";
+import {
+  createLocalKalaidoscope,
+  deleteLocalKalaidoscope,
+  startLocalKalaidoscope,
+  stopLocalKalaidoscope,
+} from "@/api/app/local-scopes.ts";
+import { setSetting } from "@/api/app/settings.ts";
+import type { KalaidoscopeMeta } from "@kalaido/platform";
+import { createCloudKalaidoscope } from "@kalaido/client/cloud/user";
+import { createKalaidoscopeClient } from "@/api/app/sidecar-client";
+import {
+  type WorkspaceLlmConfig,
+  writeWorkspaceLlmConfig,
+} from "@kalaido/client/kalaidoscope/llm-config";
+import {
+  formatLocalNetLocator,
+  isLoopbackHostname,
+} from "@kalaido/client/kalaidoscope/local-url";
+import {
+  addAvailableKalaidoscope,
+  openKalaidoscope,
+  setAppStage,
+} from "@/hooks/app-state-actions.ts";
+import { appState, type StageEntry } from "@/hooks/use-app-state.ts";
+import { setActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
+import { toError } from "@kalaido/client/lib/errors";
+
+export interface CreateKalaidoscopeInput {
+  name: string;
+  icon?: string;
+  storage: "local_file" | "cloud";
+  cloudId: string;
+  locationInput: string;
+  llmConfig?: WorkspaceLlmConfig;
+  /** Lands the new workspace on this route instead of the dashboard. */
+  entry?: StageEntry;
+}
+
+export type LocationResult =
+  | { kind: "default" }
+  | { kind: "local"; path: string }
+  | { kind: "dev"; url: string }
+  | { kind: "invalid"; reason?: string };
+
+export function parseLocation(value: string): LocationResult {
+  const v = value.trim();
+  if (!v) return { kind: "default" };
+  try {
+    const url = new URL(v);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return classifyNetLocation(url);
+    }
+  } catch {}
+  if (v.startsWith("/") || /^[A-Za-z]:[/\\]/.test(v)) {
+    return { kind: "local", path: v };
+  }
+  return { kind: "invalid" };
+}
+
+/**
+ * Both rejections here exist to fail loudly at the point of entry. Left to
+ * reach the network, a non-loopback host is blocked by the webview's CSP and a
+ * bad TLS handshake is refused by the socket — and WebKit reports both as the
+ * same opaque "Could not connect to the server."
+ */
+function classifyNetLocation(url: URL): LocationResult {
+  if (!isLoopbackHostname(url.hostname)) {
+    return {
+      kind: "invalid",
+      reason:
+        "Only localhost and 127.0.0.1 are supported. The app's content security policy is a fixed allowlist and can't cover other hosts.",
+    };
+  }
+  if (url.protocol === "https:") {
+    return {
+      kind: "invalid",
+      reason: "Use http:// — a local PocketBase instance serves plain HTTP.",
+    };
+  }
+  return { kind: "dev", url: formatLocalNetLocator(url) };
+}
+
+async function rollbackLocalKalaidoscope(meta: KalaidoscopeMeta) {
+  setActiveKalaidoscopeClient(null);
+
+  const stopped = await stopLocalKalaidoscope(meta.id);
+  if (stopped.isErr()) {
+    console.error("Rollback: failed to stop sidecar:", stopped.error);
+  }
+
+  const deleted = await deleteLocalKalaidoscope(meta.locator);
+  if (deleted.isErr()) {
+    console.error("Rollback: failed to delete data directory:", deleted.error);
+  }
+}
+
+async function startAndConfigure(
+  meta: KalaidoscopeMeta,
+  llmConfig: WorkspaceLlmConfig | undefined,
+): Promise<Result<void, Error>> {
+  const startResult = await startLocalKalaidoscope(meta.locator);
+  if (startResult.isErr()) {
+    await rollbackLocalKalaidoscope(meta);
+    return err(startResult.error);
+  }
+
+  try {
+    setActiveKalaidoscopeClient(await createKalaidoscopeClient(meta));
+  } catch (e) {
+    await rollbackLocalKalaidoscope(meta);
+    return err(toError(e));
+  }
+
+  if (!llmConfig) return ok(undefined);
+
+  const written = await writeWorkspaceLlmConfig(llmConfig);
+  if (written.isErr()) {
+    await rollbackLocalKalaidoscope(meta);
+    return err(written.error);
+  }
+
+  return ok(undefined);
+}
+
+export async function createKalaidoscope(
+  input: CreateKalaidoscopeInput,
+): Promise<Result<KalaidoscopeMeta, Error>> {
+  try {
+    let id: string = crypto.randomUUID();
+    let locator = "";
+    let type: KalaidoscopeMeta["type"] = "local_file";
+
+    const nameTrimmed = input.name.trim();
+
+    if (input.storage === "cloud") {
+      type = "cloud";
+      locator = input.cloudId.trim();
+      id = locator;
+      if (
+        appState.availableKalaidoscopes.some(
+          (k) => k.type === "cloud" && k.locator === locator,
+        )
+      ) {
+        return err(
+          new Error("That cloud kalaidoscope is already in your workspaces."),
+        );
+      }
+      // Cloud kalaidoscopes must be claimed (owner = signed-in user) before we persist.
+      const registered = await createCloudKalaidoscope(locator, nameTrimmed);
+      if (registered.isErr()) {
+        return err(registered.error);
+      }
+    } else {
+      const parsedLocation = parseLocation(input.locationInput);
+      if (parsedLocation.kind === "invalid") {
+        return err(
+          new Error(parsedLocation.reason ?? "Invalid location specified."),
+        );
+      }
+
+      if (parsedLocation.kind === "dev") {
+        type = "local_net";
+        locator = parsedLocation.url;
+      } else {
+        type = "local_file";
+        const createResult = await createLocalKalaidoscope(
+          id,
+          parsedLocation.kind === "local" ? parsedLocation.path : undefined,
+        );
+        if (createResult.isErr()) {
+          return err(createResult.error);
+        }
+        locator = createResult.value.path;
+      }
+    }
+
+    const newKalaidoscope: KalaidoscopeMeta = {
+      id,
+      type,
+      locator,
+      displayName: nameTrimmed,
+      icon: input.icon,
+    };
+
+    if (type === "local_file") {
+      const started = await startAndConfigure(newKalaidoscope, input.llmConfig);
+      if (started.isErr()) return err(started.error);
+    }
+
+    addAvailableKalaidoscope(newKalaidoscope);
+
+    await setSetting("availableKalaidoscopes", [
+      ...appState.availableKalaidoscopes,
+    ]);
+    await setSetting("lastOpenedKalaidoscopeId", id);
+
+    if (type === "local_file") {
+      openKalaidoscope(id, input.entry);
+    } else {
+      setAppStage({
+        stage: "kalaidoscope_load_requested",
+        loadKalaidoscopeId: id,
+        ...(input.entry && { entry: input.entry }),
+      });
+    }
+
+    return ok(newKalaidoscope);
+  } catch (e) {
+    return err(toError(e));
+  }
+}

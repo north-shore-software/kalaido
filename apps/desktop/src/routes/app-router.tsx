@@ -1,0 +1,149 @@
+import { useEffect } from "react";
+import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
+import { useSnapshot } from "valtio/react";
+import { RootErrorBoundary } from "@/components/error-boundary";
+import { TitleBar } from "@/components/layout/title-bar";
+import { BootError } from "@/features/boot";
+import { type AppStage, appState } from "@/hooks/use-app-state.ts";
+import { getActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
+import { ActiveKalaidoscopeContext } from "@kalaido/hooks/use-active-kalaidoscope";
+import { KalaidoscopeClientContext } from "@kalaido/hooks/use-kalaidoscope-client";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { appRoutes, pathFor, sectionForRoute } from "./registry";
+import {
+  currentScope,
+  missingScope,
+  type RouteDef,
+  stageEntryRoute,
+} from "./route-kit";
+import {
+  MenuEventListener,
+  MenuFeedbackListener,
+  MenuUpdateListener,
+  StateNavigationListener,
+} from "./router-listeners";
+
+export function routeElements(defs: RouteDef[]) {
+  return defs.flatMap((def) =>
+    [def.path, ...(def.aliases ?? [])].map((path) => (
+      <Route
+        key={`${def.id}:${path}`}
+        path={path}
+        element={<RouteGatekeeper def={def} />}
+      />
+    )),
+  );
+}
+
+export function AppRouter() {
+  return (
+    <RootErrorBoundary>
+      <TitleBar />
+      <MemoryRouter>
+        <StateNavigationListener />
+        <MenuEventListener />
+        <MenuFeedbackListener />
+        <MenuUpdateListener />
+        <Routes>{routeElements(appRoutes)}</Routes>
+      </MemoryRouter>
+    </RootErrorBoundary>
+  );
+}
+
+/**
+ * Mount-time scope enforcement. This is the guarantee that makes the canvas
+ * trustworthy: no matter how a navigation happened (transition, OS menu event,
+ * back button), a page whose requiredScope is unmet cannot render — the user is
+ * redirected to the entry route for the current stage.
+ *
+ * The same gate enforces feature flags, so a withheld feature is unreachable by
+ * any route into it, not just unlinked from the sidebar.
+ */
+export function RouteGatekeeper({ def }: { def: RouteDef }) {
+  const snap = useSnapshot(appState);
+  const section = sectionForRoute(def.id);
+
+  useEffect(() => {
+    document.documentElement.dataset.section = section;
+  }, [section]);
+
+  if (def.featureFlag && !isFeatureEnabled(def.featureFlag)) {
+    return (
+      <Navigate
+        to={pathFor(stageEntryRoute(snap.appStage as AppStage))}
+        replace
+      />
+    );
+  }
+
+  const missing = missingScope(
+    def,
+    currentScope({ appStage: snap.appStage as AppStage }),
+  );
+
+  if (missing.length > 0) {
+    console.warn(
+      `[gatekeeper] blocked "${def.id}" — missing scope: ${missing.join(", ")}`,
+    );
+    return (
+      <Navigate
+        to={pathFor(stageEntryRoute(snap.appStage as AppStage))}
+        replace
+      />
+    );
+  }
+
+  const Page = def.Component;
+
+  if (
+    def.requiredScope.includes("kalaidoscope") &&
+    snap.appStage.stage === "kalaidoscope_open"
+  ) {
+    return (
+      <KalaidoscopeContainer key={snap.appStage.selectedKalaidoscopeId}>
+        <div data-section={section} className="contents">
+          <Page />
+        </div>
+      </KalaidoscopeContainer>
+    );
+  }
+  return (
+    <div data-section={section} className="contents">
+      <Page />
+    </div>
+  );
+}
+
+function KalaidoscopeContainer({ children }: { children: React.ReactNode }) {
+  const { appStage, availableKalaidoscopes } = useSnapshot(appState);
+
+  if (appStage.stage !== "kalaidoscope_open") {
+    throw new Error(
+      `KalaidoscopeContainer mounted in stage "${appStage.stage}" — expected "kalaidoscope_open".`,
+    );
+  }
+
+  const client = getActiveKalaidoscopeClient();
+  const activeMeta =
+    availableKalaidoscopes.find(
+      (k) => k.id === appStage.selectedKalaidoscopeId,
+    ) ?? null;
+
+  useEffect(() => {
+    return () => {
+      client?.cancelAllRequests();
+    };
+  }, [client]);
+
+  if (!client) {
+    return <BootError />;
+  }
+
+  return (
+    <KalaidoscopeClientContext.Provider value={client}>
+      <ActiveKalaidoscopeContext.Provider value={activeMeta}>
+        {children}
+      </ActiveKalaidoscopeContext.Provider>
+    </KalaidoscopeClientContext.Provider>
+  );
+}
