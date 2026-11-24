@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 import type { KalaidoscopeMeta } from "@/api/app/types.ts";
 import { toError } from "@/lib/errors";
-import { AUTH_URL, getCloudSessionToken } from "./auth";
+import { AUTH_URL, dropCloudSession, getCloudSessionToken } from "./auth";
 
 /** The cloudId is already registered to another user. */
 export class CloudIdTakenError extends Error {
@@ -36,10 +36,9 @@ async function registryFetch(
 
 async function serverError(res: Response, fallback: string): Promise<Error> {
   if (res.status === 401) {
+    dropCloudSession();
     return new Error("Cloud session expired. Please sign in again.");
   }
-  // `error` is only a message when a route wrote it. A request the validator
-  // rejects carries the whole zod result there instead, an object.
   const data = (await res.json().catch(() => ({}))) as { error?: unknown };
   return new Error(typeof data.error === "string" ? data.error : fallback);
 }
