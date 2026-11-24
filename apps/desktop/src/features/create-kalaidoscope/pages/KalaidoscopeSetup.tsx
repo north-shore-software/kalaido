@@ -26,7 +26,7 @@ import {
   requiredHighlightClass,
   useRequiredHighlights,
 } from "@kalaido/primitives/kalaido";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { PageBackButton } from "@kalaido/primitives/layout/page-back-button";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
 import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";

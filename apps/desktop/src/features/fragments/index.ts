@@ -1,2 +1,2 @@
-export { AddFragmentModal } from "./components/add-fragment-modal";
+export { AddFragmentModal } from "@kalaido/features/fragments";
 export { default as Stream } from "./pages/Stream";

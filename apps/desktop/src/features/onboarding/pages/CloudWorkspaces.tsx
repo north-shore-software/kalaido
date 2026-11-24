@@ -2,7 +2,7 @@ import { PlusIcon, WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { useSnapshot } from "valtio/react";
 import { Mark } from "@kalaido/primitives/kalaido";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { PageBackButton } from "@kalaido/primitives/layout/page-back-button";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
   Empty,

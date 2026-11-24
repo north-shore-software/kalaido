@@ -11,9 +11,10 @@ import {
 } from "@kalaido/primitives/shadcn/sidebar";
 import type { ReactNode } from "react";
 import { useSnapshot } from "valtio/react";
+import { AddFragmentModal } from "@kalaido/features/fragments";
 import { NavSidebar } from "@/components/layout/nav-sidebar";
 import { UtilityBar } from "@/components/layout/utility-bar";
-import { AddFragmentModal } from "@/features/fragments";
+import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
 import { closeAddFragmentModal } from "@/hooks/app-state-actions";
 import { appState } from "@/hooks/use-app-state";
 
@@ -45,6 +46,7 @@ export function PageLayout({ children }: { children: ReactNode }) {
         onClose={() => {
           closeAddFragmentModal();
         }}
+        importAdapter={desktopImportAdapter}
       />
     </div>
   );

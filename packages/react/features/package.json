@@ -6,14 +6,32 @@
   "exports": {
     "./styles.css": "./src/styles.css",
     "./auth": "./src/auth/index.ts",
+    "./colours": "./src/colours/index.ts",
+    "./connections": "./src/connections/index.ts",
+    "./dashboard": "./src/dashboard/index.ts",
     "./explore": "./src/explore/index.ts",
     "./explore/use-*": "./src/explore/use-*.ts",
+    "./fragments": "./src/fragments/index.ts",
+    "./import": "./src/import/index.ts",
+    "./map": "./src/map/index.ts",
+    "./projections": "./src/projections/index.ts",
+    "./reflections": "./src/reflections/index.ts",
+    "./rotation": "./src/rotation/index.ts",
     "./*": "./src/*.tsx"
   },
   "imports": {
     "#auth": "./src/auth/index.ts",
+    "#colours": "./src/colours/index.ts",
+    "#connections": "./src/connections/index.ts",
+    "#dashboard": "./src/dashboard/index.ts",
     "#explore": "./src/explore/index.ts",
     "#explore/use-*": "./src/explore/use-*.ts",
+    "#fragments": "./src/fragments/index.ts",
+    "#import": "./src/import/index.ts",
+    "#map": "./src/map/index.ts",
+    "#projections": "./src/projections/index.ts",
+    "#reflections": "./src/reflections/index.ts",
+    "#rotation": "./src/rotation/index.ts",
     "#*": "./src/*.tsx"
   },
   "scripts": {

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { FeedbackDialog } from "@kalaido/components";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useSnapshot } from "valtio/react";
 import {
@@ -7,7 +8,6 @@ import {
   registerMenuNavigateListener,
   registerMenuUpdateListener,
 } from "@/api/app/os-integrations.ts";
-import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 import {
   closeFeedbackDialog,
   openFeedbackDialog,
@@ -38,6 +38,7 @@ export function MenuEventListener() {
 
 export function MenuFeedbackListener() {
   const { feedbackDialogOpen } = useSnapshot(appState);
+  const { pathname } = useLocation();
   useEffect(() => {
     const unlistenPromise = registerMenuFeedbackListener(openFeedbackDialog);
     return () => {
@@ -54,6 +55,7 @@ export function MenuFeedbackListener() {
       onOpenChange={(next) =>
         next ? openFeedbackDialog() : closeFeedbackDialog()
       }
+      route={pathname}
     />
   );
 }

@@ -7,6 +7,11 @@ export {
   type ExploreCompactScreenProps,
 } from "./explore-compact-screen";
 export {
+  type ExploreProjectionSeed,
+  ExploreScreen,
+  type ExploreScreenProps,
+} from "./explore-screen";
+export {
   type BookmarkActionPhase,
   type BriefedBookmarks,
   useBookmarkActions,
