@@ -39,7 +39,11 @@ import {
 } from "@kalaido/primitives/shadcn/alert-dialog";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { ArrowRightIcon, CheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -122,38 +126,39 @@ function ProjectionReviewScreenInner({
   const client = useKalaidoscopeClient();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
-  const scope = useScope<ReviewWorkflowState, ReviewWorkflowEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<ReviewWorkflowState, ReviewWorkflowEvent> = {
+    setAdvancing: (s, e) => {
+      s.advancing = e.advancing;
+    },
+    startFoldIn: (s) => {
+      s.foldingIn = true;
+    },
+    setPendingFoldIn: (s, e) => {
+      s.pendingFoldIn = e.pending;
+    },
+    clearFoldIn: (s) => {
+      s.foldingIn = false;
+      s.pendingFoldIn = null;
+    },
+    setContext: (s, e) => {
+      s.context = e.context;
+    },
+    mentionContext: (s, e) => {
+      s.context = withContextItem(s.context, e.item);
+    },
+    setRefineInput: (s, e) => {
+      s.refineInput = e.input;
+    },
+  };
+  const scope = useScope({
+    initial: (): ReviewWorkflowState => ({
       advancing: false,
       foldingIn: false,
       pendingFoldIn: null,
       context: [WHOLE_SCOPE_ITEM],
       refineInput: "",
     }),
-    handlers: {
-      setAdvancing: (s, e) => {
-        s.advancing = e.advancing;
-      },
-      startFoldIn: (s) => {
-        s.foldingIn = true;
-      },
-      setPendingFoldIn: (s, e) => {
-        s.pendingFoldIn = e.pending;
-      },
-      clearFoldIn: (s) => {
-        s.foldingIn = false;
-        s.pendingFoldIn = null;
-      },
-      setContext: (s, e) => {
-        s.context = e.context;
-      },
-      mentionContext: (s, e) => {
-        s.context = withContextItem(s.context, e.item);
-      },
-      setRefineInput: (s, e) => {
-        s.refineInput = e.input;
-      },
-    },
+    handlers,
   });
 
   const { advancing, foldingIn, pendingFoldIn, context, refineInput } =

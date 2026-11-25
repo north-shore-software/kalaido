@@ -15,7 +15,11 @@ import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import type { RefineSession } from "@kalaido/hooks/use-refine-session";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { type RefObject, useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import type { ProjectionSnapshotWithEdits } from "./use-projection-snapshot";
@@ -69,23 +73,24 @@ export function useCandidateTriage({
   chatPanelRef,
 }: UseCandidateTriageOptions): UseCandidateTriageResult {
   const client = useKalaidoscopeClient();
-  const scope = useScope<CandidateTriageState, CandidateTriageEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<CandidateTriageState, CandidateTriageEvent> = {
+    setHighlightedEditId: (s, e) => {
+      s.highlightedEditId = e.id;
+    },
+    setActiveEditId: (s, e) => {
+      s.activeEditId = e.id;
+    },
+    setPendingHandEditId: (s, e) => {
+      s.pendingHandEditId = e.id;
+    },
+  };
+  const scope = useScope({
+    initial: (): CandidateTriageState => ({
       highlightedEditId: null,
       activeEditId: null,
       pendingHandEditId: null,
     }),
-    handlers: {
-      setHighlightedEditId: (s, e) => {
-        s.highlightedEditId = e.id;
-      },
-      setActiveEditId: (s, e) => {
-        s.activeEditId = e.id;
-      },
-      setPendingHandEditId: (s, e) => {
-        s.pendingHandEditId = e.id;
-      },
-    },
+    handlers,
   });
   const { highlightedEditId, activeEditId, pendingHandEditId } =
     useScopeState(scope);

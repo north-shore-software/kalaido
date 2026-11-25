@@ -1,7 +1,11 @@
 import { updateProjection } from "@kalaido/client/kalaidoscope/projections";
 import { updateReflection } from "@kalaido/client/kalaidoscope/reflections";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -49,22 +53,23 @@ export function useDraftName({
   adopt: (initialName: string, userNamed: boolean) => void;
   rename: (next: string) => void;
 } {
-  const scope = useScope<DraftNameState, DraftNameEvent>({
-    initial: () => ({ name: null, userNamed: false }),
-    handlers: {
-      adopt: (s, e) => {
-        s.name = e.name;
-        s.userNamed = e.userNamed;
-      },
-      applySuggestion: (s, e) => {
-        if (s.userNamed) return;
-        s.name = e.name;
-      },
-      userRename: (s, e) => {
-        s.userNamed = true;
-        s.name = e.name;
-      },
+  const handlers: ScopeHandlers<DraftNameState, DraftNameEvent> = {
+    adopt: (s, e) => {
+      s.name = e.name;
+      s.userNamed = e.userNamed;
     },
+    applySuggestion: (s, e) => {
+      if (s.userNamed) return;
+      s.name = e.name;
+    },
+    userRename: (s, e) => {
+      s.userNamed = true;
+      s.name = e.name;
+    },
+  };
+  const scope = useScope({
+    initial: (): DraftNameState => ({ name: null, userNamed: false }),
+    handlers,
   });
   const { name, userNamed } = useScopeState(scope);
 

@@ -1,4 +1,8 @@
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { useCallback } from "react";
 import {
   FILE_FILTERS,
@@ -28,37 +32,38 @@ type ImportPickerEvent =
   | { readonly type: "scanError"; readonly message: string };
 
 export function useImportPicker(adapter: ImportAdapter, onPicked?: () => void) {
-  const scope = useScope<ImportPickerState, ImportPickerEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<ImportPickerState, ImportPickerEvent> = {
+    clear: (s) => {
+      s.file = null;
+      s.entries = [];
+      s.scanning = false;
+      s.pickError = "";
+    },
+    selectFile: (s, e) => {
+      s.file = e.file;
+      s.entries = [];
+      s.pickError = "";
+    },
+    startScan: (s) => {
+      s.scanning = true;
+    },
+    scanSuccess: (s, e) => {
+      s.scanning = false;
+      s.entries = e.entries;
+    },
+    scanError: (s, e) => {
+      s.scanning = false;
+      s.pickError = e.message;
+    },
+  };
+  const scope = useScope({
+    initial: (): ImportPickerState => ({
       file: null,
       entries: [],
       scanning: false,
       pickError: "",
     }),
-    handlers: {
-      clear: (s) => {
-        s.file = null;
-        s.entries = [];
-        s.scanning = false;
-        s.pickError = "";
-      },
-      selectFile: (s, e) => {
-        s.file = e.file;
-        s.entries = [];
-        s.pickError = "";
-      },
-      startScan: (s) => {
-        s.scanning = true;
-      },
-      scanSuccess: (s, e) => {
-        s.scanning = false;
-        s.entries = e.entries;
-      },
-      scanError: (s, e) => {
-        s.scanning = false;
-        s.pickError = e.message;
-      },
-    },
+    handlers,
   });
 
   const { file, entries, scanning, pickError } = useScopeState(scope);

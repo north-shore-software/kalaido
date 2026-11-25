@@ -7,7 +7,11 @@ import { EmptyState } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { PlusIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -46,37 +50,38 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
   );
   const client = useKalaidoscopeClient();
 
-  const scope = useScope<ColoursWorkflowState, ColoursWorkflowEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<ColoursWorkflowState, ColoursWorkflowEvent> = {
+    openComposer: (s) => {
+      s.composing = true;
+      s.draftName = "";
+      s.draftPrompt = "";
+    },
+    closeComposer: (s) => {
+      s.composing = false;
+    },
+    selectColour: (s, e) => {
+      s.composing = false;
+      s.selectedId = e.id;
+    },
+    setDraftName: (s, e) => {
+      s.draftName = e.name;
+    },
+    setDraftPrompt: (s, e) => {
+      s.draftPrompt = e.prompt;
+    },
+    created: (s, e) => {
+      s.composing = false;
+      s.selectedId = e.id;
+    },
+  };
+  const scope = useScope({
+    initial: (): ColoursWorkflowState => ({
       selectedId: null,
       composing: seedExamples.length > 0,
       draftName: "",
       draftPrompt: "",
     }),
-    handlers: {
-      openComposer: (s) => {
-        s.composing = true;
-        s.draftName = "";
-        s.draftPrompt = "";
-      },
-      closeComposer: (s) => {
-        s.composing = false;
-      },
-      selectColour: (s, e) => {
-        s.composing = false;
-        s.selectedId = e.id;
-      },
-      setDraftName: (s, e) => {
-        s.draftName = e.name;
-      },
-      setDraftPrompt: (s, e) => {
-        s.draftPrompt = e.prompt;
-      },
-      created: (s, e) => {
-        s.composing = false;
-        s.selectedId = e.id;
-      },
-    },
+    handlers,
   });
 
   const { selectedId, composing, draftName, draftPrompt } =

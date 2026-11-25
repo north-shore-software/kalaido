@@ -26,7 +26,11 @@ import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LivePreviewPane } from "./components/live-preview-pane";
@@ -109,20 +113,8 @@ export function ReflectionRefineScreen({
   });
   const existing = existingQuery.records[0];
 
-  const scope = useScope<ReflectionRefineState, ReflectionRefineEvent>({
-    initial: () => ({
-      cadence: DEFAULT_CADENCE,
-      // "Starting from": a local calendar date, the grid origin — where the first
-      // period begins and the phase it recurs on. In the past = backfill to it.
-      fromDate: toDateInputValue(new Date()),
-      context: [WHOLE_SCOPE_ITEM],
-      windowOverride: undefined,
-      chipsSeeded: isNew,
-      reflectionId: id ?? null,
-      input: "",
-      nameInput: "",
-    }),
-    handlers: {
+  const handlers: ScopeHandlers<ReflectionRefineState, ReflectionRefineEvent> =
+    {
       setCadence: (s, e) => {
         s.cadence = e.cadence;
       },
@@ -153,7 +145,21 @@ export function ReflectionRefineScreen({
         s.context = e.context;
         s.chipsSeeded = true;
       },
-    },
+    };
+  const scope = useScope({
+    initial: (): ReflectionRefineState => ({
+      cadence: DEFAULT_CADENCE,
+      // "Starting from": a local calendar date, the grid origin — where the first
+      // period begins and the phase it recurs on. In the past = backfill to it.
+      fromDate: toDateInputValue(new Date()),
+      context: [WHOLE_SCOPE_ITEM],
+      windowOverride: undefined,
+      chipsSeeded: isNew,
+      reflectionId: id ?? null,
+      input: "",
+      nameInput: "",
+    }),
+    handlers,
   });
 
   const {

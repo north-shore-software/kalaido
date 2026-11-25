@@ -20,7 +20,11 @@ import {
 } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { invalidateLiveTags } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import {
   BookmarkSimpleIcon,
   ClockCounterClockwiseIcon,
@@ -109,8 +113,38 @@ export function ExploreScreen({
   const [capturedInitialPrompt] = useState(() => initialPrompt);
   const [firstChatId] = useState(() => generateId());
 
-  const scope = useScope<ExploreWorkflowState, ExploreWorkflowEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<ExploreWorkflowState, ExploreWorkflowEvent> = {
+    selectConversation: (s, e) => {
+      s.selected = e.conversation;
+    },
+    startNew: (s, e) => {
+      s.selected = null;
+      s.newChatId = e.nextChatId;
+      s.context = [WHOLE_SCOPE_ITEM];
+      s.syncedClientId = null;
+    },
+    setContext: (s, e) => {
+      s.context = e.context;
+    },
+    mentionContext: (s, e) => {
+      s.context = withContextItem(s.context, e.item);
+    },
+    syncHistoryContext: (s, e) => {
+      s.context = e.context;
+      s.syncedClientId = e.clientId;
+    },
+    setHistoryOpen: (s, e) => {
+      s.historyOpen = e.open;
+    },
+    toggleHistory: (s) => {
+      s.historyOpen = !s.historyOpen;
+    },
+    setBookmarksOpen: (s, e) => {
+      s.bookmarksOpen = e.open;
+    },
+  };
+  const scope = useScope({
+    initial: (): ExploreWorkflowState => ({
       selected: null,
       newChatId: firstChatId,
       context: [WHOLE_SCOPE_ITEM],
@@ -118,36 +152,7 @@ export function ExploreScreen({
       historyOpen: true,
       bookmarksOpen: false,
     }),
-    handlers: {
-      selectConversation: (s, e) => {
-        s.selected = e.conversation;
-      },
-      startNew: (s, e) => {
-        s.selected = null;
-        s.newChatId = e.nextChatId;
-        s.context = [WHOLE_SCOPE_ITEM];
-        s.syncedClientId = null;
-      },
-      setContext: (s, e) => {
-        s.context = e.context;
-      },
-      mentionContext: (s, e) => {
-        s.context = withContextItem(s.context, e.item);
-      },
-      syncHistoryContext: (s, e) => {
-        s.context = e.context;
-        s.syncedClientId = e.clientId;
-      },
-      setHistoryOpen: (s, e) => {
-        s.historyOpen = e.open;
-      },
-      toggleHistory: (s) => {
-        s.historyOpen = !s.historyOpen;
-      },
-      setBookmarksOpen: (s, e) => {
-        s.bookmarksOpen = e.open;
-      },
-    },
+    handlers,
   });
 
   const {

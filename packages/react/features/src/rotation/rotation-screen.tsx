@@ -16,7 +16,11 @@ import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
 import { Mono } from "@kalaido/primitives/kalaido";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { ActiveRotationCard } from "./components/active-rotation-card";
@@ -37,15 +41,17 @@ export function RotationScreen({ onTweakCandidate }: RotationScreenProps) {
   const client = useKalaidoscopeClient();
   const { statuses } = useRotationStatus();
 
-  const scope = useScope<RotationWorkflowState, RotationWorkflowEvent>({
-    initial: () => ({ skippedIds: [] }),
-    handlers: {
+  const handlers: ScopeHandlers<RotationWorkflowState, RotationWorkflowEvent> =
+    {
       skip: (s, e) => {
         if (!s.skippedIds.includes(e.id)) {
           s.skippedIds = [...s.skippedIds, e.id];
         }
       },
-    },
+    };
+  const scope = useScope({
+    initial: (): RotationWorkflowState => ({ skippedIds: [] }),
+    handlers,
   });
   const { skippedIds } = useScopeState(scope);
   const skipped = useMemo(() => new Set(skippedIds), [skippedIds]);

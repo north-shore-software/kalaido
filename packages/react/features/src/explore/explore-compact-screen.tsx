@@ -24,7 +24,11 @@ import {
   DropdownMenuTrigger,
 } from "@kalaido/primitives/shadcn/dropdown-menu";
 import { invalidateLiveTags } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import {
   CaretDownIcon,
   CheckIcon,
@@ -103,8 +107,40 @@ export function ExploreCompactScreen({
   );
   const { conversations, loading: loadingList } = useConversations();
 
-  const scope = useScope<CompactExploreState, CompactExploreEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<CompactExploreState, CompactExploreEvent> = {
+    selectConversation: (s, e) => {
+      s.selected = e.conversation;
+      if (e.closeHistory) s.historyOpen = false;
+    },
+    startNew: (s, e) => {
+      s.selected = null;
+      s.newChatId = e.nextChatId;
+      s.context = [WHOLE_SCOPE_ITEM];
+      s.syncedClientId = null;
+      s.historyOpen = false;
+    },
+    setContext: (s, e) => {
+      s.context = e.context;
+    },
+    mentionContext: (s, e) => {
+      s.context = withContextItem(s.context, e.item);
+    },
+    syncHistoryContext: (s, e) => {
+      s.context = e.context;
+      s.syncedClientId = e.clientId;
+    },
+    setHistoryOpen: (s, e) => {
+      s.historyOpen = e.open;
+    },
+    toggleHistory: (s) => {
+      s.historyOpen = !s.historyOpen;
+    },
+    setSwitchingScope: (s, e) => {
+      s.switchingScope = e.switching;
+    },
+  };
+  const scope = useScope({
+    initial: (): CompactExploreState => ({
       selected: null,
       newChatId: generateId(),
       context: [WHOLE_SCOPE_ITEM],
@@ -112,38 +148,7 @@ export function ExploreCompactScreen({
       historyOpen: false,
       switchingScope: false,
     }),
-    handlers: {
-      selectConversation: (s, e) => {
-        s.selected = e.conversation;
-        if (e.closeHistory) s.historyOpen = false;
-      },
-      startNew: (s, e) => {
-        s.selected = null;
-        s.newChatId = e.nextChatId;
-        s.context = [WHOLE_SCOPE_ITEM];
-        s.syncedClientId = null;
-        s.historyOpen = false;
-      },
-      setContext: (s, e) => {
-        s.context = e.context;
-      },
-      mentionContext: (s, e) => {
-        s.context = withContextItem(s.context, e.item);
-      },
-      syncHistoryContext: (s, e) => {
-        s.context = e.context;
-        s.syncedClientId = e.clientId;
-      },
-      setHistoryOpen: (s, e) => {
-        s.historyOpen = e.open;
-      },
-      toggleHistory: (s) => {
-        s.historyOpen = !s.historyOpen;
-      },
-      setSwitchingScope: (s, e) => {
-        s.switchingScope = e.switching;
-      },
-    },
+    handlers,
   });
 
   const {

@@ -25,7 +25,11 @@ import { Mono, Pill } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Checkbox } from "@kalaido/primitives/shadcn/checkbox";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { PlusIcon } from "@phosphor-icons/react";
 import { Fragment as F, useMemo } from "react";
 import { toast } from "sonner";
@@ -109,48 +113,49 @@ export function StreamScreen({
     [ingests.records],
   );
 
-  const scope = useScope<StreamWorkflowState, StreamWorkflowEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<StreamWorkflowState, StreamWorkflowEvent> = {
+    setQuery: (s, e) => {
+      s.query = e.query;
+    },
+    setColourId: (s, e) => {
+      s.colourId = e.colourId;
+    },
+    setImportId: (s, e) => {
+      s.importId = e.importId;
+    },
+    clearFilters: (s) => {
+      s.query = "";
+      s.colourId = null;
+      s.importId = null;
+    },
+    setSelecting: (s, e) => {
+      s.selecting = e.selecting;
+      if (!e.selecting) s.selectedIds = [];
+    },
+    toggleSelected: (s, e) => {
+      const idx = s.selectedIds.indexOf(e.id);
+      if (idx >= 0) {
+        s.selectedIds = s.selectedIds.filter((id) => id !== e.id);
+      } else {
+        s.selectedIds = [...s.selectedIds, e.id];
+      }
+    },
+    setSelectedIds: (s, e) => {
+      s.selectedIds = e.ids;
+    },
+    clearSelection: (s) => {
+      s.selectedIds = [];
+    },
+  };
+  const scope = useScope({
+    initial: (): StreamWorkflowState => ({
       query: "",
       colourId: null,
       importId: null,
       selecting: false,
       selectedIds: [],
     }),
-    handlers: {
-      setQuery: (s, e) => {
-        s.query = e.query;
-      },
-      setColourId: (s, e) => {
-        s.colourId = e.colourId;
-      },
-      setImportId: (s, e) => {
-        s.importId = e.importId;
-      },
-      clearFilters: (s) => {
-        s.query = "";
-        s.colourId = null;
-        s.importId = null;
-      },
-      setSelecting: (s, e) => {
-        s.selecting = e.selecting;
-        if (!e.selecting) s.selectedIds = [];
-      },
-      toggleSelected: (s, e) => {
-        const idx = s.selectedIds.indexOf(e.id);
-        if (idx >= 0) {
-          s.selectedIds = s.selectedIds.filter((id) => id !== e.id);
-        } else {
-          s.selectedIds = [...s.selectedIds, e.id];
-        }
-      },
-      setSelectedIds: (s, e) => {
-        s.selectedIds = e.ids;
-      },
-      clearSelection: (s) => {
-        s.selectedIds = [];
-      },
-    },
+    handlers,
   });
 
   const { query, colourId, importId, selecting, selectedIds } =

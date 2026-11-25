@@ -14,7 +14,11 @@ import {
   type RefinePhase,
 } from "@kalaido/client/kalaidoscope/refinements";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { generateId, type UIMessage } from "ai";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -176,8 +180,43 @@ export function useRefineSession({
   target: "projection" | "reflection";
   onCommitted?: (snapshotId: string) => void;
 }): RefineSession {
-  const scope = useScope<RefineControlState, RefineControlEvent>({
-    initial: () => ({
+  const handlers: ScopeHandlers<RefineControlState, RefineControlEvent> = {
+    startSeed: (s, e) => {
+      s.parentId = e.parentId;
+      s.clientId = e.clientId;
+      s.refinementId = e.refinementId;
+      s.firstPrompt = e.firstPrompt;
+      s.initialMessages = undefined;
+      s.seedStatus = "loading";
+      s.pendingNotices = e.pendingNotices;
+    },
+    seedLoaded: (s, e) => {
+      if (s.seedStatus !== "loading") return;
+      s.initialMessages = e.messages.length ? e.messages : undefined;
+      s.seedStatus = "ready";
+      s.pendingNotices = null;
+    },
+    resume: (s, e) => {
+      s.clientId = e.clientId;
+      s.refinementId = e.refinementId;
+      if (e.parentId) s.parentId = e.parentId;
+      s.initialMessages = e.messages;
+      s.firstPrompt = null;
+      s.seedStatus = "ready";
+      s.pendingNotices = null;
+    },
+    reset: (s) => {
+      s.clientId = generateId();
+      s.parentId = null;
+      s.refinementId = null;
+      s.firstPrompt = null;
+      s.initialMessages = undefined;
+      s.seedStatus = "idle";
+      s.pendingNotices = null;
+    },
+  };
+  const scope = useScope({
+    initial: (): RefineControlState => ({
       parentId: null,
       clientId: generateId(),
       refinementId: null,
@@ -186,41 +225,7 @@ export function useRefineSession({
       seedStatus: "idle",
       pendingNotices: null,
     }),
-    handlers: {
-      startSeed: (s, e) => {
-        s.parentId = e.parentId;
-        s.clientId = e.clientId;
-        s.refinementId = e.refinementId;
-        s.firstPrompt = e.firstPrompt;
-        s.initialMessages = undefined;
-        s.seedStatus = "loading";
-        s.pendingNotices = e.pendingNotices;
-      },
-      seedLoaded: (s, e) => {
-        if (s.seedStatus !== "loading") return;
-        s.initialMessages = e.messages.length ? e.messages : undefined;
-        s.seedStatus = "ready";
-        s.pendingNotices = null;
-      },
-      resume: (s, e) => {
-        s.clientId = e.clientId;
-        s.refinementId = e.refinementId;
-        if (e.parentId) s.parentId = e.parentId;
-        s.initialMessages = e.messages;
-        s.firstPrompt = null;
-        s.seedStatus = "ready";
-        s.pendingNotices = null;
-      },
-      reset: (s) => {
-        s.clientId = generateId();
-        s.parentId = null;
-        s.refinementId = null;
-        s.firstPrompt = null;
-        s.initialMessages = undefined;
-        s.seedStatus = "idle";
-        s.pendingNotices = null;
-      },
-    },
+    handlers,
   });
 
   const {
