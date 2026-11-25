@@ -92,16 +92,16 @@ For inline/dropdown pickers (`ItemPicker`) that mount only when explicitly opene
 
 | ID | Decision | Feasible Options | Cross-Plan Coupling | Selected |
 |---|---|---|---|---|
-| **D4.1** | Interactive row layout for `ListRow`, `ProjectionRow`, `PinToggle`, and `RowAction` | Option A (Stretched `after:inset-0` primary `<button>`), Option B (Adjacent flex / `subgrid` sibling `<button>`) | None | _Pending_ |
-| **D4.2** | Interactive card layout for `DocumentCard` and `FragmentCard` | Option A (Stretched `after:inset-0` header `<button>` on both), Option B (Stretched `<button>` on `DocumentCard` + direct `<button>` on `FragmentCard`), Option C (Header/title-only `<button>` without card overlay) | None | _Pending_ |
-| **D4.3** | `ItemPicker` search input focus (`react-doctor/no-autofocus`) | Option A (`inputRef` + mount `useEffect` focus), Option B (Keep `autoFocus` + per-file `doctor.config.json` override) | Option B couples with `doctor-06` Part A (`doctor.config.json`) | _Pending_ |
-| **D4.4** | Unflagged `<div role="button">` timeline row in `StreamScreen` (`stream-screen.tsx:338`) | Option A (Leave untouched — strictly 4 flagged sites), Option B (Refactor `StreamScreen` row to remove the 5th `biome-ignore`) | Option B touches `stream-screen.tsx` (`doctor-06` Tier 3 `no-giant-component`) | _Pending_ |
+| **D4.1** | Interactive row layout for `ListRow`, `ProjectionRow`, `PinToggle`, and `RowAction` | Option A (Stretched `after:inset-0` primary `<button>`), Option B (Adjacent flex / `subgrid` sibling `<button>`) | None | **Option A** |
+| **D4.2** | Interactive card layout for `DocumentCard` and `FragmentCard` | Option A (Stretched `after:inset-0` header `<button>` on both), Option B (Stretched `<button>` on `DocumentCard` + direct `<button>` on `FragmentCard`), Option C (Header/title-only `<button>` without card overlay) | None | **Option A** |
+| **D4.3** | `ItemPicker` search input focus (`react-doctor/no-autofocus`) | Option A (`inputRef` + mount `useEffect` focus), Option B (Keep `autoFocus` + per-file `doctor.config.json` override) | Option B couples with `doctor-06` Part A (`doctor.config.json`) | **Option A** |
+| **D4.4** | Unflagged `<div role="button">` timeline row in `StreamScreen` (`stream-screen.tsx:338`) | Option A (Leave untouched — strictly 4 flagged sites), Option B (Refactor `StreamScreen` row to remove the 5th `biome-ignore`) | Option B touches `stream-screen.tsx` (`doctor-06` Tier 3 `no-giant-component`) | **Option B** |
 
 ---
 
 ### D4.1 — Interactive Row Layout for `ListRow`, `ProjectionRow`, `PinToggle`, and `RowAction`
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Stretched Primary `<button>` (`after:absolute after:inset-0`) + `relative z-10` Sibling Actions
 
 **Files & Callers Verified:**
 - `packages/react/primitives/src/kalaido/list-row.tsx:5–76` — 3 callers across the repo:
@@ -148,7 +148,7 @@ For inline/dropdown pickers (`ItemPicker`) that mount only when explicitly opene
 
 ### D4.2 — Interactive Card Layout for `DocumentCard` and `FragmentCard`
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Stretched Header/Title `<button>` (`after:absolute after:inset-0`) Across Both `DocumentCard` and `FragmentCard`
 
 **Files & Callers Verified:**
 - `packages/react/primitives/src/kalaido/document-card.tsx:5–89` — 3 call sites across 2 files:
@@ -208,7 +208,7 @@ For inline/dropdown pickers (`ItemPicker`) that mount only when explicitly opene
 
 ### D4.3 — `ItemPicker` Search Input Focus (`react-doctor/no-autofocus`)
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Imperative Mount Focus (`inputRef` + `useEffect`) in `ItemPicker`
 
 **Files & Callers Verified:**
 - `packages/react/components/src/context-picker/item-picker.tsx:65–194` — 4 callers across the repo:
@@ -260,7 +260,7 @@ For inline/dropdown pickers (`ItemPicker`) that mount only when explicitly opene
 
 ### D4.4 — Adjacent Unflagged `<div role="button">` Timeline Row in `StreamScreen`
 
-**Decision:** _Pending_
+**Decision:** **Option B** — Also Refactor `StreamScreen`'s Timeline Row (`stream-screen.tsx:338–372`) to Pattern 4A
 
 **Files & Callers Verified:**
 - `packages/react/features/src/fragments/stream-screen.tsx:338–372` — renders each stream timeline row (`<Mono>{f.time}</Mono>` + selection `<Checkbox>` / dot + `<StreamCard f={f} />`) inside `<div role="button" tabIndex={0} aria-pressed={selecting ? isSelected : undefined} onClick={() => openOrToggle(f.id)} onKeyDown={...}>` with `{/* biome-ignore lint/a11y/useSemanticElements: ... */}`.
