@@ -110,7 +110,11 @@ export function NewProjectionScreen({
     }
     const newProjectionId = created.id;
 
-    const ok = await session.start({ parentId: newProjectionId, prompt: text });
+    const ok = await session.start({
+      parentId: newProjectionId,
+      prompt: text,
+      context,
+    });
     if (ok) {
       adopt(initialName, !!typedName);
       setProjectionId(newProjectionId);

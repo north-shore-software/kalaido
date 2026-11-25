@@ -8,6 +8,7 @@ import {
   restoreProjection,
   updateProjection,
 } from "@kalaido/client/kalaidoscope/projections";
+import { extractSuggestedNameFromMessages } from "@kalaido/client/kalaidoscope/refinements";
 import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import { PageHeader, PanelErrorBoundary } from "@kalaido/components";
 import {
@@ -18,7 +19,6 @@ import { useContextSources } from "@kalaido/hooks/use-context-sources";
 import { useDraftName } from "@kalaido/hooks/use-draft-name";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { useRefineSession } from "@kalaido/hooks/use-refine-session";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
 import type { TimelineItem } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
@@ -41,13 +41,13 @@ import {
 } from "@kalaido/primitives/shadcn/dropdown-menu";
 import { useExternalWrite } from "@kalaido/state/live";
 import { DotsThreeIcon, GitForkIcon, TrashIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ProjectionDraftEditor } from "./components/projection-draft-editor";
 import { ProjectionSideRail } from "./components/projection-side-rail";
 import { SnapshotPreview } from "./components/snapshot-preview";
+import { useProjectionRefinement } from "./hooks/use-projection-refinement";
 import { useProjectionSnapshot } from "./hooks/use-projection-snapshot";
-import { useResumeRefinement } from "./hooks/use-resume-refinement";
 import { getProjectionStatus } from "./status";
 import type { ProjectionSeed } from "./types";
 
@@ -60,6 +60,7 @@ export interface ProjectionDetailScreenProps {
     snapshotId: string,
     opts?: { replace?: boolean },
   ) => void;
+  renderReviewRedirect?: (id: string, snapshotId: string) => ReactNode;
   onViewLive: (id: string) => void;
   onViewSnapshot: (id: string, snapshotId: string) => void;
   onFork: (seed: ProjectionSeed) => void;
@@ -71,6 +72,7 @@ export function ProjectionDetailScreen({
   snapshotId,
   onBackToList,
   onReviewCandidate,
+  renderReviewRedirect,
   onViewLive,
   onViewSnapshot,
   onFork,
@@ -119,25 +121,6 @@ export function ProjectionDetailScreen({
     }
   }, [state.status, onBackToList]);
 
-  useEffect(() => {
-    if (
-      state.status !== "loading" &&
-      !readOnly &&
-      !liveSnapshot &&
-      pendingCandidate &&
-      id
-    ) {
-      onReviewCandidate(id, pendingCandidate.id, { replace: true });
-    }
-  }, [
-    state.status,
-    readOnly,
-    liveSnapshot,
-    pendingCandidate,
-    id,
-    onReviewCandidate,
-  ]);
-
   async function remove() {
     if (!id) return;
     const outcome = await deleteWrite.run(id);
@@ -183,38 +166,40 @@ export function ProjectionDetailScreen({
     : undefined;
 
   const noSnapshots = !readOnly && state.status === "empty";
-  const authoringSession = useRefineSession({ target: "projection" });
   const {
+    session: authoringSession,
     openRefinement,
+    resumedMessages,
     context: authoringRefineContext,
     resumed,
-  } = useResumeRefinement({
-    session: authoringSession,
+  } = useProjectionRefinement({
     parentId: id,
     snapshotId: "",
     enabled: noSnapshots,
   });
 
+  const resumedSuggestedName = useMemo(
+    () => extractSuggestedNameFromMessages(resumedMessages),
+    [resumedMessages],
+  );
+  const draftNameSeed = useMemo(
+    () =>
+      resumed && projection
+        ? {
+            name: projection.name || "Untitled projection",
+            userNamed:
+              resumedSuggestedName !== "" &&
+              projection.name !== resumedSuggestedName,
+          }
+        : null,
+    [resumed, projection, resumedSuggestedName],
+  );
   const draftName = useDraftName({
     target: "projection",
     entityId: id ?? null,
     suggestedName: resumed ? authoringSession.suggestedName : "",
+    seed: draftNameSeed,
   });
-  const { adopt: adoptDraftName } = draftName;
-  useEffect(() => {
-    if (!resumed || !projection || draftName.name !== null) return;
-    const suggestion = authoringSession.suggestedName;
-    adoptDraftName(
-      projection.name || "Untitled projection",
-      suggestion !== "" && projection.name !== suggestion,
-    );
-  }, [
-    resumed,
-    projection,
-    draftName.name,
-    authoringSession.suggestedName,
-    adoptDraftName,
-  ]);
 
   async function handleRefresh() {
     if (!id) return;
@@ -302,6 +287,17 @@ export function ProjectionDetailScreen({
       },
     };
   });
+
+  if (
+    state.status !== "loading" &&
+    !readOnly &&
+    !liveSnapshot &&
+    pendingCandidate &&
+    id &&
+    renderReviewRedirect
+  ) {
+    return renderReviewRedirect(id, pendingCandidate.id);
+  }
 
   if (resumed && id) {
     const draftTitle = draftName.name ?? title;

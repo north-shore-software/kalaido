@@ -265,7 +265,11 @@ export function ReflectionRefineScreen({
     }
     const newReflectionId = created.id;
 
-    const ok = await session.start({ parentId: newReflectionId, prompt: text });
+    const ok = await session.start({
+      parentId: newReflectionId,
+      prompt: text,
+      context: context as ContextItem[],
+    });
     if (ok) {
       adopt(initialName, !!typedName);
       void scope.dispatch({ type: "setReflectionId", id: newReflectionId });
@@ -420,12 +424,13 @@ export function ReflectionRefineScreen({
                   compact
                   reflectionId={reflectionId}
                   active={activeWindow}
-                  onChange={(win) =>
+                  onChange={(win) => {
                     void scope.dispatch({
                       type: "setWindowOverride",
                       window: win,
-                    })
-                  }
+                    });
+                    session.chat.applyTimeWindow(win);
+                  }}
                 />
               ) : undefined
             }

@@ -5,7 +5,13 @@ import {
   setScopeMode,
   WHOLE_SCOPE_ITEM,
 } from "@kalaido/client/kalaidoscope/context-items";
-import { addPin, deriveBarState, fullBlockedBy, removePin } from "./state";
+import {
+  addPin,
+  deriveBarState,
+  fullBlockedBy,
+  removePin,
+  resolveEffectiveContext,
+} from "./state";
 
 const frag: ContextItem = { kind: "Fragment", id: "f1", label: "standup" };
 const colour: ContextItem = { kind: "Colour", id: "c1", label: "Work" };
@@ -101,5 +107,20 @@ describe("fullBlockedBy", () => {
     expect(fullBlockedBy(clean, false)).toBe("size");
     expect(fullBlockedBy(clean, true)).toBeNull();
     expect(fullBlockedBy(clean, undefined)).toBeNull();
+  });
+});
+
+describe("resolveEffectiveContext", () => {
+  it("downgrades Full to Summaries on chat when whole scope does not fit", () => {
+    const full = [WHOLE_SCOPE_ITEM, proj];
+    expect(resolveEffectiveContext(full, "chat", false)).toEqual([
+      WHOLE_SCOPE_ITEM,
+      SUMMARIES_ITEM,
+      proj,
+    ]);
+    expect(resolveEffectiveContext(full, "chat", true)).toBe(full);
+    expect(resolveEffectiveContext(full, "chat", undefined)).toBe(full);
+    expect(resolveEffectiveContext(full, "projection", false)).toBe(full);
+    expect(resolveEffectiveContext(full, "reflection", false)).toBe(full);
   });
 });

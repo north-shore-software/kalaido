@@ -4,7 +4,6 @@ import {
 } from "@kalaido/client/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
-import { withContextItem } from "@kalaido/client/lib/mentions";
 import {
   ChatPanel,
   type ContextItem,
@@ -12,6 +11,7 @@ import {
 } from "@kalaido/components";
 import { kalaidoscopeEndpointTag } from "@kalaido/hooks/kalaidoscope-live";
 import { useActiveKalaidoscope } from "@kalaido/hooks/use-active-kalaidoscope";
+import { useKalaidoChat } from "@kalaido/hooks/use-kalaido-chat";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { PaneHeader } from "@kalaido/primitives/layout/page-primitives";
@@ -38,12 +38,13 @@ import {
 } from "@phosphor-icons/react";
 import { generateId, type UIMessage } from "ai";
 import type { Result } from "neverthrow";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ChatMessageActions } from "./chat-message-actions";
 import { ConversationList } from "./conversation-list";
 import { useActiveContext } from "./hooks/use-active-context";
 import { useBookmarkActions } from "./hooks/use-bookmark-actions";
 import { useBookmarks } from "./hooks/use-bookmarks";
+import { useChatContextSelection } from "./hooks/use-chat-context-selection";
 import {
   CHAT_CONVERSATIONS_ENDPOINT,
   useConversations,
@@ -72,7 +73,6 @@ type CompactExploreEvent =
     }
   | { readonly type: "startNew"; readonly nextChatId: string }
   | { readonly type: "setContext"; readonly context: ContextItem[] }
-  | { readonly type: "mentionContext"; readonly item: ContextItem }
   | {
       readonly type: "syncHistoryContext";
       readonly clientId: string;
@@ -122,9 +122,6 @@ export function ExploreCompactScreen({
     setContext: (s, e) => {
       s.context = e.context;
     },
-    mentionContext: (s, e) => {
-      s.context = withContextItem(s.context, e.item);
-    },
     syncHistoryContext: (s, e) => {
       s.context = e.context;
       s.syncedClientId = e.clientId;
@@ -160,8 +157,16 @@ export function ExploreCompactScreen({
     switchingScope,
   } = useScopeState(scope);
 
-  // Category 5 streaming mirror fed by ChatPanel.
-  const [liveMessages, setLiveMessages] = useState<UIMessage[]>([]);
+  const handleContextChange = useCallback(
+    (next: ContextItem[]) => {
+      void scope.dispatch({ type: "setContext", context: next });
+    },
+    [scope],
+  );
+  const { context: effectiveContext, mentionContext } = useChatContextSelection(
+    context,
+    handleContextChange,
+  );
 
   useEffect(() => {
     void onSyncWorkspaces();
@@ -182,7 +187,6 @@ export function ExploreCompactScreen({
     void getConversationMessages(client, target.id)
       .then((messages) => {
         if (cancelled) return;
-        setLiveMessages(messages);
         void scope.dispatch({
           type: "selectConversation",
           conversation: { id: target.id, clientId: target.clientId, messages },
@@ -220,10 +224,22 @@ export function ExploreCompactScreen({
     }
   }, [selected, historyContext, historyContextReady, syncedClientId, scope]);
 
-  const bookmarkedCount = liveMessages.filter(
+  const chat = useKalaidoChat({
+    chatId: activeClientId,
+    initialMessages: selectedMessages,
+    context: effectiveContext,
+    onTurnComplete: () => {
+      onRecentConversationChange?.(activeClientId);
+      void invalidateLiveTags([
+        kalaidoscopeEndpointTag(client.baseURL, CHAT_CONVERSATIONS_ENDPOINT),
+      ]);
+    },
+  });
+
+  const bookmarkedCount = chat.messages.filter(
     (msg) => msg.role !== "system" && bookmarks.marks.get(msg.id)?.bookmarked,
   ).length;
-  const savedCount = liveMessages.filter(
+  const savedCount = chat.messages.filter(
     (msg) =>
       msg.role !== "system" &&
       bookmarks.marks.get(msg.id)?.bookmarked &&
@@ -236,7 +252,6 @@ export function ExploreCompactScreen({
     restoredRecentRef.current = true;
     try {
       const messages = await getConversationMessages(client, conv.id);
-      setLiveMessages(messages);
       await scope.dispatch({
         type: "selectConversation",
         conversation: { id: conv.id, clientId: conv.clientId, messages },
@@ -250,7 +265,6 @@ export function ExploreCompactScreen({
 
   function handleNew() {
     restoredRecentRef.current = true;
-    setLiveMessages([]);
     void scope.dispatch({ type: "startNew", nextChatId: generateId() });
     onRecentConversationChange?.(null);
   }
@@ -349,15 +363,10 @@ export function ExploreCompactScreen({
           <ChatPanel
             flat
             key={activeChatKey}
-            chatId={activeClientId}
-            initialMessages={selectedMessages}
-            context={context as ContextItem[]}
-            onContextChange={(next) =>
-              void scope.dispatch({ type: "setContext", context: next })
-            }
-            onMention={(item) =>
-              void scope.dispatch({ type: "mentionContext", item })
-            }
+            chat={chat}
+            context={effectiveContext}
+            onContextChange={handleContextChange}
+            onMention={mentionContext}
             entity="chat"
             meter={{ conversationId: activeClientId }}
             messageActions={({ message, pending, contentElement }) => {
@@ -373,16 +382,6 @@ export function ExploreCompactScreen({
               );
             }}
             actionsVisibleFor={() => true}
-            onMessagesChange={setLiveMessages}
-            onTurnComplete={() => {
-              onRecentConversationChange?.(activeClientId);
-              void invalidateLiveTags([
-                kalaidoscopeEndpointTag(
-                  client.baseURL,
-                  CHAT_CONVERSATIONS_ENDPOINT,
-                ),
-              ]);
-            }}
           />
         </PanelErrorBoundary>
         {historyOpen && (

@@ -72,14 +72,6 @@ export function ContextBar({
   const contentPinsAllowed = state.mode !== "full";
   const canPin = contentPinsAllowed || allowsSources(entity);
 
-  // A Full selection the model cannot take is a dead end (the send 422s), so
-  // where Summaries exists the bar moves there itself.
-  useEffect(() => {
-    if (blocked === "size" && state.mode === "full" && summariesAvailable) {
-      onChange(setScopeMode(items, "summaries"));
-    }
-  }, [blocked, state.mode, summariesAvailable, items, onChange]);
-
   const fragmentSearch = useFragmentSearch(
     open && contentPinsAllowed ? pinQuery : "",
   );

@@ -5,7 +5,6 @@ import {
   itemsToSpec,
 } from "@kalaido/client/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
-import { withContextItem } from "@kalaido/client/lib/mentions";
 import {
   ChatPanel,
   type ContextItem,
@@ -13,6 +12,7 @@ import {
   PanelErrorBoundary,
 } from "@kalaido/components";
 import { kalaidoscopeEndpointTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoChat } from "@kalaido/hooks/use-kalaido-chat";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import {
   PageCard,
@@ -40,6 +40,7 @@ import { ConversationList } from "./conversation-list";
 import { useActiveContext } from "./hooks/use-active-context";
 import { useBookmarkActions } from "./hooks/use-bookmark-actions";
 import { useBookmarks } from "./hooks/use-bookmarks";
+import { useChatContextSelection } from "./hooks/use-chat-context-selection";
 import {
   CHAT_CONVERSATIONS_ENDPOINT,
   useConversations,
@@ -75,7 +76,6 @@ type ExploreWorkflowEvent =
     }
   | { readonly type: "startNew"; readonly nextChatId: string }
   | { readonly type: "setContext"; readonly context: ContextItem[] }
-  | { readonly type: "mentionContext"; readonly item: ContextItem }
   | {
       readonly type: "syncHistoryContext";
       readonly clientId: string;
@@ -126,9 +126,6 @@ export function ExploreScreen({
     setContext: (s, e) => {
       s.context = e.context;
     },
-    mentionContext: (s, e) => {
-      s.context = withContextItem(s.context, e.item);
-    },
     syncHistoryContext: (s, e) => {
       s.context = e.context;
       s.syncedClientId = e.clientId;
@@ -164,8 +161,16 @@ export function ExploreScreen({
     bookmarksOpen,
   } = useScopeState(scope);
 
-  // Category 5 streaming mirror fed by ChatPanel.
-  const [liveMessages, setLiveMessages] = useState<UIMessage[]>([]);
+  const handleContextChange = useCallback(
+    (next: ContextItem[]) => {
+      void scope.dispatch({ type: "setContext", context: next });
+    },
+    [scope],
+  );
+  const { context: effectiveContext, mentionContext } = useChatContextSelection(
+    context,
+    handleContextChange,
+  );
 
   const { conversations, loading: loadingList } = useConversations();
 
@@ -191,7 +196,6 @@ export function ExploreScreen({
     void getConversationMessages(client, target.id)
       .then((messages) => {
         if (cancelled) return;
-        setLiveMessages(messages);
         void scope.dispatch({
           type: "selectConversation",
           conversation: { id: target.id, clientId: target.clientId, messages },
@@ -235,7 +239,6 @@ export function ExploreScreen({
       restoredRecentRef.current = true;
       try {
         const messages = await getConversationMessages(client, conv.id);
-        setLiveMessages(messages);
         await scope.dispatch({
           type: "selectConversation",
           conversation: { id: conv.id, clientId: conv.clientId, messages },
@@ -250,7 +253,6 @@ export function ExploreScreen({
 
   function handleNew() {
     restoredRecentRef.current = true;
-    setLiveMessages([]);
     void scope.dispatch({ type: "startNew", nextChatId: generateId() });
     onRecentConversationChange?.(null);
   }
@@ -258,10 +260,32 @@ export function ExploreScreen({
   const activeClientId = selected?.clientId ?? newChatId;
   const activeChatKey = selected?.id ?? newChatId;
 
+  const chat = useKalaidoChat({
+    chatId: activeClientId,
+    initialMessages: selectedMessages,
+    context: effectiveContext,
+    onTurnComplete: () => {
+      onRecentConversationChange?.(activeClientId);
+      void invalidateLiveTags([
+        kalaidoscopeEndpointTag(client.baseURL, CHAT_CONVERSATIONS_ENDPOINT),
+      ]);
+    },
+  });
+
+  const sentInitialPromptRef = useRef(false);
+  const { sendUserMessage } = chat;
+  useEffect(() => {
+    if (sentInitialPromptRef.current) return;
+    const prompt = capturedInitialPrompt?.trim();
+    if (!prompt) return;
+    sentInitialPromptRef.current = true;
+    sendUserMessage(prompt);
+  }, [capturedInitialPrompt, sendUserMessage]);
+
   const bookmarks = useBookmarks(activeClientId);
   const bookmarkRows = useMemo<BookmarkRow[]>(
     () =>
-      liveMessages.flatMap((msg) => {
+      chat.messages.flatMap((msg) => {
         if (msg.role === "system") return [];
         const mark = bookmarks.marks.get(msg.id);
         if (!mark?.bookmarked) return [];
@@ -274,7 +298,7 @@ export function ExploreScreen({
           },
         ];
       }),
-    [liveMessages, bookmarks.marks],
+    [chat.messages, bookmarks.marks],
   );
   const actions = useBookmarkActions(activeClientId, bookmarks.marks);
 
@@ -302,7 +326,7 @@ export function ExploreScreen({
     fragmentIds,
   }: ProjectionStart) {
     const pins = itemsToSpec(
-      (context as ContextItem[]).filter(
+      effectiveContext.filter(
         (it) => it.kind !== "WholeScope" && it.kind !== "Summaries",
       ),
     );
@@ -357,22 +381,12 @@ export function ExploreScreen({
             <ChatPanel
               flat
               key={activeChatKey}
-              chatId={activeClientId}
-              initialMessages={selectedMessages}
-              initialPrompt={
-                selected == null && activeClientId === firstChatId
-                  ? capturedInitialPrompt
-                  : undefined
-              }
-              context={context as ContextItem[]}
-              onContextChange={(next) =>
-                void scope.dispatch({ type: "setContext", context: next })
-              }
+              chat={chat}
+              context={effectiveContext}
+              onContextChange={handleContextChange}
               entity="chat"
               meter={{ conversationId: activeClientId }}
-              onMention={(item) =>
-                void scope.dispatch({ type: "mentionContext", item })
-              }
+              onMention={mentionContext}
               messageActions={({ message, pending, contentElement }) => {
                 const mark = bookmarks.marks.get(message.id);
                 return (
@@ -388,16 +402,6 @@ export function ExploreScreen({
               actionsVisibleFor={(message) => {
                 const mark = bookmarks.marks.get(message.id);
                 return !!mark?.bookmarked || !!mark?.fragmentId;
-              }}
-              onMessagesChange={setLiveMessages}
-              onTurnComplete={() => {
-                onRecentConversationChange?.(activeClientId);
-                void invalidateLiveTags([
-                  kalaidoscopeEndpointTag(
-                    client.baseURL,
-                    CHAT_CONVERSATIONS_ENDPOINT,
-                  ),
-                ]);
               }}
             />
           </PanelErrorBoundary>
