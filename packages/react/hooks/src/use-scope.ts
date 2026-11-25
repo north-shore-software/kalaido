@@ -1,19 +1,27 @@
-import { useEffect, useRef } from "react";
-import { proxy, ref, type Snapshot, snapshot, subscribe } from "valtio";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { proxy, type Snapshot, snapshot, subscribe } from "valtio";
+import { useSnapshot } from "valtio/react";
 
 export type ScopeEvent = { readonly type: string };
 
 const SCOPE_META = Symbol("kalaido.scopeMeta");
 
 interface ScopeMeta {
-  readonly keys: ReadonlySet<string>;
+  /**
+   * Allowed state keys on this scope:
+   * - `null` when the scope owns open-ended state (`initial` was provided), so
+   *   optional keys omitted from `initial()` remain narrowable by children.
+   * - `ReadonlySet<string>` when the scope is purely narrowed (`from` without
+   *   `initial`), strictly enforcing the narrowed whitelist at runtime.
+   */
+  readonly keys: ReadonlySet<string> | null;
   readonly events: ReadonlySet<string>;
 }
 
 /**
  * Read-only reactive state paired with its owner's event dispatcher.
  *
- * - Read state with Valtio's `useSnapshot(handle.state)`.
+ * - Read state in React with {@link useScopeState} (or Valtio's `useSnapshot(handle.state)`).
  * - Trigger mutations via `await handle.dispatch(event)`.
  * - Direct writes to `handle.state` are rejected at both compile time and runtime.
  */
@@ -78,16 +86,42 @@ type EventForHandler<K extends string, Fn> = Fn extends (
   event: infer E,
   ...rest: never[]
 ) => unknown
-  ? unknown extends E
+  ? [E] extends [never]
     ? { readonly type: K }
-    : E extends { readonly type: K }
-      ? E
-      : never
+    : unknown extends E
+      ? { readonly type: K }
+      : [E] extends [{ readonly type: K }]
+        ? E
+        : never
   : { readonly type: K };
 
 type InferHandlerEvents<H> = {
   [K in keyof H & string]: EventForHandler<K, H[K]>;
 }[keyof H & string];
+
+type InvalidHandlerKeys<H> = {
+  [K in keyof H & string]: H[K] extends (
+    state: never,
+    event: infer E,
+    ...rest: never[]
+  ) => unknown
+    ? [E] extends [never]
+      ? never
+      : unknown extends E
+        ? never
+        : [E] extends [{ readonly type: K }]
+          ? never
+          : K
+    : never;
+}[keyof H & string];
+
+type ValidHandlerEvents<H> = [InvalidHandlerKeys<H>] extends [never]
+  ? unknown
+  : {
+      readonly handlers?: {
+        readonly [K in InvalidHandlerKeys<H>]?: never;
+      };
+    };
 
 type ForbidKeys<Keys extends PropertyKey> = {
   [K in Keys]?: never;
@@ -185,6 +219,7 @@ type InternalHandle = StateHandle<Record<string, unknown>, ScopeEvent> & {
 interface InternalScope<S extends object, E extends ScopeEvent> {
   readonly handle: StateHandle<S, E>;
   readonly attach: () => () => void;
+  readonly dispose: () => void;
   setHandlers: (handlers: Record<string, GenericHandler> | undefined) => void;
 }
 
@@ -194,29 +229,40 @@ type GenericHandler = (
   ctx: ScopeHandlerContext<Record<string, unknown>, ScopeEvent>,
 ) => void | Promise<void>;
 
-function deepFreeze<T>(value: T): T {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
-    return value;
-  }
-  if (
-    value instanceof Date ||
-    value instanceof RegExp ||
-    value instanceof Map ||
-    value instanceof Set ||
-    value instanceof Error
-  ) {
+const hasOwn = (obj: object, key: PropertyKey): boolean =>
+  Object.getOwnPropertyDescriptor(obj, key) !== undefined;
+
+function isPlainObjectOrArray(
+  value: unknown,
+): value is Record<PropertyKey, unknown> | unknown[] {
+  if (typeof value !== "object" || value === null) return false;
+  if (Array.isArray(value)) return true;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Deeply freeze plain objects and arrays (without wrapping in Valtio `ref`),
+ * preserving nested `useSnapshot` path tracking while leaving non-plain
+ * instances (`Uint8Array`, `Date`, `Map`, `Set`, `AbortController`, etc.) and
+ * getter properties untouched.
+ */
+function freezePlain<T>(value: T): T {
+  if (!isPlainObjectOrArray(value) || Object.isFrozen(value)) {
     return value;
   }
   Object.freeze(value);
   for (const key of Reflect.ownKeys(value)) {
-    deepFreeze((value as Record<PropertyKey, unknown>)[key]);
+    const desc = Object.getOwnPropertyDescriptor(value, key);
+    if (desc && "value" in desc) {
+      freezePlain(desc.value);
+    }
   }
   return value;
 }
 
-function freezeRef<T>(value: T): T {
-  if (typeof value !== "object" || value === null) return value;
-  return ref(deepFreeze(value));
+function canonicalSig(items: readonly string[]): string {
+  return JSON.stringify([...new Set(items)].sort());
 }
 
 function getScopeMeta(handle: InternalHandle): ScopeMeta | undefined {
@@ -227,6 +273,7 @@ function buildInternalScope(options: {
   from?: InternalHandle;
   stateKeys: readonly string[];
   eventTypes: readonly string[];
+  ownEventNames?: readonly string[];
   initial?: () => Record<string, unknown>;
   handlers?: Record<string, GenericHandler>;
 }): InternalScope<Record<string, unknown>, ScopeEvent> {
@@ -239,11 +286,13 @@ function buildInternalScope(options: {
   if (from) {
     const parentMeta = getScopeMeta(from);
     if (parentMeta) {
-      for (const k of parentKeySet) {
-        if (!parentMeta.keys.has(k)) {
-          throw new Error(
-            `Cannot narrow state key "${k}": not exposed by parent scope.`,
-          );
+      if (parentMeta.keys !== null) {
+        for (const k of parentKeySet) {
+          if (!parentMeta.keys.has(k)) {
+            throw new Error(
+              `Cannot narrow state key "${k}": not exposed by parent scope.`,
+            );
+          }
         }
       }
       for (const e of parentEventSet) {
@@ -256,19 +305,21 @@ function buildInternalScope(options: {
     }
   }
 
+  const hasOwnState = initial !== undefined;
   const ownInitial = initial ? initial() : undefined;
-  const ownKeys = ownInitial ? Object.keys(ownInitial) : [];
-  const ownKeySet = new Set(ownKeys);
-
-  for (const k of ownKeySet) {
-    if (parentKeySet.has(k)) {
-      throw new Error(
-        `Scope state key "${k}" collides with forwarded parent state key.`,
-      );
+  if (ownInitial) {
+    for (const k of Object.keys(ownInitial)) {
+      if (parentKeySet.has(k)) {
+        throw new Error(
+          `Scope state key "${k}" collides with forwarded parent state key.`,
+        );
+      }
     }
   }
 
-  const ownEventNames = currentHandlers ? Object.keys(currentHandlers) : [];
+  const ownEventNames =
+    options.ownEventNames ??
+    (currentHandlers ? Object.keys(currentHandlers) : []);
   const ownEventSet = new Set(ownEventNames);
 
   for (const e of ownEventSet) {
@@ -283,37 +334,67 @@ function buildInternalScope(options: {
     ? proxy<Record<string, unknown>>(ownInitial)
     : null;
 
+  const syncedParentKeys = new Set<string>();
+  const syncedOwnKeys = new Set<string>();
+  const lastSyncedValues = new Map<string, unknown>();
+
   // Build the outward-facing read-only view proxy synchronously so first render
   // sees initial values immediately.
   const viewInit: Record<string, unknown> = {};
   if (from && parentKeySet.size > 0) {
     const parentSnap = snapshot(from.state) as Record<string, unknown>;
     for (const k of parentKeySet) {
-      viewInit[k] = freezeRef(parentSnap[k]);
+      if (hasOwn(parentSnap, k)) {
+        const raw = parentSnap[k];
+        syncedParentKeys.add(k);
+        lastSyncedValues.set(k, raw);
+        viewInit[k] = freezePlain(raw);
+      }
     }
   }
   if (ownProxy) {
     const ownSnap = snapshot(ownProxy) as Record<string, unknown>;
-    for (const k of ownKeySet) {
-      viewInit[k] = freezeRef(ownSnap[k]);
+    for (const k of Object.keys(ownSnap)) {
+      const raw = ownSnap[k];
+      syncedOwnKeys.add(k);
+      lastSyncedValues.set(k, raw);
+      viewInit[k] = freezePlain(raw);
     }
   }
 
   const viewProxy = proxy<Record<string, unknown>>(viewInit);
-  const allAllowedKeys = new Set([...parentKeySet, ...ownKeySet]);
   const allAllowedEvents = new Set([...parentEventSet, ...ownEventSet]);
+  const allowedMetaKeys: ReadonlySet<string> | null = hasOwnState
+    ? null
+    : new Set(parentKeySet);
 
   let syncing = false;
   let attached = false;
+  let disposed = false;
+  let batchDepth = 0;
+  let ownDirty = false;
+  let cleaningCollision = false;
 
-  const syncKeys = (source: object, keys: Iterable<string>) => {
+  const syncParent = () => {
+    if (!from || parentKeySet.size === 0 || disposed) return;
     syncing = true;
     try {
-      const snap = snapshot(source) as Record<string, unknown>;
-      for (const k of keys) {
-        const next = freezeRef(snap[k]);
-        if (!Object.is(viewProxy[k], next)) {
-          viewProxy[k] = next;
+      const parentSnap = snapshot(from.state) as Record<string, unknown>;
+      for (const k of parentKeySet) {
+        if (hasOwn(parentSnap, k)) {
+          const raw = parentSnap[k];
+          if (
+            !syncedParentKeys.has(k) ||
+            !Object.is(lastSyncedValues.get(k), raw)
+          ) {
+            syncedParentKeys.add(k);
+            lastSyncedValues.set(k, raw);
+            viewProxy[k] = freezePlain(raw);
+          }
+        } else if (syncedParentKeys.has(k)) {
+          syncedParentKeys.delete(k);
+          lastSyncedValues.delete(k);
+          delete viewProxy[k];
         }
       }
     } finally {
@@ -321,29 +402,104 @@ function buildInternalScope(options: {
     }
   };
 
-  // Guard viewProxy against direct external mutations at runtime (even via `as any`).
-  // Kept active for the lifetime of viewProxy so `state` is always read-only.
+  const syncOwn = () => {
+    if (!ownProxy || disposed || cleaningCollision) return;
+    const ownSnap = snapshot(ownProxy) as Record<string, unknown>;
+    const currentKeys = new Set(Object.keys(ownSnap));
+
+    for (const k of currentKeys) {
+      if (parentKeySet.has(k)) {
+        cleaningCollision = true;
+        try {
+          delete ownProxy[k];
+        } finally {
+          cleaningCollision = false;
+        }
+        throw new Error(
+          `Scope state key "${k}" collides with forwarded parent state key.`,
+        );
+      }
+    }
+
+    syncing = true;
+    try {
+      for (const prevKey of syncedOwnKeys) {
+        if (!currentKeys.has(prevKey)) {
+          syncedOwnKeys.delete(prevKey);
+          lastSyncedValues.delete(prevKey);
+          delete viewProxy[prevKey];
+        }
+      }
+      for (const k of currentKeys) {
+        const raw = ownSnap[k];
+        if (!syncedOwnKeys.has(k) || !Object.is(lastSyncedValues.get(k), raw)) {
+          syncedOwnKeys.add(k);
+          lastSyncedValues.set(k, raw);
+          viewProxy[k] = freezePlain(raw);
+        }
+      }
+    } finally {
+      syncing = false;
+    }
+  };
+
+  // Subscribe `ownProxy` for the life of this scope (no external leak since
+  // `ownProxy` and `viewProxy` share the exact same owner lifetime).
+  const unsubOwn = ownProxy
+    ? subscribe(
+        ownProxy,
+        () => {
+          if (disposed || cleaningCollision) return;
+          if (batchDepth > 0) {
+            ownDirty = true;
+            return;
+          }
+          syncOwn();
+        },
+        true,
+      )
+    : null;
+
+  // Guard `viewProxy` against direct external mutations at runtime (even via `as any`).
   subscribe(
     viewProxy,
     () => {
       if (syncing) return;
       syncing = true;
       try {
-        for (const key of Object.keys(viewProxy)) {
-          if (!allAllowedKeys.has(key)) {
-            delete viewProxy[key];
+        const validKeys = new Set<PropertyKey>([
+          ...syncedParentKeys,
+          ...syncedOwnKeys,
+        ]);
+        for (const key of Reflect.ownKeys(viewProxy)) {
+          if (!validKeys.has(key)) {
+            delete (viewProxy as Record<PropertyKey, unknown>)[key];
           }
         }
         if (from && parentKeySet.size > 0) {
           const parentSnap = snapshot(from.state) as Record<string, unknown>;
           for (const k of parentKeySet) {
-            viewProxy[k] = freezeRef(parentSnap[k]);
+            if (hasOwn(parentSnap, k)) {
+              const raw = parentSnap[k];
+              syncedParentKeys.add(k);
+              lastSyncedValues.set(k, raw);
+              viewProxy[k] = freezePlain(raw);
+            } else {
+              syncedParentKeys.delete(k);
+              lastSyncedValues.delete(k);
+              delete viewProxy[k];
+            }
           }
         }
-        if (ownProxy && ownKeySet.size > 0) {
+        if (ownProxy) {
           const ownSnap = snapshot(ownProxy) as Record<string, unknown>;
-          for (const k of ownKeySet) {
-            viewProxy[k] = freezeRef(ownSnap[k]);
+          for (const k of Object.keys(ownSnap)) {
+            if (!parentKeySet.has(k)) {
+              const raw = ownSnap[k];
+              syncedOwnKeys.add(k);
+              lastSyncedValues.set(k, raw);
+              viewProxy[k] = freezePlain(raw);
+            }
           }
         }
       } finally {
@@ -361,22 +517,37 @@ function buildInternalScope(options: {
     if (from && parentKeySet.size > 0) {
       const parentSnap = snapshot(from.state) as Record<string, unknown>;
       for (const k of parentKeySet) {
-        out[k] = parentSnap[k];
+        if (hasOwn(parentSnap, k)) {
+          out[k] = parentSnap[k];
+        }
       }
     }
     return Object.freeze(out) as Snapshot<Record<string, unknown>>;
   };
 
   const dispatchParent = async (event: ScopeEvent): Promise<void> => {
+    if (disposed) {
+      throw new Error("Cannot dispatch on a disposed scope.");
+    }
     if (!from || !parentEventSet.has(event.type)) {
       throw new Error(
         `Event "${event.type}" is not permitted on this scope handle.`,
       );
     }
-    await from.dispatch(event);
+    try {
+      await from.dispatch(event);
+    } finally {
+      if (!attached && !disposed) {
+        syncParent();
+      }
+    }
   };
 
   const dispatch = async (event: ScopeEvent): Promise<void> => {
+    if (disposed) {
+      throw new Error("Cannot dispatch on a disposed scope.");
+    }
+
     if (ownEventSet.has(event.type)) {
       const handler = currentHandlers?.[event.type];
       if (!handler || !ownProxy) {
@@ -390,19 +561,30 @@ function buildInternalScope(options: {
         },
         dispatchParent,
       };
+
+      batchDepth += 1;
+      let result: void | Promise<void>;
       try {
-        await handler(ownProxy, event, ctx);
+        result = handler(ownProxy, event, ctx);
       } finally {
-        // Ensure viewProxy reflects mutations even if dispatched before attach().
-        if (!attached) {
-          syncKeys(ownProxy, ownKeySet);
+        batchDepth -= 1;
+        if (batchDepth === 0 && ownDirty && !disposed) {
+          ownDirty = false;
+          syncOwn();
         }
       }
+      await result;
       return;
     }
 
     if (from && parentEventSet.has(event.type)) {
-      await from.dispatch(event);
+      try {
+        await from.dispatch(event);
+      } finally {
+        if (!attached && !disposed) {
+          syncParent();
+        }
+      }
       return;
     }
 
@@ -411,7 +593,12 @@ function buildInternalScope(options: {
     );
   };
 
+  let detachCurrent: (() => void) | null = null;
+
   const attach = (): (() => void) => {
+    if (disposed) return () => {};
+    detachCurrent?.();
+
     const unsubs: (() => void)[] = [];
     attached = true;
 
@@ -420,39 +607,43 @@ function buildInternalScope(options: {
         subscribe(
           from.state,
           () => {
-            syncKeys(from.state, parentKeySet);
+            syncParent();
           },
           true,
         ),
       );
       // Catch-up sync in case parent mutated between render and commit.
-      syncKeys(from.state, parentKeySet);
+      syncParent();
     }
 
-    if (ownProxy && ownKeySet.size > 0) {
-      unsubs.push(
-        subscribe(
-          ownProxy,
-          () => {
-            syncKeys(ownProxy, ownKeySet);
-          },
-          true,
-        ),
-      );
-      syncKeys(ownProxy, ownKeySet);
+    if (ownProxy) {
+      syncOwn();
     }
 
-    return () => {
+    const detach = () => {
+      if (detachCurrent === detach) {
+        detachCurrent = null;
+      }
       attached = false;
       for (const unsub of unsubs) unsub();
     };
+    detachCurrent = detach;
+    return detach;
+  };
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    detachCurrent?.();
+    detachCurrent = null;
+    unsubOwn?.();
   };
 
   const handle: InternalHandle = Object.freeze({
     state: viewProxy as Snapshot<Record<string, unknown>>,
     dispatch,
     [SCOPE_META]: {
-      keys: allAllowedKeys,
+      keys: allowedMetaKeys,
       events: allAllowedEvents,
     },
   });
@@ -460,10 +651,21 @@ function buildInternalScope(options: {
   return {
     handle,
     attach,
+    dispose,
     setHandlers: (next) => {
       currentHandlers = next;
     },
   };
+}
+
+/**
+ * Subscribe a React component to the tracked fields read from `scope.state`.
+ */
+export function useScopeState<S extends object>(
+  scope: StateHandle<S, never>,
+  options?: { readonly sync?: boolean },
+): Snapshot<S> {
+  return useSnapshot(scope.state as S, options);
 }
 
 /**
@@ -477,7 +679,7 @@ export function createScope<
     never
   >,
 >(
-  options: OwnScopeOptions<OwnS, H>,
+  options: OwnScopeOptions<OwnS, H> & ValidHandlerEvents<H>,
 ): ScopeInstance<OwnS, InferHandlerEvents<H>>;
 
 export function createScope<
@@ -505,7 +707,8 @@ export function createScope<
   > = Record<never, never>,
 >(
   options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H> &
-    NoEventCollision<H, ETypes[number]>,
+    NoEventCollision<H, ETypes[number]> &
+    ValidHandlerEvents<H>,
 ): ScopeInstance<
   MergeState<PickedState<UnwrapState<From>, SKeys>, OwnS>,
   PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>
@@ -525,12 +728,12 @@ export function createScope(options: {
     initial: options.initial,
     handlers: options.handlers,
   });
-  const dispose = internal.attach();
+  internal.attach();
 
   return Object.freeze({
     state: internal.handle.state,
     dispatch: internal.handle.dispatch,
-    dispose,
+    dispose: internal.dispose,
     [SCOPE_META]: getScopeMeta(internal.handle as InternalHandle),
   });
 }
@@ -539,8 +742,9 @@ export function createScope(options: {
  * Create, narrow, and/or widen a Valtio-backed state scope inside a React component.
  *
  * - Returns a referentially stable {@link StateHandle} as long as `from`,
- *   `state` keys, and `events` names are unchanged.
- * - Always invokes the latest `handlers` closure on `dispatch`.
+ *   `state` keys, `events` names, and owned `handlers` keys are unchanged.
+ * - Updates handler closures on commit so dispatched handlers always see fresh
+ *   props/state without clobbering committed closures during aborted renders.
  * - Automatically attaches and cleans up subscriptions across mounts/StrictMode.
  */
 export function useScope<
@@ -549,7 +753,9 @@ export function useScope<
     never,
     never
   >,
->(options: OwnScopeOptions<OwnS, H>): StateHandle<OwnS, InferHandlerEvents<H>>;
+>(
+  options: OwnScopeOptions<OwnS, H> & ValidHandlerEvents<H>,
+): StateHandle<OwnS, InferHandlerEvents<H>>;
 
 export function useScope<
   From extends AnyStateHandle,
@@ -576,7 +782,8 @@ export function useScope<
   > = Record<never, never>,
 >(
   options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H> &
-    NoEventCollision<H, ETypes[number]>,
+    NoEventCollision<H, ETypes[number]> &
+    ValidHandlerEvents<H>,
 ): StateHandle<
   MergeState<PickedState<UnwrapState<From>, SKeys>, OwnS>,
   PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>
@@ -591,41 +798,34 @@ export function useScope(options: {
 }): StateHandle<Record<string, unknown>, ScopeEvent> {
   const stateKeys = options.state ?? [];
   const eventTypes = options.events ?? [];
-  const stateSig = stateKeys.join("\0");
-  const eventSig = eventTypes.join("\0");
+  const ownEventNames = options.handlers ? Object.keys(options.handlers) : [];
+  const sig = `${canonicalSig(stateKeys)}\n${canonicalSig(eventTypes)}\n${canonicalSig(ownEventNames)}`;
 
-  const refBox = useRef<{
+  const committedRef = useRef<{
     from: InternalHandle | undefined;
-    stateSig: string;
-    eventSig: string;
+    sig: string;
     internal: InternalScope<Record<string, unknown>, ScopeEvent>;
   } | null>(null);
 
-  if (
-    !refBox.current ||
-    refBox.current.from !== options.from ||
-    refBox.current.stateSig !== stateSig ||
-    refBox.current.eventSig !== eventSig
-  ) {
-    refBox.current = {
-      from: options.from,
-      stateSig,
-      eventSig,
-      internal: buildInternalScope({
-        from: options.from,
-        stateKeys,
-        eventTypes,
-        initial: options.initial,
-        handlers: options.handlers,
-      }),
-    };
-  }
+  const committed = committedRef.current;
+  const internal =
+    committed && committed.from === options.from && committed.sig === sig
+      ? committed.internal
+      : buildInternalScope({
+          from: options.from,
+          stateKeys,
+          eventTypes,
+          ownEventNames,
+          initial: options.initial,
+          handlers: options.handlers,
+        });
 
-  // Always point to the latest handler closures without recreating the handle.
-  const current = refBox.current.internal;
-  current.setHandlers(options.handlers);
+  useLayoutEffect(() => {
+    committedRef.current = { from: options.from, sig, internal };
+    internal.setHandlers(options.handlers);
+  });
 
-  useEffect(() => current.attach(), [current]);
+  useEffect(() => internal.attach(), [internal]);
 
-  return current.handle;
+  return internal.handle;
 }

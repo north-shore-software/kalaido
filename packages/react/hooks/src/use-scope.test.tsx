@@ -1,12 +1,13 @@
 import { act, render, screen } from "@testing-library/react";
-import { StrictMode } from "react";
-import { snapshot } from "valtio";
+import { StrictMode, useEffect, useLayoutEffect } from "react";
+import { ref, snapshot } from "valtio";
 import { useSnapshot } from "valtio/react";
 import {
   createScope,
   type ScopeHandlers,
   type StateHandle,
   useScope,
+  useScopeState,
 } from "./use-scope";
 
 type RootState = {
@@ -14,16 +15,22 @@ type RootState = {
   label: string;
   secret: string;
   items: { id: number; name: string }[];
+  panel: { tab: string; draft: string };
+  optionalNote?: string;
 };
 
 type RootEvent =
   | { type: "increment"; by: number }
   | { type: "setLabel"; label: string }
   | { type: "addItem"; name: string }
+  | { type: "setTab"; tab: string }
+  | { type: "setDraft"; draft: string }
+  | { type: "setNote"; note?: string }
   | { type: "asyncIncrement"; by: number }
+  | { type: "failAfterBump" }
   | { type: "reset" };
 
-function makeRoot() {
+function makeRoot(initialCount = 0) {
   const handlers: ScopeHandlers<RootState, RootEvent> = {
     increment: (s, e) => {
       s.count += e.by;
@@ -34,9 +41,27 @@ function makeRoot() {
     addItem: (s, e) => {
       s.items.push({ id: s.items.length + 1, name: e.name });
     },
+    setTab: (s, e) => {
+      s.panel.tab = e.tab;
+    },
+    setDraft: (s, e) => {
+      s.panel.draft = e.draft;
+    },
+    setNote: (s, e) => {
+      if (e.note === undefined) {
+        delete s.optionalNote;
+      } else {
+        s.optionalNote = e.note;
+      }
+    },
     asyncIncrement: async (s, e) => {
       await Promise.resolve();
       s.count += e.by;
+    },
+    failAfterBump: async (s) => {
+      s.count += 1;
+      await Promise.resolve();
+      throw new Error("handler boom");
     },
     reset: (s) => {
       s.count = 0;
@@ -47,10 +72,11 @@ function makeRoot() {
 
   return createScope({
     initial: (): RootState => ({
-      count: 0,
+      count: initialCount,
       label: "initial",
       secret: "top-secret",
       items: [{ id: 1, name: "first" }],
+      panel: { tab: "chat", draft: "" },
     }),
     handlers,
   });
@@ -64,6 +90,7 @@ describe("createScope", () => {
       label: "initial",
       secret: "top-secret",
       items: [{ id: 1, name: "first" }],
+      panel: { tab: "chat", draft: "" },
     });
 
     await root.dispatch({ type: "increment", by: 3 });
@@ -81,7 +108,7 @@ describe("createScope", () => {
     root.dispose();
   });
 
-  test("rejects direct runtime mutation of exposed state (top-level and nested)", async () => {
+  test("rejects direct runtime mutation of exposed state (top-level, symbol, delete, and nested)", async () => {
     const root = makeRoot();
 
     expect(() => {
@@ -95,17 +122,85 @@ describe("createScope", () => {
     }).toThrow(TypeError);
     expect("injected" in root.state).toBe(false);
 
+    const sym = Symbol("injectedSym");
+    expect(() => {
+      (root.state as Record<PropertyKey, unknown>)[sym] = "leak";
+    }).toThrow(TypeError);
+    expect(sym in root.state).toBe(false);
+    expect(Reflect.ownKeys(root.state)).not.toContain(sym);
+
+    expect(() => {
+      delete (root.state as Record<string, unknown>).count;
+    }).toThrow(TypeError);
+    expect(root.state.count).toBe(0);
+
     expect(() => {
       // @ts-expect-error nested arrays are deeply frozen
       root.state.items.push({ id: 99, name: "bad" });
     }).toThrow(TypeError);
     expect(root.state.items).toHaveLength(1);
 
+    expect(() => {
+      // @ts-expect-error nested objects are deeply frozen
+      root.state.items[0].name = "mutated";
+    }).toThrow(TypeError);
+    expect(root.state.items[0].name).toBe("first");
+
     // Owner handlers still work after rejected writes
     await root.dispatch({ type: "increment", by: 1 });
     expect(root.state.count).toBe(1);
 
     root.dispose();
+  });
+
+  test("supports optional keys omitted from initial() and deleted later", async () => {
+    const root = makeRoot();
+    const child = createScope({
+      from: root,
+      state: ["optionalNote", "count"],
+    });
+
+    expect("optionalNote" in root.state).toBe(false);
+    expect("optionalNote" in child.state).toBe(false);
+
+    await root.dispatch({ type: "setNote", note: "hello" });
+    expect(root.state.optionalNote).toBe("hello");
+    expect(child.state.optionalNote).toBe("hello");
+
+    await root.dispatch({ type: "setNote", note: undefined });
+    expect("optionalNote" in root.state).toBe(false);
+    expect("optionalNote" in child.state).toBe(false);
+
+    child.dispose();
+    root.dispose();
+  });
+
+  test("preserves non-plain objects (Uint8Array, ref instances) without freezing them", async () => {
+    const controller = new AbortController();
+    const binaryScope = createScope({
+      initial: () => ({
+        bytes: new Uint8Array([1, 2, 3]),
+        controller: ref(controller),
+      }),
+      handlers: {
+        replaceBytes: (s, e: { type: "replaceBytes"; bytes: Uint8Array }) => {
+          s.bytes = e.bytes;
+        },
+      },
+    });
+
+    expect(binaryScope.state.bytes).toBeInstanceOf(Uint8Array);
+    expect(Array.from(binaryScope.state.bytes)).toEqual([1, 2, 3]);
+    expect(binaryScope.state.controller).toBe(controller);
+    expect(Object.isFrozen(controller)).toBe(false);
+
+    await binaryScope.dispatch({
+      type: "replaceBytes",
+      bytes: new Uint8Array([4, 5]),
+    });
+    expect(Array.from(binaryScope.state.bytes)).toEqual([4, 5]);
+
+    binaryScope.dispose();
   });
 
   test("narrows state keys and events at compile time and runtime", async () => {
@@ -166,7 +261,7 @@ describe("createScope", () => {
     root.dispose();
   });
 
-  test("narrows and widens in one scope with isolated ownership", async () => {
+  test("narrows and widens in one scope with unannotated payload-less handlers and isolated ownership", async () => {
     const root = makeRoot();
     const extended = createScope({
       from: root,
@@ -177,7 +272,8 @@ describe("createScope", () => {
         setOpen: (s, e: { type: "setOpen"; open: boolean }) => {
           s.open = e.open;
         },
-        bumpBoth: async (s, _e: { type: "bumpBoth" }, ctx) => {
+        // `_e` intentionally unannotated to verify `{ readonly type: "bumpBoth" }` inference
+        bumpBoth: async (s, _e, ctx) => {
           s.note = `was ${ctx.parent.count}`;
           await ctx.dispatchParent({ type: "increment", by: 2 });
           s.open = true;
@@ -207,11 +303,21 @@ describe("createScope", () => {
     expect(root.state.count).toBe(5);
     expect(extended.state.count).toBe(5);
 
-    // Disposing stops syncing from parent
+    // Disposing is idempotent, stops syncing from parent, and rejects further dispatches
+    extended.dispose();
     extended.dispose();
     await root.dispatch({ type: "increment", by: 10 });
     expect(root.state.count).toBe(15);
     expect(extended.state.count).toBe(5);
+
+    await expect(
+      extended.dispatch({ type: "increment", by: 1 }),
+    ).rejects.toThrow(/disposed/i);
+    await expect(
+      extended.dispatch({ type: "setOpen", open: false }),
+    ).rejects.toThrow(/disposed/i);
+    expect(root.state.count).toBe(15);
+    expect(extended.state.open).toBe(true);
 
     root.dispose();
   });
@@ -224,7 +330,7 @@ describe("createScope", () => {
       events: ["increment"],
       initial: () => ({ label: "local-label" }),
       handlers: {
-        reset: (s) => {
+        reset: (s, _e) => {
           s.label = "local-reset";
         },
       },
@@ -238,7 +344,7 @@ describe("createScope", () => {
     root.dispose();
   });
 
-  test("rejects colliding state keys and event names at compile time and runtime", () => {
+  test("rejects colliding state keys, colliding event names, and mismatched handler tags", async () => {
     const root = makeRoot();
 
     expect(() =>
@@ -264,6 +370,50 @@ describe("createScope", () => {
       }),
     ).toThrow(/collides with forwarded parent event/i);
 
+    createScope({
+      initial: () => ({ count: 0 }),
+      // @ts-expect-error event tag does not match handler key
+      handlers: {
+        inc: (s, e: { type: "wrong"; by: number }) => {
+          s.count += e.by;
+        },
+      },
+    }).dispose();
+
+    // Dynamic runtime collision inside a handler is also rejected
+    const extended = createScope({
+      from: root,
+      state: ["count"],
+      initial: () => ({ local: 0 }),
+      handlers: {
+        sneakyCollide: (s) => {
+          (s as Record<string, unknown>).count = 999;
+        },
+      },
+    });
+
+    await expect(extended.dispatch({ type: "sneakyCollide" })).rejects.toThrow(
+      /collides with forwarded parent state key/i,
+    );
+    expect(extended.state.count).toBe(0);
+
+    extended.dispose();
+    root.dispose();
+  });
+
+  test("recovers cleanly after a handler throws", async () => {
+    const root = makeRoot();
+
+    await expect(root.dispatch({ type: "failAfterBump" })).rejects.toThrow(
+      "handler boom",
+    );
+    // Mutation before the async failure is synced consistently
+    expect(root.state.count).toBe(1);
+
+    // Subsequent dispatches still succeed
+    await root.dispatch({ type: "increment", by: 4 });
+    expect(root.state.count).toBe(5);
+
     root.dispose();
   });
 });
@@ -275,9 +425,36 @@ function LabelReader({
   scope: StateHandle<{ label: string }, never>;
   onRender: () => void;
 }) {
-  onRender();
-  const { label } = useSnapshot(scope.state);
+  useEffect(() => {
+    onRender();
+  });
+  const { label } = useScopeState(scope);
   return <span data-testid="label">{label}</span>;
+}
+
+function PanelTabReader({
+  scope,
+  onRender,
+}: {
+  scope: StateHandle<{ panel: { tab: string; draft: string } }, never>;
+  onRender: () => void;
+}) {
+  useEffect(() => {
+    onRender();
+  });
+  const { panel } = useScopeState(scope);
+  return <span data-testid="tab">{panel.tab}</span>;
+}
+
+function PanelHarness({
+  root,
+  onTabRender,
+}: {
+  root: ReturnType<typeof makeRoot>;
+  onTabRender: () => void;
+}) {
+  const panelScope = useScope({ from: root, state: ["panel"] });
+  return <PanelTabReader scope={panelScope} onRender={onTabRender} />;
 }
 
 function CounterPanel({
@@ -289,16 +466,18 @@ function CounterPanel({
   step: number;
   onRender: () => void;
 }) {
-  onRender();
+  useEffect(() => {
+    onRender();
+  });
   const panelScope = useScope({
     from: scope,
     state: ["count"],
     events: ["increment"],
     initial: () => ({ clicks: 0 }),
     handlers: {
-      click: async (s, _e: { type: "click" }, ctx) => {
+      click: async (s, _e, ctx) => {
         s.clicks += 1;
-        // Uses `step` from the latest render closure
+        // Uses `step` from the latest committed render closure
         await ctx.dispatchParent({ type: "increment", by: step });
       },
     },
@@ -354,7 +533,7 @@ function LocalCounter({ id }: { id: string }) {
       },
     },
   });
-  const { value } = useSnapshot(local.state);
+  const { value } = useScopeState(local);
   return (
     <button
       type="button"
@@ -384,6 +563,93 @@ function WriteOnlyButton({
 function WriteOnlyHarness({ root }: { root: ReturnType<typeof makeRoot> }) {
   const writeScope = useScope({ from: root, events: ["increment"] });
   return <WriteOnlyButton scope={writeScope} />;
+}
+
+function LayoutEffectChild({
+  scope,
+  observedAfterDispatch,
+}: {
+  scope: StateHandle<{ count: number }, { type: "increment"; by: number }>;
+  observedAfterDispatch: number[];
+}) {
+  const leaf = useScope({
+    from: scope,
+    state: ["count"],
+    events: ["increment"],
+    initial: () => ({ ready: false }),
+    handlers: {
+      init: async (s, _e, ctx) => {
+        await ctx.dispatchParent({ type: "increment", by: 3 });
+        observedAfterDispatch.push(ctx.parent.count);
+        s.ready = true;
+      },
+    },
+  });
+
+  useLayoutEffect(() => {
+    void leaf.dispatch({ type: "init" });
+  }, [leaf]);
+
+  const snap = useScopeState(leaf);
+  return (
+    <span data-testid="leaf-count">
+      {snap.count}:{String(snap.ready)}
+    </span>
+  );
+}
+
+function LayoutEffectParent({
+  root,
+  observedAfterDispatch,
+}: {
+  root: ReturnType<typeof makeRoot>;
+  observedAfterDispatch: number[];
+}) {
+  const mid = useScope({
+    from: root,
+    state: ["count"],
+    events: ["increment"],
+  });
+  return (
+    <LayoutEffectChild
+      scope={mid}
+      observedAfterDispatch={observedAfterDispatch}
+    />
+  );
+}
+
+function SwitchableWorkspaceView({
+  root,
+  reverseKeys,
+}: {
+  root: ReturnType<typeof makeRoot>;
+  reverseKeys: boolean;
+}) {
+  const view = useScope({
+    from: root,
+    state: reverseKeys ? ["label", "count"] : ["count", "label"],
+    events: ["increment"],
+    initial: () => ({ localDraft: "clean" }),
+    handlers: {
+      editDraft: (s, e: { type: "editDraft"; text: string }) => {
+        s.localDraft = e.text;
+      },
+    },
+  });
+
+  const snap = useScopeState(view);
+  return (
+    <div>
+      <span data-testid="ws-count">{snap.count}</span>
+      <span data-testid="ws-draft">{snap.localDraft}</span>
+      <button
+        type="button"
+        onClick={() => void view.dispatch({ type: "editDraft", text: "dirty" })}
+      >
+        Dirty
+      </button>
+    </div>
+  );
 }
 
 describe("useScope in React", () => {
@@ -456,6 +722,96 @@ describe("useScope in React", () => {
     expect(countRenders).toBe(countRendersAfterClicks);
 
     root.dispose();
+  });
+
+  test("preserves nested path-level render isolation in useScopeState", async () => {
+    const root = makeRoot();
+    let tabRenders = 0;
+
+    render(
+      <StrictMode>
+        <PanelHarness
+          root={root}
+          onTabRender={() => {
+            tabRenders += 1;
+          }}
+        />
+      </StrictMode>,
+    );
+
+    expect(screen.getByTestId("tab").textContent).toBe("chat");
+    const rendersBeforeDraft = tabRenders;
+
+    // Updating sibling `panel.draft` must NOT re-render a component reading only `panel.tab`
+    await act(async () => {
+      await root.dispatch({ type: "setDraft", draft: "typing..." });
+    });
+    expect(tabRenders).toBe(rendersBeforeDraft);
+
+    // Updating `panel.tab` DOES re-render
+    await act(async () => {
+      await root.dispatch({ type: "setTab", tab: "sources" });
+    });
+    expect(screen.getByTestId("tab").textContent).toBe("sources");
+    expect(tabRenders).toBeGreaterThan(rendersBeforeDraft);
+
+    root.dispose();
+  });
+
+  test("syncs intermediate useScope state when a child useLayoutEffect dispatches before parent attach", async () => {
+    const root = makeRoot();
+    const observed: number[] = [];
+
+    await act(async () => {
+      render(
+        <LayoutEffectParent root={root} observedAfterDispatch={observed} />,
+      );
+    });
+
+    expect(observed).toEqual([3]);
+    expect(root.state.count).toBe(3);
+    expect(screen.getByTestId("leaf-count").textContent).toBe("3:true");
+
+    root.dispose();
+  });
+
+  test("keeps local state on key-order permutations and resets local state when `from` switches", async () => {
+    const workspaceA = makeRoot(10);
+    const workspaceB = makeRoot(42);
+
+    const { rerender } = render(
+      <StrictMode>
+        <SwitchableWorkspaceView root={workspaceA} reverseKeys={false} />
+      </StrictMode>,
+    );
+
+    expect(screen.getByTestId("ws-count").textContent).toBe("10");
+    expect(screen.getByTestId("ws-draft").textContent).toBe("clean");
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Dirty" }).click();
+    });
+    expect(screen.getByTestId("ws-draft").textContent).toBe("dirty");
+
+    // Reordering `state` keys must NOT reset `localDraft`
+    rerender(
+      <StrictMode>
+        <SwitchableWorkspaceView root={workspaceA} reverseKeys={true} />
+      </StrictMode>,
+    );
+    expect(screen.getByTestId("ws-draft").textContent).toBe("dirty");
+
+    // Switching `from` to workspaceB resets `localDraft` and reads workspaceB's count
+    rerender(
+      <StrictMode>
+        <SwitchableWorkspaceView root={workspaceB} reverseKeys={true} />
+      </StrictMode>,
+    );
+    expect(screen.getByTestId("ws-count").textContent).toBe("42");
+    expect(screen.getByTestId("ws-draft").textContent).toBe("clean");
+
+    workspaceA.dispose();
+    workspaceB.dispose();
   });
 
   test("keeps multi-instance local useScope stores independent", async () => {
