@@ -43,7 +43,6 @@ import {
   CADENCE_DAYS,
   CADENCE_WIN,
   CADENCES,
-  type Cadence,
   cadenceFromSpec,
   currentWindowSpec,
   DEFAULT_CADENCE,
@@ -53,7 +52,7 @@ import {
 import type { ReflectionSeed } from "./types";
 
 interface ReflectionRefineState {
-  cadence: Cadence;
+  cadence: number;
   fromDate: string;
   context: ContextItem[];
   windowOverride: TimeWindow | undefined;
@@ -64,7 +63,7 @@ interface ReflectionRefineState {
 }
 
 type ReflectionRefineEvent =
-  | { readonly type: "setCadence"; readonly cadence: Cadence }
+  | { readonly type: "setCadence"; readonly cadence: number }
   | { readonly type: "setFromDate"; readonly fromDate: string }
   | { readonly type: "setContext"; readonly context: ContextItem[] }
   | { readonly type: "mentionContext"; readonly item: ContextItem }
@@ -77,7 +76,7 @@ type ReflectionRefineEvent =
   | { readonly type: "setNameInput"; readonly nameInput: string }
   | {
       readonly type: "seedExisting";
-      readonly cadence: Cadence;
+      readonly cadence: number;
       readonly fromDate: string;
       readonly context: ContextItem[];
     };

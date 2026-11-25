@@ -49,14 +49,13 @@ export function ProjectionDraftEditor({
   const chatPanelRef = useRef<ChatPanelHandle>(null);
   const [chatInput, setChatInput] = useState("");
 
-  const { snapshots, mutate } = useProjectionSnapshot(projectionId);
+  const { snapshots } = useProjectionSnapshot(projectionId);
   const pending = snapshots.find((s) => s.status === "pending_review");
   const pendingId = pending?.id;
 
   const triage = useCandidateTriage({
     projectionId,
     pending,
-    mutate,
     session,
     chatPanelRef,
   });
