@@ -1,14 +1,20 @@
+import { getActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { ActiveKalaidoscopeContext } from "@kalaido/hooks/use-active-kalaidoscope";
+import { KalaidoscopeClientContext } from "@kalaido/hooks/use-kalaidoscope-client";
+import { disposeClientSubscriptions } from "@kalaido/state/pocketbase";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import { useEffect } from "react";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
-import { useSnapshot } from "valtio/react";
 import { RootErrorBoundary } from "@/components/error-boundary";
 import { TitleBar } from "@/components/layout/title-bar";
 import { BootError } from "@/features/boot";
-import { type AppStage, appState } from "@/state/app-state.ts";
-import { getActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
-import { ActiveKalaidoscopeContext } from "@kalaido/hooks/use-active-kalaidoscope";
-import { KalaidoscopeClientContext } from "@kalaido/hooks/use-kalaidoscope-client";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import {
+  allKalaidoscopes,
+  type AppStage,
+  DesktopScopeContext,
+} from "@/state/app-state.ts";
 import { appRoutes, pathFor, sectionForRoute } from "./registry";
 import {
   currentScope,
@@ -60,7 +66,9 @@ export function AppRouter() {
  * any route into it, not just unlinked from the sidebar.
  */
 export function RouteGatekeeper({ def }: { def: RouteDef }) {
-  const snap = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const stageScope = useScope({ from: root, state: ["appStage"] });
+  const { appStage } = useScopeState(stageScope);
   const section = sectionForRoute(def.id);
 
   useEffect(() => {
@@ -69,16 +77,13 @@ export function RouteGatekeeper({ def }: { def: RouteDef }) {
 
   if (def.featureFlag && !isFeatureEnabled(def.featureFlag)) {
     return (
-      <Navigate
-        to={pathFor(stageEntryRoute(snap.appStage as AppStage))}
-        replace
-      />
+      <Navigate to={pathFor(stageEntryRoute(appStage as AppStage))} replace />
     );
   }
 
   const missing = missingScope(
     def,
-    currentScope({ appStage: snap.appStage as AppStage }),
+    currentScope({ appStage: appStage as AppStage }),
   );
 
   if (missing.length > 0) {
@@ -86,10 +91,7 @@ export function RouteGatekeeper({ def }: { def: RouteDef }) {
       `[gatekeeper] blocked "${def.id}" — missing scope: ${missing.join(", ")}`,
     );
     return (
-      <Navigate
-        to={pathFor(stageEntryRoute(snap.appStage as AppStage))}
-        replace
-      />
+      <Navigate to={pathFor(stageEntryRoute(appStage as AppStage))} replace />
     );
   }
 
@@ -97,10 +99,10 @@ export function RouteGatekeeper({ def }: { def: RouteDef }) {
 
   if (
     def.requiredScope.includes("kalaidoscope") &&
-    snap.appStage.stage === "kalaidoscope_open"
+    appStage.stage === "kalaidoscope_open"
   ) {
     return (
-      <KalaidoscopeContainer key={snap.appStage.selectedKalaidoscopeId}>
+      <KalaidoscopeContainer key={appStage.selectedKalaidoscopeId}>
         <div data-section={section} className="contents">
           <Page />
         </div>
@@ -115,7 +117,13 @@ export function RouteGatekeeper({ def }: { def: RouteDef }) {
 }
 
 function KalaidoscopeContainer({ children }: { children: React.ReactNode }) {
-  const { appStage, availableKalaidoscopes } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const containerScope = useScope({
+    from: root,
+    state: ["appStage", "localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { appStage, localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(containerScope);
 
   if (appStage.stage !== "kalaidoscope_open") {
     throw new Error(
@@ -125,13 +133,15 @@ function KalaidoscopeContainer({ children }: { children: React.ReactNode }) {
 
   const client = getActiveKalaidoscopeClient();
   const activeMeta =
-    availableKalaidoscopes.find(
+    allKalaidoscopes({ localKalaidoscopes, cachedCloudKalaidoscopes }).find(
       (k) => k.id === appStage.selectedKalaidoscopeId,
     ) ?? null;
 
   useEffect(() => {
     return () => {
-      client?.cancelAllRequests();
+      if (!client) return;
+      disposeClientSubscriptions(client);
+      client.cancelAllRequests();
     };
   }, [client]);
 

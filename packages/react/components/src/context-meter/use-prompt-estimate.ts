@@ -1,11 +1,19 @@
-import type { UIMessage } from "ai";
-import { useEffect, useMemo, useState } from "react";
 import {
   type ContextItem,
+  type ContextSpec,
   itemsToSpec,
   specKey,
 } from "@kalaido/client/kalaidoscope/chat";
-import { resolveContextTokens } from "@kalaido/client/kalaidoscope/context";
+import {
+  resolveContextTokens,
+  type TokenResolutionResponse,
+} from "@kalaido/client/kalaidoscope/context";
+import { toError } from "@kalaido/client/lib/errors";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { httpLiveSource, useLiveRead } from "@kalaido/state/live";
+import type { UIMessage } from "ai";
+import { err, ok } from "neverthrow";
+import { useEffect, useMemo, useState } from "react";
 
 export interface PromptEstimate {
   /** Tokens the next turn would send; `undefined` until the first answer. */
@@ -19,6 +27,13 @@ export interface PromptEstimate {
 }
 
 const DEBOUNCE_MS = 300;
+
+interface SettledKey {
+  readonly conversationId: string;
+  readonly specKey: string;
+  readonly turnKey: string;
+  readonly spec: ContextSpec;
+}
 
 /**
  * Text the assistant has streamed so far in the last message, if it is live,
@@ -51,9 +66,10 @@ function turnKey(messages: UIMessage[]): string {
  * How full the conversation's context window is: the server's estimate of
  * the next turn (system prompt + context + transcript) against the model's
  * budget, re-asked whenever the context selection changes or a turn
- * completes. While a turn streams, the last answer's text is added locally
- * at the guard's chars/4 so the number moves; the server value replaces it
- * once the turn lands. A failed request keeps the last good value.
+ * completes. While a turn streams, the pre-stream SWR key stays latched per
+ * `conversationId` and the last answer's text is added locally at chars/4 so
+ * the number moves; the server value replaces it once the turn lands. A failed
+ * request keeps the last good value for the same conversation.
  */
 export function usePromptEstimate(args: {
   conversationId: string;
@@ -64,41 +80,112 @@ export function usePromptEstimate(args: {
   enabled?: boolean;
 }): PromptEstimate {
   const { conversationId, items, messages, streaming, enabled = true } = args;
-  const [est, setEst] = useState<PromptEstimate>({ loading: true });
+  const client = useKalaidoscopeClient();
 
   const spec = useMemo(() => itemsToSpec(items), [items]);
-  const key = `${conversationId}|${specKey(spec)}|${turnKey(messages)}`;
+  const currentSpecKey = specKey(spec);
+  const currentTurnKey = turnKey(messages);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` is the identity of everything the request depends on
+  const [latched, setLatched] = useState<SettledKey | null>(null);
+  const [lastGood, setLastGood] = useState<{
+    conversationId: string;
+    data: TokenResolutionResponse;
+  } | null>(null);
+
+  // Debounce and latch the pre-stream key. While `streaming === true` on the
+  // same conversation, `latched` holds the pre-stream key so `useLiveRead`
+  // retains the settled estimate for the live streaming overlay.
   useEffect(() => {
     if (!enabled || streaming) return;
-    let cancelled = false;
-    setEst((prev) => ({ ...prev, loading: true }));
     const timer = setTimeout(() => {
-      resolveContextTokens(spec, undefined, { conversationId })
-        .then((res) => {
-          if (cancelled) return;
-          setEst({
-            total: res.totalTokens,
-            limit: res.limit,
-            model: res.model,
-            measured: res.measured,
-            loading: false,
-          });
-        })
-        .catch(() => {
-          if (!cancelled) setEst((prev) => ({ ...prev, loading: false }));
-        });
+      setLatched({
+        conversationId,
+        specKey: currentSpecKey,
+        turnKey: currentTurnKey,
+        spec,
+      });
     }, DEBOUNCE_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [key, streaming, enabled]);
+    return () => clearTimeout(timer);
+  }, [
+    enabled,
+    streaming,
+    conversationId,
+    currentSpecKey,
+    currentTurnKey,
+    spec,
+  ]);
+
+  // Reset immediately if `conversationId` changes so a previous conversation's
+  // estimate never bleeds into the newly opened one.
+  const effective =
+    enabled && latched?.conversationId === conversationId ? latched : null;
+
+  const source = useMemo(
+    () =>
+      httpLiveSource<TokenResolutionResponse>({
+        key: effective
+          ? [
+              "pb",
+              client.baseURL,
+              "prompt-estimate",
+              effective.conversationId,
+              effective.specKey,
+              effective.turnKey,
+            ]
+          : null,
+        fetch: async () => {
+          if (!effective) {
+            return err(new Error("Prompt estimate key is not ready."));
+          }
+          try {
+            return ok(
+              await resolveContextTokens(effective.spec, undefined, {
+                conversationId: effective.conversationId,
+              }),
+            );
+          } catch (e) {
+            return err(toError(e));
+          }
+        },
+      }),
+    [client.baseURL, effective],
+  );
+
+  const read = useLiveRead(source);
+
+  useEffect(() => {
+    if (read.data && effective) {
+      setLastGood({
+        conversationId: effective.conversationId,
+        data: read.data,
+      });
+    }
+  }, [read.data, effective]);
+
+  const resolved =
+    read.data ??
+    (lastGood?.conversationId === conversationId ? lastGood.data : undefined);
+
+  const debouncing =
+    enabled &&
+    !streaming &&
+    (effective === null ||
+      effective.specKey !== currentSpecKey ||
+      effective.turnKey !== currentTurnKey);
+
+  const base: PromptEstimate = resolved
+    ? {
+        total: resolved.totalTokens,
+        limit: resolved.limit,
+        model: resolved.model,
+        measured: resolved.measured,
+        loading: enabled && (debouncing || read.isLoading),
+      }
+    : { loading: enabled && !read.error };
 
   const live = streaming ? Math.ceil(streamingChars(messages) / 4) : 0;
-  if (live > 0 && est.total !== undefined) {
-    return { ...est, total: est.total + live };
+  if (live > 0 && base.total !== undefined) {
+    return { ...base, total: base.total + live };
   }
-  return est;
+  return base;
 }

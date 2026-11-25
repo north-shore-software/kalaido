@@ -1,18 +1,26 @@
+import { setActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
+import { toError } from "@kalaido/client/lib/errors";
 import { err, ok, type Result } from "neverthrow";
 import {
+  getLocalKalaidoscopeStatus,
   startLocalKalaidoscope,
   stopLocalKalaidoscope,
 } from "@/api/app/local-scopes";
-import { deleteSetting, setSetting } from "@/api/app/settings.ts";
 import { createKalaidoscopeClient } from "@/api/app/sidecar-client";
 import {
+  allKalaidoscopes,
+  desktopScope,
+  type StageEntry,
+  stageError,
+  teardownActiveClient,
+} from "@/state/app-state.ts";
+import {
   openKalaidoscope,
+  removeRegisteredKalaidoscope,
   setAppStage,
-  setAvailableKalaidoscopes,
+  setLastOpenedKalaidoscopeId,
+  setSidecarStatus,
 } from "@/state/app-state-actions.ts";
-import { appState, type StageEntry, stageError } from "@/state/app-state.ts";
-import { setActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
-import { toError } from "@kalaido/client/lib/errors";
 
 export interface SwitchOptions {
   surfaceError?: boolean;
@@ -23,7 +31,9 @@ export async function switchLocalKalaidoscope(
   targetId: string,
   { surfaceError = true, entry }: SwitchOptions = {},
 ): Promise<Result<void, Error>> {
-  const meta = appState.availableKalaidoscopes.find((k) => k.id === targetId);
+  const meta = allKalaidoscopes(desktopScope.state).find(
+    (k) => k.id === targetId,
+  );
   if (!meta) {
     const error = new Error(
       `This kalaidoscope is no longer registered on this device (${targetId}).`,
@@ -42,6 +52,8 @@ export async function switchLocalKalaidoscope(
   if (surfaceError) setAppStage({ stage: "kalaidoscope_loading" });
 
   try {
+    await teardownActiveClient();
+
     // cloud/local_net need no sidecar — the per-scope client connects directly.
     if (meta.type === "local_file") {
       const startResult = await startLocalKalaidoscope(meta.locator);
@@ -53,23 +65,18 @@ export async function switchLocalKalaidoscope(
     setActiveKalaidoscopeClient(await createKalaidoscopeClient(meta));
 
     openKalaidoscope(targetId, entry);
+    await setLastOpenedKalaidoscopeId(targetId);
 
-    // The setting is what boot reopens on next launch, so it has to track what
-    // is actually open. It used to be written only on creation, which made it
-    // "last created" — switch workspaces, restart, and you were returned to the
-    // wrong one. Persisting here also means signing out of a cloud workspace
-    // can reliably tell whether the workspace being reopened is the one that
-    // just became unreachable.
-    const remembered = await setSetting("lastOpenedKalaidoscopeId", targetId);
-    if (remembered.isErr()) {
-      // The workspace is open and usable; only the next launch is affected.
-      console.error("Failed to remember the open workspace:", remembered.error);
+    if (meta.type === "local_file") {
+      void getLocalKalaidoscopeStatus(targetId).then((res) => {
+        if (res.isOk()) setSidecarStatus(res.value);
+      });
     }
 
     return ok(undefined);
   } catch (error) {
     console.error("Failed to switch kalaidoscope:", error);
-    setActiveKalaidoscopeClient(null);
+    await teardownActiveClient();
     if (surfaceError) {
       setAppStage({
         stage: "kalaidoscope_load_error",
@@ -88,14 +95,14 @@ export async function switchLocalKalaidoscope(
  * it is not the open one.
  */
 export async function closeIfActive(targetId: string): Promise<void> {
-  const currentStage = appState.appStage;
+  const currentStage = desktopScope.state.appStage;
   const isActive =
     currentStage.stage === "kalaidoscope_open" &&
     currentStage.selectedKalaidoscopeId === targetId;
 
   if (isActive) {
-    setActiveKalaidoscopeClient(null);
-    await deleteSetting("lastOpenedKalaidoscopeId");
+    await teardownActiveClient();
+    await setLastOpenedKalaidoscopeId(null);
     setAppStage({ stage: "no_kalaidoscopes_available" });
   }
 }
@@ -103,17 +110,11 @@ export async function closeIfActive(targetId: string): Promise<void> {
 export async function removeKalaidoscope(
   targetId: string,
 ): Promise<Result<void, Error>> {
-  const meta = appState.availableKalaidoscopes.find((k) => k.id === targetId);
-  const remaining = appState.availableKalaidoscopes.filter(
-    (k) => k.id !== targetId,
+  const meta = allKalaidoscopes(desktopScope.state).find(
+    (k) => k.id === targetId,
   );
-  setAvailableKalaidoscopes(remaining);
-
-  const persisted = await setSetting("availableKalaidoscopes", remaining);
-  if (persisted.isErr()) {
-    console.error("Failed to persist updated kalaidoscopes:", persisted.error);
-    return err(persisted.error);
-  }
+  await removeRegisteredKalaidoscope(targetId);
+  await desktopScope.flush();
 
   await closeIfActive(targetId);
 

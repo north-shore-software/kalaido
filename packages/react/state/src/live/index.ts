@@ -1,3 +1,7 @@
+export {
+  LiveCacheProvider,
+  type LiveCacheProviderProps,
+} from "./provider";
 export { clearLiveCache, invalidateLiveTags } from "./registry";
 export {
   type AtomLiveSourceOptions,

@@ -1,5 +1,7 @@
 import { PageHeader } from "@kalaido/components/page-header";
 import { PanelErrorBoundary } from "@kalaido/components/panel-error-boundary";
+import { AddFragmentModal } from "@kalaido/features/fragments";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import {
   PageBody,
   PageCard,
@@ -9,26 +11,34 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@kalaido/primitives/shadcn/sidebar";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import type { ReactNode } from "react";
-import { useSnapshot } from "valtio/react";
-import { AddFragmentModal } from "@kalaido/features/fragments";
 import { NavSidebar } from "@/components/layout/nav-sidebar";
 import { UtilityBar } from "@/components/layout/utility-bar";
 import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
-import { closeAddFragmentModal } from "@/state/app-state-actions";
-import { appState } from "@/state/app-state";
+import { DesktopScopeContext } from "@/state/app-state";
 
 export { PageBody, PageCard, PageHeader, PaneHeader };
 
 export function PageLayout({ children }: { children: ReactNode }) {
-  const { addFragmentModalOpen } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const layoutScope = useScope({
+    from: root,
+    state: ["sidebarOpen", "addFragmentModalOpen"],
+    events: ["setSidebarOpen", "setAddFragmentModalOpen"],
+  });
+  const { sidebarOpen, addFragmentModalOpen } = useScopeState(layoutScope);
+
   return (
     <div
       className="flex flex-col overflow-hidden"
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
       <SidebarProvider
-        defaultOpen={false}
+        open={sidebarOpen}
+        onOpenChange={(open) => {
+          void layoutScope.dispatch({ type: "setSidebarOpen", open });
+        }}
         className="min-h-0 flex-1 overflow-hidden"
       >
         <NavSidebar />
@@ -44,7 +54,10 @@ export function PageLayout({ children }: { children: ReactNode }) {
       <AddFragmentModal
         open={addFragmentModalOpen}
         onClose={() => {
-          closeAddFragmentModal();
+          void layoutScope.dispatch({
+            type: "setAddFragmentModalOpen",
+            open: false,
+          });
         }}
         importAdapter={desktopImportAdapter}
       />

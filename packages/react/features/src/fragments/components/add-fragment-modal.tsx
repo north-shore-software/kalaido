@@ -1,5 +1,4 @@
-import { useCollection } from "@kalaido/hooks/use-collection";
-import { useNoteIngest } from "../hooks/use-note-ingest";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
@@ -15,7 +14,7 @@ import {
   PlusCircleIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   type ImportAdapter,
   ImportColourField,
@@ -26,6 +25,7 @@ import {
   useImportPicker,
   useImportSubmit,
 } from "#import";
+import { useNoteIngest } from "../hooks/use-note-ingest";
 
 export interface AddFragmentModalProps {
   open: boolean;
@@ -56,7 +56,9 @@ export function AddFragmentModal({
   const saving = phase === "running";
 
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   const {
     submitting: importSubmitting,
@@ -69,7 +71,7 @@ export function AddFragmentModal({
   });
   const picker = useImportPicker(importAdapter, clearImportError);
   const [colour, setColour] = useState<ImportColourChoice>({ kind: "none" });
-  const colours = useCollection("colour", {
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,swatch",
   });

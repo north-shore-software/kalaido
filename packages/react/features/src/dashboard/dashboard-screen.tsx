@@ -11,16 +11,19 @@ import type { FragmentTypeOptions } from "@kalaido/client/kalaidoscope/types";
 import { formatDayGroup, formatTime } from "@kalaido/client/lib/datetime";
 import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
 import { FragmentDrawer, PageHeader } from "@kalaido/components";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
 import {
   resolveSwatches,
   useColourSwatches,
 } from "@kalaido/hooks/use-colour-swatches";
 import { useContextSources } from "@kalaido/hooks/use-context-sources";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import {
   useLiveCollection,
   useLiveCollectionWatching,
 } from "@kalaido/hooks/use-live-collection";
 import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
+import { useExternalWrite } from "@kalaido/state/live";
 import { startTransition, useMemo, useOptimistic, useState } from "react";
 import { toast } from "sonner";
 import type { ImportAdapter } from "#import";
@@ -72,6 +75,7 @@ export function DashboardScreen({
   onImportToApp,
   onStartPipeline,
 }: DashboardScreenProps) {
+  const client = useKalaidoscopeClient();
   const contextSources = useContextSources();
   const [selectedFragmentId, setSelectedFragmentId] = useState<string | null>(
     null,
@@ -237,41 +241,53 @@ export function DashboardScreen({
     });
   }
 
+  const dismissWrite = useExternalWrite<ProposedItem, void>({
+    execute: (item) =>
+      item.kind === "projection"
+        ? deleteProjection(item.id)
+        : deleteReflection(item.id),
+    concurrency: "allow",
+    invalidates: (item) => [
+      kalaidoscopeCollectionTag(client.baseURL, item.kind),
+    ],
+  });
+
+  const unpinWrite = useExternalWrite<PinItem, void>({
+    execute: async (item) => {
+      const res =
+        item.kind === "projection"
+          ? await updateProjection(item.id, { pinned: false })
+          : await updateReflection(item.id, { pinned: false });
+      return res.map(() => undefined);
+    },
+    concurrency: "allow",
+    invalidates: (item) => [
+      kalaidoscopeCollectionTag(client.baseURL, item.kind),
+    ],
+  });
+
   function dismissProposal(item: ProposedItem) {
     startTransition(async () => {
       hideProposed(itemKey(item));
-      const res =
-        item.kind === "projection"
-          ? await deleteProjection(item.id)
-          : await deleteReflection(item.id);
-      if (res.isErr()) {
-        toast.error("Failed to dismiss", { description: res.error.message });
-        return;
+      // `dismissWrite.run` awaits invalidation of the matching live collection
+      // so the optimistic row-less list holds until the live list agrees.
+      const outcome = await dismissWrite.run(item);
+      if (outcome.status === "error") {
+        toast.error("Failed to dismiss", {
+          description: outcome.error.message,
+        });
       }
-
-      // Hold the optimistic row-less list until the live list agrees, so the
-      // row never flashes back between the call and the realtime revalidation.
-      await revalidate(item.kind);
     });
   }
 
   function unpin(item: PinItem) {
     startTransition(async () => {
       hidePinned(itemKey(item));
-      const res =
-        item.kind === "projection"
-          ? await updateProjection(item.id, { pinned: false })
-          : await updateReflection(item.id, { pinned: false });
-      if (res.isErr()) {
-        toast.error("Failed to unpin", { description: res.error.message });
-        return;
+      const outcome = await unpinWrite.run(item);
+      if (outcome.status === "error") {
+        toast.error("Failed to unpin", { description: outcome.error.message });
       }
-      await revalidate(item.kind);
     });
-  }
-
-  function revalidate(kind: EntityKind) {
-    return kind === "projection" ? projections.mutate() : reflections.mutate();
   }
 
   return (

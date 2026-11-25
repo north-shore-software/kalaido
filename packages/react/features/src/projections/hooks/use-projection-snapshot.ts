@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import {
   type ProjectionOutput,
   parseProjectionOutput,
@@ -10,6 +8,7 @@ import type {
   ProjectionSnapshotResponse,
 } from "@kalaido/client/kalaidoscope/types";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import { useMemo } from "react";
 
 export type { ProjectionOutput };
 export { parseProjectionOutput };
@@ -52,7 +51,6 @@ export interface UseProjectionSnapshotResult {
   liveSnapshot: ProjectionSnapshotWithEdits | undefined;
   /** A generation is running server-side (a status='generating' claim row). */
   generating: boolean;
-  mutate: () => Promise<unknown>;
 }
 
 /**
@@ -153,6 +151,5 @@ export function useProjectionSnapshot(
     snapshots,
     liveSnapshot,
     generating,
-    mutate: snapshotsQuery.mutate,
   };
 }

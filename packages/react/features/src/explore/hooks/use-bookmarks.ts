@@ -1,11 +1,14 @@
-import type { UIMessage } from "ai";
-import { useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
 import {
   type MessageMark,
   setBookmark,
 } from "@kalaido/client/kalaidoscope/chat";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useLiveCollectionWatching } from "@kalaido/hooks/use-live-collection";
+import { useExternalWrite } from "@kalaido/state/live";
+import type { UIMessage } from "ai";
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 /** AI SDK ids and our own are url-safe; anything else never reaches a filter. */
 const CLIENT_ID_RE = /^[A-Za-z0-9_-]+$/;
@@ -15,8 +18,6 @@ export interface Bookmarks {
   marks: ReadonlyMap<string, MessageMark>;
   /** Set or clear a message's bookmark; optimistic, with a toast on failure. */
   toggle: (messageId: string, bookmarked: boolean) => Promise<void>;
-  /** Re-read the marks — after an action that changes them server-side. */
-  refresh: () => Promise<unknown>;
 }
 
 /**
@@ -30,8 +31,9 @@ export interface Bookmarks {
  * the id the live transcript uses, so a caller joins the two by `message.id`.
  */
 export function useBookmarks(clientId: string): Bookmarks {
+  const client = useKalaidoscopeClient();
   const valid = CLIENT_ID_RE.test(clientId);
-  const { records, mutate } = useLiveCollectionWatching(
+  const { records } = useLiveCollectionWatching(
     "chat_message",
     ["chat_message"],
     {
@@ -46,6 +48,18 @@ export function useBookmarks(clientId: string): Bookmarks {
   const [inFlight, setInFlight] = useState<ReadonlyMap<string, boolean>>(
     () => new Map(),
   );
+
+  const bookmarkWrite = useExternalWrite<
+    { messageId: string; bookmarked: boolean },
+    void
+  >({
+    execute: async ({ messageId, bookmarked }) =>
+      (await setBookmark(clientId, messageId, bookmarked)).map(() => undefined),
+    concurrency: "allow",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "chat_message"),
+    ],
+  });
 
   const marks = useMemo(() => {
     const out = new Map<string, MessageMark>();
@@ -68,14 +82,12 @@ export function useBookmarks(clientId: string): Bookmarks {
   const toggle = useCallback(
     async (messageId: string, bookmarked: boolean) => {
       setInFlight((prev) => new Map(prev).set(messageId, bookmarked));
-      const res = await setBookmark(clientId, messageId, bookmarked);
-      if (res.isErr()) {
+      const outcome = await bookmarkWrite.run({ messageId, bookmarked });
+      if (outcome.status === "error") {
         toast.error(
           bookmarked ? "Couldn't bookmark" : "Couldn't remove bookmark",
-          { description: res.error.message },
+          { description: outcome.error.message },
         );
-      } else {
-        await mutate();
       }
       setInFlight((prev) => {
         const next = new Map(prev);
@@ -83,8 +95,8 @@ export function useBookmarks(clientId: string): Bookmarks {
         return next;
       });
     },
-    [clientId, mutate],
+    [bookmarkWrite],
   );
 
-  return { marks, toggle, refresh: mutate };
+  return { marks, toggle };
 }

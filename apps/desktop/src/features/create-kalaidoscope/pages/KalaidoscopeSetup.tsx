@@ -1,16 +1,4 @@
 import {
-  startTransition,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
-import {
-  validateWorkspaceLlmConfig,
-  validationMessage,
-} from "@/api/app/llm-validate.ts";
-import {
   type CloudIdAvailability,
   CloudIdTakenError,
   checkCloudIdAvailability,
@@ -21,19 +9,28 @@ import {
   ollamaWorkspaceLlmConfig,
   type WorkspaceLlmConfig,
 } from "@kalaido/client/kalaidoscope/llm-config";
+import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
 import {
   RequiredPill,
   requiredHighlightClass,
   useRequiredHighlights,
 } from "@kalaido/primitives/kalaido";
 import { PageBackButton } from "@kalaido/primitives/layout/page-back-button";
+import { cn } from "@kalaido/primitives/lib/css-utils";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
-import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  validateWorkspaceLlmConfig,
+  validationMessage,
+} from "@/api/app/llm-validate.ts";
+import {
+  type CreateKalaidoscopeInput,
+  createKalaidoscope,
+} from "@/features/create-kalaidoscope/actions.ts";
 import { CloudAuthPanel } from "@/features/onboarding/components/cloud-auth-panel";
-import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
-import { cn } from "@kalaido/primitives/lib/css-utils";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppRouteState } from "@/routes/use-app-route-state";
@@ -126,9 +123,16 @@ export default function KalaidoscopeSetup() {
   // the form is filled, and creating then would send an empty cloudId.
   const [gate, setGate] = useState<"create" | "signin" | null>(null);
   const [gateMode, setGateMode] = useState<"signin" | "signup">("signin");
-  // Creation runs as a transition: React holds `isPending` for exactly as long
-  // as the async work lasts, with nothing to reset by hand on any exit path.
-  const [isPending, startCreate] = useTransition();
+  const [validating, setValidating] = useState(false);
+  const createWrite = useExternalWrite<
+    CreateKalaidoscopeInput,
+    { readonly id: string }
+  >({
+    execute: async (input) =>
+      (await createKalaidoscope(input)).map((m) => ({ id: m.id })),
+    concurrency: "ignore",
+  });
+  const isPending = validating || createWrite.isPending;
 
   const [idCheck, setIdCheck] = useState<CloudIdCheck | null>(null);
   const [idChecking, setIdChecking] = useState(false);
@@ -220,20 +224,25 @@ export default function KalaidoscopeSetup() {
     };
   }
 
-  /**
-   * Validate, then create. Resolves to the message to show, or `null` — on
-   * success the app stage changes and this page is unmounted underneath us.
-   */
-  async function runCreate(): Promise<string | null> {
+  async function create() {
+    setError(null);
     const config = llmConfig();
 
     if (config) {
+      setValidating(true);
       const validated = await validateWorkspaceLlmConfig(config);
-      if (validated.isErr()) return validated.error.message;
-      if (!validated.value.ok) return validationMessage(validated.value);
+      setValidating(false);
+      if (validated.isErr()) {
+        setError(validated.error.message);
+        return;
+      }
+      if (!validated.value.ok) {
+        setError(validationMessage(validated.value));
+        return;
+      }
     }
 
-    const result = await createKalaidoscope({
+    const outcome = await createWrite.run({
       name: fields.name,
       icon: fields.icon,
       storage,
@@ -243,24 +252,18 @@ export default function KalaidoscopeSetup() {
       llmConfig: config,
     });
 
-    if (result.isErr()) {
-      console.error("Failed to create kalaidoscope:", result.error);
-      if (result.error instanceof CloudIdTakenError) {
+    if (outcome.status === "error") {
+      console.error("Failed to create kalaidoscope:", outcome.error);
+      if (outcome.error instanceof CloudIdTakenError) {
         const fresh = await checkCloudIdAvailability(candidateId);
         if (fresh.isOk()) setIdCheck({ id: candidateId, ...fresh.value });
-        return "That ID was just taken. A new one has been suggested — check it and try again.";
+        setError(
+          "That ID was just taken. A new one has been suggested — check it and try again.",
+        );
+        return;
       }
-      return result.error.message;
+      setError(outcome.error.message);
     }
-    return null;
-  }
-
-  function create() {
-    startCreate(async () => {
-      setError(null);
-      const message = await runCreate();
-      startTransition(() => setError(message));
-    });
   }
 
   function handleSubmit(e: React.FormEvent) {

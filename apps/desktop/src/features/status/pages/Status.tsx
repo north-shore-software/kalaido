@@ -1,4 +1,24 @@
 import {
+  type DiscoverKind,
+  startDiscover,
+} from "@kalaido/client/kalaidoscope/discover";
+import { startMap } from "@kalaido/client/kalaidoscope/map";
+import { startReconcile } from "@kalaido/client/kalaidoscope/reconcile";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
+import {
+  EmptyState,
+  Label,
+  Pill,
+  StatusPill,
+  SurfaceCard,
+} from "@kalaido/primitives/kalaido";
+import { Button } from "@kalaido/primitives/shadcn/button";
+import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
   ArrowsClockwiseIcon,
   CompassIcon,
   PaletteIcon,
@@ -9,32 +29,14 @@ import {
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useSnapshot } from "valtio/react";
-import {
-  type DiscoverKind,
-  startDiscover,
-} from "@kalaido/client/kalaidoscope/discover";
-import { startMap } from "@kalaido/client/kalaidoscope/map";
-import { startReconcile } from "@kalaido/client/kalaidoscope/reconcile";
-import {
-  EmptyState,
-  Label,
-  Pill,
-  StatusPill,
-  SurfaceCard,
-} from "@kalaido/primitives/kalaido";
 import {
   PageCard,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
 import { queueHeldLabels } from "@/components/layout/utility-bar";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import { Spinner } from "@kalaido/primitives/shadcn/spinner";
-import { appState } from "@/state/app-state";
-import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
 import { defineRoute } from "@/routes/route-kit";
+import { DesktopScopeContext } from "@/state/app-state";
 import { useEventLog } from "../hooks/use-event-log";
 import { statusTransitions } from "./Status.transitions";
 
@@ -50,12 +52,32 @@ interface QueueTask {
 export default function StatusPage() {
   const { status: organize } = useOrganizeStatus();
   const { records: queueRecords } = useLiveCollection("llm_queue_status");
-  const { latestInferenceRate } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const rateScope = useScope({ from: root, state: ["latestInferenceRate"] });
+  const { latestInferenceRate } = useScopeState(rateScope);
   const events = useEventLog();
 
-  const [startingMap, setStartingMap] = useState(false);
-  const [startingDiscover, setStartingDiscover] = useState<string | null>(null);
-  const [startingReconcile, setStartingReconcile] = useState(false);
+  const [activeDiscoverKind, setActiveDiscoverKind] =
+    useState<DiscoverKind | null>(null);
+
+  const mapWrite = useExternalWrite<void, void>({
+    execute: () => startMap(),
+    concurrency: "ignore",
+  });
+
+  const discoverWrite = useExternalWrite<DiscoverKind, void>({
+    execute: (kind) => startDiscover(kind),
+    concurrency: "ignore",
+  });
+
+  const reconcileWrite = useExternalWrite<void, void>({
+    execute: () => startReconcile(),
+    concurrency: "ignore",
+  });
+
+  const startingMap = mapWrite.isPending;
+  const startingDiscover = discoverWrite.isPending ? activeDiscoverKind : null;
+  const startingReconcile = reconcileWrite.isPending;
 
   const queueDoc = queueRecords[0];
   const isQueueActive = queueDoc?.state === "active";
@@ -71,36 +93,26 @@ export default function StatusPage() {
     : undefined;
 
   async function handleStartMap() {
-    setStartingMap(true);
-    try {
-      const res = await startMap();
-      if (res.isErr()) toast.error(`Map failed to start: ${res.error.message}`);
-    } finally {
-      setStartingMap(false);
+    const outcome = await mapWrite.run();
+    if (outcome.status === "error") {
+      toast.error(`Map failed to start: ${outcome.error.message}`);
     }
   }
 
   async function handleStartDiscover(kind: DiscoverKind) {
-    setStartingDiscover(kind);
-    try {
-      const res = await startDiscover(kind);
-      if (res.isErr()) {
-        toast.error(`Discover failed to start: ${res.error.message}`);
-      }
-    } finally {
-      setStartingDiscover(null);
+    setActiveDiscoverKind(kind);
+    const outcome = await discoverWrite.run(kind);
+    if (outcome.status === "ignored") return;
+    setActiveDiscoverKind(null);
+    if (outcome.status === "error") {
+      toast.error(`Discover failed to start: ${outcome.error.message}`);
     }
   }
 
   async function handleStartReconcile() {
-    setStartingReconcile(true);
-    try {
-      const res = await startReconcile();
-      if (res.isErr()) {
-        toast.error(`Reconcile failed to start: ${res.error.message}`);
-      }
-    } finally {
-      setStartingReconcile(false);
+    const outcome = await reconcileWrite.run();
+    if (outcome.status === "error") {
+      toast.error(`Reconcile failed to start: ${outcome.error.message}`);
     }
   }
 

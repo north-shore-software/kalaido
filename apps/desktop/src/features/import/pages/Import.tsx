@@ -8,7 +8,7 @@ import {
   useFileIngest,
   useImportPicker,
 } from "@kalaido/features/import";
-import { useCollection } from "@kalaido/hooks/use-collection";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { useState } from "react";
 import {
@@ -29,7 +29,7 @@ export default function Import() {
   const running = phase === "running";
   const picker = useImportPicker(desktopImportAdapter, reset);
   const [colour, setColour] = useState<ImportColourChoice>({ kind: "none" });
-  const colours = useCollection("colour", {
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,swatch",
   });

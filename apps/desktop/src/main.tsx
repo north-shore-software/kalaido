@@ -8,11 +8,14 @@ import { HostProvider } from "@kalaido/hooks/host";
 import { setHost } from "@kalaido/platform";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { snapshot, subscribe } from "valtio";
 import { createAppHost } from "@/host";
-import { appState, bootstrapStoredState } from "@/state/app-state";
 import { AppProviders } from "@/providers/app-providers";
 import { AppRouter } from "@/routes/app-router";
+import {
+  bootstrapDesktopState,
+  DesktopScopeContext,
+  desktopScope,
+} from "@/state/app-state";
 
 const host = createAppHost();
 setHost(host);
@@ -39,17 +42,15 @@ function render() {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <HostProvider host={host}>
-        <AppProviders>
-          <AppRouter />
-        </AppProviders>
+        <DesktopScopeContext.Provider value={desktopScope}>
+          <AppProviders>
+            <AppRouter />
+          </AppProviders>
+        </DesktopScopeContext.Provider>
       </HostProvider>
     </React.StrictMode>,
   );
 }
 
-subscribe(appState, () => {
-  console.log("appState changed:", snapshot(appState));
-});
-
 render();
-void bootstrapStoredState();
+void bootstrapDesktopState();

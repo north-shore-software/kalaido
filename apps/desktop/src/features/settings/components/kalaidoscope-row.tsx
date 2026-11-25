@@ -1,13 +1,14 @@
-import { type ReactNode, useState } from "react";
+import { isArchived } from "@kalaido/client/lib/active-kalaidoscopes";
+import { kalaidoscopeTypeLabel } from "@kalaido/client/lib/labels";
 import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { Pill, StatusPill, SurfaceCard } from "@kalaido/primitives/kalaido";
 import { LocationLabel } from "@kalaido/primitives/layout/location-label";
+import { cn } from "@kalaido/primitives/lib/css-utils";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
-import { isArchived } from "@kalaido/client/lib/active-kalaidoscopes";
+import { useExternalWrite } from "@kalaido/state/live";
+import { type ReactNode, useState } from "react";
 import { setKalaidoscopeArchived } from "@/lib/cloud-workspaces.ts";
-import { cn } from "@kalaido/primitives/lib/css-utils";
-import { kalaidoscopeTypeLabel } from "@kalaido/client/lib/labels";
 import {
   removeKalaidoscope,
   switchLocalKalaidoscope,
@@ -25,14 +26,27 @@ export function KalaidoscopeRow({
   children?: ReactNode;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const [removing, setRemoving] = useState(false);
+  const [removingLocal, setRemovingLocal] = useState(false);
   const isCloud = kalaidoscope.type === "cloud";
   const archived = isArchived(kalaidoscope);
 
-  async function run(action: () => Promise<{ isErr(): boolean }>) {
-    setRemoving(true);
-    await action();
-    setRemoving(false);
+  const archiveWrite = useExternalWrite<boolean, void>({
+    execute: (nextArchived) =>
+      setKalaidoscopeArchived(kalaidoscope.id, nextArchived),
+    concurrency: "ignore",
+  });
+
+  const removing = archiveWrite.isPending || removingLocal;
+
+  async function handleArchive(nextArchived: boolean) {
+    await archiveWrite.run(nextArchived);
+    setConfirming(false);
+  }
+
+  async function handleRemoveLocal() {
+    setRemovingLocal(true);
+    await removeKalaidoscope(kalaidoscope.id);
+    setRemovingLocal(false);
     setConfirming(false);
   }
 
@@ -68,9 +82,7 @@ export function KalaidoscopeRow({
           <Button
             variant="outline"
             disabled={removing}
-            onClick={() =>
-              void run(() => setKalaidoscopeArchived(kalaidoscope.id, false))
-            }
+            onClick={() => void handleArchive(false)}
           >
             {removing ? <Spinner /> : "Unarchive"}
           </Button>
@@ -80,11 +92,7 @@ export function KalaidoscopeRow({
               variant="destructive"
               disabled={removing}
               onClick={() =>
-                void run(() =>
-                  isCloud
-                    ? setKalaidoscopeArchived(kalaidoscope.id, true)
-                    : removeKalaidoscope(kalaidoscope.id),
-                )
+                void (isCloud ? handleArchive(true) : handleRemoveLocal())
               }
             >
               {removing ? (

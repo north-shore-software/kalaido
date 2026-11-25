@@ -73,6 +73,6 @@ export async function findNextTarget({
   return ok({
     id: next.id,
     type: "projection",
-    snapshotId: generated.value.snapshotId,
+    snapshotId: generated.value.id,
   });
 }

@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { useCollection } from "#use-collection";
+import { useLiveCollection } from "#use-live-collection";
 
 /** Colour id → palette slot, for resolving a `view_stream.colour_ids` cell. */
 export function useColourSwatches(): Map<string, number> {
-  const colours = useCollection("colour", { fields: "id,swatch" });
+  const colours = useLiveCollection("colour", { fields: "id,swatch" });
   return useMemo(() => {
     const m = new Map<string, number>();
     for (const c of colours.records) m.set(c.id, c.swatch ?? 0);

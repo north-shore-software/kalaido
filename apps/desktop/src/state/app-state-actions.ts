@@ -1,62 +1,77 @@
 import type { KalaidoscopeMeta } from "@kalaido/platform";
-import type { AppStage, StageEntry } from "@/state/app-state.ts";
-import { appState } from "@/state/app-state.ts";
+import type { SidecarStatus } from "@/api/app/local-scopes.ts";
+import {
+  type AppStage,
+  desktopScope,
+  type StageEntry,
+} from "@/state/app-state.ts";
 
-export function openAddFragmentModal() {
-  appState.addFragmentModalOpen = true;
+export function openAddFragmentModal(): void {
+  void desktopScope.dispatch({ type: "setAddFragmentModalOpen", open: true });
 }
 
-export function closeAddFragmentModal() {
-  appState.addFragmentModalOpen = false;
+export function closeAddFragmentModal(): void {
+  void desktopScope.dispatch({ type: "setAddFragmentModalOpen", open: false });
 }
 
-export function openFeedbackDialog() {
-  appState.feedbackDialogOpen = true;
+export function openFeedbackDialog(): void {
+  void desktopScope.dispatch({ type: "setFeedbackDialogOpen", open: true });
 }
 
-export function closeFeedbackDialog() {
-  appState.feedbackDialogOpen = false;
+export function closeFeedbackDialog(): void {
+  void desktopScope.dispatch({ type: "setFeedbackDialogOpen", open: false });
 }
 
-export function recordInferenceRate(tokensPerSecond: number) {
-  appState.latestInferenceRate = { tokensPerSecond, at: Date.now() };
+export function setSidecarStatus(status: SidecarStatus): void {
+  void desktopScope.dispatch({ type: "setSidecarStatus", status });
 }
 
-export function addAvailableKalaidoscope(meta: KalaidoscopeMeta) {
-  appState.availableKalaidoscopes.push(meta);
+export function addLocalKalaidoscope(meta: KalaidoscopeMeta): Promise<void> {
+  return desktopScope.dispatch({ type: "addLocalKalaidoscope", meta });
 }
 
-export function setAvailableKalaidoscopes(list: KalaidoscopeMeta[]) {
-  appState.availableKalaidoscopes = list;
+export function addCachedCloudKalaidoscope(
+  meta: KalaidoscopeMeta,
+): Promise<void> {
+  return desktopScope.dispatch({ type: "addCachedCloudKalaidoscope", meta });
 }
 
-export function setAppStage(stage: AppStage) {
-  appState.appStage = stage;
+export function setCachedCloudKalaidoscopes(
+  workspaces: KalaidoscopeMeta[],
+): Promise<void> {
+  return desktopScope.dispatch({
+    type: "setCachedCloudKalaidoscopes",
+    workspaces,
+  });
 }
 
-export function openKalaidoscope(id: string, entry?: StageEntry) {
-  appState.appStage = {
-    stage: "kalaidoscope_open",
-    selectedKalaidoscopeId: id,
-    ...(entry && { entry }),
-  };
+export function removeRegisteredKalaidoscope(id: string): Promise<void> {
+  return desktopScope.dispatch({ type: "removeKalaidoscope", id });
 }
 
-export function clearStageEntry() {
-  const current = appState.appStage;
-  if (current.stage !== "kalaidoscope_open" || !current.entry) return;
-  appState.appStage = {
-    stage: "kalaidoscope_open",
-    selectedKalaidoscopeId: current.selectedKalaidoscopeId,
-  };
+export function setLastOpenedKalaidoscopeId(id: string | null): Promise<void> {
+  return desktopScope.dispatch({ type: "setLastOpenedKalaidoscopeId", id });
+}
+
+export function setAppStage(stage: AppStage): void {
+  void desktopScope.dispatch({ type: "setAppStage", stage });
+}
+
+export function openKalaidoscope(id: string, entry?: StageEntry): void {
+  void desktopScope.dispatch({ type: "openKalaidoscope", id, entry });
+}
+
+export function clearStageEntry(): void {
+  void desktopScope.dispatch({ type: "clearStageEntry" });
 }
 
 export function completeOnboardingInterstitial(prefs: {
   errorReportingEnabled: boolean;
   usageStatisticsEnabled: boolean;
-}) {
-  appState.onboardingAcknowledged = true;
-  appState.errorReportingEnabled = prefs.errorReportingEnabled;
-  appState.usageStatisticsEnabled = prefs.usageStatisticsEnabled;
-  appState.appStage = { stage: "no_kalaidoscopes_available" };
+}): Promise<void> {
+  return desktopScope.dispatch({
+    type: "completeOnboardingInterstitial",
+    errorReportingEnabled: prefs.errorReportingEnabled,
+    usageStatisticsEnabled: prefs.usageStatisticsEnabled,
+  });
 }

@@ -22,6 +22,8 @@ export interface RecoveryViewProps {
   onRetry?: () => void;
   retryLabel?: string;
   resetNotice?: string;
+  /** Runs before `host.settings.clear()` (e.g. detach bridges, dispose & flush root scope). */
+  onBeforeClear?: () => Promise<void> | void;
   footer?: ReactNode;
 }
 
@@ -32,6 +34,7 @@ export function RecoveryView({
   onRetry,
   retryLabel = "Try again",
   resetNotice = "Clears all saved kalaidoscopes, preferences, and app state, then restarts.",
+  onBeforeClear,
   footer,
 }: RecoveryViewProps) {
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -41,6 +44,13 @@ export function RecoveryView({
   async function handleReset() {
     setResetting(true);
     setResetError(null);
+    if (onBeforeClear) {
+      try {
+        await onBeforeClear();
+      } catch (e) {
+        console.error("RecoveryView: onBeforeClear failed:", e);
+      }
+    }
     const host = getHost();
     const result = await host.settings.clear();
     if (result.isErr()) {

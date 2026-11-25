@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
 import {
   type TimeWindow,
   timeWindowKey,
 } from "@kalaido/client/kalaidoscope/chat";
-import { resolveContextTokens } from "@kalaido/client/kalaidoscope/context";
+import {
+  resolveContextTokens,
+  type TokenResolutionResponse,
+} from "@kalaido/client/kalaidoscope/context";
+import { toError } from "@kalaido/client/lib/errors";
+import { kalaidoscopeEndpointSource } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { useLiveRead } from "@kalaido/state/live";
+import { err, ok } from "neverthrow";
+import { useMemo } from "react";
 
 export interface WholeScopeFit {
   /** `undefined` while the estimate is loading or failed — never blocks. */
@@ -15,37 +23,53 @@ export interface WholeScopeFit {
 
 /**
  * Pre-flight for the bar's Full option: whether every fragment (within the
- * window, if any) fits the chat model in full. Asked once per mount and again
- * when the window moves; a failed request leaves Full offered and the chat's
- * own guard to refuse.
+ * window, if any) fits the chat model in full. Revalidates live when fragments
+ * or workspace config change; a failed request leaves Full offered and the
+ * chat's own guard to refuse.
  */
 export function useWholeScopeFits(timeWindow?: TimeWindow): WholeScopeFit {
-  const [fit, setFit] = useState<WholeScopeFit>({ fits: undefined });
+  const client = useKalaidoscopeClient();
   const windowKey = timeWindowKey(timeWindow);
+  const start = timeWindow?.start;
+  const end = timeWindow?.end;
+  const windowId = timeWindow?.id;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the window's identity is its key
-  useEffect(() => {
-    let cancelled = false;
-    setFit({ fits: undefined });
-    resolveContextTokens({ wholeScope: "full" }, timeWindow)
-      .then((res) => {
-        if (cancelled) return;
-        setFit({
-          fits: res.fits,
-          totalTokens: res.totalTokens,
-          limit: res.limit,
-          model: res.model,
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setFit({ fits: undefined });
-      });
-    return () => {
-      cancelled = true;
+  const source = useMemo(
+    () =>
+      kalaidoscopeEndpointSource<TokenResolutionResponse>({
+        client,
+        endpoint: "whole-scope-fits",
+        params: [windowKey],
+        watch: ["fragment", "kalaidoscope_config"],
+        coalesceMs: 300,
+        fetch: async () => {
+          try {
+            const win: TimeWindow | undefined =
+              start !== undefined && end !== undefined
+                ? { ...(windowId ? { id: windowId } : {}), start, end }
+                : undefined;
+            return ok(await resolveContextTokens({ wholeScope: "full" }, win));
+          } catch (e) {
+            return err(toError(e));
+          }
+        },
+      }),
+    [client, windowKey, start, end, windowId],
+  );
+
+  const read = useLiveRead(source);
+
+  return useMemo<WholeScopeFit>(() => {
+    if (!read.data || read.error) {
+      return { fits: undefined };
+    }
+    return {
+      fits: read.data.fits,
+      totalTokens: read.data.totalTokens,
+      limit: read.data.limit,
+      model: read.data.model,
     };
-  }, [windowKey]);
-
-  return fit;
+  }, [read.data, read.error]);
 }
 
 /** `1.2M`, `128k`, `900` — the backend's humanTokens, for the bar's captions. */

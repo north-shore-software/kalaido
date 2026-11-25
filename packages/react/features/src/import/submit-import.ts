@@ -38,7 +38,7 @@ async function resolveColour(
     case "new": {
       const res = await createColour({ name: choice.name.trim(), prompt: "" });
       return res
-        .map((r) => r.colourId)
+        .map((r) => r.id)
         .mapErr((e) => new Error(e.message || "Couldn't create the colour."));
     }
   }

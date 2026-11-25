@@ -93,22 +93,144 @@ const BANNED_DEPS_BY_PKG = {
     "react-router-dom",
     "@tauri-apps/*",
   ],
-  "packages/react/hooks": ["react-router-dom", "@tauri-apps/*"],
-  "packages/react/components": ["react-router-dom", "@tauri-apps/*"],
-  "packages/react/features": ["react-router-dom", "@tauri-apps/*"],
+  "packages/react/hooks": [
+    "react-router-dom",
+    "@tauri-apps/*",
+    "swr",
+    "valtio",
+    "better-auth",
+  ],
+  "packages/react/components": [
+    "react-router-dom",
+    "@tauri-apps/*",
+    "swr",
+    "valtio",
+    "better-auth",
+  ],
+  "packages/react/features": [
+    "react-router-dom",
+    "@tauri-apps/*",
+    "swr",
+    "valtio",
+    "better-auth",
+  ],
+  "apps/desktop": ["swr", "valtio", "better-auth"],
   "apps/mobile": [
     "@tauri-apps/plugin-dialog",
     "@tauri-apps/plugin-shell",
     "@tauri-apps/plugin-updater",
+    "swr",
+    "valtio",
+    "better-auth",
   ],
-  "apps/web": ["@tauri-apps/*"],
+  "apps/web": ["@tauri-apps/*", "swr", "valtio", "better-auth"],
 };
+
+const ALLOWED_LOCALSTORAGE_FILES = new Set([
+  "packages/lib/platform/src/web.ts",
+  "apps/desktop/src/features/onboarding/restore.ts",
+]);
 
 const REQUIRED_TAILWIND_SOURCES = [
   "packages/react/primitives/src/index.css",
   "packages/react/components/src/styles.css",
   "packages/react/features/src/styles.css",
 ];
+
+function stripJsComments(source) {
+  let out = "";
+  let i = 0;
+  const len = source.length;
+  const templateBraceDepths = [];
+
+  const scanTemplateChunk = () => {
+    while (i < len) {
+      const c = source[i];
+      if (c === "\\" && i + 1 < len) {
+        out += c + source[i + 1];
+        i += 2;
+        continue;
+      }
+      if (c === "`") {
+        out += c;
+        i++;
+        return;
+      }
+      if (c === "$" && source[i + 1] === "{") {
+        out += "${";
+        i += 2;
+        templateBraceDepths.push(0);
+        return;
+      }
+      out += c;
+      i++;
+    }
+  };
+
+  while (i < len) {
+    const ch = source[i];
+    const next = source[i + 1];
+
+    if (ch === "/" && next === "/") {
+      i += 2;
+      while (i < len && source[i] !== "\n") i++;
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      i += 2;
+      while (i < len && !(source[i] === "*" && source[i + 1] === "/")) i++;
+      i += 2;
+      out += " ";
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      out += ch;
+      i++;
+      while (i < len) {
+        const c = source[i];
+        out += c;
+        i++;
+        if (c === "\\" && i < len) {
+          out += source[i];
+          i++;
+          continue;
+        }
+        if (c === quote) break;
+      }
+      continue;
+    }
+
+    if (ch === "`") {
+      out += ch;
+      i++;
+      scanTemplateChunk();
+      continue;
+    }
+
+    if (templateBraceDepths.length > 0) {
+      if (ch === "{") {
+        templateBraceDepths[templateBraceDepths.length - 1]++;
+      } else if (ch === "}") {
+        if (templateBraceDepths[templateBraceDepths.length - 1] === 0) {
+          templateBraceDepths.pop();
+          out += ch;
+          i++;
+          scanTemplateChunk();
+          continue;
+        }
+        templateBraceDepths[templateBraceDepths.length - 1]--;
+      }
+    }
+
+    out += ch;
+    i++;
+  }
+
+  return out;
+}
 
 function matchesPattern(dep, pattern) {
   if (pattern.endsWith("/*")) {
@@ -181,6 +303,15 @@ function main() {
         );
       }
       const text = fs.readFileSync(file, "utf-8");
+      const relFile = path.relative(ROOT, file).replace(/\\/g, "/");
+      if (
+        !ALLOWED_LOCALSTORAGE_FILES.has(relFile) &&
+        /\blocalStorage\b/.test(stripJsComments(text))
+      ) {
+        errors.push(
+          `${relFile}: direct localStorage access is forbidden outside packages/lib/platform/src/web.ts`,
+        );
+      }
       const relImportRegex = /from\s+["'](\.[^"']+)["']/g;
       let match = relImportRegex.exec(text);
       while (match !== null) {

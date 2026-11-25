@@ -1,116 +1,70 @@
-import { useEffect, useRef } from "react";
-import type { SWRConfiguration } from "swr";
-
 import type { CollectionResponses } from "@kalaido/client/kalaidoscope/types";
+import { type LiveReadResult, useLiveRead } from "@kalaido/state/live";
+import { useMemo } from "react";
 import {
-  type CollectionName,
-  type CollectionQuery,
-  type UseCollectionResult,
-  useCollection,
-} from "#use-collection";
+  type KalaidoscopeCollectionName,
+  kalaidoscopeCollectionSource,
+} from "#kalaidoscope-live";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
 
+export type CollectionName = KalaidoscopeCollectionName;
+
 /**
- * Like {@link useCollection}, but kept fresh by PocketBase realtime events.
- *
- * It does the exact same SWR fetch as `useCollection` and adds a realtime
- * subscription on the collection: every create/update/delete simply triggers a
- * revalidation (`mutate`). We deliberately do *not* merge event deltas into a
- * local copy — the event is only a signal to re-fetch, so the rendered list is
- * always whatever the server returns and never drifts out of sync.
- *
- * The return shape is identical to `useCollection`, so it's a drop-in upgrade
- * wherever you want a list that reacts to records appearing/changing/vanishing.
+ * Subset of PocketBase list params used to fetch (and cache-key) a collection.
+ * Any combination of these produces a distinct live-read cache entry.
  */
-export function useLiveCollection<
-  N extends CollectionName,
-  R = CollectionResponses[N],
->(
-  collection: N,
-  query: CollectionQuery = {},
-  config?: SWRConfiguration<R[], Error>,
-): UseCollectionResult<R> {
-  return useLiveCollectionWatching(collection, [collection], query, config);
+export interface CollectionQuery {
+  sort?: string;
+  filter?: string;
+  expand?: string;
+  fields?: string;
+  /**
+   * Pause fetching while `false`. Useful when the query depends on something
+   * that isn't ready yet (an id, a search term, …).
+   */
+  enabled?: boolean;
+}
+
+export interface UseLiveCollectionResult<R> extends LiveReadResult<R[]> {
+  /** `data ?? []` — handy when you always want an array to render. */
+  readonly records: R[];
 }
 
 /**
- * {@link useLiveCollection} where the events that trigger the revalidation come
- * from collections other than the one being read. Everything else — the fetch,
- * the coalescing, the return shape — is identical.
- *
- * Required for a *view*, which is never written to and so emits no realtime
- * events of its own: `watched` names the base collections it selects from.
- *
- * A `filter` in `query` always shapes the fetch, but it is only passed to a
- * subscription on the collection being read — it is written against that
- * collection's columns and need not hold on a watched one.
+ * Fetch and stay live-subscribed to a PocketBase collection (or view) via
+ * `@kalaido/state`'s shared ref-counted SSE hub and SWR cache.
+ */
+export function useLiveCollection<
+  N extends KalaidoscopeCollectionName,
+  R = CollectionResponses[N],
+>(collection: N, query: CollectionQuery = {}): UseLiveCollectionResult<R> {
+  return useLiveCollectionWatching(collection, [collection], query);
+}
+
+/**
+ * {@link useLiveCollection} where realtime invalidation comes from collections
+ * other than the one being read (required for SQL views such as `view_stream`).
  */
 export function useLiveCollectionWatching<
-  N extends CollectionName,
+  N extends KalaidoscopeCollectionName,
   R = CollectionResponses[N],
 >(
   collection: N,
-  watched: CollectionName[],
+  watched: readonly KalaidoscopeCollectionName[],
   query: CollectionQuery = {},
-  config?: SWRConfiguration<R[], Error>,
-): UseCollectionResult<R> {
+): UseLiveCollectionResult<R> {
   const client = useKalaidoscopeClient();
-  const result = useCollection<N, R>(collection, query, config);
 
-  const { enabled = true, filter } = query;
-  const watchedKey = watched.join(",");
+  const result = useLiveRead<R[]>(
+    kalaidoscopeCollectionSource<N, R>(client, collection, query, {
+      watch: watched,
+    }),
+  );
 
-  // SWR can hand back a fresh `mutate` identity across renders; keep the latest
-  // in a ref so the subscription effect doesn't tear down/re-subscribe for it.
-  const mutateRef = useRef(result.mutate);
-  mutateRef.current = result.mutate;
+  const records = useMemo<R[]>(() => result.data ?? [], [result.data]);
 
-  useEffect(() => {
-    if (!enabled) return;
-
-    let cancelled = false;
-    const unsubs: (() => void)[] = [];
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    // Coalesce bursts (e.g. a snapshot insert + projection update arriving
-    // together) into a single revalidation.
-    const revalidate = () => {
-      if (timer) return;
-      timer = setTimeout(() => {
-        timer = undefined;
-        void mutateRef.current();
-      }, 50);
-    };
-
-    for (const name of watchedKey.split(",") as CollectionName[]) {
-      void (async () => {
-        try {
-          const opts = filter && name === collection ? { filter } : undefined;
-          const fn = await client
-            .collection(name)
-            .subscribe("*", revalidate, opts);
-          if (cancelled) {
-            void fn();
-            return;
-          }
-          unsubs.push(fn);
-        } catch (err) {
-          console.error(
-            `useLiveCollectionWatching(${name}): subscribe failed`,
-            err,
-          );
-        }
-      })();
-    }
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      for (const fn of unsubs) void fn();
-    };
-    // `client` is stable per kalaidoscope scope; re-subscribe if scope,
-    // watched collections, filter, or enabled changes.
-  }, [client, collection, watchedKey, filter, enabled]);
-
-  return result;
+  return {
+    ...result,
+    records,
+  };
 }

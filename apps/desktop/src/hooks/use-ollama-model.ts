@@ -1,31 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
-import { getSetting, setSetting } from "@/api/app/settings.ts";
-import { RECOMMENDED_MODEL } from "@kalaido/client/kalaidoscope/llm-config";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { useCallback } from "react";
+import { DesktopScopeContext } from "@/state/app-state.ts";
 
 /**
- * App-wide selected Ollama model, persisted in `kalaido-settings.json`. Defaults
- * to the recommended model and is sent with each generation request. Loads on
- * mount; changes apply to the next request that reads it.
+ * App-wide selected Ollama model, persisted via the desktop root scope.
+ * Defaults to the recommended model and is sent with each generation request.
  */
 export function useOllamaModel() {
-  const [model, setModelState] = useState<string>(RECOMMENDED_MODEL);
+  const root = useScopeContext(DesktopScopeContext);
+  const modelScope = useScope({
+    from: root,
+    state: ["ollamaModel"],
+    events: ["setOllamaModel"],
+  });
+  const { ollamaModel } = useScopeState(modelScope);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const m = await getSetting("ollamaModel");
-      const saved = m.unwrapOr(undefined);
-      if (!cancelled && saved) setModelState(saved);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const setModel = useCallback(
+    (model: string) => {
+      void modelScope.dispatch({ type: "setOllamaModel", model });
+    },
+    [modelScope],
+  );
 
-  const setModel = useCallback((m: string) => {
-    setModelState(m);
-    void setSetting("ollamaModel", m);
-  }, []);
-
-  return { model, setModel };
+  return { model: ollamaModel, setModel };
 }

@@ -40,7 +40,7 @@ export interface UpdateColourInput {
 }
 
 export interface CreateColourResult {
-  colourId: string;
+  readonly id: string;
 }
 export interface UpdateColourResult {
   colourId: string;
@@ -137,12 +137,14 @@ export async function previewColourStream(
 export async function createColour(
   input: CreateColourInput,
 ): Promise<Result<CreateColourResult, Error>> {
-  return withActiveClient((client) =>
-    client.send<CreateColourResult>("/api/colours", {
-      method: "POST",
-      body: input,
-    }),
-  );
+  return (
+    await withActiveClient((client) =>
+      client.send<{ colourId: string }>("/api/colours", {
+        method: "POST",
+        body: input,
+      }),
+    )
+  ).map((r) => ({ id: r.colourId }));
 }
 
 /** Update a colour's name, prompt and/or its manual examples. */

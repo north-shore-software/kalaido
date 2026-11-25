@@ -5,7 +5,7 @@ import { Label } from "@kalaido/primitives/kalaido/text";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
 import { Textarea } from "@kalaido/primitives/shadcn/textarea";
-import { useCollection } from "@kalaido/hooks/use-collection";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { deriveName } from "@kalaido/client/lib/naming";
 import type {
@@ -59,7 +59,7 @@ export function BookmarkActions({
 }: BookmarkActionsProps) {
   const [picking, setPicking] = useState(false);
   const [brief, setBrief] = useState<BriefedBookmarks | null>(null);
-  const colours = useCollection("colour", {
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,swatch",
   });

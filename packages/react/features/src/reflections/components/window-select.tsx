@@ -1,50 +1,34 @@
-import { useCallback, useEffect, useState } from "react";
 import type { TimeWindow } from "@kalaido/client/kalaidoscope/chat";
-import {
-  listReflectionWindows,
-  type ReflectionWindow,
-} from "@kalaido/client/kalaidoscope/reflections";
+import type { ReflectionWindow } from "@kalaido/client/kalaidoscope/reflections";
+import { formatWindowRange } from "@kalaido/client/lib/datetime";
 import { Label } from "@kalaido/primitives/kalaido";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@kalaido/primitives/shadcn/native-select";
-import { formatWindowRange } from "@kalaido/client/lib/datetime";
+import { useReflectionWindows } from "../hooks/use-reflection-windows";
 
 /**
  * Which window the refine chat targets. Lists the reflection's series (oldest
  * first) plus the window the conversation is currently bound to when it is
  * not on the grid (the trailing "as of now" window of a brand-new reflection).
- * Picking one re-targets the chat on its next send. `refreshKey` re-fetches
- * the list — bump it when the schedule or the snapshots change.
+ * Picking one re-targets the chat on its next send.
  */
 export function WindowSelect({
   reflectionId,
   active,
   onChange,
-  refreshKey,
   className,
   compact,
 }: {
   reflectionId: string;
   active: TimeWindow | undefined;
   onChange: (win: TimeWindow) => void;
-  refreshKey?: unknown;
   className?: string;
   /** No label, fits a pane header. */
   compact?: boolean;
 }) {
-  const [windows, setWindows] = useState<ReflectionWindow[]>([]);
-
-  const load = useCallback(async () => {
-    const res = await listReflectionWindows(reflectionId);
-    if (res.isOk()) setWindows(res.value.windows);
-  }, [reflectionId]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an explicit re-fetch trigger
-  useEffect(() => {
-    void load();
-  }, [load, refreshKey]);
+  const { windows } = useReflectionWindows(reflectionId);
 
   const activeKey = active ? `${active.start}_${active.end}` : "";
   const onGrid = windows.some((w) => w.key === activeKey);

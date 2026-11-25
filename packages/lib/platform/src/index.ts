@@ -11,15 +11,19 @@ export type KalaidoscopeMeta = {
   archivedAt?: string;
 };
 
+export type ThemePreference = "light" | "dark" | "system";
+
 export type PersistentAppSetting = {
-  lightDarkMode: "light" | "dark";
-  availableKalaidoscopes: KalaidoscopeMeta[];
+  theme: ThemePreference;
+  cloudSessionToken: string;
+  localKalaidoscopes: KalaidoscopeMeta[];
+  cachedCloudKalaidoscopes: KalaidoscopeMeta[];
   onboardingAcknowledged: boolean;
   errorReportingEnabled: boolean;
   usageStatisticsEnabled: boolean;
   lastOpenedKalaidoscopeId: string;
   ollamaModel: string;
-  pinnedProjections: Record<string, string[]>;
+  sidebarOpen: boolean;
 };
 
 export interface SettingsStore {

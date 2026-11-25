@@ -1,12 +1,11 @@
-import { WarningIcon } from "@phosphor-icons/react";
-import { useId, useState } from "react";
-import { setSetting } from "@/api/app/settings.ts";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Checkbox } from "@kalaido/primitives/shadcn/checkbox";
 import { Label } from "@kalaido/primitives/shadcn/label";
-import { completeOnboardingInterstitial } from "@/state/app-state-actions.ts";
+import { WarningIcon } from "@phosphor-icons/react";
+import { useId, useState } from "react";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { completeOnboardingInterstitial } from "@/state/app-state-actions.ts";
 import { OnboardingShell } from "../components/onboarding-shell";
 import { onboardingInterstitialTransitions as transitions } from "./OnboardingInterstitial.transitions";
 
@@ -20,12 +19,7 @@ export default function OnboardingInterstitial() {
 
   async function handleContinue() {
     setSubmitting(true);
-    await Promise.all([
-      setSetting("onboardingAcknowledged", true),
-      setSetting("errorReportingEnabled", errorReportingEnabled),
-      setSetting("usageStatisticsEnabled", usageStatisticsEnabled),
-    ]);
-    completeOnboardingInterstitial({
+    await completeOnboardingInterstitial({
       errorReportingEnabled,
       usageStatisticsEnabled,
     });

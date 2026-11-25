@@ -5,6 +5,7 @@ import {
   syncTelemetryPreferences,
 } from "@kalaido/client/lib/posthog";
 import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
+import type { Theme } from "@kalaido/primitives/lib/theme";
 import { ThemeProvider } from "@kalaido/primitives/providers/theme-provider";
 import { Toaster } from "@kalaido/primitives/shadcn/sonner";
 import { PostHogProvider } from "posthog-js/react";
@@ -18,14 +19,18 @@ export interface TelemetryPreferences {
 
 export function CoreProviders({
   children,
+  theme,
+  onThemeChange,
   telemetry,
 }: {
   children: ReactNode;
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
   telemetry?: TelemetryPreferences;
 }) {
   const posthogConfig = getPosthogConfig();
   const content = (
-    <ThemeProvider>
+    <ThemeProvider theme={theme} onThemeChange={onThemeChange}>
       {posthogConfig && telemetry && <PostHogTelemetrySync prefs={telemetry} />}
       {children}
       <Toaster />

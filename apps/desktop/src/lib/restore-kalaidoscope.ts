@@ -10,8 +10,9 @@ import {
   restoreBackup,
   waitForCloudRestart,
 } from "@kalaido/client/kalaidoscope/backups";
-import { setAppStage } from "@/state/app-state-actions.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
+import { teardownActiveClient } from "@/state/app-state.ts";
+import { setAppStage } from "@/state/app-state-actions.ts";
 
 async function prepareWaitForLocalStopped(
   id: string,
@@ -100,6 +101,10 @@ export async function restoreKalaidoscope(
     stoppedWait?.cleanup();
     return err(restoreResult.error);
   }
+
+  // The restored DB may share the exact same baseURL (especially cloud), so
+  // dispose SSE subscriptions and evict cached live data before reopening.
+  await teardownActiveClient();
 
   setAppStage({ stage: "kalaidoscope_loading" });
 

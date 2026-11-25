@@ -4,18 +4,42 @@ import { err, ok, type Result } from "neverthrow";
 import { getAuthUrl, onClientConfigChange } from "#config";
 import { toError } from "#lib/errors";
 
-const SESSION_TOKEN_KEY = "kalaido.cloud.session-token";
 const JWT_EXPIRY_SKEW_S = 30;
 
+export interface CloudSessionTokenBridge {
+  /** Synchronously return the current persisted cloud session token (or null). */
+  readonly get: () => string | null;
+  /**
+   * Synchronously reflect a token update so an immediate `get()` returns the
+   * new value, while persisting optimistically in the background.
+   */
+  readonly onChange: (token: string | null) => void;
+}
+
+let tokenBridge: CloudSessionTokenBridge | null = null;
+let fallbackSessionToken: string | null = null;
 let cachedJwt: { token: string; exp: number } | null = null;
 let inflightJwt: Promise<Result<string, Error>> | null = null;
 
-function readSessionToken(): string | null {
-  try {
-    return window.localStorage.getItem(SESSION_TOKEN_KEY);
-  } catch {
-    return null;
+export function configureCloudSessionTokenBridge(
+  bridge: CloudSessionTokenBridge | null,
+): void {
+  tokenBridge = bridge;
+  if (bridge === null) {
+    fallbackSessionToken = null;
   }
+}
+
+function readSessionToken(): string | null {
+  if (tokenBridge) {
+    return tokenBridge.get();
+  }
+  return fallbackSessionToken;
+}
+
+function writeSessionToken(token: string | null): void {
+  fallbackSessionToken = token;
+  tokenBridge?.onChange(token);
 }
 
 function cacheJwt(token: string): void {
@@ -34,9 +58,7 @@ function buildAuthClient(baseURL: string) {
       onSuccess: (ctx) => {
         const sessionToken = ctx.response.headers.get("set-auth-token");
         if (sessionToken) {
-          try {
-            window.localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
-          } catch {}
+          writeSessionToken(sessionToken);
           cachedJwt = null;
         }
         const jwt = ctx.response.headers.get("set-auth-jwt");
@@ -84,9 +106,7 @@ export function getCloudSessionAtom() {
 }
 
 export function dropCloudSession(): void {
-  try {
-    window.localStorage.removeItem(SESSION_TOKEN_KEY);
-  } catch {}
+  writeSessionToken(null);
   cachedJwt = null;
   const sessionAtom = cachedClient?.$store.atoms.session;
   if (sessionAtom) {
@@ -209,6 +229,14 @@ export async function signUpWithEmail(
   }
 }
 
-export async function signOutCloudAuth(): Promise<void> {
-  await getAuthClient().signOut();
+export async function signOutCloudAuth(): Promise<Result<void, Error>> {
+  try {
+    const res = await getAuthClient().signOut();
+    if (res?.error) {
+      return err(new Error(res.error.message ?? "Sign out failed"));
+    }
+    return ok(undefined);
+  } catch (e) {
+    return err(toError(e));
+  }
 }

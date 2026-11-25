@@ -1,7 +1,6 @@
 import { useMemo } from "react";
-
-import { useCollection } from "#use-collection";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
+import { useLiveCollection } from "#use-live-collection";
 
 /** How much of a fragment's content to show before it's an id in disguise. */
 const LABEL_MAX = 60;
@@ -58,7 +57,7 @@ export function useFragmentLabelsQuery(ids: string[]): FragmentLabelsQuery {
       .join(" || ");
   }, [key, client]);
 
-  const { records, data, isLoading } = useCollection("fragment", {
+  const { records, data, isLoading } = useLiveCollection("fragment", {
     filter,
     fields: "id,content",
     enabled: !!filter,

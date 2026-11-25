@@ -22,7 +22,6 @@ import {
 import { useIsMobile } from "#hooks/use-mobile";
 import { cn } from "#lib/css-utils";
 
-const SIDEBAR_STORAGE_KEY = "sidebar_state";
 const SIDEBAR_WIDTH = "11rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "76px";
@@ -39,30 +38,6 @@ type SidebarContextProps = {
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
-
-/**
- * The sidebar opens collapsed by default, so the user's choice to expand it has
- * to survive a restart — otherwise every launch silently discards it. Read on
- * init, written on every change.
- */
-function readStoredOpen(): boolean | null {
-  try {
-    const raw = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    return raw === null ? null : raw === "true";
-  } catch {
-    // Storage can be unavailable (private mode, embedded webview); fall back to
-    // the default rather than failing to render the shell.
-    return null;
-  }
-}
-
-function writeStoredOpen(open: boolean): void {
-  try {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
-  } catch {
-    // Non-fatal: the sidebar still works, it just won't be remembered.
-  }
-}
 
 function useSidebar() {
   const context = React.useContext(SidebarContext);
@@ -91,9 +66,7 @@ function SidebarProvider({
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(
-    () => readStoredOpen() ?? defaultOpen,
-  );
+  const [_open, _setOpen] = React.useState(defaultOpen);
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -103,8 +76,6 @@ function SidebarProvider({
       } else {
         _setOpen(openState);
       }
-
-      writeStoredOpen(openState);
     },
     [setOpenProp, open],
   );

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { type AppStage, appState } from "@/state/app-state.ts";
+import { type AppStage, desktopScope } from "@/state/app-state.ts";
 import { pathFor, routeById } from "./registry";
 import type { AnyParams, ParamsArg, StateArg } from "./route-contracts";
 import type { RouteId } from "./route-ids";
@@ -41,15 +41,16 @@ export function useAppNavigate() {
       ...[opts]: GoArgs<Id>
     ) => {
       const target = routeById(transition.to);
+      const currentStage = desktopScope.state.appStage as AppStage;
       const missing = missingScope(
         target,
-        currentScope({ appStage: appState.appStage as AppStage }),
+        currentScope({ appStage: currentStage }),
       );
       if (missing.length > 0) {
         console.error(
           `[nav] blocked transition to "${target.id}" (${transition.trigger}) — missing scope: ${missing.join(", ")}`,
         );
-        navigate(pathFor(stageEntryRoute(appState.appStage as AppStage)), {
+        navigate(pathFor(stageEntryRoute(currentStage)), {
           replace: true,
         });
         return;

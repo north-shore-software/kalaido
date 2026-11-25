@@ -1,20 +1,21 @@
-import { useEffect, useRef } from "react";
 import { FeedbackDialog } from "@kalaido/components";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useSnapshot } from "valtio/react";
 import {
   registerMenuFeedbackListener,
   registerMenuNavigateListener,
   registerMenuUpdateListener,
 } from "@/api/app/os-integrations.ts";
+import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
+import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
+import { type AppStage, DesktopScopeContext } from "@/state/app-state.ts";
 import {
   closeFeedbackDialog,
   openFeedbackDialog,
 } from "@/state/app-state-actions.ts";
-import { type AppStage, appState } from "@/state/app-state.ts";
-import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
-import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { pathFor } from "./registry";
 import { stageEntryRoute } from "./route-kit";
 
@@ -37,7 +38,12 @@ export function MenuEventListener() {
 }
 
 export function MenuFeedbackListener() {
-  const { feedbackDialogOpen } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const feedbackScope = useScope({
+    from: root,
+    state: ["feedbackDialogOpen"],
+  });
+  const { feedbackDialogOpen } = useScopeState(feedbackScope);
   const { pathname } = useLocation();
   useEffect(() => {
     const unlistenPromise = registerMenuFeedbackListener(openFeedbackDialog);
@@ -90,7 +96,9 @@ export function MenuUpdateListener() {
 
 export function StateNavigationListener() {
   const navigate = useNavigate();
-  const { appStage } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const stageScope = useScope({ from: root, state: ["appStage"] });
+  const { appStage } = useScopeState(stageScope);
   const handledStage = useRef<string | null>(null);
 
   useEffect(() => {
@@ -108,7 +116,7 @@ export function StateNavigationListener() {
     handledStage.current = stageKey;
 
     if (appStage.stage === "kalaidoscope_load_requested") {
-      switchLocalKalaidoscope(appStage.loadKalaidoscopeId, {
+      void switchLocalKalaidoscope(appStage.loadKalaidoscopeId, {
         entry: appStage.entry,
       });
     } else if (appStage.stage !== "bootstrap") {

@@ -1,11 +1,15 @@
-import { useCallback, useState } from "react";
-import { toast } from "sonner";
 import {
   type ChatBrief,
   generateBrief,
+  type MessageMark,
   saveBookmarks,
 } from "@kalaido/client/kalaidoscope/chat";
 import { updateColour } from "@kalaido/client/kalaidoscope/colours";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 export type BookmarkActionPhase = "idle" | "saving" | "colouring" | "briefing";
 
@@ -31,37 +35,72 @@ export interface BookmarkActions {
 
 /**
  * The batch actions on a chat's bookmarks. Each starts by saving (the server
- * makes that idempotent), then does its own thing with the fragments; the
- * marks are re-read afterwards so the tray and the bubbles show what
- * happened.
+ * makes that idempotent), then does its own thing with the fragments; paired
+ * invalidation refreshes `chat_message` marks automatically.
  */
 export function useBookmarkActions(
   clientId: string,
-  refreshMarks: () => Promise<unknown>,
+  marks: ReadonlyMap<string, MessageMark>,
 ): BookmarkActions {
+  const client = useKalaidoscopeClient();
   const [phase, setPhase] = useState<BookmarkActionPhase>("idle");
   const [error, setError] = useState<string | undefined>();
 
+  const saveWrite = useExternalWrite<void, { readonly ids: readonly string[] }>(
+    {
+      execute: async () =>
+        (await saveBookmarks(clientId)).map((r) => ({
+          ids: r.saved.map((s) => s.fragmentId),
+        })),
+      concurrency: "ignore",
+      invalidates: () => [
+        kalaidoscopeCollectionTag(client.baseURL, "chat_message"),
+      ],
+    },
+  );
+
+  const colourWrite = useExternalWrite<
+    { colourId: string; ids: string[] },
+    void
+  >({
+    execute: async ({ colourId, ids }) =>
+      (await updateColour(colourId, { positiveExamples: ids })).map(
+        () => undefined,
+      ),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "colour_fragment"),
+    ],
+  });
+
   const saveAll = useCallback(async () => {
+    const unsavedCount = Array.from(marks.values()).filter(
+      (m) => m.bookmarked && !m.fragmentId,
+    ).length;
+
     setPhase("saving");
     setError(undefined);
-    const res = await saveBookmarks(clientId);
-    await refreshMarks();
-    if (res.isErr()) {
+    const outcome = await saveWrite.run();
+    if (outcome.status === "ignored") {
       setPhase("idle");
-      setError(res.error.message);
+      return null;
+    }
+    if (outcome.status === "error") {
+      setPhase("idle");
+      setError(outcome.error.message);
       toast.error("Couldn't save bookmarks", {
-        description: res.error.message,
+        description: outcome.error.message,
       });
       return null;
     }
-    const created = res.value.saved.filter((s) => s.created).length;
-    if (created > 0) {
-      toast.success(`Saved ${created} fragment${created === 1 ? "" : "s"}`);
+    if (unsavedCount > 0) {
+      toast.success(
+        `Saved ${unsavedCount} fragment${unsavedCount === 1 ? "" : "s"}`,
+      );
     }
     setPhase("idle");
-    return res.value.saved.map((s) => s.fragmentId);
-  }, [clientId, refreshMarks]);
+    return [...outcome.ids];
+  }, [marks, saveWrite]);
 
   const saveAndColour = useCallback(
     async (colourId: string, colourName: string) => {
@@ -69,12 +108,13 @@ export function useBookmarkActions(
       if (!ids) return false;
       if (ids.length === 0) return true;
       setPhase("colouring");
-      const res = await updateColour(colourId, { positiveExamples: ids });
+      const outcome = await colourWrite.run({ colourId, ids });
       setPhase("idle");
-      if (res.isErr()) {
-        setError(res.error.message);
+      if (outcome.status === "ignored") return false;
+      if (outcome.status === "error") {
+        setError(outcome.error.message);
         toast.error(`Couldn't add to ${colourName}`, {
-          description: res.error.message,
+          description: outcome.error.message,
         });
         return false;
       }
@@ -83,7 +123,7 @@ export function useBookmarkActions(
       );
       return true;
     },
-    [saveAll],
+    [saveAll, colourWrite],
   );
 
   const saveAndBrief = useCallback(async () => {

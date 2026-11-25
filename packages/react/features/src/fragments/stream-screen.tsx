@@ -10,18 +10,28 @@ import {
 } from "@kalaido/client/lib/datetime";
 import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
 import { FragmentDrawer, PageHeader } from "@kalaido/components";
-import { useCollection } from "@kalaido/hooks/use-collection";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
 import {
   parseColourIds,
   resolveSwatches,
   useColourSwatches,
 } from "@kalaido/hooks/use-colour-swatches";
-import { useLiveCollectionWatching } from "@kalaido/hooks/use-live-collection";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import {
+  useLiveCollection,
+  useLiveCollectionWatching,
+} from "@kalaido/hooks/use-live-collection";
 import { Mono, Pill } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Checkbox } from "@kalaido/primitives/shadcn/checkbox";
+import { useExternalWrite } from "@kalaido/state/live";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { PlusIcon } from "@phosphor-icons/react";
-import { Fragment as F, useMemo, useState } from "react";
+import { Fragment as F, useMemo } from "react";
 import { toast } from "sonner";
 import {
   DayHeader,
@@ -42,6 +52,24 @@ const importLabel = (files: string[], created: string) => {
   return `${name}${more} · ${formatShortDateTime(created)}`;
 };
 
+interface StreamWorkflowState {
+  query: string;
+  colourId: string | null;
+  importId: string | null;
+  selecting: boolean;
+  selectedIds: string[];
+}
+
+type StreamWorkflowEvent =
+  | { readonly type: "setQuery"; readonly query: string }
+  | { readonly type: "setColourId"; readonly colourId: string | null }
+  | { readonly type: "setImportId"; readonly importId: string | null }
+  | { readonly type: "clearFilters" }
+  | { readonly type: "setSelecting"; readonly selecting: boolean }
+  | { readonly type: "toggleSelected"; readonly id: string }
+  | { readonly type: "setSelectedIds"; readonly ids: string[] }
+  | { readonly type: "clearSelection" };
+
 export interface StreamScreenProps {
   selectedId?: string;
   onOpenFragment: (id: string) => void;
@@ -55,7 +83,8 @@ export function StreamScreen({
   onCloseFragment,
   onOpenImport,
 }: StreamScreenProps) {
-  const { records, isLoading, mutate } = useLiveCollectionWatching(
+  const client = useKalaidoscopeClient();
+  const { records, isLoading } = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment", "fragment_annotation"],
     {
@@ -66,11 +95,11 @@ export function StreamScreen({
     },
   );
   const swatches = useColourSwatches();
-  const colours = useCollection("colour", {
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,swatch",
   });
-  const ingests = useCollection("ingest", {
+  const ingests = useLiveCollection("ingest", {
     sort: "-created",
     filter: "status = 'done' && ingested > 0",
     fields: "id,file,created",
@@ -83,12 +112,67 @@ export function StreamScreen({
       })),
     [ingests.records],
   );
-  const [query, setQuery] = useState("");
-  const [colourId, setColourId] = useState<string | null>(null);
-  const [importId, setImportId] = useState<string | null>(null);
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [archiving, setArchiving] = useState(false);
+
+  const handlers: ScopeHandlers<StreamWorkflowState, StreamWorkflowEvent> = {
+    setQuery: (s, e) => {
+      s.query = e.query;
+    },
+    setColourId: (s, e) => {
+      s.colourId = e.colourId;
+    },
+    setImportId: (s, e) => {
+      s.importId = e.importId;
+    },
+    clearFilters: (s) => {
+      s.query = "";
+      s.colourId = null;
+      s.importId = null;
+    },
+    setSelecting: (s, e) => {
+      s.selecting = e.selecting;
+      if (!e.selecting) s.selectedIds = [];
+    },
+    toggleSelected: (s, e) => {
+      const idx = s.selectedIds.indexOf(e.id);
+      if (idx >= 0) {
+        s.selectedIds = s.selectedIds.filter((id) => id !== e.id);
+      } else {
+        s.selectedIds = [...s.selectedIds, e.id];
+      }
+    },
+    setSelectedIds: (s, e) => {
+      s.selectedIds = e.ids;
+    },
+    clearSelection: (s) => {
+      s.selectedIds = [];
+    },
+  };
+  const scope = useScope({
+    initial: (): StreamWorkflowState => ({
+      query: "",
+      colourId: null,
+      importId: null,
+      selecting: false,
+      selectedIds: [],
+    }),
+    handlers,
+  });
+
+  const { query, colourId, importId, selecting, selectedIds } =
+    useScopeState(scope);
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  const archiveWrite = useExternalWrite<string[], void>({
+    execute: (ids) => archiveFragments(ids),
+    concurrency: "ignore",
+    invalidates: () => [kalaidoscopeCollectionTag(client.baseURL, "fragment")],
+  });
+
+  const unarchiveWrite = useExternalWrite<string[], void>({
+    execute: (ids) => unarchiveFragments(ids),
+    concurrency: "allow",
+    invalidates: () => [kalaidoscopeCollectionTag(client.baseURL, "fragment")],
+  });
 
   const fragments = useMemo<LoadedFragment[]>(
     () =>
@@ -128,30 +212,23 @@ export function StreamScreen({
     [visible, selected],
   );
 
-  function toggleSelected(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
-  }
-
-  function changeSelecting(on: boolean) {
-    setSelecting(on);
-    if (!on) setSelected(new Set());
+  async function restore(ids: string[]) {
+    const outcome = await unarchiveWrite.run(ids);
+    if (outcome.status === "error") {
+      toast.error("Couldn't restore", { description: outcome.error.message });
+    }
   }
 
   async function archiveSelected() {
     const ids = selectedVisible;
     if (ids.length === 0) return;
-    setArchiving(true);
-    const res = await archiveFragments(ids);
-    setArchiving(false);
-    if (res.isErr()) {
-      toast.error("Couldn't archive", { description: res.error.message });
+    const outcome = await archiveWrite.run(ids);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Couldn't archive", { description: outcome.error.message });
       return;
     }
-    setSelected(new Set());
+    void scope.dispatch({ type: "clearSelection" });
     toast.success(
       ids.length === 1
         ? "Fragment archived"
@@ -163,20 +240,10 @@ export function StreamScreen({
         },
       },
     );
-    await mutate();
-  }
-
-  async function restore(ids: string[]) {
-    const res = await unarchiveFragments(ids);
-    if (res.isErr()) {
-      toast.error("Couldn't restore", { description: res.error.message });
-      return;
-    }
-    await mutate();
   }
 
   function openOrToggle(id: string) {
-    if (selecting) toggleSelected(id);
+    if (selecting) void scope.dispatch({ type: "toggleSelected", id });
     else onOpenFragment(id);
   }
 
@@ -199,26 +266,41 @@ export function StreamScreen({
         <div className="mx-auto w-full max-w-[720px] px-8 pt-4">
           <StreamToolbar
             query={query}
-            onQueryChange={setQuery}
+            onQueryChange={(next) =>
+              void scope.dispatch({ type: "setQuery", query: next })
+            }
             colours={colours.records.map((c) => ({
               id: c.id,
               name: c.name,
               swatch: c.swatch ?? 0,
             }))}
             colourId={colourId}
-            onColourChange={setColourId}
+            onColourChange={(next) =>
+              void scope.dispatch({ type: "setColourId", colourId: next })
+            }
             imports={imports}
             importId={importId}
-            onImportChange={setImportId}
+            onImportChange={(next) =>
+              void scope.dispatch({ type: "setImportId", importId: next })
+            }
             shown={visible.length}
             total={fragments.length}
             selecting={selecting}
-            onSelectingChange={changeSelecting}
+            onSelectingChange={(next) =>
+              void scope.dispatch({ type: "setSelecting", selecting: next })
+            }
             selectedCount={selectedVisible.length}
-            onSelectAll={() => setSelected(new Set(visible.map((f) => f.id)))}
-            onClearSelection={() => setSelected(new Set())}
+            onSelectAll={() =>
+              void scope.dispatch({
+                type: "setSelectedIds",
+                ids: visible.map((f) => f.id),
+              })
+            }
+            onClearSelection={() =>
+              void scope.dispatch({ type: "clearSelection" })
+            }
             onArchive={() => void archiveSelected()}
-            archiving={archiving}
+            archiving={archiveWrite.isPending}
           />
         </div>
       )}
@@ -240,11 +322,7 @@ export function StreamScreen({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setQuery("");
-                  setColourId(null);
-                  setImportId(null);
-                }}
+                onClick={() => void scope.dispatch({ type: "clearFilters" })}
               >
                 Clear filters
               </Button>

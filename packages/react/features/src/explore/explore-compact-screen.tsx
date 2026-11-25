@@ -10,6 +10,7 @@ import {
   type ContextItem,
   PanelErrorBoundary,
 } from "@kalaido/components";
+import { kalaidoscopeEndpointTag } from "@kalaido/hooks/kalaidoscope-live";
 import { useActiveKalaidoscope } from "@kalaido/hooks/use-active-kalaidoscope";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import type { KalaidoscopeMeta } from "@kalaido/platform";
@@ -22,6 +23,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@kalaido/primitives/shadcn/dropdown-menu";
+import { invalidateLiveTags } from "@kalaido/state/live";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import {
   CaretDownIcon,
   CheckIcon,
@@ -31,16 +38,55 @@ import {
 } from "@phosphor-icons/react";
 import { generateId, type UIMessage } from "ai";
 import type { Result } from "neverthrow";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatMessageActions } from "./chat-message-actions";
 import { ConversationList } from "./conversation-list";
 import { useActiveContext } from "./hooks/use-active-context";
 import { useBookmarkActions } from "./hooks/use-bookmark-actions";
 import { useBookmarks } from "./hooks/use-bookmarks";
-import { useConversations } from "./hooks/use-conversations";
+import {
+  CHAT_CONVERSATIONS_ENDPOINT,
+  useConversations,
+} from "./hooks/use-conversations";
+
+interface SelectedConversation {
+  id: string;
+  clientId: string;
+  messages: UIMessage[];
+}
+
+interface CompactExploreState {
+  selected: SelectedConversation | null;
+  newChatId: string;
+  context: ContextItem[];
+  syncedClientId: string | null;
+  historyOpen: boolean;
+  switchingScope: boolean;
+}
+
+type CompactExploreEvent =
+  | {
+      readonly type: "selectConversation";
+      readonly conversation: SelectedConversation;
+      readonly closeHistory?: boolean;
+    }
+  | { readonly type: "startNew"; readonly nextChatId: string }
+  | { readonly type: "setContext"; readonly context: ContextItem[] }
+  | { readonly type: "mentionContext"; readonly item: ContextItem }
+  | {
+      readonly type: "syncHistoryContext";
+      readonly clientId: string;
+      readonly context: ContextItem[];
+    }
+  | { readonly type: "setHistoryOpen"; readonly open: boolean }
+  | { readonly type: "toggleHistory" }
+  | { readonly type: "setSwitchingScope"; readonly switching: boolean };
 
 export interface ExploreCompactScreenProps {
   workspaces: readonly KalaidoscopeMeta[];
+  /** Most recent conversation id for this workspace, handed down from root app state. */
+  recentConversationId?: string | null;
+  onRecentConversationChange?: (conversationId: string | null) => void;
   onSyncWorkspaces: () => Promise<Result<void, Error>>;
   onSelectWorkspace: (id: string) => Promise<void>;
   onSignOut: () => Promise<void>;
@@ -48,6 +94,8 @@ export interface ExploreCompactScreenProps {
 
 export function ExploreCompactScreen({
   workspaces,
+  recentConversationId,
+  onRecentConversationChange,
   onSyncWorkspaces,
   onSelectWorkspace,
   onSignOut,
@@ -57,31 +105,106 @@ export function ExploreCompactScreen({
   const cloudScopes = activeKalaidoscopes(workspaces).filter(
     (k) => k.type === "cloud",
   );
-  const { conversations, loading: loadingList, refresh } = useConversations();
-  const [selected, setSelected] = useState<{
-    id: string;
-    clientId: string;
-    messages: UIMessage[];
-  } | null>(null);
-  const [newChatId, setNewChatId] = useState(() => generateId());
+  const { conversations, loading: loadingList } = useConversations();
+
+  const handlers: ScopeHandlers<CompactExploreState, CompactExploreEvent> = {
+    selectConversation: (s, e) => {
+      s.selected = e.conversation;
+      if (e.closeHistory) s.historyOpen = false;
+    },
+    startNew: (s, e) => {
+      s.selected = null;
+      s.newChatId = e.nextChatId;
+      s.context = [WHOLE_SCOPE_ITEM];
+      s.syncedClientId = null;
+      s.historyOpen = false;
+    },
+    setContext: (s, e) => {
+      s.context = e.context;
+    },
+    mentionContext: (s, e) => {
+      s.context = withContextItem(s.context, e.item);
+    },
+    syncHistoryContext: (s, e) => {
+      s.context = e.context;
+      s.syncedClientId = e.clientId;
+    },
+    setHistoryOpen: (s, e) => {
+      s.historyOpen = e.open;
+    },
+    toggleHistory: (s) => {
+      s.historyOpen = !s.historyOpen;
+    },
+    setSwitchingScope: (s, e) => {
+      s.switchingScope = e.switching;
+    },
+  };
+  const scope = useScope({
+    initial: (): CompactExploreState => ({
+      selected: null,
+      newChatId: generateId(),
+      context: [WHOLE_SCOPE_ITEM],
+      syncedClientId: null,
+      historyOpen: false,
+      switchingScope: false,
+    }),
+    handlers,
+  });
+
+  const {
+    selected,
+    newChatId,
+    context,
+    syncedClientId,
+    historyOpen,
+    switchingScope,
+  } = useScopeState(scope);
+
+  // Category 5 streaming mirror fed by ChatPanel.
   const [liveMessages, setLiveMessages] = useState<UIMessage[]>([]);
-  const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [switchingScope, setSwitchingScope] = useState(false);
 
   useEffect(() => {
     void onSyncWorkspaces();
   }, [onSyncWorkspaces]);
 
+  const restoredRecentRef = useRef(false);
+  useEffect(() => {
+    if (restoredRecentRef.current || !recentConversationId || loadingList) {
+      return;
+    }
+    const target = conversations.find(
+      (c) =>
+        c.clientId === recentConversationId || c.id === recentConversationId,
+    );
+    restoredRecentRef.current = true;
+    if (!target) return;
+    let cancelled = false;
+    void getConversationMessages(client, target.id)
+      .then((messages) => {
+        if (cancelled) return;
+        setLiveMessages(messages);
+        void scope.dispatch({
+          type: "selectConversation",
+          conversation: { id: target.id, clientId: target.clientId, messages },
+        });
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [recentConversationId, loadingList, conversations, client, scope]);
+
   const activeClientId = selected?.clientId ?? newChatId;
   const activeChatKey = selected?.id ?? newChatId;
 
   const bookmarks = useBookmarks(activeClientId);
-  const actions = useBookmarkActions(activeClientId, bookmarks.refresh);
+  const actions = useBookmarkActions(activeClientId, bookmarks.marks);
 
+  const selectedMessages = (selected?.messages ?? []) as UIMessage[];
   const { items: historyContext, ready: historyContextReady } =
-    useActiveContext(selected?.messages ?? []);
-  const [syncedClientId, setSyncedClientId] = useState<string | null>(null);
+    useActiveContext(selectedMessages);
 
   useEffect(() => {
     if (
@@ -89,10 +212,13 @@ export function ExploreCompactScreen({
       historyContextReady &&
       syncedClientId !== selected.clientId
     ) {
-      setContext(historyContext);
-      setSyncedClientId(selected.clientId);
+      void scope.dispatch({
+        type: "syncHistoryContext",
+        clientId: selected.clientId,
+        context: historyContext,
+      });
     }
-  }, [selected, historyContext, historyContextReady, syncedClientId]);
+  }, [selected, historyContext, historyContextReady, syncedClientId, scope]);
 
   const bookmarkedCount = liveMessages.filter(
     (msg) => msg.role !== "system" && bookmarks.marks.get(msg.id)?.bookmarked,
@@ -107,32 +233,35 @@ export function ExploreCompactScreen({
   const busy = actions.phase !== "idle";
 
   async function handleSelect(conv: Conversation) {
+    restoredRecentRef.current = true;
     try {
       const messages = await getConversationMessages(client, conv.id);
-      setSelected({ id: conv.id, clientId: conv.clientId, messages });
       setLiveMessages(messages);
-      setHistoryOpen(false);
+      await scope.dispatch({
+        type: "selectConversation",
+        conversation: { id: conv.id, clientId: conv.clientId, messages },
+        closeHistory: true,
+      });
+      onRecentConversationChange?.(conv.clientId);
     } catch (err) {
       console.error(err);
     }
   }
 
   function handleNew() {
-    setSelected(null);
-    setNewChatId(generateId());
+    restoredRecentRef.current = true;
     setLiveMessages([]);
-    setContext([WHOLE_SCOPE_ITEM]);
-    setSyncedClientId(null);
-    setHistoryOpen(false);
+    void scope.dispatch({ type: "startNew", nextChatId: generateId() });
+    onRecentConversationChange?.(null);
   }
 
   async function handleSelectScope(id: string) {
     if (id === activeScope?.id || switchingScope) return;
-    setSwitchingScope(true);
+    await scope.dispatch({ type: "setSwitchingScope", switching: true });
     try {
       await onSelectWorkspace(id);
     } finally {
-      setSwitchingScope(false);
+      await scope.dispatch({ type: "setSwitchingScope", switching: false });
     }
   }
 
@@ -154,18 +283,16 @@ export function ExploreCompactScreen({
             <CaretDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" sideOffset={8} className="w-64">
-            {cloudScopes.map((scope) => {
-              const isActive = scope.id === activeScope?.id;
+            {cloudScopes.map((ws) => {
+              const isActive = ws.id === activeScope?.id;
               return (
                 <DropdownMenuItem
-                  key={scope.id}
-                  onClick={() => void handleSelectScope(scope.id)}
+                  key={ws.id}
+                  onClick={() => void handleSelectScope(ws.id)}
                   disabled={switchingScope}
                   className="cursor-pointer justify-between gap-2 px-3 py-2.5 text-item normal-case tracking-normal"
                 >
-                  <span className="truncate font-medium">
-                    {scope.displayName}
-                  </span>
+                  <span className="truncate font-medium">{ws.displayName}</span>
                   {isActive && <CheckIcon className="size-4 shrink-0" />}
                 </DropdownMenuItem>
               );
@@ -196,7 +323,7 @@ export function ExploreCompactScreen({
             size="icon-sm"
             aria-label="History"
             aria-pressed={historyOpen}
-            onClick={() => setHistoryOpen((v) => !v)}
+            onClick={() => void scope.dispatch({ type: "toggleHistory" })}
           >
             <ClockCounterClockwiseIcon className="size-4" />
           </Button>
@@ -223,11 +350,13 @@ export function ExploreCompactScreen({
             flat
             key={activeChatKey}
             chatId={activeClientId}
-            initialMessages={selected?.messages ?? []}
-            context={context}
-            onContextChange={setContext}
+            initialMessages={selectedMessages}
+            context={context as ContextItem[]}
+            onContextChange={(next) =>
+              void scope.dispatch({ type: "setContext", context: next })
+            }
             onMention={(item) =>
-              setContext((prev) => withContextItem(prev, item))
+              void scope.dispatch({ type: "mentionContext", item })
             }
             entity="chat"
             meter={{ conversationId: activeClientId }}
@@ -246,7 +375,13 @@ export function ExploreCompactScreen({
             actionsVisibleFor={() => true}
             onMessagesChange={setLiveMessages}
             onTurnComplete={() => {
-              refresh();
+              onRecentConversationChange?.(activeClientId);
+              void invalidateLiveTags([
+                kalaidoscopeEndpointTag(
+                  client.baseURL,
+                  CHAT_CONVERSATIONS_ENDPOINT,
+                ),
+              ]);
             }}
           />
         </PanelErrorBoundary>
@@ -259,7 +394,12 @@ export function ExploreCompactScreen({
                   variant="ghost"
                   size="icon-xs"
                   aria-label="Close history"
-                  onClick={() => setHistoryOpen(false)}
+                  onClick={() =>
+                    void scope.dispatch({
+                      type: "setHistoryOpen",
+                      open: false,
+                    })
+                  }
                 >
                   <XIcon className="size-3.5" />
                 </Button>

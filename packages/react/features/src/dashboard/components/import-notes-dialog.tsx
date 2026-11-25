@@ -1,4 +1,4 @@
-import { useCollection } from "@kalaido/hooks/use-collection";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
   Dialog,
@@ -37,7 +37,7 @@ export function ImportNotesDialog({
     useImportSubmit(onImportSuccess);
   const picker = useImportPicker(importAdapter, clearError);
   const [colour, setColour] = useState<ImportColourChoice>({ kind: "none" });
-  const colours = useCollection("colour", {
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,swatch",
   });

@@ -9,7 +9,7 @@ import {
 } from "./chat";
 
 export interface CreateRefinementResult {
-  refinementId: string;
+  readonly id: string;
   /**
    * Messages the server seeded onto the new conversation, with the ids it
    * persisted them under. Display these as-is — reconstructing an equivalent
@@ -20,7 +20,7 @@ export interface CreateRefinementResult {
 }
 
 export interface CommitRefinementResult {
-  snapshotId: string;
+  readonly id: string;
 }
 
 /**
@@ -59,22 +59,32 @@ export async function createRefinement(input: {
    */
   window?: TimeWindow;
 }): Promise<Result<CreateRefinementResult, Error>> {
-  return withActiveClient((client) =>
-    client.send<CreateRefinementResult>(
-      `/api/${input.target}s/${input.parentId}/refinements`,
-      {
-        method: "POST",
-        body: {
-          clientId: input.clientId,
-          ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
-          ...(input.contextSpec ? { contextSpec: input.contextSpec } : {}),
-          ...(input.window
-            ? { window: { start: input.window.start, end: input.window.end } }
-            : {}),
+  return (
+    await withActiveClient((client) =>
+      client.send<{ refinementId: string; messages?: UIMessage[] }>(
+        `/api/${input.target}s/${input.parentId}/refinements`,
+        {
+          method: "POST",
+          body: {
+            clientId: input.clientId,
+            ...(input.snapshotId ? { snapshotId: input.snapshotId } : {}),
+            ...(input.contextSpec ? { contextSpec: input.contextSpec } : {}),
+            ...(input.window
+              ? {
+                  window: {
+                    start: input.window.start,
+                    end: input.window.end,
+                  },
+                }
+              : {}),
+          },
         },
-      },
-    ),
-  );
+      ),
+    )
+  ).map((r) => ({
+    id: r.refinementId,
+    ...(r.messages !== undefined ? { messages: r.messages } : {}),
+  }));
 }
 
 /**
@@ -90,12 +100,14 @@ export async function commitRefinement(input: {
   parentId: string;
   refinementId: string;
 }): Promise<Result<CommitRefinementResult, Error>> {
-  return withActiveClient((client) =>
-    client.send<CommitRefinementResult>(
-      `/api/${input.target}s/${input.parentId}/refinements/${input.refinementId}/commit`,
-      { method: "POST", body: {} },
-    ),
-  );
+  return (
+    await withActiveClient((client) =>
+      client.send<{ snapshotId: string }>(
+        `/api/${input.target}s/${input.parentId}/refinements/${input.refinementId}/commit`,
+        { method: "POST", body: {} },
+      ),
+    )
+  ).map((r) => ({ id: r.snapshotId }));
 }
 
 export const UPDATE_LENS_TOOL = "update_lens";

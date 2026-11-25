@@ -1,6 +1,9 @@
+import {
+  type IngestPhase,
+  ingestNote,
+} from "@kalaido/client/kalaidoscope/ingest";
+import { useExternalWrite } from "@kalaido/state/live";
 import { useCallback, useRef, useState } from "react";
-import type { IngestPhase } from "@kalaido/client/kalaidoscope/ingest";
-import { ingestNote } from "@kalaido/client/kalaidoscope/ingest";
 
 /**
  * Path A — synchronous single-entry ingest. Thin React state around
@@ -12,6 +15,20 @@ export function useNoteIngest() {
   const [errorMsg, setErrorMsg] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
+  const ingestWrite = useExternalWrite<
+    {
+      content: string;
+      type: string;
+      skipDuplicates: boolean;
+      signal: AbortSignal;
+    },
+    void
+  >({
+    execute: ({ content, type, skipDuplicates, signal }) =>
+      ingestNote(content, type, skipDuplicates, signal),
+    concurrency: "ignore",
+  });
+
   const runIngest = useCallback(
     async (content: string, type = "note", skipDuplicates = false) => {
       const trimmed = content.trim();
@@ -22,32 +39,34 @@ export function useNoteIngest() {
       setPhase("running");
       setErrorMsg("");
 
-      const result = await ingestNote(
-        trimmed,
+      const outcome = await ingestWrite.run({
+        content: trimmed,
         type,
         skipDuplicates,
-        controller.signal,
-      );
+        signal: controller.signal,
+      });
       abortRef.current = null;
 
-      if (result.isOk()) {
+      if (outcome.status === "ignored") return;
+      if (outcome.status === "success") {
         setPhase("done");
       } else if (controller.signal.aborted) {
         setPhase("cancelled");
       } else {
-        setErrorMsg(result.error.message || "Failed to save.");
+        setErrorMsg(outcome.error.message || "Failed to save.");
         setPhase("error");
       }
     },
-    [],
+    [ingestWrite],
   );
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    ingestWrite.reset();
     setPhase("idle");
     setErrorMsg("");
-  }, []);
+  }, [ingestWrite]);
 
   return { phase, errorMsg, runIngest, reset };
 }

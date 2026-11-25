@@ -16,7 +16,7 @@ export async function addFragment(
     ingestedVia?: string;
     title?: string;
   },
-): Promise<Result<string, Error>> {
+): Promise<Result<{ readonly id: string }, Error>> {
   const client = activeClient();
   if (client.isErr()) return err(client.error);
   const baseURL = client.value.baseURL;
@@ -46,7 +46,7 @@ export async function addFragment(
       return err(new Error(msg));
     }
     const data = (await res.json()) as { fragmentId: string };
-    return ok(data.fragmentId);
+    return ok({ id: data.fragmentId });
   } catch (e) {
     return err(toError(e));
   }

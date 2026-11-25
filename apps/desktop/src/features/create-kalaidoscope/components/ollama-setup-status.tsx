@@ -1,11 +1,18 @@
-import { ArrowsClockwiseIcon, CheckIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
-import { checkOllamaStatus } from "@/api/app/ollama-status.ts";
-import { openSystemBrowser } from "@/api/app/os-integrations.ts";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import {
+  httpLiveSource,
+  invalidateLiveTags,
+  useLiveRead,
+} from "@kalaido/state/live";
+import { ArrowsClockwiseIcon, CheckIcon } from "@phosphor-icons/react";
+import { ok } from "neverthrow";
+import { useMemo } from "react";
+import { checkOllamaStatus } from "@/api/app/ollama-status.ts";
+import { openSystemBrowser } from "@/api/app/os-integrations.ts";
 
 const OLLAMA_DOWNLOAD_URL = "https://ollama.com/download";
+const OLLAMA_SETUP_STATUS_TAG = "ollama:setup-status";
 
 type Status = "checking" | "reachable" | "unreachable";
 
@@ -18,24 +25,32 @@ type Status = "checking" | "reachable" | "unreachable";
  * that they cannot easily find out themselves.
  */
 export function OllamaSetupStatus() {
-  const [status, setStatus] = useState<Status>("checking");
+  const source = useMemo(
+    () =>
+      httpLiveSource<boolean>({
+        key: ["ollama", "setup-status"],
+        tags: [OLLAMA_SETUP_STATUS_TAG],
+        revalidateOnFocus: true,
+        fetch: async () => {
+          const [result] = await Promise.all([
+            checkOllamaStatus(),
+            new Promise((resolve) => setTimeout(resolve, 500)),
+          ]);
+          // An IPC failure is indistinguishable from Ollama being down, as far
+          // as anything the user can act on goes.
+          return ok(result.isOk() && result.value.reachable);
+        },
+      }),
+    [],
+  );
 
-  const check = useCallback(async () => {
-    setStatus("checking");
-    const [result] = await Promise.all([
-      checkOllamaStatus(),
-      new Promise((resolve) => setTimeout(resolve, 500)),
-    ]);
-    // An IPC failure is indistinguishable from Ollama being down, as far as
-    // anything the user can act on goes.
-    setStatus(
-      result.isOk() && result.value.reachable ? "reachable" : "unreachable",
-    );
-  }, []);
-
-  useEffect(() => {
-    void check();
-  }, [check]);
+  const read = useLiveRead(source);
+  const status: Status =
+    read.isLoading || read.isValidating
+      ? "checking"
+      : read.data
+        ? "reachable"
+        : "unreachable";
 
   return (
     <div className="flex items-center gap-3 rounded-none border border-dashed p-3.5">
@@ -75,7 +90,7 @@ export function OllamaSetupStatus() {
         variant="outline"
         size="sm"
         disabled={status === "checking"}
-        onClick={() => void check()}
+        onClick={() => void invalidateLiveTags([OLLAMA_SETUP_STATUS_TAG])}
         className="shrink-0 gap-1.5 transition-colors hover:border-cyan-edge hover:bg-cyan-wash hover:text-cyan"
       >
         {status === "checking" ? (

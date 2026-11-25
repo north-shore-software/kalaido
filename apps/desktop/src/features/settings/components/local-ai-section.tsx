@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { RECOMMENDED_MODEL } from "@kalaido/client/kalaidoscope/llm-config";
 import {
   getLocalAiStatus,
@@ -8,43 +7,61 @@ import {
 } from "@kalaido/client/kalaidoscope/local/models";
 import { SectionHeader } from "@kalaido/primitives/layout/section";
 import { Skeleton } from "@kalaido/primitives/shadcn/skeleton";
+import {
+  httpLiveSource,
+  invalidateLiveTags,
+  useLiveRead,
+} from "@kalaido/state/live";
+import { ok } from "neverthrow";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useOllamaModel } from "@/hooks/use-ollama-model";
 import { ModelDownloadCard } from "./model-download-card";
 import { ModelRadioList } from "./model-radio-list";
 import { OllamaStatusCard } from "./ollama-status-card";
 import { QualityWarning } from "./quality-warning";
 
+const LOCAL_AI_STATUS_TAG = "local-ai:status";
+
 export function LocalAISection() {
   const { model, setModel } = useOllamaModel();
-  const [status, setStatus] = useState<LocalAiStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const [pulling, setPulling] = useState(false);
   const [pullPct, setPullPct] = useState<number | null>(null);
   const [pullStatus, setPullStatus] = useState("");
   const [pullError, setPullError] = useState<string | null>(null);
   const pullAbortRef = useRef<AbortController | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getLocalAiStatus();
-      if (result.isOk()) {
-        setStatus(result.value);
-      } else {
-        setStatus({
-          reachable: false,
-          models: [],
-          error: result.error.message,
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    return () => {
+      pullAbortRef.current?.abort();
+      pullAbortRef.current = null;
+    };
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const statusSource = useMemo(
+    () =>
+      httpLiveSource<LocalAiStatus>({
+        key: ["local-ai", "status"],
+        tags: [LOCAL_AI_STATUS_TAG],
+        revalidateOnFocus: true,
+        fetch: async () => {
+          const result = await getLocalAiStatus();
+          return ok(
+            result.isOk()
+              ? result.value
+              : {
+                  reachable: false,
+                  models: [],
+                  error: result.error.message,
+                },
+          );
+        },
+      }),
+    [],
+  );
+
+  const statusRead = useLiveRead(statusSource);
+  const status = statusRead.data ?? null;
+  const loading = statusRead.isLoading;
 
   const models = status?.models ?? [];
   const recommendedInstalled = models.some((m) =>
@@ -75,7 +92,7 @@ export function LocalAISection() {
     );
     if (result.isOk()) {
       setModel(RECOMMENDED_MODEL);
-      void refresh();
+      void invalidateLiveTags([LOCAL_AI_STATUS_TAG]);
     } else if (
       !(
         result.error instanceof DOMException &&
@@ -102,7 +119,7 @@ export function LocalAISection() {
           <OllamaStatusCard
             reachable={!!status?.reachable}
             modelCount={models.length}
-            onRefresh={() => void refresh()}
+            onRefresh={() => void invalidateLiveTags([LOCAL_AI_STATUS_TAG])}
           />
 
           {status?.reachable && (

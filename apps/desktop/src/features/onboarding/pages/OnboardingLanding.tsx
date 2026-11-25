@@ -1,22 +1,26 @@
+import type { WorkspaceLlmConfig } from "@kalaido/client/kalaidoscope/llm-config";
+import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
+import { Button } from "@kalaido/primitives/shadcn/button";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import {
   ArchiveIcon,
   CloudIcon,
   PlusIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
-
 import { useState } from "react";
-import { useSnapshot } from "valtio/react";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
-import type { WorkspaceLlmConfig } from "@kalaido/client/kalaidoscope/llm-config";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
+import {
+  type CreateKalaidoscopeInput,
+  createKalaidoscope,
+} from "@/features/create-kalaidoscope/actions.ts";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
-import { appState } from "@/state/app-state.ts";
-import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
-import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { allKalaidoscopes, DesktopScopeContext } from "@/state/app-state.ts";
 import { PrimaryChoice, SecondaryChoice } from "../components/choice-cards";
 import { DuplicateWorkspaceDialog } from "../components/duplicate-workspace-dialog";
 import { OnboardingShell } from "../components/onboarding-shell";
@@ -27,26 +31,45 @@ import { onboardingLandingTransitions as transitions } from "./OnboardingLanding
 export default function OnboardingLanding() {
   const { go } = useAppNavigate();
   const { user, signedIn, isPending: sessionPending } = useCloudSession();
-  const { availableKalaidoscopes } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const listScope = useScope({
+    from: root,
+    state: ["localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(listScope);
+  const availableKalaidoscopes = allKalaidoscopes({
+    localKalaidoscopes,
+    cachedCloudKalaidoscopes,
+  });
   const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState(false);
+  const [inspecting, setInspecting] = useState(false);
   const [pending, setPending] = useState<RestoreInspection | null>(null);
+
+  const createWrite = useExternalWrite<
+    CreateKalaidoscopeInput,
+    { readonly id: string }
+  >({
+    execute: async (input) =>
+      (await createKalaidoscope(input)).map((m) => ({ id: m.id })),
+    concurrency: "ignore",
+  });
+
+  const restoring = inspecting || createWrite.isPending;
 
   async function completeRestore(
     suggestedName: string,
     llmConfig?: WorkspaceLlmConfig,
   ) {
-    setRestoring(true);
-    const result = await createKalaidoscope({
+    const outcome = await createWrite.run({
       name: suggestedName,
       storage: "local_file",
       cloudId: "",
       locationInput: "",
       llmConfig,
     });
-    if (result.isErr()) {
-      setRestoreError(result.error.message);
-      setRestoring(false);
+    if (outcome.status === "error") {
+      setRestoreError(outcome.error.message);
     }
     setPending(null);
   }
@@ -63,9 +86,9 @@ export default function OnboardingLanding() {
     }
     if (!picked.value) return;
 
-    setRestoring(true);
+    setInspecting(true);
     const inspected = await inspectWorkspaceArchive(picked.value);
-    setRestoring(false);
+    setInspecting(false);
 
     if (inspected.isErr()) {
       setRestoreError(inspected.error.message);

@@ -3,6 +3,7 @@ import {
   parseContextSpec,
   specToItems,
   type TimeWindow,
+  type WindowSpec,
 } from "@kalaido/client/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
 import {
@@ -24,12 +25,19 @@ import { useRefineSession } from "@kalaido/hooks/use-refine-session";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
+import { useExternalWrite } from "@kalaido/state/live";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LivePreviewPane } from "./components/live-preview-pane";
 import { RefineConfigPanel } from "./components/refine-config-panel";
 import { SchedulePill } from "./components/schedule-controls";
 import { WindowSelect } from "./components/window-select";
+import { usePersistSchedule } from "./hooks/use-persist-schedule";
 import {
   buildWindowSpec,
   CADENCE_DAYS,
@@ -42,7 +50,36 @@ import {
   toDateInputValue,
 } from "./schedule";
 import type { ReflectionSeed } from "./types";
-import { usePersistSchedule } from "./hooks/use-persist-schedule";
+
+interface ReflectionRefineState {
+  cadence: number;
+  fromDate: string;
+  context: ContextItem[];
+  windowOverride: TimeWindow | undefined;
+  chipsSeeded: boolean;
+  reflectionId: string | null;
+  input: string;
+  nameInput: string;
+}
+
+type ReflectionRefineEvent =
+  | { readonly type: "setCadence"; readonly cadence: number }
+  | { readonly type: "setFromDate"; readonly fromDate: string }
+  | { readonly type: "setContext"; readonly context: ContextItem[] }
+  | { readonly type: "mentionContext"; readonly item: ContextItem }
+  | {
+      readonly type: "setWindowOverride";
+      readonly window: TimeWindow | undefined;
+    }
+  | { readonly type: "setReflectionId"; readonly id: string | null }
+  | { readonly type: "setInput"; readonly input: string }
+  | { readonly type: "setNameInput"; readonly nameInput: string }
+  | {
+      readonly type: "seedExisting";
+      readonly cadence: number;
+      readonly fromDate: string;
+      readonly context: ContextItem[];
+    };
 
 export interface ReflectionRefineScreenProps {
   id?: string;
@@ -67,7 +104,7 @@ export function ReflectionRefineScreen({
 }: ReflectionRefineScreenProps) {
   const isNew = !id;
   // Captured once: navigating away and back must not re-send the message.
-  const seedRef = useRef(seed);
+  const [capturedSeed] = useState(() => seed);
 
   const existingQuery = useLiveCollection("reflection", {
     filter: id ? `id="${id}"` : undefined,
@@ -75,18 +112,65 @@ export function ReflectionRefineScreen({
   });
   const existing = existingQuery.records[0];
 
-  const [cadence, setCadence] = useState(DEFAULT_CADENCE);
-  // "Starting from": a local calendar date, the grid origin — where the first
-  // period begins and the phase it recurs on. In the past = backfill to it.
-  const [fromDate, setFromDate] = useState(() => toDateInputValue(new Date()));
-  const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
-  const [windowOverride, setWindowOverride] = useState<TimeWindow>();
-  const [chipsSeeded, setChipsSeeded] = useState(isNew);
+  const handlers: ScopeHandlers<ReflectionRefineState, ReflectionRefineEvent> =
+    {
+      setCadence: (s, e) => {
+        s.cadence = e.cadence;
+      },
+      setFromDate: (s, e) => {
+        s.fromDate = e.fromDate;
+      },
+      setContext: (s, e) => {
+        s.context = e.context;
+      },
+      mentionContext: (s, e) => {
+        s.context = withContextItem(s.context, e.item);
+      },
+      setWindowOverride: (s, e) => {
+        s.windowOverride = e.window;
+      },
+      setReflectionId: (s, e) => {
+        s.reflectionId = e.id;
+      },
+      setInput: (s, e) => {
+        s.input = e.input;
+      },
+      setNameInput: (s, e) => {
+        s.nameInput = e.nameInput;
+      },
+      seedExisting: (s, e) => {
+        s.cadence = e.cadence;
+        s.fromDate = e.fromDate;
+        s.context = e.context;
+        s.chipsSeeded = true;
+      },
+    };
+  const scope = useScope({
+    initial: (): ReflectionRefineState => ({
+      cadence: DEFAULT_CADENCE,
+      // "Starting from": a local calendar date, the grid origin — where the first
+      // period begins and the phase it recurs on. In the past = backfill to it.
+      fromDate: toDateInputValue(new Date()),
+      context: [WHOLE_SCOPE_ITEM],
+      windowOverride: undefined,
+      chipsSeeded: isNew,
+      reflectionId: id ?? null,
+      input: "",
+      nameInput: "",
+    }),
+    handlers,
+  });
 
-  const [reflectionId, setReflectionId] = useState<string | null>(id ?? null);
-  const [input, setInput] = useState("");
-  const [nameInput, setNameInput] = useState("");
-  const [creating, setCreating] = useState(false);
+  const {
+    cadence,
+    fromDate,
+    context,
+    windowOverride,
+    chipsSeeded,
+    reflectionId,
+    input,
+    nameInput,
+  } = useScopeState(scope);
 
   const session = useRefineSession({ target: "reflection" });
 
@@ -94,6 +178,21 @@ export function ReflectionRefineScreen({
     target: "reflection",
     entityId: reflectionId,
     suggestedName: session.suggestedName,
+  });
+
+  const createWrite = useExternalWrite<
+    { initialName: string; windowSpec: WindowSpec },
+    { readonly id: string }
+  >({
+    execute: ({ initialName, windowSpec: ws }) =>
+      createReflection(initialName, ws),
+    concurrency: "ignore",
+  });
+
+  const renameWrite = useExternalWrite<{ id: string; next: string }, void>({
+    execute: async ({ id: targetId, next }) =>
+      (await updateReflection(targetId, { name: next })).map(() => undefined),
+    concurrency: "ignore",
   });
 
   // Existing reflection: seed chips and context from the record, and open the
@@ -108,22 +207,25 @@ export function ReflectionRefineScreen({
     const sched = cadenceFromSpec(
       currentWindowSpec(existing.window_spec_versions),
     );
-    setCadence(sched.cadence);
-    setFromDate(
-      sched.startTime ? toDateInputValue(new Date(sched.startTime)) : "",
-    );
     const spec = parseContextSpec(existing.current_context_spec);
-    setContext(spec ? specToItems(spec) : [WHOLE_SCOPE_ITEM]);
-    setChipsSeeded(true);
+    void scope.dispatch({
+      type: "seedExisting",
+      cadence: sched.cadence,
+      fromDate: sched.startTime
+        ? toDateInputValue(new Date(sched.startTime))
+        : "",
+      context: spec ? specToItems(spec) : [WHOLE_SCOPE_ITEM],
+    });
     const seedMessage =
-      existing.status === "proposed" ? seedRef.current?.message.trim() : "";
+      existing.status === "proposed" ? capturedSeed?.message.trim() : "";
     void session.start({
       parentId: existing.id,
       prompt: seedMessage || undefined,
     });
-  }, [isNew, existing, session.start]);
+  }, [isNew, existing, capturedSeed, session.start, scope]);
 
   const started = reflectionId != null && session.started;
+  const creating = createWrite.isPending || session.creating;
   const preview = session.preview;
   const canCommit = started && session.previewReady && !session.committing;
 
@@ -150,25 +252,23 @@ export function ReflectionRefineScreen({
   async function startReflection() {
     const text = input.trim();
     if (!text || creating) return;
-    setCreating(true);
 
     const typedName = nameInput.trim();
     const initialName = typedName || deriveName(text, "Untitled reflection");
-    const created = await createReflection(initialName, windowSpec);
-    if (created.isErr()) {
-      setCreating(false);
+    const created = await createWrite.run({ initialName, windowSpec });
+    if (created.status === "ignored") return;
+    if (created.status === "error") {
       toast.error("Failed to create reflection", {
         description: created.error.message,
       });
       return;
     }
-    const newReflectionId = created.value.reflectionId;
+    const newReflectionId = created.id;
 
     const ok = await session.start({ parentId: newReflectionId, prompt: text });
-    setCreating(false);
     if (ok) {
       adopt(initialName, !!typedName);
-      setReflectionId(newReflectionId);
+      void scope.dispatch({ type: "setReflectionId", id: newReflectionId });
     }
   }
 
@@ -185,9 +285,10 @@ export function ReflectionRefineScreen({
       return;
     }
     if (!reflectionId) return;
-    void updateReflection(reflectionId, { name: next }).then((res) => {
-      if (res.isErr())
-        toast.error("Failed to rename", { description: res.error.message });
+    void renameWrite.run({ id: reflectionId, next }).then((outcome) => {
+      if (outcome.status === "error") {
+        toast.error("Failed to rename", { description: outcome.error.message });
+      }
     });
   }
 
@@ -221,9 +322,13 @@ export function ReflectionRefineScreen({
           <div className="flex w-[322px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-line p-4">
             <RefineConfigPanel
               cadence={cadence}
-              onCadenceChange={setCadence}
+              onCadenceChange={(next) =>
+                void scope.dispatch({ type: "setCadence", cadence: next })
+              }
               fromDate={fromDate}
-              onFromDateChange={setFromDate}
+              onFromDateChange={(next) =>
+                void scope.dispatch({ type: "setFromDate", fromDate: next })
+              }
               fromDisabled={!isNew || started}
               fromNote={
                 isNew
@@ -243,11 +348,13 @@ export function ReflectionRefineScreen({
               <RefineChatPanel
                 session={session}
                 title={isNew ? "Define the summary" : "Refine the lens"}
-                context={context}
+                context={context as ContextItem[]}
                 onMention={(item) =>
-                  setContext((prev) => withContextItem(prev, item))
+                  void scope.dispatch({ type: "mentionContext", item })
                 }
-                onContextChange={setContext}
+                onContextChange={(next) =>
+                  void scope.dispatch({ type: "setContext", context: next })
+                }
                 entity="reflection"
                 timeWindow={activeWindow}
                 placeholder={
@@ -262,18 +369,25 @@ export function ReflectionRefineScreen({
                 helperText="Describe the summary you want. Your first message creates the reflection and starts generating a draft."
                 helperTextClassName="max-w-[70%]"
                 value={input}
-                onChange={setInput}
+                onChange={(next) =>
+                  void scope.dispatch({ type: "setInput", input: next })
+                }
                 placeholder="‘a tight weekly work-snippet of what shipped’…"
                 disabled={creating}
                 onSubmit={() => void startReflection()}
                 onMention={(item) =>
-                  setContext((prev) => withContextItem(prev, item))
+                  void scope.dispatch({ type: "mentionContext", item })
                 }
                 nameField={
                   <div className="shrink-0 px-4 pb-3">
                     <Input
                       value={nameInput}
-                      onChange={(e) => setNameInput(e.target.value)}
+                      onChange={(e) =>
+                        void scope.dispatch({
+                          type: "setNameInput",
+                          nameInput: e.target.value,
+                        })
+                      }
                       placeholder="Name (optional — Kalaido will suggest one)"
                       aria-label="Reflection name"
                       disabled={creating}
@@ -282,8 +396,10 @@ export function ReflectionRefineScreen({
                 }
                 beforeInput={
                   <ContextBar
-                    items={context}
-                    onChange={setContext}
+                    items={context as ContextItem[]}
+                    onChange={(next) =>
+                      void scope.dispatch({ type: "setContext", context: next })
+                    }
                     entity="reflection"
                     timeWindow={activeWindow}
                   />
@@ -304,8 +420,12 @@ export function ReflectionRefineScreen({
                   compact
                   reflectionId={reflectionId}
                   active={activeWindow}
-                  onChange={setWindowOverride}
-                  refreshKey={`${windowSpec.period}|${windowSpec.duration}`}
+                  onChange={(win) =>
+                    void scope.dispatch({
+                      type: "setWindowOverride",
+                      window: win,
+                    })
+                  }
                 />
               ) : undefined
             }

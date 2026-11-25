@@ -4,13 +4,16 @@ import {
   signInWithEmail,
   signUpWithEmail,
 } from "@kalaido/client/cloud/auth";
+import { CLOUD_SESSION_TAG } from "@kalaido/hooks/use-cloud-session";
+import { CLOUD_WORKSPACES_TAG } from "@kalaido/hooks/use-cloud-workspaces";
 import {
   type OptionCard,
   OptionCards,
 } from "@kalaido/primitives/kalaido/option-cards";
 import { cn } from "@kalaido/primitives/lib/css-utils";
-import type { Result } from "neverthrow";
-import { startTransition, useActionState, useState } from "react";
+import { useExternalWrite } from "@kalaido/state/live";
+import { err, ok, type Result } from "neverthrow";
+import { useState } from "react";
 import { toast } from "sonner";
 import { AuthForm } from "./auth-form";
 import { OAuthButtons } from "./oauth-buttons";
@@ -30,8 +33,6 @@ export interface CloudAuthPanelProps {
   signInOnly?: boolean;
 }
 
-type AuthFailure = { mode: AuthMode; message: string } | null;
-
 const AUTH_MODES: OptionCard<AuthMode>[] = [
   { value: "signin", label: "Sign in", lines: ["Access existing workspaces"] },
   { value: "signup", label: "Sign up", lines: ["Create a new account"] },
@@ -46,25 +47,26 @@ export function CloudAuthPanel({
   signInOnly,
 }: CloudAuthPanelProps) {
   const [internalMode, setInternalMode] = useState<AuthMode>("signin");
+  const [errorMode, setErrorMode] = useState<AuthMode | null>(null);
   const mode = signInOnly ? "signin" : (controlledMode ?? internalMode);
   const setMode = onModeChange ?? setInternalMode;
 
-  const [failure, submit, busy] = useActionState(
-    async (
-      _prev: AuthFailure,
-      input: EmailCredentials,
-    ): Promise<AuthFailure> => {
+  const authWrite = useExternalWrite<
+    { mode: AuthMode; credentials: EmailCredentials },
+    void
+  >({
+    execute: async ({ mode: submitMode, credentials }) => {
       const res =
-        mode === "signin"
-          ? await signInWithEmail(input)
-          : await signUpWithEmail(input);
-      if (res.isErr()) return { mode, message: res.error.message };
+        submitMode === "signin"
+          ? await signInWithEmail(credentials)
+          : await signUpWithEmail(credentials);
+      if (res.isErr()) return err(res.error);
 
       if (onSyncWorkspaces) {
         const synced = await onSyncWorkspaces();
         if (synced.isErr()) {
           if (getCloudSessionToken().isErr()) {
-            return { mode, message: synced.error.message };
+            return err(synced.error);
           }
           toast.error("Couldn't sync cloud workspaces", {
             description: synced.error.message,
@@ -72,13 +74,30 @@ export function CloudAuthPanel({
         }
       }
 
-      onAuthenticated?.({ isNewAccount: mode === "signup" });
-
-      return null;
+      return ok(undefined);
     },
-    null,
-  );
-  const error = failure?.mode === mode ? failure.message : null;
+    concurrency: "ignore",
+    invalidates: [CLOUD_SESSION_TAG, CLOUD_WORKSPACES_TAG],
+  });
+
+  function handleModeChange(next: AuthMode) {
+    authWrite.reset();
+    setErrorMode(null);
+    setMode(next);
+  }
+
+  async function handleSubmit(credentials: EmailCredentials) {
+    const submitMode = mode;
+    setErrorMode(submitMode);
+    const outcome = await authWrite.run({ mode: submitMode, credentials });
+    if (outcome.status === "success") {
+      setErrorMode(null);
+      onAuthenticated?.({ isNewAccount: submitMode === "signup" });
+    }
+  }
+
+  const error =
+    errorMode === mode && authWrite.error ? authWrite.error.message : null;
 
   return (
     <div className={cn("flex w-full max-w-lg flex-col gap-6", className)}>
@@ -86,16 +105,16 @@ export function CloudAuthPanel({
         <OptionCards
           options={AUTH_MODES}
           value={mode}
-          onChange={setMode}
-          disabled={busy}
+          onChange={handleModeChange}
+          disabled={authWrite.isPending}
         />
       )}
 
       <AuthForm
         mode={mode}
         error={error}
-        busy={busy}
-        onSubmit={(input) => startTransition(() => submit(input))}
+        busy={authWrite.isPending}
+        onSubmit={(input) => void handleSubmit(input)}
       />
 
       {!signInOnly && (

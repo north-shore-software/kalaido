@@ -1,5 +1,3 @@
-import { type RefObject, useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import {
   EDIT_TRIAGE_PART_TYPE,
   HAND_EDIT_PART_TYPE,
@@ -13,13 +11,33 @@ import {
   updateSnapshotEditStatus,
 } from "@kalaido/client/kalaidoscope/projections";
 import type { ChatPanelHandle } from "@kalaido/components";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import type { RefineSession } from "@kalaido/hooks/use-refine-session";
+import { useExternalWrite } from "@kalaido/state/live";
+import {
+  type ScopeHandlers,
+  useScope,
+  useScopeState,
+} from "@kalaido/state/scope";
+import { type RefObject, useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import type { ProjectionSnapshotWithEdits } from "./use-projection-snapshot";
+
+interface CandidateTriageState {
+  highlightedEditId: string | null;
+  activeEditId: string | null;
+  pendingHandEditId: string | null;
+}
+
+type CandidateTriageEvent =
+  | { readonly type: "setHighlightedEditId"; readonly id: string | null }
+  | { readonly type: "setActiveEditId"; readonly id: string | null }
+  | { readonly type: "setPendingHandEditId"; readonly id: string | null };
 
 export interface UseCandidateTriageOptions {
   projectionId?: string;
   pending?: ProjectionSnapshotWithEdits;
-  mutate: () => Promise<unknown>;
   session: RefineSession;
   chatPanelRef: RefObject<ChatPanelHandle | null>;
 }
@@ -51,21 +69,42 @@ export interface UseCandidateTriageResult {
 export function useCandidateTriage({
   projectionId,
   pending,
-  mutate,
   session,
   chatPanelRef,
 }: UseCandidateTriageOptions): UseCandidateTriageResult {
-  const [highlightedEditId, setHighlightedEditId] = useState<string | null>(
-    null,
-  );
-  const [activeEditId, setActiveEditId] = useState<string | null>(null);
+  const client = useKalaidoscopeClient();
+  const handlers: ScopeHandlers<CandidateTriageState, CandidateTriageEvent> = {
+    setHighlightedEditId: (s, e) => {
+      s.highlightedEditId = e.id;
+    },
+    setActiveEditId: (s, e) => {
+      s.activeEditId = e.id;
+    },
+    setPendingHandEditId: (s, e) => {
+      s.pendingHandEditId = e.id;
+    },
+  };
+  const scope = useScope({
+    initial: (): CandidateTriageState => ({
+      highlightedEditId: null,
+      activeEditId: null,
+      pendingHandEditId: null,
+    }),
+    handlers,
+  });
+  const { highlightedEditId, activeEditId, pendingHandEditId } =
+    useScopeState(scope);
 
   const pendingId = pending?.id;
-  const edits: SnapshotEdit[] = Array.isArray(pending?.edits)
-    ? pending.edits
-    : [];
+  const edits: SnapshotEdit[] = useMemo(
+    () => (Array.isArray(pending?.edits) ? pending.edits : []),
+    [pending?.edits],
+  );
 
-  const unresolvedEdits = edits.filter((e) => e.status === "proposed");
+  const unresolvedEdits = useMemo(
+    () => edits.filter((e) => e.status === "proposed"),
+    [edits],
+  );
   const currentIndex = activeEditId
     ? unresolvedEdits.findIndex((e) => e.id === activeEditId)
     : -1;
@@ -88,20 +127,20 @@ export function useCandidateTriage({
         : Math.min(currentIndex + 1, unresolvedEdits.length - 1);
     const target = unresolvedEdits[nextIndex];
     if (target) {
-      setActiveEditId(target.id);
+      void scope.dispatch({ type: "setActiveEditId", id: target.id });
       scrollToEdit(target.id);
     }
-  }, [unresolvedEdits, currentIndex, scrollToEdit]);
+  }, [unresolvedEdits, currentIndex, scrollToEdit, scope]);
 
   const jumpToPrevEdit = useCallback(() => {
     if (unresolvedEdits.length === 0 || currentIndex <= 0) return;
     const prevIndex = currentIndex - 1;
     const target = unresolvedEdits[prevIndex];
     if (target) {
-      setActiveEditId(target.id);
+      void scope.dispatch({ type: "setActiveEditId", id: target.id });
       scrollToEdit(target.id);
     }
-  }, [unresolvedEdits, currentIndex, scrollToEdit]);
+  }, [unresolvedEdits, currentIndex, scrollToEdit, scope]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -127,6 +166,93 @@ export function useCandidateTriage({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [jumpToNextEdit, jumpToPrevEdit]);
 
+  const statusWrite = useExternalWrite<
+    {
+      projectionId: string;
+      pendingId: string;
+      editId: string;
+      status: SnapshotEditStatus;
+    },
+    void
+  >({
+    execute: async ({ projectionId: pId, pendingId: sId, editId, status }) =>
+      (await updateSnapshotEditStatus(pId, sId, editId, status)).map(
+        () => undefined,
+      ),
+    concurrency: "allow",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+    ],
+  });
+
+  const handEditWrite = useExternalWrite<
+    {
+      projectionId: string;
+      pendingId: string;
+      blockPosition: number;
+      newText: string;
+    },
+    { readonly id: string }
+  >({
+    execute: async ({
+      projectionId: pId,
+      pendingId: sId,
+      blockPosition,
+      newText,
+    }) =>
+      (await editProjectionCandidate(pId, sId, { blockPosition, newText })).map(
+        (r) => ({ id: r.edit.id }),
+      ),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+    ],
+  });
+
+  // Pure CQRS hand-edit chat notice: once the newly-created edit arrives in
+  // live `pending.edits`, emit the system notice and clear the pending id.
+  useEffect(() => {
+    if (!pendingHandEditId || !projectionId || !pendingId) return;
+    const edit = edits.find((e) => e.id === pendingHandEditId);
+    if (!edit) return;
+    void scope.dispatch({ type: "setPendingHandEditId", id: null });
+    const noticeData = {
+      editId: edit.id,
+      sequence: edit.sequence,
+      before: edit.contentBefore,
+      after: edit.contentAfter,
+    };
+    const noticeId = `hand-edit-${edit.id}`;
+    if (!session.started) {
+      void session.start({
+        parentId: projectionId,
+        snapshotId: pendingId,
+        systemNotices: [
+          {
+            id: noticeId,
+            type: HAND_EDIT_PART_TYPE,
+            data: noticeData,
+          },
+        ],
+      });
+    } else {
+      chatPanelRef.current?.appendSystemNotice(
+        HAND_EDIT_PART_TYPE,
+        noticeData,
+        noticeId,
+      );
+      chatPanelRef.current?.focus();
+    }
+  }, [
+    pendingHandEditId,
+    edits,
+    projectionId,
+    pendingId,
+    session,
+    chatPanelRef,
+    scope,
+  ]);
+
   const proposedEditsCount = edits.filter(
     (e) => e.status === "proposed",
   ).length;
@@ -147,9 +273,12 @@ export function useCandidateTriage({
         : candidateDraft
       : refinedDraft;
 
-  const handleJumpToChatEvent = useCallback((editId: string) => {
-    setHighlightedEditId(editId);
-  }, []);
+  const handleJumpToChatEvent = useCallback(
+    (editId: string) => {
+      void scope.dispatch({ type: "setHighlightedEditId", id: editId });
+    },
+    [scope],
+  );
 
   const handleRefinePassage = useCallback(
     async (passage: string, editId?: string) => {
@@ -183,7 +312,7 @@ export function useCandidateTriage({
     (edit: SnapshotEdit) => {
       const passage = edit.contentAfter || edit.contentBefore;
       if (passage) {
-        handleRefinePassage(passage, edit.id);
+        void handleRefinePassage(passage, edit.id);
       }
     },
     [handleRefinePassage],
@@ -192,19 +321,19 @@ export function useCandidateTriage({
   const handleEditStatusChange = useCallback(
     async (editId: string, status: SnapshotEditStatus) => {
       if (!projectionId || !pendingId) return;
-      const res = await updateSnapshotEditStatus(
+      const outcome = await statusWrite.run({
         projectionId,
         pendingId,
         editId,
         status,
-      );
-      if (res.isErr()) {
+      });
+      if (outcome.status === "ignored") return;
+      if (outcome.status === "error") {
         toast.error("Failed to update edit", {
-          description: res.error.message,
+          description: outcome.error.message,
         });
         return;
       }
-      await mutate();
       const edit = edits.find((e) => e.id === editId);
       const seq = edit?.sequence ?? 1;
       const noticeData = { editId, sequence: seq, status };
@@ -229,53 +358,28 @@ export function useCandidateTriage({
         );
       }
     },
-    [projectionId, pendingId, mutate, edits, session, chatPanelRef],
+    [projectionId, pendingId, statusWrite, edits, session, chatPanelRef],
   );
 
   const handleHandEdit = useCallback(
     async (blockPosition: number, newText: string): Promise<void> => {
       if (!projectionId || !pendingId) return;
-      const res = await editProjectionCandidate(projectionId, pendingId, {
+      const outcome = await handEditWrite.run({
+        projectionId,
+        pendingId,
         blockPosition,
         newText,
       });
-      if (res.isErr()) {
+      if (outcome.status === "ignored") return;
+      if (outcome.status === "error") {
         toast.error("Failed to apply edit", {
-          description: res.error.message,
+          description: outcome.error.message,
         });
         return;
       }
-      await mutate();
-      const edit = res.value.edit;
-      const noticeData = {
-        editId: edit.id,
-        sequence: edit.sequence,
-        before: edit.contentBefore,
-        after: edit.contentAfter,
-      };
-      const noticeId = `hand-edit-${edit.id}`;
-      if (!session.started) {
-        await session.start({
-          parentId: projectionId,
-          snapshotId: pendingId,
-          systemNotices: [
-            {
-              id: noticeId,
-              type: HAND_EDIT_PART_TYPE,
-              data: noticeData,
-            },
-          ],
-        });
-      } else {
-        chatPanelRef.current?.appendSystemNotice(
-          HAND_EDIT_PART_TYPE,
-          noticeData,
-          noticeId,
-        );
-        chatPanelRef.current?.focus();
-      }
+      void scope.dispatch({ type: "setPendingHandEditId", id: outcome.id });
     },
-    [projectionId, pendingId, mutate, session, chatPanelRef],
+    [projectionId, pendingId, handEditWrite, scope],
   );
 
   const handleUndoEdit = useCallback(

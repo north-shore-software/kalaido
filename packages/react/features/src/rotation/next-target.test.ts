@@ -37,7 +37,7 @@ function plan(...statuses: Partial<EntityStatus>[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   getPendingCandidate.mockResolvedValue(ok(null));
-  regenerateProjection.mockResolvedValue(ok({ snapshotId: "generated" }));
+  regenerateProjection.mockResolvedValue(ok({ id: "generated" }));
 });
 
 describe("findNextTarget", () => {

@@ -5,13 +5,13 @@ import { withActiveClient } from "./_active";
 import type { TimeWindow, WindowSpec } from "./chat";
 
 export interface CreateReflectionResult {
-  reflectionId: string;
+  readonly id: string;
 }
 
 export interface RegenerateReflectionResult {
   // Reflection generation is window-aware: one snapshot per generated window
   // (catch-up can produce several), so the backend returns a list.
-  snapshotIds: string[];
+  readonly ids: readonly string[];
 }
 
 /**
@@ -25,12 +25,14 @@ export async function createReflection(
   name: string,
   windowSpec?: WindowSpec,
 ): Promise<Result<CreateReflectionResult, Error>> {
-  return withActiveClient((client) =>
-    client.send<CreateReflectionResult>("/api/reflections", {
-      method: "POST",
-      body: { name, ...(windowSpec ? { windowSpec } : {}) },
-    }),
-  );
+  return (
+    await withActiveClient((client) =>
+      client.send<{ reflectionId: string }>("/api/reflections", {
+        method: "POST",
+        body: { name, ...(windowSpec ? { windowSpec } : {}) },
+      }),
+    )
+  ).map((r) => ({ id: r.reflectionId }));
 }
 
 /**
@@ -125,19 +127,21 @@ export async function regenerateReflection(
   autoApprove = true,
   opts?: { all?: boolean; allWindows?: boolean; windowId?: string },
 ): Promise<Result<RegenerateReflectionResult, Error>> {
-  return withActiveClient((client) =>
-    client.send<RegenerateReflectionResult>(
-      `/api/reflections/${reflectionId}/generate-snapshot`,
-      {
-        method: "POST",
-        body: {
-          preview: !autoApprove,
-          ...(opts?.allWindows || opts?.all ? { allWindows: true } : {}),
-          ...(opts?.windowId ? { windowId: opts.windowId } : {}),
+  return (
+    await withActiveClient((client) =>
+      client.send<{ snapshotIds: string[] }>(
+        `/api/reflections/${reflectionId}/generate-snapshot`,
+        {
+          method: "POST",
+          body: {
+            preview: !autoApprove,
+            ...(opts?.allWindows || opts?.all ? { allWindows: true } : {}),
+            ...(opts?.windowId ? { windowId: opts.windowId } : {}),
+          },
         },
-      },
-    ),
-  );
+      ),
+    )
+  ).map((r) => ({ ids: r.snapshotIds }));
 }
 
 /**
