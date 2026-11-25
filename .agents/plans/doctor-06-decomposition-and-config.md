@@ -166,7 +166,7 @@ For decomposed screens, widgets, and hooks:
 
 ### D6.2 — Desktop Route-Page `only-export-components` (25 files / 26 warnings)
 
-**Decision:** **Option C** — Move `defineRoute(...)` calls into `apps/desktop/src/routes/registry.ts` (or route table modules)
+**Decision:** **Option C** — Move `defineRoute(...)` calls into `apps/desktop/src/routes/` (having all desktop routes visible in a single place is desirable; keep them tidy in a dedicated route-definitions module imported by `registry.ts`)
 
 **Files & Callers Verified:**
 - Every desktop screen under `apps/desktop/src/features/*/pages/*.tsx` (25 files) exports its page component plus `export const <name>Route = defineRoute(...)` (`ReflectionRefine.tsx` exports 2: `newReflectionRoute` and `refineReflectionRoute` = 26 warnings).

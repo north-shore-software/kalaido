@@ -86,7 +86,7 @@ For `usePipelineProgress()` (`apps/desktop/src/features/onboarding/hooks/use-pip
 
 | ID | Decision | Feasible Options | Cross-Plan Coupling | Selected |
 |---|---|---|---|---|
-| **D1.1** | Latest-value ref mechanism & placement | Option A (`@kalaido/hooks/use-latest-ref`), Option B (`@kalaido/primitives/hooks/use-latest-ref`), Option C (Inline `useRef` + `useLayoutEffect`) | `doctor-03` (`ChatPanel` `appendSpecChanges` / `timeWindow` effect deps), `doctor-02` (`AddFragmentModal` if adopted wider) | **Option B** |
+| **D1.1** | Latest-value ref mechanism & placement | Option A (`@kalaido/hooks/use-latest-ref`), Option B (`@kalaido/primitives/hooks/use-latest-ref`), Option C (Inline `useRef` + `useLayoutEffect`), Option D (`@kalaido/hooks/use-sync-ref` with native `useRef`) | `doctor-03` (`useKalaidoChat` in `@kalaido/hooks` + `appendSpecChanges` / `timeWindow` deps), `doctor-02` (`AddFragmentModal` if adopted wider) | **Option D** |
 | **D1.2** | One-shot mutable baselines in `ChatPanel` (`lastSentSpecRef`, `lastSentWindowRef`) | Option A (`useState(() => ...)` seed + `useRef`), Option B (Lazy getter outside render), Option C (Null-guarded `useLayoutEffect` seed) | `doctor-03` (`ChatPanel` `appendSpecChanges` `useCallback` & `useChat` ownership), `doctor-06` (clears `ChatPanel` `no-high-complexity-react-function`) | **Option C** |
 | **D1.3** | Monotonic `highWater` clamping in `usePipelineProgress` | Option A (Render-phase `useState` latch), Option B (`useState` + `Math.max` + `useEffect` latch), Option C (Stateless hook + rAF clamp in `OrganizingSplash`) | None for Options A/B; Option C couples with **D1.4**, `doctor-02`, and `doctor-06` on `organizing-splash.tsx` | **Option A** |
 | **D1.4** | `OrganizingSplash` render-phase `stateRef` writes & eager `generateChips()` init | Option A (Fix in Cat 1: split prop ref + `endAtRef` + effect-local loop state), Option B (Fix in Cat 1: single `stateRef` + `useLayoutEffect` + lazy `chips: null`), Option C (Defer to Cat 2 / Cat 6) | `doctor-02` (`organizing-splash.tsx:806-850, 1075`), `doctor-06` (`organizing-splash.tsx:770` `runSplashLoop` `.ts` extraction) | **Option A** |
@@ -95,7 +95,7 @@ For `usePipelineProgress()` (`apps/desktop/src/features/onboarding/hooks/use-pip
 
 ### D1.1 — Latest-Value Ref Mechanism & Placement
 
-**Decision:** **Option B** — Subpath export `@kalaido/primitives/hooks/use-latest-ref`
+**Decision:** **Option D** — Subpath export `@kalaido/hooks/use-sync-ref` paired with native `useRef` at call sites
 
 **Files & Callers Verified:**
 - Category 1 consumers: `packages/react/components/src/chat-panel.tsx:191-196, 214-217` (4 refs) and `apps/desktop/src/features/onboarding/components/organizing-splash.tsx:801-804` (4 prop fields on `stateRef`, if D1.4 fixes in Category 1).
@@ -138,6 +138,16 @@ For `usePipelineProgress()` (`apps/desktop/src/features/onboarding/hooks/use-pip
   - Batches 4 ref updates in `ChatPanel` into 1 `useLayoutEffect` hook registration instead of 4.
 - **Cons:**
   - Slight boilerplate in each component; does not enforce a read-only `.current` type externally.
+
+#### Option D — Subpath export `@kalaido/hooks/use-sync-ref` paired with native `useRef` at call sites
+- **How it works:** Create `packages/react/hooks/src/use-sync-ref.ts` (auto-exposed via `"./*": "./src/*.ts"` with zero `package.json` edits) exporting `useSyncRef<T>(ref: RefObject<T>, value: T): void`, which runs `useLayoutEffect(() => { ref.current = value; })`. Callers declare a native `useRef(...)` from `"react"` (or group multiple latest values into one `latestRef = useRef({ ... })`) and call `useSyncRef(ref, value)` immediately below it.
+- **Pros:**
+  - Reachable from `@kalaido/hooks` (including `useKalaidoChat` under `doctor-03` **D3.1 Option A**), `@kalaido/components`, `@kalaido/features`, and all `apps/*` with zero `package.json` edits (unlike Option B, which `@kalaido/hooks` is forbidden from importing).
+  - Because callers declare literal `useRef(...)` from `"react"`, both Biome and `react-doctor/exhaustive-deps` recognize the ref as stable — zero dependency-array noise in `useEffect` / `useCallback`.
+  - Makes post-commit ref synchronization an explicit, searchable named pattern (`useSyncRef`) instead of anonymous `useLayoutEffect` blocks, and batches cleanly when grouping values into a single ref.
+- **Cons:**
+  - Requires two lines (`useRef` + `useSyncRef`) at call sites and does not enforce `{ readonly current: T }` at the type level (render-phase writes remain guarded by `react-doctor/no-ref-current-in-render`).
+  - Cannot be imported inside `@kalaido/primitives` or `@kalaido/state` (neither currently needs it outside `@kalaido/state`'s existing internal `useLayoutEffect` sites).
 
 #### Ruled-Out Options
 - **Using `useLatestRef` while omitting its returned ref from `useEffect([], ...)` deps:** Ruled out — empirically triggered a new `react-doctor/exhaustive-deps` warning at `organizing-splash.tsx:1078` (`Bugs: 36 → 37`) and added `manageWindowRef` to `chat-panel.tsx:299`'s missing-deps diagnostic.

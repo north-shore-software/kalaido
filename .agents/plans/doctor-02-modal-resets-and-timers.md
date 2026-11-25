@@ -68,7 +68,7 @@ Two coupled React anti-patterns appear across modals, hooks, and animated views:
 |---|---|---|---|---|
 | **D2.1** | Modal draft state reset mechanism (`AddFragmentModal` & `EditCandidateModal`) | Option A (`<InnerBody key={sessionKey} />` with render-phase `prevOpen` transition), Option B (`<InnerBody key={sessionKey} />` incremented in `<Dialog onOpenChangeComplete>`), Option C (Caller-owned `key` / conditional mount) | `doctor-01` (`busyRef` via `useLayoutEffect`), `doctor-03` (avoids `no-prop-callback-in-effect`), `doctor-06` (keeps CC/Cog ≤ 15) | **Option A** |
 | **D2.2** | Modal initial & tab-switch `<Textarea>` focus (`AddFragmentModal` & `EditCandidateModal`) | Option A (Base UI `<DialogContent initialFocus={...}>`), Option B (Cleaned-up `useEffect` with `requestAnimationFrame` / `setTimeout`) | `doctor-04` (`no-autofocus` focus hygiene) | **Option A** |
-| **D2.3** | `OrganizingSplash` `ending` state transitions & phrase-timer cleanup | Option A (`endPhase` derivation + split declarative `setInterval` / `setTimeout` effects), Option B (`endPhase` derivation + rAF `tick()` elapsed-time phrase calculation) | `doctor-01` (`organizing-splash.tsx:801–804` ref writes & lazy `generateChips()`), `doctor-06` (`organizing-splash.tsx:770` `no-giant-component` canvas extraction) | **Option A** |
+| **D2.3** | `OrganizingSplash` `ending` state transitions & phrase-timer cleanup | Option A (`endPhase` derivation + split declarative `setInterval` / `setTimeout` effects), Option B (`endPhase` derivation + rAF `tick()` elapsed-time phrase calculation) | `doctor-01` (`organizing-splash.tsx:801–804` ref writes & lazy `generateChips()`), `doctor-06` (`organizing-splash.tsx:770` `no-giant-component` canvas extraction) | **Option B** |
 | **D2.4** | `useColourPreview` `typeFilter` reset semantics & ownership | Option A (Own `typeFilter` inside conditionally mounted `ColourComposerPane`), Option B (Render-phase `prevEnabled` reset inside `useColourPreview`), Option C (Derive `effectiveTypeFilter` + reset in `ColoursScreen` `openComposer`), Option D (Derive `effectiveTypeFilter` only; persist choice across composer toggles) | `None` | **Option A** |
 | **D2.5** | `AddFragmentModal` active tab (`"write"` vs `"import"`) across close/reopen | Option A (Keep `tab` in outer `AddFragmentModal` — preserves last-used tab across opens), Option B (Move `tab` into `AddFragmentModalBody` — resets to `"write"` on every open) | `None` | **Option B** |
 
@@ -184,7 +184,7 @@ Two coupled React anti-patterns appear across modals, hooks, and animated views:
 
 ### D2.3 — `OrganizingSplash` `ending` State Transitions & Phrase-Timer Cleanup
 
-**Decision:** **Option A** — `endPhase` State + Render Derivation & Split Declarative Phrase Effects
+**Decision:** **Option B** — `endPhase` State + Render Derivation & rAF `tick()` Elapsed-Time Phrase Calculation
 
 **Files & Callers Verified:**
 - `apps/desktop/src/features/onboarding/components/organizing-splash.tsx:770–1111`:
