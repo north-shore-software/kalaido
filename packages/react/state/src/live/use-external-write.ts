@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toError } from "#errors";
 import { invalidateLiveTags } from "./registry";
 import type {
@@ -24,7 +30,9 @@ export function useExternalWrite<TArgs = void, TOut extends WriteReturn = void>(
   def: ExternalWriteDef<TArgs, TOut> & NoInfer<ValidWriteReturn<TOut>>,
 ): ExternalWriteHandle<TArgs, TOut> {
   const defRef = useRef<ExternalWriteDef<TArgs, TOut>>(def);
-  defRef.current = def;
+  useLayoutEffect(() => {
+    defRef.current = def;
+  });
 
   const mountedRef = useRef(true);
   useEffect(() => {

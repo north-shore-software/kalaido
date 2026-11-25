@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
 import { ensureLiveSubscription, registerLiveBinding } from "./registry";
 import type {
@@ -54,7 +54,9 @@ function deriveLiveStatus<T>(
 export function useLiveRead<T>(source: LiveSource<T>): LiveReadResult<T> {
   const { cache, mutate: scopedMutate } = useSWRConfig();
   const sourceRef = useRef(source);
-  sourceRef.current = source;
+  useLayoutEffect(() => {
+    sourceRef.current = source;
+  });
 
   const serializedKey = source.key ? unstable_serialize(source.key) : null;
   const tagsKey = source.tags ? [...source.tags].sort().join("\0") : "";
@@ -118,7 +120,9 @@ export function useLiveRead<T>(source: LiveSource<T>): LiveReadResult<T> {
   );
 
   const mutateRef = useRef(swr.mutate);
-  mutateRef.current = swr.mutate;
+  useLayoutEffect(() => {
+    mutateRef.current = swr.mutate;
+  });
 
   useEffect(() => {
     if (!serializedKey || !hasOfflineCache) return;

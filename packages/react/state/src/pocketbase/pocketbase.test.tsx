@@ -1,7 +1,7 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { ok, type Result } from "neverthrow";
 import type PocketBase from "pocketbase";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { type Cache, SWRConfig } from "swr";
 import { useLiveRead } from "#live";
 import { _liveRegistrySize, invalidateLiveTags } from "../live/registry";
@@ -125,7 +125,10 @@ function StatusConsumer({
       coalesceMs: 10,
     }),
   );
-  if (res.data) onData(res.data.count);
+  const count = res.data?.count;
+  useEffect(() => {
+    if (count !== undefined) onData(count);
+  }, [count, onData]);
   return null;
 }
 
