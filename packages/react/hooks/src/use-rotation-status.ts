@@ -1,57 +1,63 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-
 import {
   type EntityStatus,
   getRotation,
 } from "@kalaido/client/kalaidoscope/rotation";
+import { invalidateLiveTags, useLiveRead } from "@kalaido/state/live";
+import { useCallback, useMemo } from "react";
+import {
+  type KalaidoscopeCollectionName,
+  kalaidoscopeEndpointSource,
+  kalaidoscopeEndpointTag,
+} from "#kalaidoscope-live";
+import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
+
+const WATCHED: readonly KalaidoscopeCollectionName[] = [
+  "fragment",
+  "colour",
+  "colour_fragment",
+  "projection",
+  "projection_snapshot",
+  "projection_refinement",
+  "reflection",
+  "reflection_snapshot",
+];
 
 export interface UseRotationStatusResult {
   /** All entity statuses, in the server's topological order (deps first). */
-  statuses: EntityStatus[];
-  byId: Map<string, EntityStatus>;
+  readonly statuses: EntityStatus[];
+  readonly byId: Map<string, EntityStatus>;
   /** True until the first plan has arrived; refetches keep the old plan. */
-  isLoading: boolean;
-  error: Error | null;
-  /** Re-fetch the plan (recomputed server-side) — call after an approve. */
-  refetch: () => void;
+  readonly isLoading: boolean;
+  readonly isValidating: boolean;
+  readonly error: Error | null;
+  /**
+   * @deprecated Temporary Wave 1 bridge; removed in Wave 3 once callers drop
+   * manual `.refetch()` in favor of live SSE + `useExternalWrite` invalidation.
+   */
+  readonly refetch: () => void;
 }
 
 /**
- * Fetches the read-only staleness plan from `GET /api/rotation`. The plan has no
- * server-side session, so advancing a rotation queue is just `refetch()` after
- * each approve. Shared by the projections list, projection detail metrics, and
- * the rotation page.
+ * Fetches the live staleness plan from `GET /api/rotation` via `@kalaido/state`,
+ * automatically revalidating when underlying collections change.
  */
 export function useRotationStatus(): UseRotationStatusResult {
-  const [statuses, setStatuses] = useState<EntityStatus[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [nonce, setNonce] = useState(0);
+  const client = useKalaidoscopeClient();
+  const baseURL = client.baseURL;
 
-  const refetch = useCallback(() => setNonce((n) => n + 1), []);
+  const result = useLiveRead(
+    kalaidoscopeEndpointSource({
+      client,
+      endpoint: "reconcile",
+      watch: WATCHED,
+      fetch: getRotation,
+    }),
+  );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: nonce is a re-run trigger for refetch(), not read in the effect
-  useEffect(() => {
-    let active = true;
-    // Only the first fetch is "loading". A refetch keeps the previous plan on
-    // screen until the new one lands; anything gated on isLoading would
-    // otherwise unmount and remount on every revalidation.
-    void (async () => {
-      const res = await getRotation();
-      if (!active) return;
-      if (res.isErr()) {
-        setError(res.error);
-        setStatuses([]);
-      } else {
-        setError(null);
-        setStatuses(res.value.statuses ?? []);
-      }
-      setIsLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [nonce]);
+  const statuses = useMemo<EntityStatus[]>(
+    () => result.data?.statuses ?? [],
+    [result.data],
+  );
 
   const byId = useMemo(() => {
     const m = new Map<string, EntityStatus>();
@@ -59,5 +65,16 @@ export function useRotationStatus(): UseRotationStatusResult {
     return m;
   }, [statuses]);
 
-  return { statuses, byId, isLoading, error, refetch };
+  const refetch = useCallback(() => {
+    void invalidateLiveTags([kalaidoscopeEndpointTag(baseURL, "reconcile")]);
+  }, [baseURL]);
+
+  return {
+    statuses,
+    byId,
+    isLoading: result.isLoading,
+    isValidating: result.isValidating,
+    error: result.error,
+    refetch,
+  };
 }

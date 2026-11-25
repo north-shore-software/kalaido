@@ -1,10 +1,9 @@
-import { useMemo } from "react";
-import { useCollection } from "#use-collection";
-import { useLiveCollection } from "#use-live-collection";
 import {
   FRAGMENT_TYPE_OPTIONS,
   type FragmentTypeOption,
 } from "@kalaido/client/lib/labels";
+import { useMemo } from "react";
+import { useLiveCollection } from "#use-live-collection";
 
 /** A pickable item identified by record id (projections, colours). */
 export interface ContextOption {
@@ -25,12 +24,10 @@ export interface ContextSources {
 }
 
 // The choices the context picker offers: fragment types (a static enum),
-// projections, and colours. Projections and colours are small enough to hold
-// client-side, so we load the full lists once (cached per kalaidoscope by
-// useCollection). We deliberately fetch only `id,name` and never load fragments —
-// resolving a selection to fragment ids happens only at generation time, elsewhere.
+// projections, reflections, and colours. All four use live collections over
+// the shared ref-counted PocketBase hub, fetching only minimal fields.
 export function useContextSources(): ContextSources {
-  const fragments = useCollection("fragment", { fields: "type" });
+  const fragments = useLiveCollection("fragment", { fields: "type" });
   // Deliberately unfiltered on name: an unnamed projection is still a thing you
   // can pin, and a context_spec that already references one has to be able to
   // resolve it back to a label — otherwise the summary falls through to the id.
@@ -46,7 +43,7 @@ export function useContextSources(): ContextSources {
     sort: "-updated",
     fields: "id,name",
   });
-  const colours = useCollection("colour", {
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,swatch",
   });

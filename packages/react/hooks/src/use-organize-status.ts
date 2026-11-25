@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
 import {
   getOrganizeStatus,
   type OrganizeStatus,
 } from "@kalaido/client/kalaidoscope/organize";
-import type { CollectionName } from "#use-collection";
+import { useLiveRead } from "@kalaido/state/live";
+import {
+  type KalaidoscopeCollectionName,
+  kalaidoscopeEndpointSource,
+} from "#kalaidoscope-live";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
 
 /**
@@ -12,7 +14,7 @@ import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
  * the reconcile wave's footprint (claims, candidates), so `reconcile.running`
  * follows it.
  */
-const WATCHED: CollectionName[] = [
+const WATCHED: readonly KalaidoscopeCollectionName[] = [
   "ingest",
   "kalaidoscope_map",
   "map_run",
@@ -31,81 +33,32 @@ const WATCHED: CollectionName[] = [
 const COALESCE_MS = 300;
 
 export interface UseOrganizeStatusResult {
-  status: OrganizeStatus | null;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
+  readonly status: OrganizeStatus | null;
+  readonly isLoading: boolean;
+  readonly isValidating: boolean;
+  readonly error: Error | null;
 }
 
 /**
- * Fetches `GET /api/organize` and re-fetches whenever a watched collection
- * emits a realtime event. Same shape as `useRotationStatus`: the server
- * recomputes on every call, so the client only decides *when* to ask.
+ * Fetches `GET /api/organize` via `@kalaido/state` and shares one ref-counted
+ * PocketBase subscription set + SWR cache entry across all mounted consumers.
  */
 export function useOrganizeStatus(): UseOrganizeStatusResult {
   const client = useKalaidoscopeClient();
-  const [status, setStatus] = useState<OrganizeStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [nonce, setNonce] = useState(0);
+  const result = useLiveRead(
+    kalaidoscopeEndpointSource({
+      client,
+      endpoint: "status",
+      watch: WATCHED,
+      coalesceMs: COALESCE_MS,
+      fetch: getOrganizeStatus,
+    }),
+  );
 
-  const refetch = useCallback(() => setNonce((n) => n + 1), []);
-  const refetchRef = useRef(refetch);
-  refetchRef.current = refetch;
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: nonce is a re-run trigger for refetch(), not read in the effect
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      const res = await getOrganizeStatus();
-      if (!active) return;
-      if (res.isErr()) {
-        setError(res.error);
-      } else {
-        setError(null);
-        setStatus(res.value);
-      }
-      setIsLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [nonce]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const unsubs: (() => void)[] = [];
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const revalidate = () => {
-      if (timer) return;
-      timer = setTimeout(() => {
-        timer = undefined;
-        refetchRef.current();
-      }, COALESCE_MS);
-    };
-
-    for (const name of WATCHED) {
-      void (async () => {
-        try {
-          const fn = await client.collection(name).subscribe("*", revalidate);
-          if (cancelled) {
-            void fn();
-            return;
-          }
-          unsubs.push(fn);
-        } catch (err) {
-          console.error(`useOrganizeStatus(${name}): subscribe failed`, err);
-        }
-      })();
-    }
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      for (const fn of unsubs) void fn();
-    };
-  }, [client]);
-
-  return { status, isLoading, error, refetch };
+  return {
+    status: result.data ?? null,
+    isLoading: result.isLoading,
+    isValidating: result.isValidating,
+    error: result.error,
+  };
 }
