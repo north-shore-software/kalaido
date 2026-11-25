@@ -4,8 +4,6 @@ import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { Pill, StatusPill, SurfaceCard } from "@kalaido/primitives/kalaido";
 import { LocationLabel } from "@kalaido/primitives/layout/location-label";
 import { cn } from "@kalaido/primitives/lib/css-utils";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import { Spinner } from "@kalaido/primitives/shadcn/spinner";
 import { useExternalWrite } from "@kalaido/state/live";
 import { type ReactNode, useState } from "react";
 import { setKalaidoscopeArchived } from "@/lib/cloud-workspaces.ts";
@@ -13,6 +11,7 @@ import {
   removeKalaidoscope,
   switchLocalKalaidoscope,
 } from "@/lib/local-kalaidoscope.ts";
+import { KalaidoscopeRowActions } from "./kalaidoscope-row-actions";
 
 export function KalaidoscopeRow({
   kalaidoscope,
@@ -45,9 +44,12 @@ export function KalaidoscopeRow({
 
   async function handleRemoveLocal() {
     setRemovingLocal(true);
-    await removeKalaidoscope(kalaidoscope.id);
-    setRemovingLocal(false);
-    setConfirming(false);
+    try {
+      await removeKalaidoscope(kalaidoscope.id);
+    } finally {
+      setRemovingLocal(false);
+      setConfirming(false);
+    }
   }
 
   return (
@@ -70,56 +72,21 @@ export function KalaidoscopeRow({
         {archived && <Pill tone="muted">Archived</Pill>}
         {isActive && <StatusPill kind="cyan">active &amp; running</StatusPill>}
         <div className="flex-1" />
-        {!isActive && !archived && (
-          <Button
-            disabled={switching || removing}
-            onClick={() => void switchLocalKalaidoscope(kalaidoscope.id)}
-          >
-            Switch to
-          </Button>
-        )}
-        {archived ? (
-          <Button
-            variant="outline"
-            disabled={removing}
-            onClick={() => void handleArchive(false)}
-          >
-            {removing ? <Spinner /> : "Unarchive"}
-          </Button>
-        ) : confirming ? (
-          <>
-            <Button
-              variant="destructive"
-              disabled={removing}
-              onClick={() =>
-                void (isCloud ? handleArchive(true) : handleRemoveLocal())
-              }
-            >
-              {removing ? (
-                <Spinner />
-              ) : isCloud ? (
-                "Yes, archive"
-              ) : (
-                "Yes, remove"
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={removing}
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="destructive"
-            disabled={switching || removing}
-            onClick={() => setConfirming(true)}
-          >
-            {isCloud ? "Archive" : "Remove"}
-          </Button>
-        )}
+        <KalaidoscopeRowActions
+          isActive={isActive}
+          isCloud={isCloud}
+          archived={archived}
+          switching={switching}
+          removing={removing}
+          confirming={confirming}
+          onSwitch={() => void switchLocalKalaidoscope(kalaidoscope.id)}
+          onUnarchive={() => void handleArchive(false)}
+          onConfirmRemove={() =>
+            void (isCloud ? handleArchive(true) : handleRemoveLocal())
+          }
+          onRequestConfirm={() => setConfirming(true)}
+          onCancelConfirm={() => setConfirming(false)}
+        />
       </div>
       <LocationLabel location={kalaidoscope.locator} truncate={false} />
       {archived && (

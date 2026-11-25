@@ -1,14 +1,5 @@
-import {
-  type CloudIdAvailability,
-  CloudIdTakenError,
-  checkCloudIdAvailability,
-} from "@kalaido/client/cloud/user";
-import {
-  type LlmProvider,
-  type LlmRole,
-  ollamaWorkspaceLlmConfig,
-  type WorkspaceLlmConfig,
-} from "@kalaido/client/kalaidoscope/llm-config";
+import { CloudIdTakenError } from "@kalaido/client/cloud/user";
+import { toError } from "@kalaido/client/lib/errors";
 import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
 import {
   RequiredPill,
@@ -20,7 +11,7 @@ import { cn } from "@kalaido/primitives/lib/css-utils";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   validateWorkspaceLlmConfig,
   validationMessage,
@@ -29,99 +20,201 @@ import {
   type CreateKalaidoscopeInput,
   createKalaidoscope,
 } from "@/features/create-kalaidoscope/actions.ts";
-import { CloudAuthPanel } from "@/features/onboarding/components/cloud-auth-panel";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppRouteState } from "@/routes/use-app-route-state";
+import {
+  buildSetupLlmConfig,
+  deriveCloudIdState,
+  findMissingSetupFields,
+  INITIAL_SETUP_FIELDS,
+  randomFallbackCloudId,
+  type SetupFields,
+} from "../cloud-id";
+import { CloudIdField } from "../components/cloud-id-field";
 import {
   CloudIdentityPanel,
   CloudSignInNotice,
 } from "../components/cloud-identity-panel";
 import { IconPicker } from "../components/icon-picker.tsx";
 import { ProviderFields } from "../components/provider-fields";
+import { SetupSignInGate } from "../components/setup-sign-in-gate";
 import {
   StorageOptionCards,
   type StorageType,
 } from "../components/storage-option-cards";
+import { useCloudIdCheck } from "../hooks/use-cloud-id-check";
 
-const CLOUD_ID_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
-const FALLBACK_CLOUD_ID_LENGTH = 8;
-
-function randomFallbackCloudId(): string {
-  const bytes = crypto.getRandomValues(
-    new Uint8Array(FALLBACK_CLOUD_ID_LENGTH),
-  );
-  const suffix = Array.from(
-    bytes,
-    (b) => CLOUD_ID_ALPHABET[b % CLOUD_ID_ALPHABET.length],
-  ).join("");
-  return `kl-${suffix}`;
-}
-
-function deriveCloudId(name: string, fallback: string): string {
-  if (!name.trim()) return "";
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug.length >= 2 ? slug : fallback;
-}
-
-const CLOUD_ID_RE = /^[a-z0-9][a-z0-9-]{1,62}$/;
-const CLOUD_ID_CHECK_DELAY_MS = 300;
-
-type CloudIdCheck = { id: string } & (
-  | CloudIdAvailability
-  | { available: null; suggestion?: undefined }
-);
-
-/** What the user has typed and picked. Everything else on the page derives. */
-interface SetupFields {
-  name: string;
+function WorkspaceNameField({
+  fieldId,
+  icon,
+  initialName,
+  highlighted,
+  onIconChange,
+  onNameChange,
+}: {
+  fieldId: string;
   icon?: string;
-  /**
-   * The storage card the user chose themselves, or `null` while they have not:
-   * until then storage follows the route's default and the cloud session, so
-   * a session that lands after first paint still flips a fresh form to Cloud —
-   * and never fights a deliberate choice.
-   */
-  storageChoice: StorageType | null;
-  /** The id the user typed themselves, or `null` while it still follows the name. */
-  cloudIdChoice: string | null;
-  llmProvider: LlmProvider;
-  apiKey: string;
-  defaultModel: string;
-  roleModels: Partial<Record<LlmRole, string>>;
+  initialName: string;
+  highlighted: boolean;
+  onIconChange: (icon: string) => void;
+  onNameChange: (name: string) => void;
+}) {
+  const isComposingRef = useRef(false);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label
+        htmlFor={fieldId}
+        className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
+      >
+        Workspace Name
+      </label>
+      <div className="flex items-center gap-3">
+        <IconPicker value={icon} onChange={onIconChange} />
+        <div className="relative flex flex-1 items-center">
+          <Input
+            id={fieldId}
+            autoFocus
+            type="text"
+            defaultValue={initialName}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={(e) => {
+              isComposingRef.current = false;
+              onNameChange(e.currentTarget.value);
+            }}
+            onChange={(e) => {
+              if (!isComposingRef.current) {
+                onNameChange(e.target.value);
+              }
+            }}
+            placeholder="My kalaidoscope"
+            className={cn(
+              "h-12 w-full text-[20px] font-semibold tracking-wide transition-all duration-150 placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/80",
+              highlighted && [requiredHighlightClass, "pr-24"],
+            )}
+          />
+          {highlighted && <RequiredPill className="right-2" />}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-const INITIAL_FIELDS: SetupFields = {
-  name: "",
-  storageChoice: null,
-  cloudIdChoice: null,
-  llmProvider: "ollama",
-  apiKey: "",
-  defaultModel: "",
-  roleModels: {},
-};
+function StorageAndProviderSection({
+  storage,
+  storageLabelId,
+  signedIn,
+  user,
+  fields,
+  derived,
+  isPending,
+  highlightedFields,
+  cloudIdFieldId,
+  apiKeyFieldId,
+  modelFieldId,
+  onPatch,
+  onClearError,
+  onRequestSignIn,
+}: {
+  storage: StorageType;
+  storageLabelId: string;
+  signedIn: boolean;
+  user: { name?: string | null; email: string } | null | undefined;
+  fields: SetupFields;
+  derived: ReturnType<typeof deriveCloudIdState>;
+  isPending: boolean;
+  highlightedFields: ReadonlySet<string>;
+  cloudIdFieldId: string;
+  apiKeyFieldId: string;
+  modelFieldId: string;
+  onPatch: (next: Partial<SetupFields>) => void;
+  onClearError: () => void;
+  onRequestSignIn: () => void;
+}) {
+  return (
+    <>
+      <div className="flex flex-col gap-3">
+        <span
+          id={storageLabelId}
+          className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
+        >
+          Storage
+        </span>
+        <StorageOptionCards
+          value={storage}
+          onChange={(storageChoice) => onPatch({ storageChoice })}
+          aria-labelledby={storageLabelId}
+        />
+
+        {storage === "cloud" &&
+          (signedIn && user ? (
+            <CloudIdentityPanel
+              name={user.name ?? undefined}
+              email={user.email}
+              onSignOut={() => void signOutOfCloud()}
+            />
+          ) : (
+            <CloudSignInNotice onSignIn={onRequestSignIn} />
+          ))}
+      </div>
+
+      {storage === "cloud" && (
+        <CloudIdField
+          fieldId={cloudIdFieldId}
+          cloudId={derived.cloudId}
+          idTaken={derived.idTaken}
+          idIsValid={derived.idIsValid}
+          highlighted={highlightedFields.has("cloudId")}
+          status={derived.status}
+          suggestion={derived.checked?.suggestion}
+          onChange={(cloudIdChoice) => onPatch({ cloudIdChoice })}
+          onAcceptSuggestion={(cloudIdChoice) => onPatch({ cloudIdChoice })}
+        />
+      )}
+
+      {storage === "local_file" && (
+        <ProviderFields
+          provider={fields.llmProvider}
+          apiKey={fields.apiKey}
+          defaultModel={fields.defaultModel}
+          roleModels={fields.roleModels}
+          disabled={isPending}
+          highlightedFields={highlightedFields}
+          apiKeyFieldId={apiKeyFieldId}
+          modelFieldId={modelFieldId}
+          onProviderChange={(llmProvider) => {
+            onPatch({ llmProvider });
+            onClearError();
+          }}
+          onApiKeyChange={(apiKey) => onPatch({ apiKey })}
+          onDefaultModelChange={(defaultModel) => onPatch({ defaultModel })}
+          onRoleModelChange={(role, model) =>
+            onPatch({ roleModels: { ...fields.roleModels, [role]: model } })
+          }
+        />
+      )}
+    </>
+  );
+}
 
 export default function KalaidoscopeSetup() {
   const { goBack } = useAppNavigate();
   const routeState = useAppRouteState<"kalaidoscope-setup">();
   const { user, signedIn } = useCloudSession();
 
-  const [fields, setFields] = useState<SetupFields>(INITIAL_FIELDS);
+  const [fields, setFields] = useState<SetupFields>(INITIAL_SETUP_FIELDS);
   const [fallbackCloudId] = useState(randomFallbackCloudId);
-  const isComposingRef = useRef(false);
   const patch = (next: Partial<SetupFields>) =>
     setFields((prev) => ({ ...prev, ...next }));
 
   const [error, setError] = useState<string | null>(null);
-  // Why the sign-in gate is showing, or null when it isn't. Only a submit
-  // creates once the user is in: the notice's "Sign in" can be pressed before
-  // the form is filled, and creating then would send an empty cloudId.
   const [gate, setGate] = useState<"create" | "signin" | null>(null);
   const [gateMode, setGateMode] = useState<"signin" | "signup">("signin");
   const [validating, setValidating] = useState(false);
+
   const createWrite = useExternalWrite<
     CreateKalaidoscopeInput,
     { readonly id: string }
@@ -131,9 +224,6 @@ export default function KalaidoscopeSetup() {
     concurrency: "ignore",
   });
   const isPending = validating || createWrite.isPending;
-
-  const [idCheck, setIdCheck] = useState<CloudIdCheck | null>(null);
-  const [idChecking, setIdChecking] = useState(false);
 
   const nameFieldId = useId();
   const cloudIdFieldId = useId();
@@ -152,90 +242,49 @@ export default function KalaidoscopeSetup() {
     fields.storageChoice ??
     routeState.defaultStorage ??
     (signedIn ? "cloud" : "local_file");
-  const derivedCloudId = deriveCloudId(fields.name, fallbackCloudId);
-  const idIsManual = fields.cloudIdChoice !== null;
-  const candidateId = fields.cloudIdChoice ?? derivedCloudId;
-  const idIsValid = CLOUD_ID_RE.test(candidateId);
-  const checked = idCheck?.id === candidateId ? idCheck : null;
-  const cloudId =
-    !idIsManual && checked?.available === false && checked.suggestion
-      ? checked.suggestion
-      : candidateId;
-  const idTaken =
-    checked?.available === false && (idIsManual || !checked.suggestion);
-  const cloudChecksApply = storage === "cloud" && signedIn;
-  const idReady =
-    !cloudChecksApply || (idIsValid && !idChecking && !!checked && !idTaken);
 
-  useEffect(() => {
-    if (!cloudChecksApply || !CLOUD_ID_RE.test(candidateId)) {
-      setIdChecking(false);
-      return;
-    }
-    let cancelled = false;
-    setIdChecking(true);
-    const handle = setTimeout(async () => {
-      const result = await checkCloudIdAvailability(candidateId);
-      if (cancelled) return;
-      setIdChecking(false);
-      if (result.isErr()) {
-        console.error("Failed to check cloud id:", result.error);
-        setIdCheck({ id: candidateId, available: null });
-        return;
-      }
-      setIdCheck({ id: candidateId, ...result.value });
-    }, CLOUD_ID_CHECK_DELAY_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [candidateId, cloudChecksApply]);
-
-  const byokSelected =
-    storage === "local_file" && fields.llmProvider === "gemini";
-
-  // Submitting this path opens the sign-in gate before anything is created, so
-  // promising "Create Kalaidoscope" would misdescribe what the button does.
-  const needsSignIn = storage === "cloud" && !signedIn;
-  const submitLabel = needsSignIn ? "Sign in & create" : "Create Kalaidoscope";
-
-  const canCreate =
-    !!fields.name.trim() &&
-    (storage === "local_file" || (!!cloudId.trim() && idReady)) &&
-    (!byokSelected || (!!fields.apiKey.trim() && !!fields.defaultModel.trim()));
-
-  /**
-   * The provider config to write into the new workspace.
-   *
-   * Cloud workspaces get none: their AI is provided and not configurable.
-   */
-  function llmConfig(): WorkspaceLlmConfig | undefined {
-    if (storage !== "local_file") return undefined;
-
-    if (fields.llmProvider === "ollama") return ollamaWorkspaceLlmConfig();
-
-    return {
-      provider: "gemini",
-      apiKey: fields.apiKey.trim(),
-      defaultModel: fields.defaultModel.trim(),
-      roleModels: { ...fields.roleModels },
-    };
-  }
+  const previewDerived = deriveCloudIdState({
+    fields,
+    fallbackCloudId,
+    storage,
+    signedIn,
+    idCheck: null,
+    idChecking: false,
+  });
+  const { idCheck, idChecking, recheck } = useCloudIdCheck(
+    previewDerived.candidateId,
+    previewDerived.cloudChecksApply,
+  );
+  const derived = deriveCloudIdState({
+    fields,
+    fallbackCloudId,
+    storage,
+    signedIn,
+    idCheck,
+    idChecking,
+  });
 
   async function create() {
     setError(null);
-    const config = llmConfig();
+    const config = buildSetupLlmConfig(storage, fields);
 
     if (config) {
       setValidating(true);
-      const validated = await validateWorkspaceLlmConfig(config);
-      setValidating(false);
-      if (validated.isErr()) {
-        setError(validated.error.message);
-        return;
+      let validationError: string | null = null;
+      try {
+        const validated = await validateWorkspaceLlmConfig(config);
+        if (validated.isErr()) {
+          validationError = validated.error.message;
+        } else if (!validated.value.ok) {
+          validationError = validationMessage(validated.value);
+        }
+      } catch (e) {
+        validationError = toError(e).message;
+      } finally {
+        setValidating(false);
       }
-      if (!validated.value.ok) {
-        setError(validationMessage(validated.value));
+      if (validationError) {
+        setError(validationError);
         return;
       }
     }
@@ -244,8 +293,7 @@ export default function KalaidoscopeSetup() {
       name: fields.name,
       icon: fields.icon,
       storage,
-      cloudId,
-      // No location input is offered on this form: the default location.
+      cloudId: derived.cloudId,
       locationInput: "",
       llmConfig: config,
     });
@@ -253,8 +301,7 @@ export default function KalaidoscopeSetup() {
     if (outcome.status === "error") {
       console.error("Failed to create kalaidoscope:", outcome.error);
       if (outcome.error instanceof CloudIdTakenError) {
-        const fresh = await checkCloudIdAvailability(candidateId);
-        if (fresh.isOk()) setIdCheck({ id: candidateId, ...fresh.value });
+        await recheck(derived.candidateId);
         setError(
           "That ID was just taken. A new one has been suggested — check it and try again.",
         );
@@ -268,53 +315,22 @@ export default function KalaidoscopeSetup() {
     e.preventDefault();
     if (isPending) return;
 
-    const missing: ("name" | "cloudId" | "apiKey" | "model")[] = [];
-    if (!fields.name.trim()) missing.push("name");
-    if (storage === "cloud" && !cloudId) missing.push("cloudId");
-    if (byokSelected && !fields.apiKey.trim()) missing.push("apiKey");
-    if (byokSelected && !fields.defaultModel.trim()) missing.push("model");
-
+    const missing = findMissingSetupFields({
+      fields,
+      storage,
+      cloudId: derived.cloudId,
+      byokSelected: derived.byokSelected,
+    });
     if (missing.length > 0) {
       triggerHighlights(missing);
       return;
     }
-
-    if (needsSignIn) {
+    if (derived.needsSignIn) {
       setGate("create");
       return;
     }
-
-    if (!idReady) return;
-
-    create();
-  }
-
-  function idStatus(): { text: string; tone: "muted" | "error" } | null {
-    if (!cloudId) return null;
-    if (!idIsValid) {
-      return {
-        text: "Lowercase letters, numbers and dashes only; 2 to 63 characters, starting with a letter or number.",
-        tone: "error",
-      };
-    }
-    if (!cloudChecksApply) return null;
-    if (idChecking || !checked) {
-      return { text: "Checking availability…", tone: "muted" };
-    }
-    if (idTaken) return { text: "This ID is taken.", tone: "error" };
-    if (checked.available === null) {
-      return {
-        text: "Couldn't check availability. It will be checked when you create.",
-        tone: "muted",
-      };
-    }
-    if (cloudId !== candidateId) {
-      return {
-        text: `“${candidateId}” is taken, so this one was generated instead. You can change it.`,
-        tone: "muted",
-      };
-    }
-    return { text: "Available. IDs can't be changed later.", tone: "muted" };
+    if (!derived.idReady) return;
+    void create();
   }
 
   return (
@@ -323,41 +339,17 @@ export default function KalaidoscopeSetup() {
       style={{ height: "calc(100svh - var(--titlebar-height))" }}
     >
       <main className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto p-8 [scrollbar-gutter:stable]">
-        <PageBackButton
-          onClick={() => {
-            if (gate) {
-              setGate(null);
-            } else {
-              goBack();
-            }
-          }}
-        />
+        <PageBackButton onClick={() => (gate ? setGate(null) : goBack())} />
 
         {gate ? (
-          <div className="my-auto flex w-full max-w-lg flex-col gap-6">
-            <div className="flex flex-col gap-1">
-              <span className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Sign in required
-              </span>
-              <h2 className="text-xl font-semibold tracking-tight">
-                {gateMode === "signin"
-                  ? "Create with Kalaido Cloud"
-                  : "Sign up with Kalaido Cloud"}
-              </h2>
-              <p className="text-[15px] text-fg-3">
-                Your workspace name and icon are kept.
-              </p>
-            </div>
-
-            <CloudAuthPanel
-              mode={gateMode}
-              onModeChange={setGateMode}
-              onAuthenticated={() => {
-                setGate(null);
-                if (gate === "create") create();
-              }}
-            />
-          </div>
+          <SetupSignInGate
+            mode={gateMode}
+            onModeChange={setGateMode}
+            onAuthenticated={() => {
+              setGate(null);
+              if (gate === "create") void create();
+            }}
+          />
         ) : (
           <form
             onSubmit={handleSubmit}
@@ -374,168 +366,31 @@ export default function KalaidoscopeSetup() {
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor={nameFieldId}
-                className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
-              >
-                Workspace Name
-              </label>
-              <div className="flex items-center gap-3">
-                <IconPicker
-                  value={fields.icon}
-                  onChange={(icon) => patch({ icon })}
-                />
-                <div className="relative flex flex-1 items-center">
-                  <Input
-                    id={nameFieldId}
-                    autoFocus
-                    type="text"
-                    defaultValue={fields.name}
-                    onCompositionStart={() => {
-                      isComposingRef.current = true;
-                    }}
-                    onCompositionEnd={(e) => {
-                      isComposingRef.current = false;
-                      patch({ name: e.currentTarget.value });
-                    }}
-                    onChange={(e) => {
-                      if (!isComposingRef.current) {
-                        patch({ name: e.target.value });
-                      }
-                    }}
-                    placeholder="My kalaidoscope"
-                    className={cn(
-                      "h-12 w-full text-[20px] font-semibold tracking-wide transition-all duration-150 placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/80",
-                      highlightedFields.has("name") && [
-                        requiredHighlightClass,
-                        "pr-24",
-                      ],
-                    )}
-                  />
-                  {highlightedFields.has("name") && (
-                    <RequiredPill className="right-2" />
-                  )}
-                </div>
-              </div>
-            </div>
+            <WorkspaceNameField
+              fieldId={nameFieldId}
+              icon={fields.icon}
+              initialName={fields.name}
+              highlighted={highlightedFields.has("name")}
+              onIconChange={(icon) => patch({ icon })}
+              onNameChange={(name) => patch({ name })}
+            />
 
-            <div className="flex flex-col gap-3">
-              <span
-                id={storageLabelId}
-                className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
-              >
-                Storage
-              </span>
-              <StorageOptionCards
-                value={storage}
-                onChange={(storageChoice) => patch({ storageChoice })}
-                aria-labelledby={storageLabelId}
-              />
-
-              {storage === "cloud" &&
-                (signedIn && user ? (
-                  <CloudIdentityPanel
-                    name={user.name ?? undefined}
-                    email={user.email}
-                    onSignOut={() => void signOutOfCloud()}
-                  />
-                ) : (
-                  <CloudSignInNotice onSignIn={() => setGate("signin")} />
-                ))}
-            </div>
-
-            {storage === "cloud" && (
-              <div className="flex flex-col gap-2">
-                <label
-                  htmlFor={cloudIdFieldId}
-                  className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground"
-                >
-                  Cloud ID
-                </label>
-                <div className="relative flex items-center">
-                  <Input
-                    id={cloudIdFieldId}
-                    type="text"
-                    value={cloudId}
-                    onChange={(e) =>
-                      patch({
-                        cloudIdChoice: e.target.value
-                          .toLowerCase()
-                          .replace(/[^a-z0-9-]/g, ""),
-                      })
-                    }
-                    placeholder="my-kalaidoscope"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className={cn(
-                      "font-mono text-mono-sm",
-                      (idTaken || (!!cloudId && !idIsValid)) &&
-                        "border-destructive focus-visible:ring-destructive",
-                      highlightedFields.has("cloudId") && [
-                        requiredHighlightClass,
-                        "pr-24",
-                      ],
-                    )}
-                  />
-                  {highlightedFields.has("cloudId") && (
-                    <RequiredPill className="right-2" />
-                  )}
-                </div>
-                {(() => {
-                  const status = idStatus();
-                  if (!status) return null;
-                  return (
-                    <p
-                      className={cn(
-                        "text-meta",
-                        status.tone === "error"
-                          ? "text-destructive"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {status.text}
-                      {idTaken && checked?.suggestion && (
-                        <>
-                          {" "}
-                          <button
-                            type="button"
-                            className="font-mono underline underline-offset-2"
-                            onClick={() =>
-                              patch({ cloudIdChoice: checked.suggestion })
-                            }
-                          >
-                            Use {checked.suggestion}
-                          </button>
-                        </>
-                      )}
-                    </p>
-                  );
-                })()}
-              </div>
-            )}
-
-            {storage === "local_file" && (
-              <ProviderFields
-                provider={fields.llmProvider}
-                apiKey={fields.apiKey}
-                defaultModel={fields.defaultModel}
-                roleModels={fields.roleModels}
-                disabled={isPending}
-                highlightedFields={highlightedFields}
-                apiKeyFieldId={apiKeyFieldId}
-                modelFieldId={modelFieldId}
-                onProviderChange={(llmProvider) => {
-                  patch({ llmProvider });
-                  setError(null);
-                }}
-                onApiKeyChange={(apiKey) => patch({ apiKey })}
-                onDefaultModelChange={(defaultModel) => patch({ defaultModel })}
-                onRoleModelChange={(role, model) =>
-                  patch({ roleModels: { ...fields.roleModels, [role]: model } })
-                }
-              />
-            )}
+            <StorageAndProviderSection
+              storage={storage}
+              storageLabelId={storageLabelId}
+              signedIn={signedIn}
+              user={user}
+              fields={fields}
+              derived={derived}
+              isPending={isPending}
+              highlightedFields={highlightedFields}
+              cloudIdFieldId={cloudIdFieldId}
+              apiKeyFieldId={apiKeyFieldId}
+              modelFieldId={modelFieldId}
+              onPatch={patch}
+              onClearError={() => setError(null)}
+              onRequestSignIn={() => setGate("signin")}
+            />
 
             {error && <p className="text-meta text-destructive">{error}</p>}
 
@@ -545,9 +400,11 @@ export default function KalaidoscopeSetup() {
                 size="default"
                 type="submit"
                 disabled={isPending}
-                className={cn(!canCreate && "opacity-50 hover:opacity-50")}
+                className={cn(
+                  !derived.canCreate && "opacity-50 hover:opacity-50",
+                )}
               >
-                {isPending ? "Creating…" : submitLabel}
+                {isPending ? "Creating…" : derived.submitLabel}
               </Button>
             </div>
           </form>
