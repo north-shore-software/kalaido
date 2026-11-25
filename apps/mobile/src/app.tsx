@@ -7,15 +7,21 @@ import {
   CloudWorkspacePickerScreen,
 } from "@kalaido/features/auth";
 import { ExploreCompactScreen } from "@kalaido/features/explore";
+import { CloudRootScopeContext } from "@kalaido/hooks/cloud-root-scope";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { ActiveKalaidoscopeContext } from "@kalaido/hooks/use-active-kalaidoscope";
+import { useCloudWorkspaces } from "@kalaido/hooks/use-cloud-workspaces";
 import { KalaidoscopeClientContext } from "@kalaido/hooks/use-kalaidoscope-client";
-import { getHost } from "@kalaido/platform";
+import { getHost, type KalaidoscopeMeta } from "@kalaido/platform";
+import { disposeClientSubscriptions } from "@kalaido/state/pocketbase";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import {
   Component,
   type ErrorInfo,
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
 } from "react";
 import {
@@ -25,11 +31,10 @@ import {
   Routes,
   useNavigate,
 } from "react-router-dom";
-import { useSnapshot } from "valtio/react";
 import {
   type CloudStage,
-  cloudState,
   openCloudWorkspace,
+  prepareCloudReset,
   signOutOfCloud,
   syncCloudWorkspaces,
 } from "./state";
@@ -48,6 +53,29 @@ function pathForStage(stage: CloudStage): string {
     case "workspace_open":
       return "/explore";
   }
+}
+
+function useCloudWorkspacesList(): readonly KalaidoscopeMeta[] {
+  const root = useScopeContext(CloudRootScopeContext);
+  const wsScope = useScope({
+    from: root,
+    state: ["cachedCloudKalaidoscopes"],
+    events: ["setCachedCloudKalaidoscopes"],
+  });
+  const { cachedCloudKalaidoscopes } = useScopeState(wsScope);
+  const offlineBridge = useMemo(
+    () => ({
+      read: () => wsScope.state.cachedCloudKalaidoscopes,
+      write: (workspaces: KalaidoscopeMeta[]) =>
+        wsScope.dispatch({
+          type: "setCachedCloudKalaidoscopes",
+          workspaces,
+        }),
+    }),
+    [wsScope],
+  );
+  const live = useCloudWorkspaces({ offlineBridge });
+  return live.data ?? cachedCloudKalaidoscopes;
 }
 
 class CloudErrorBoundary extends Component<
@@ -73,6 +101,7 @@ class CloudErrorBoundary extends Component<
         error={this.state.error}
         onRetry={() => getHost().reload()}
         retryLabel="Reload Kalaido"
+        onBeforeClear={prepareCloudReset}
       />
     );
   }
@@ -80,7 +109,9 @@ class CloudErrorBoundary extends Component<
 
 function StageNavigationListener() {
   const navigate = useNavigate();
-  const { stage } = useSnapshot(cloudState);
+  const root = useScopeContext(CloudRootScopeContext);
+  const stageScope = useScope({ from: root, state: ["stage"] });
+  const { stage } = useScopeState(stageScope);
   const handledStage = useRef<string | null>(null);
 
   useEffect(() => {
@@ -121,7 +152,10 @@ function LoginPage() {
 
 function WorkspacesPage() {
   const navigate = useNavigate();
-  const { stage, workspaces } = useSnapshot(cloudState);
+  const root = useScopeContext(CloudRootScopeContext);
+  const stageScope = useScope({ from: root, state: ["stage"] });
+  const { stage } = useScopeState(stageScope);
+  const workspaces = useCloudWorkspacesList();
 
   useEffect(() => {
     document.documentElement.dataset.section = "onboarding";
@@ -147,7 +181,14 @@ function WorkspacesPage() {
 }
 
 function ExplorePage() {
-  const { stage, workspaces } = useSnapshot(cloudState);
+  const root = useScopeContext(CloudRootScopeContext);
+  const exploreScope = useScope({
+    from: root,
+    state: ["stage"],
+    events: ["setStage"],
+  });
+  const { stage } = useScopeState(exploreScope);
+  const workspaces = useCloudWorkspacesList();
   const client =
     stage.stage === "workspace_open" ? getActiveKalaidoscopeClient() : null;
 
@@ -157,7 +198,9 @@ function ExplorePage() {
 
   useEffect(() => {
     return () => {
-      client?.cancelAllRequests();
+      if (!client) return;
+      disposeClientSubscriptions(client);
+      client.cancelAllRequests();
     };
   }, [client]);
 
@@ -174,6 +217,7 @@ function ExplorePage() {
         title="Couldn't connect to workspace"
         description="The workspace connection was lost. Reload to reconnect."
         onRetry={() => getHost().reload()}
+        onBeforeClear={prepareCloudReset}
       />
     );
   }
@@ -191,10 +235,13 @@ function ExplorePage() {
                 surfaceError: false,
               });
               if (result.isErr()) {
-                cloudState.stage = {
-                  stage: "workspace_load_error",
-                  error: { message: result.error.message },
-                };
+                await exploreScope.dispatch({
+                  type: "setStage",
+                  stage: {
+                    stage: "workspace_load_error",
+                    error: { message: result.error.message },
+                  },
+                });
               }
             }}
             onSignOut={signOutOfCloud}
@@ -206,13 +253,16 @@ function ExplorePage() {
 }
 
 function BootErrorPage() {
-  const { stage } = useSnapshot(cloudState);
+  const root = useScopeContext(CloudRootScopeContext);
+  const stageScope = useScope({ from: root, state: ["stage"] });
+  const { stage } = useScopeState(stageScope);
   return (
     <RecoveryView
       title="Kalaido couldn't load its settings"
       description="Kalaido couldn't read its stored settings. Trying again often works; resetting clears saved state and starts fresh."
       error={stage.stage === "bootstrap_error" ? stage.error : undefined}
       onRetry={() => getHost().reload()}
+      onBeforeClear={prepareCloudReset}
     />
   );
 }

@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { reloadAppWindow } from "@/api/app/os-integrations.ts";
-import { resetAppSettings } from "@/api/app/settings.ts";
+import { getHost } from "@kalaido/platform";
 import { SectionHeader } from "@kalaido/primitives/layout/section";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import { useState } from "react";
+import { reloadAppWindow } from "@/api/app/os-integrations.ts";
+import { prepareDesktopReset } from "@/state/app-state.ts";
 
 export function DangerZoneSection() {
   const [confirming, setConfirming] = useState(false);
@@ -11,7 +12,8 @@ export function DangerZoneSection() {
 
   async function handleReset() {
     setResetting(true);
-    await resetAppSettings();
+    await prepareDesktopReset();
+    await getHost().settings.clear();
     reloadAppWindow();
   }
 

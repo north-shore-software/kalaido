@@ -278,6 +278,9 @@ importers:
       '@kalaido/primitives':
         specifier: workspace:*
         version: link:../../packages/react/primitives
+      '@kalaido/state':
+        specifier: workspace:*
+        version: link:../../packages/react/state
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -363,6 +366,9 @@ importers:
       '@kalaido/primitives':
         specifier: workspace:*
         version: link:../../packages/react/primitives
+      '@kalaido/state':
+        specifier: workspace:*
+        version: link:../../packages/react/state
       '@tauri-apps/api':
         specifier: ^2.12.5
         version: 2.12.5
@@ -415,6 +421,9 @@ importers:
       '@kalaido/primitives':
         specifier: workspace:*
         version: link:../../packages/react/primitives
+      '@kalaido/state':
+        specifier: workspace:*
+        version: link:../../packages/react/state
       neverthrow:
         specifier: ^8.2.0
         version: 8.2.0
@@ -506,6 +515,9 @@ importers:
       '@kalaido/primitives':
         specifier: workspace:*
         version: link:../primitives
+      '@kalaido/state':
+        specifier: workspace:*
+        version: link:../state
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

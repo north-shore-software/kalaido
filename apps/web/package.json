@@ -16,6 +16,7 @@
     "@kalaido/hooks": "workspace:*",
     "@kalaido/platform": "workspace:*",
     "@kalaido/primitives": "workspace:*",
+    "@kalaido/state": "workspace:*",
     "neverthrow": "^8.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

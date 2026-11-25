@@ -6,8 +6,6 @@
  */
 export type Theme = "dark" | "light" | "system";
 
-const THEME_STORAGE_KEY = "theme";
-
 function prefersDark(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -30,26 +28,6 @@ export function applyTheme(theme: Theme): void {
     "dark",
     resolveTheme(theme) === "dark",
   );
-}
-
-export function getInitialTheme(): Theme {
-  try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "dark" || stored === "light" || stored === "system") {
-      return stored;
-    }
-  } catch {
-    // Storage unavailable — fall through to the default.
-  }
-  return "system";
-}
-
-export function persistTheme(theme: Theme): void {
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
-    // Non-fatal: the theme still applies, it just won't survive a restart.
-  }
 }
 
 /**

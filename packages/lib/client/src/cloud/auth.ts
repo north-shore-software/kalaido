@@ -4,7 +4,6 @@ import { err, ok, type Result } from "neverthrow";
 import { getAuthUrl, onClientConfigChange } from "#config";
 import { toError } from "#lib/errors";
 
-const SESSION_TOKEN_KEY = "kalaido.cloud.session-token";
 const JWT_EXPIRY_SKEW_S = 30;
 
 export interface CloudSessionTokenBridge {
@@ -18,6 +17,7 @@ export interface CloudSessionTokenBridge {
 }
 
 let tokenBridge: CloudSessionTokenBridge | null = null;
+let fallbackSessionToken: string | null = null;
 let cachedJwt: { token: string; exp: number } | null = null;
 let inflightJwt: Promise<Result<string, Error>> | null = null;
 
@@ -25,31 +25,21 @@ export function configureCloudSessionTokenBridge(
   bridge: CloudSessionTokenBridge | null,
 ): void {
   tokenBridge = bridge;
+  if (bridge === null) {
+    fallbackSessionToken = null;
+  }
 }
 
 function readSessionToken(): string | null {
   if (tokenBridge) {
     return tokenBridge.get();
   }
-  try {
-    return window.localStorage.getItem(SESSION_TOKEN_KEY);
-  } catch {
-    return null;
-  }
+  return fallbackSessionToken;
 }
 
 function writeSessionToken(token: string | null): void {
-  if (tokenBridge) {
-    tokenBridge.onChange(token);
-    return;
-  }
-  try {
-    if (token === null) {
-      window.localStorage.removeItem(SESSION_TOKEN_KEY);
-    } else {
-      window.localStorage.setItem(SESSION_TOKEN_KEY, token);
-    }
-  } catch {}
+  fallbackSessionToken = token;
+  tokenBridge?.onChange(token);
 }
 
 function cacheJwt(token: string): void {

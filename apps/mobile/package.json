@@ -17,6 +17,7 @@
     "@kalaido/hooks": "workspace:*",
     "@kalaido/platform": "workspace:*",
     "@kalaido/primitives": "workspace:*",
+    "@kalaido/state": "workspace:*",
     "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2.7.3",

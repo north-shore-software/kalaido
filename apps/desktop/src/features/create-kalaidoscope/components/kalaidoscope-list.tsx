@@ -1,9 +1,10 @@
-import { useSnapshot } from "valtio/react";
-import { ListRow } from "@kalaido/primitives/kalaido";
-import { appState } from "@/state/app-state.ts";
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { kalaidoscopeTypeLabel } from "@kalaido/client/lib/labels";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { ListRow } from "@kalaido/primitives/kalaido";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
+import { allKalaidoscopes, DesktopScopeContext } from "@/state/app-state.ts";
 
 interface KalaidoscopeListProps {
   excludeId?: string;
@@ -16,11 +17,17 @@ export function KalaidoscopeList({
   className,
   onSwitched,
 }: KalaidoscopeListProps) {
-  const { appStage, availableKalaidoscopes } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const listScope = useScope({
+    from: root,
+    state: ["appStage", "localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { appStage, localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(listScope);
   const switching = appStage.stage === "kalaidoscope_loading";
-  const items = activeKalaidoscopes(availableKalaidoscopes).filter(
-    (k) => k.id !== excludeId,
-  );
+  const items = activeKalaidoscopes(
+    allKalaidoscopes({ localKalaidoscopes, cachedCloudKalaidoscopes }),
+  ).filter((k) => k.id !== excludeId);
 
   async function handleSelect(id: string) {
     await switchLocalKalaidoscope(id);

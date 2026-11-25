@@ -1,6 +1,8 @@
-import { CaretUpDownIcon, PlusIcon } from "@phosphor-icons/react";
-import { useSnapshot } from "valtio/react";
+import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
+import { kalaidoscopeTypeLabel } from "@kalaido/client/lib/labels";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { Label, Mark } from "@kalaido/primitives/kalaido";
+import { cn } from "@kalaido/primitives/lib/css-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,19 +13,17 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@kalaido/primitives/shadcn/dropdown-menu";
-
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@kalaido/primitives/shadcn/sidebar";
-import { appState } from "@/state/app-state.ts";
-import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
-import { cn } from "@kalaido/primitives/lib/css-utils";
-import { kalaidoscopeTypeLabel } from "@kalaido/client/lib/labels";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { CaretUpDownIcon, PlusIcon } from "@phosphor-icons/react";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { allKalaidoscopes, DesktopScopeContext } from "@/state/app-state.ts";
 import { switcherTransitions } from "./nav-kalaidoscope-switcher.transitions";
 
 const MENU_ITEM_CLASS =
@@ -32,8 +32,16 @@ const MENU_ITEM_CLASS =
 export function NavKalaidoscopeSwitcher() {
   const { go } = useAppNavigate();
   const { isMobile } = useSidebar();
-  const { appStage, availableKalaidoscopes } = useSnapshot(appState);
-  const kalaidoscopes = activeKalaidoscopes(availableKalaidoscopes);
+  const root = useScopeContext(DesktopScopeContext);
+  const switcherScope = useScope({
+    from: root,
+    state: ["appStage", "localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { appStage, localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(switcherScope);
+  const kalaidoscopes = activeKalaidoscopes(
+    allKalaidoscopes({ localKalaidoscopes, cachedCloudKalaidoscopes }),
+  );
   const currentKalaidoscopeId =
     appStage.stage === "kalaidoscope_open"
       ? appStage.selectedKalaidoscopeId

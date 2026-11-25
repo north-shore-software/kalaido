@@ -1,6 +1,5 @@
-import { PlusIcon, WarningIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
-import { useSnapshot } from "valtio/react";
+import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { Mark } from "@kalaido/primitives/kalaido";
 import { PageBackButton } from "@kalaido/primitives/layout/page-back-button";
 import { Button } from "@kalaido/primitives/shadcn/button";
@@ -12,16 +11,17 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@kalaido/primitives/shadcn/empty";
-
 import { Skeleton } from "@kalaido/primitives/shadcn/skeleton";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { PlusIcon, WarningIcon } from "@phosphor-icons/react";
+import { useCallback, useEffect, useState } from "react";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
-import { appState } from "@/state/app-state.ts";
-import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { syncCloudWorkspaces } from "@/lib/cloud-workspaces.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { DesktopScopeContext } from "@/state/app-state.ts";
 import { cloudWorkspacesTransitions as transitions } from "./CloudWorkspaces.transitions";
 
 const CREATE_CLOUD_WORKSPACE: KalaidoscopeSetupState = {
@@ -30,7 +30,12 @@ const CREATE_CLOUD_WORKSPACE: KalaidoscopeSetupState = {
 
 export default function CloudWorkspaces() {
   const { go } = useAppNavigate();
-  const { availableKalaidoscopes } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const cloudScope = useScope({
+    from: root,
+    state: ["cachedCloudKalaidoscopes"],
+  });
+  const { cachedCloudKalaidoscopes } = useScopeState(cloudScope);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
@@ -58,9 +63,7 @@ export default function CloudWorkspaces() {
     setOpeningId(null);
   }
 
-  const workspaces = activeKalaidoscopes(availableKalaidoscopes).filter(
-    (k) => k.type === "cloud",
-  );
+  const workspaces = activeKalaidoscopes(cachedCloudKalaidoscopes);
   const banner = openError ?? listError;
 
   // Only a confirmed-empty account gets the hero. A failed list is also

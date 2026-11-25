@@ -1,13 +1,16 @@
-import { useSnapshot } from "valtio/react";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
-import { appState } from "@/state/app-state.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
 import { defineRoute } from "@/routes/route-kit";
+import { DesktopScopeContext } from "@/state/app-state.ts";
 import { RecoveryScreen } from "../components/recovery-screen";
 import { bootErrorTransitions } from "./BootError.transitions";
 
 export default function BootError() {
-  const { appStage } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const stageScope = useScope({ from: root, state: ["appStage"] });
+  const { appStage } = useScopeState(stageScope);
 
   if (appStage.stage === "bootstrap_error") {
     return (

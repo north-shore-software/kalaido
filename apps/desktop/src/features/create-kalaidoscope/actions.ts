@@ -1,14 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
-import {
-  createLocalKalaidoscope,
-  deleteLocalKalaidoscope,
-  startLocalKalaidoscope,
-  stopLocalKalaidoscope,
-} from "@/api/app/local-scopes.ts";
-import { setSetting } from "@/api/app/settings.ts";
-import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { createCloudKalaidoscope } from "@kalaido/client/cloud/user";
-import { createKalaidoscopeClient } from "@/api/app/sidecar-client";
 import {
   type WorkspaceLlmConfig,
   writeWorkspaceLlmConfig,
@@ -17,14 +7,33 @@ import {
   formatLocalNetLocator,
   isLoopbackHostname,
 } from "@kalaido/client/kalaidoscope/local-url";
-import {
-  addAvailableKalaidoscope,
-  openKalaidoscope,
-  setAppStage,
-} from "@/state/app-state-actions.ts";
-import { appState, type StageEntry } from "@/state/app-state.ts";
 import { setActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
 import { toError } from "@kalaido/client/lib/errors";
+import { CLOUD_WORKSPACES_TAG } from "@kalaido/hooks/use-cloud-workspaces";
+import type { KalaidoscopeMeta } from "@kalaido/platform";
+import { invalidateLiveTags } from "@kalaido/state/live";
+import { err, ok, type Result } from "neverthrow";
+import {
+  createLocalKalaidoscope,
+  deleteLocalKalaidoscope,
+  getLocalKalaidoscopeStatus,
+  startLocalKalaidoscope,
+  stopLocalKalaidoscope,
+} from "@/api/app/local-scopes.ts";
+import { createKalaidoscopeClient } from "@/api/app/sidecar-client";
+import {
+  desktopScope,
+  type StageEntry,
+  teardownActiveClient,
+} from "@/state/app-state.ts";
+import {
+  addCachedCloudKalaidoscope,
+  addLocalKalaidoscope,
+  openKalaidoscope,
+  setAppStage,
+  setLastOpenedKalaidoscopeId,
+  setSidecarStatus,
+} from "@/state/app-state-actions.ts";
 
 export interface CreateKalaidoscopeInput {
   name: string;
@@ -82,7 +91,7 @@ function classifyNetLocation(url: URL): LocationResult {
 }
 
 async function rollbackLocalKalaidoscope(meta: KalaidoscopeMeta) {
-  setActiveKalaidoscopeClient(null);
+  await teardownActiveClient();
 
   const stopped = await stopLocalKalaidoscope(meta.id);
   if (stopped.isErr()) {
@@ -106,11 +115,16 @@ async function startAndConfigure(
   }
 
   try {
+    await teardownActiveClient();
     setActiveKalaidoscopeClient(await createKalaidoscopeClient(meta));
   } catch (e) {
     await rollbackLocalKalaidoscope(meta);
     return err(toError(e));
   }
+
+  void getLocalKalaidoscopeStatus(meta.id).then((res) => {
+    if (res.isOk()) setSidecarStatus(res.value);
+  });
 
   if (!llmConfig) return ok(undefined);
 
@@ -138,8 +152,8 @@ export async function createKalaidoscope(
       locator = input.cloudId.trim();
       id = locator;
       if (
-        appState.availableKalaidoscopes.some(
-          (k) => k.type === "cloud" && k.locator === locator,
+        desktopScope.state.cachedCloudKalaidoscopes.some(
+          (k) => k.locator === locator,
         )
       ) {
         return err(
@@ -188,12 +202,13 @@ export async function createKalaidoscope(
       if (started.isErr()) return err(started.error);
     }
 
-    addAvailableKalaidoscope(newKalaidoscope);
-
-    await setSetting("availableKalaidoscopes", [
-      ...appState.availableKalaidoscopes,
-    ]);
-    await setSetting("lastOpenedKalaidoscopeId", id);
+    if (type === "cloud") {
+      await addCachedCloudKalaidoscope(newKalaidoscope);
+      await invalidateLiveTags([CLOUD_WORKSPACES_TAG]);
+    } else {
+      await addLocalKalaidoscope(newKalaidoscope);
+    }
+    await setLastOpenedKalaidoscopeId(id);
 
     if (type === "local_file") {
       openKalaidoscope(id, input.entry);

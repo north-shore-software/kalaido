@@ -1,4 +1,23 @@
 import {
+  type DiscoverKind,
+  startDiscover,
+} from "@kalaido/client/kalaidoscope/discover";
+import { startMap } from "@kalaido/client/kalaidoscope/map";
+import { startReconcile } from "@kalaido/client/kalaidoscope/reconcile";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
+import {
+  EmptyState,
+  Label,
+  Pill,
+  StatusPill,
+  SurfaceCard,
+} from "@kalaido/primitives/kalaido";
+import { Button } from "@kalaido/primitives/shadcn/button";
+import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import {
   ArrowsClockwiseIcon,
   CompassIcon,
   PaletteIcon,
@@ -9,32 +28,14 @@ import {
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useSnapshot } from "valtio/react";
-import {
-  type DiscoverKind,
-  startDiscover,
-} from "@kalaido/client/kalaidoscope/discover";
-import { startMap } from "@kalaido/client/kalaidoscope/map";
-import { startReconcile } from "@kalaido/client/kalaidoscope/reconcile";
-import {
-  EmptyState,
-  Label,
-  Pill,
-  StatusPill,
-  SurfaceCard,
-} from "@kalaido/primitives/kalaido";
 import {
   PageCard,
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
 import { queueHeldLabels } from "@/components/layout/utility-bar";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import { Spinner } from "@kalaido/primitives/shadcn/spinner";
-import { appState } from "@/state/app-state";
-import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
 import { defineRoute } from "@/routes/route-kit";
+import { DesktopScopeContext } from "@/state/app-state";
 import { useEventLog } from "../hooks/use-event-log";
 import { statusTransitions } from "./Status.transitions";
 
@@ -50,7 +51,9 @@ interface QueueTask {
 export default function StatusPage() {
   const { status: organize } = useOrganizeStatus();
   const { records: queueRecords } = useLiveCollection("llm_queue_status");
-  const { latestInferenceRate } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const rateScope = useScope({ from: root, state: ["latestInferenceRate"] });
+  const { latestInferenceRate } = useScopeState(rateScope);
   const events = useEventLog();
 
   const [startingMap, setStartingMap] = useState(false);

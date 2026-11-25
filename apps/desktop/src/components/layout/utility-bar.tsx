@@ -6,23 +6,19 @@ import {
   SparkleIcon,
   SunIcon,
 } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
-import { useSnapshot } from "valtio/react";
-import {
-  getLocalKalaidoscopeStatus,
-  registerSidecarStatusChangeListener,
-  type SidecarStatus,
-} from "@/api/app/local-scopes";
-import type { UnlistenFn } from "@/api/app/os-integrations.ts";
-import { Pill } from "@kalaido/primitives/kalaido";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { useActiveKalaidoscope } from "@kalaido/hooks/use-active-kalaidoscope";
-import { appState } from "@/state/app-state.ts";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
+import { Pill } from "@kalaido/primitives/kalaido";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { resolveTheme } from "@kalaido/primitives/lib/theme";
 import { useTheme } from "@kalaido/primitives/providers/theme-provider";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { useEffect, useState } from "react";
+import type { SidecarStatus } from "@/api/app/local-scopes";
 import { useAppNavigate } from "@/routes/use-app-navigate";
+import { DesktopScopeContext } from "@/state/app-state.ts";
 import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
 import { utilityBarTransitions } from "./utility-bar.transitions";
 
@@ -33,40 +29,10 @@ import { utilityBarTransitions } from "./utility-bar.transitions";
  */
 export function UtilityBar() {
   const currentKalaidoscope = useActiveKalaidoscope();
-  const currentKalaidoscopeId = currentKalaidoscope?.id ?? null;
   const isLocal = currentKalaidoscope?.type === "local_file";
-
-  const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus>({
-    phase: "idle",
-    id: null,
-    message: null,
-  });
-
-  useEffect(() => {
-    let unlisten: UnlistenFn | null = null;
-    let cancelled = false;
-    void (async () => {
-      const result =
-        await registerSidecarStatusChangeListener(setSidecarStatus);
-      if (result.isErr()) return;
-      if (cancelled) result.value();
-      else unlisten = result.value;
-    })();
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, []);
-
-  // Status events only fire on changes, so seed the current phase on mount /
-  // kalaidoscope switch.
-  useEffect(() => {
-    if (!currentKalaidoscopeId || !isLocal) return;
-    void (async () => {
-      const result = await getLocalKalaidoscopeStatus(currentKalaidoscopeId);
-      if (result.isOk()) setSidecarStatus(result.value);
-    })();
-  }, [currentKalaidoscopeId, isLocal]);
+  const root = useScopeContext(DesktopScopeContext);
+  const sidecarScope = useScope({ from: root, state: ["sidecarStatus"] });
+  const { sidecarStatus } = useScopeState(sidecarScope);
 
   return (
     <div className="relative flex h-8 shrink-0 items-center justify-between overflow-hidden border-t border-sidebar-border bg-sidebar px-3">
@@ -275,7 +241,9 @@ function QueueStatusLine({
   sidecarStatus: SidecarStatus;
 }) {
   const { records } = useLiveCollection("llm_queue_status");
-  const { latestInferenceRate } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const rateScope = useScope({ from: root, state: ["latestInferenceRate"] });
+  const { latestInferenceRate } = useScopeState(rateScope);
 
   const [, forceTick] = useState(0);
   const rateAt = latestInferenceRate?.at;

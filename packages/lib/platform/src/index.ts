@@ -18,8 +18,6 @@ export type PersistentAppSetting = {
   cloudSessionToken: string;
   localKalaidoscopes: KalaidoscopeMeta[];
   cachedCloudKalaidoscopes: KalaidoscopeMeta[];
-  /** @deprecated Replaced by `localKalaidoscopes` and `cachedCloudKalaidoscopes`; removed in Wave 2. */
-  availableKalaidoscopes: KalaidoscopeMeta[];
   onboardingAcknowledged: boolean;
   errorReportingEnabled: boolean;
   usageStatisticsEnabled: boolean;

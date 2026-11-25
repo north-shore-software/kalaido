@@ -1,0 +1,299 @@
+import {
+  configureCloudSessionTokenBridge,
+  signOutCloudAuth,
+} from "@kalaido/client/cloud/auth";
+import { listCloudKalaidoscopes } from "@kalaido/client/cloud/user";
+import { createCloudClient } from "@kalaido/client/kalaidoscope/client";
+import {
+  getActiveKalaidoscopeClient,
+  setActiveKalaidoscopeClient,
+} from "@kalaido/client/lib/active-kalaidoscope-client";
+import { isArchived } from "@kalaido/client/lib/active-kalaidoscopes";
+import {
+  type StageError,
+  stageError,
+  toError,
+} from "@kalaido/client/lib/errors";
+import { resetPostHog } from "@kalaido/client/lib/posthog";
+import { reconcileCloudWorkspaces } from "@kalaido/client/lib/reconcile-cloud-workspaces";
+import {
+  getHost,
+  type KalaidoscopeMeta,
+  type SettingsStore,
+  type ThemePreference,
+} from "@kalaido/platform";
+import { invalidateLiveTags } from "@kalaido/state/live";
+import { disposeClientSubscriptions } from "@kalaido/state/pocketbase";
+import {
+  createScope,
+  type PersistedScopeInstance,
+  type ScopeHandlers,
+} from "@kalaido/state/scope";
+import { err, ok, type Result } from "neverthrow";
+import { createScopeContext } from "#create-scope-context";
+import {
+  clearCloudLiveCache,
+  clearWorkspaceLiveCache,
+} from "#kalaidoscope-live";
+import { hostSettingsPersistence } from "#scope-persistence";
+import { CLOUD_WORKSPACES_TAG } from "#use-cloud-workspaces";
+
+export type CloudStage =
+  | { stage: "bootstrap" | "signed_out" | "workspace_loading" }
+  | { stage: "bootstrap_error"; error?: StageError }
+  | { stage: "workspace_load_error"; error?: StageError }
+  | { stage: "workspace_open"; workspaceId: string }
+  | { stage: "workspace_load_requested"; workspaceId: string };
+
+export interface CloudRootState {
+  theme: ThemePreference;
+  cloudSessionToken?: string;
+  lastOpenedKalaidoscopeId?: string;
+  cachedCloudKalaidoscopes: KalaidoscopeMeta[];
+  stage: CloudStage;
+  recentExploreConversationIds: Record<string, string>;
+}
+
+export type CloudRootEvent =
+  | { readonly type: "setTheme"; readonly theme: ThemePreference }
+  | { readonly type: "setCloudSessionToken"; readonly token: string | null }
+  | {
+      readonly type: "setCachedCloudKalaidoscopes";
+      readonly workspaces: KalaidoscopeMeta[];
+    }
+  | { readonly type: "setStage"; readonly stage: CloudStage }
+  | { readonly type: "setLastOpenedKalaidoscopeId"; readonly id: string | null }
+  | {
+      readonly type: "setRecentExploreConversationId";
+      readonly workspaceId: string;
+      readonly conversationId: string | null;
+    }
+  | { readonly type: "signOut" };
+
+export type CloudRootScopeInstance = PersistedScopeInstance<
+  CloudRootState,
+  CloudRootEvent
+>;
+
+export const CloudRootScopeContext = createScopeContext<
+  CloudRootState,
+  CloudRootEvent
+>("CloudRootScope");
+
+const CLOUD_PERSIST_KEYS = [
+  "theme",
+  "cloudSessionToken",
+  "lastOpenedKalaidoscopeId",
+  "cachedCloudKalaidoscopes",
+] as const;
+
+export function createCloudRootScope(
+  settings?: SettingsStore,
+): CloudRootScopeInstance {
+  const handlers: ScopeHandlers<CloudRootState, CloudRootEvent> = {
+    setTheme: (s, e) => {
+      s.theme = e.theme;
+    },
+    setCloudSessionToken: (s, e) => {
+      if (e.token === null) {
+        delete s.cloudSessionToken;
+      } else {
+        s.cloudSessionToken = e.token;
+      }
+    },
+    setCachedCloudKalaidoscopes: (s, e) => {
+      s.cachedCloudKalaidoscopes = e.workspaces;
+    },
+    setStage: (s, e) => {
+      s.stage = e.stage;
+    },
+    setLastOpenedKalaidoscopeId: (s, e) => {
+      if (e.id === null) {
+        delete s.lastOpenedKalaidoscopeId;
+      } else {
+        s.lastOpenedKalaidoscopeId = e.id;
+      }
+    },
+    setRecentExploreConversationId: (s, e) => {
+      if (e.conversationId === null) {
+        delete s.recentExploreConversationIds[e.workspaceId];
+      } else {
+        s.recentExploreConversationIds[e.workspaceId] = e.conversationId;
+      }
+    },
+    signOut: (s) => {
+      delete s.cloudSessionToken;
+      delete s.lastOpenedKalaidoscopeId;
+      s.cachedCloudKalaidoscopes = [];
+      s.recentExploreConversationIds = {};
+      s.stage = { stage: "signed_out" };
+    },
+  };
+
+  return createScope({
+    initial: (): CloudRootState => ({
+      theme: "system",
+      cachedCloudKalaidoscopes: [],
+      stage: { stage: "bootstrap" },
+      recentExploreConversationIds: {},
+    }),
+    handlers,
+    persist: {
+      keys: CLOUD_PERSIST_KEYS,
+      adapter: hostSettingsPersistence(CLOUD_PERSIST_KEYS, settings),
+      onHydrated: (state, result) => {
+        if (result.isErr()) {
+          state.stage = {
+            stage: "bootstrap_error",
+            error: stageError(result.error),
+          };
+          return;
+        }
+        const saved = (state.cachedCloudKalaidoscopes ?? []).filter(
+          (k) => k.type === "cloud",
+        );
+        state.cachedCloudKalaidoscopes = saved;
+        const lastOpened = saved.find(
+          (k) => k.id === state.lastOpenedKalaidoscopeId && !isArchived(k),
+        );
+        state.stage = lastOpened
+          ? { stage: "workspace_load_requested", workspaceId: lastOpened.id }
+          : { stage: "signed_out" };
+      },
+    },
+  });
+}
+
+/**
+ * Connect `@kalaido/client/cloud/auth` to `scope.state.cloudSessionToken`.
+ * Returns a detach function to call before disposing `scope` on reset/reload.
+ */
+export function wireCloudScopeTokenBridge(
+  scope: CloudRootScopeInstance,
+): () => void {
+  let active = true;
+  configureCloudSessionTokenBridge({
+    get: () => scope.state.cloudSessionToken ?? null,
+    onChange: (token) => {
+      if (!active) return;
+      void scope
+        .dispatch({ type: "setCloudSessionToken", token })
+        .catch(() => {});
+    },
+  });
+  return () => {
+    active = false;
+    configureCloudSessionTokenBridge(null);
+  };
+}
+
+export async function teardownActiveCloudClient(): Promise<void> {
+  const prev = getActiveKalaidoscopeClient();
+  setActiveKalaidoscopeClient(null);
+  if (!prev) return;
+  disposeClientSubscriptions(prev);
+  prev.cancelAllRequests();
+  await clearWorkspaceLiveCache(prev.baseURL);
+}
+
+export async function syncCloudWorkspacesForScope(
+  scope: CloudRootScopeInstance,
+): Promise<Result<void, Error>> {
+  const listed = await listCloudKalaidoscopes();
+  if (listed.isErr()) return err(listed.error);
+
+  const reconciled = reconcileCloudWorkspaces(
+    scope.state.cachedCloudKalaidoscopes,
+    listed.value,
+  );
+  await scope.dispatch({
+    type: "setCachedCloudKalaidoscopes",
+    workspaces: reconciled,
+  });
+  await invalidateLiveTags([CLOUD_WORKSPACES_TAG]);
+  return ok(undefined);
+}
+
+export async function openCloudWorkspaceForScope(
+  scope: CloudRootScopeInstance,
+  targetId: string,
+  { surfaceError = false }: { surfaceError?: boolean } = {},
+): Promise<Result<void, Error>> {
+  const meta = scope.state.cachedCloudKalaidoscopes.find(
+    (k) => k.id === targetId,
+  );
+  if (!meta) {
+    const error = new Error(
+      `This kalaidoscope is no longer registered (${targetId}).`,
+    );
+    if (surfaceError) {
+      await scope.dispatch({
+        type: "setStage",
+        stage: {
+          stage: "workspace_load_error",
+          error: { message: error.message },
+        },
+      });
+    }
+    return err(error);
+  }
+
+  if (surfaceError) {
+    await scope.dispatch({
+      type: "setStage",
+      stage: { stage: "workspace_loading" },
+    });
+  }
+
+  try {
+    await teardownActiveCloudClient();
+    const client = await createCloudClient(meta.locator);
+    setActiveKalaidoscopeClient(client);
+    await scope.dispatch({
+      type: "setStage",
+      stage: { stage: "workspace_open", workspaceId: targetId },
+    });
+    await scope.dispatch({
+      type: "setLastOpenedKalaidoscopeId",
+      id: targetId,
+    });
+    return ok(undefined);
+  } catch (e) {
+    await teardownActiveCloudClient();
+    if (surfaceError) {
+      await scope.dispatch({
+        type: "setStage",
+        stage: {
+          stage: "workspace_load_error",
+          error: stageError(e),
+        },
+      });
+    }
+    return err(toError(e));
+  }
+}
+
+export async function signOutOfCloudForScope(
+  scope: CloudRootScopeInstance,
+  detachTokenBridge?: () => void,
+): Promise<void> {
+  resetPostHog();
+  await signOutCloudAuth();
+  await teardownActiveCloudClient();
+  await clearCloudLiveCache();
+  await scope.dispatch({ type: "signOut" });
+  await scope.flush();
+  detachTokenBridge?.();
+  getHost().reload();
+}
+
+export async function prepareCloudScopeReset(
+  scope: CloudRootScopeInstance,
+  detachTokenBridge?: () => void,
+): Promise<void> {
+  detachTokenBridge?.();
+  await teardownActiveCloudClient();
+  await clearCloudLiveCache();
+  scope.dispose();
+  await scope.flush();
+}

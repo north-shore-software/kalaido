@@ -1,16 +1,26 @@
-import { useSnapshot } from "valtio/react";
+import { isArchived } from "@kalaido/client/lib/active-kalaidoscopes";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { Label, StatusPill } from "@kalaido/primitives/kalaido";
 import { SectionHeader } from "@kalaido/primitives/layout/section";
-import { appState } from "@/state/app-state.ts";
-import { isArchived } from "@kalaido/client/lib/active-kalaidoscopes";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { allKalaidoscopes, DesktopScopeContext } from "@/state/app-state.ts";
 import { KalaidoscopeRow } from "./kalaidoscope-row";
 import { WorkspaceAiPanel } from "./workspace-ai-panel";
 import { WorkspaceBackupsPanel } from "./workspace-backups-panel";
 import { WorkspaceQuotaPanel } from "./workspace-quota-panel";
 
 export function KalaidoscopesSection() {
-  const { appStage, availableKalaidoscopes: kalaidoscopes } =
-    useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const sectionScope = useScope({
+    from: root,
+    state: ["appStage", "localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { appStage, localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(sectionScope);
+  const kalaidoscopes = allKalaidoscopes({
+    localKalaidoscopes,
+    cachedCloudKalaidoscopes,
+  });
   const currentKalaidoscopeId =
     appStage.stage === "kalaidoscope_open"
       ? appStage.selectedKalaidoscopeId

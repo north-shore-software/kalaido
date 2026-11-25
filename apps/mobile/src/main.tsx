@@ -1,14 +1,16 @@
 import "./mobile.css";
 import { configureClient } from "@kalaido/client/config";
 import { CoreProviders } from "@kalaido/components/core-providers";
+import { CloudRootScopeContext } from "@kalaido/hooks/cloud-root-scope";
 import { HostProvider } from "@kalaido/hooks/host";
-import { setHost } from "@kalaido/platform";
-import React from "react";
+import { setHost, type ThemePreference } from "@kalaido/platform";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import React, { useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import { MobileApp } from "./app";
 import { createAppHost } from "./host";
 import { installKeyboardInset } from "./keyboard-inset";
-import { bootstrapCloudState } from "./state";
+import { bootstrapCloudState, cloudScope } from "./state";
 
 const host = createAppHost();
 setHost(host);
@@ -32,12 +34,33 @@ configureClient({
       : undefined,
 });
 
+function MobileRoot() {
+  const themeScope = useScope({
+    from: cloudScope,
+    state: ["theme"],
+    events: ["setTheme"],
+  });
+  const { theme } = useScopeState(themeScope);
+  const handleThemeChange = useCallback(
+    (next: ThemePreference) => {
+      void themeScope.dispatch({ type: "setTheme", theme: next });
+    },
+    [themeScope],
+  );
+
+  return (
+    <CloudRootScopeContext.Provider value={cloudScope}>
+      <CoreProviders theme={theme} onThemeChange={handleThemeChange}>
+        <MobileApp />
+      </CoreProviders>
+    </CloudRootScopeContext.Provider>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <HostProvider host={host}>
-      <CoreProviders>
-        <MobileApp />
-      </CoreProviders>
+      <MobileRoot />
     </HostProvider>
   </React.StrictMode>,
 );

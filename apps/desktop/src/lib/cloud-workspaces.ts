@@ -1,67 +1,34 @@
-import type { Result } from "neverthrow";
-import { err, ok } from "neverthrow";
-import { setSetting } from "@/api/app/settings.ts";
-import type { KalaidoscopeMeta } from "@kalaido/platform";
 import {
   listCloudKalaidoscopes,
   setCloudArchived,
 } from "@kalaido/client/cloud/user";
-import { setAvailableKalaidoscopes } from "@/state/app-state-actions.ts";
-import { appState } from "@/state/app-state.ts";
+import { reconcileCloudWorkspaces } from "@kalaido/client/lib/reconcile-cloud-workspaces";
+import { CLOUD_WORKSPACES_TAG } from "@kalaido/hooks/use-cloud-workspaces";
+import { invalidateLiveTags } from "@kalaido/state/live";
+import { err, ok, type Result } from "neverthrow";
 import { closeIfActive } from "@/lib/local-kalaidoscope.ts";
+import { desktopScope } from "@/state/app-state.ts";
+import { setCachedCloudKalaidoscopes } from "@/state/app-state-actions.ts";
 
 /**
- * Reconciles the locally-known workspace list with what the signed-in account
- * actually owns.
+ * Reconciles the locally-known cloud workspace list with what the signed-in
+ * account actually owns.
  *
- * The cloud registry is authoritative for `type === "cloud"`, not merely a
- * source of additions. Merging without pruning meant a workspace deleted
- * server-side stayed on screen forever, and signing in as a second account
- * showed the first account's workspaces — unopenable, and masking the genuine
- * "you have none yet" state, since the list was never actually empty.
- *
- * Local workspaces are never touched: they belong to the device, not the
- * account, and the cloud has no opinion about them.
- *
- * Pruning happens only on a **successful** list. A failed request tells us
- * nothing about what exists, so an offline launch must leave the list exactly
- * as it was rather than reading "no response" as "no workspaces".
+ * Local workspaces are stored separately in `localKalaidoscopes` and never
+ * touched here. Pruning happens only on a successful list so an offline launch
+ * leaves the cached cloud list intact.
  */
 export async function syncCloudWorkspaces(): Promise<Result<void, Error>> {
   const listed = await listCloudKalaidoscopes();
   if (listed.isErr()) return err(listed.error);
 
-  const remote = new Map(listed.value.map((meta) => [meta.id, meta]));
-  const reconciled: KalaidoscopeMeta[] = [];
+  const reconciled = reconcileCloudWorkspaces(
+    desktopScope.state.cachedCloudKalaidoscopes,
+    listed.value,
+  );
 
-  // Walk the known list first so surviving workspaces hold their position —
-  // a re-fetch should not reshuffle the grid the user is looking at.
-  for (const known of appState.availableKalaidoscopes) {
-    if (known.type !== "cloud") {
-      reconciled.push(known);
-      continue;
-    }
-    const fresh = remote.get(known.id);
-    if (!fresh) continue;
-    // Locally-held fields the registry doesn't return (icon) survive the merge.
-    reconciled.push({ ...known, ...fresh, archivedAt: fresh.archivedAt });
-    remote.delete(known.id);
-  }
-
-  reconciled.push(...remote.values());
-
-  setAvailableKalaidoscopes(reconciled);
-
-  const persisted = await setSetting("availableKalaidoscopes", reconciled);
-  if (persisted.isErr()) {
-    // The list on screen is correct; only the next launch would be stale.
-    // Surfacing this as a sync failure would put an error banner over a
-    // perfectly good list, which is the worse trade.
-    console.error(
-      "Cloud sync: failed to persist workspace list:",
-      persisted.error,
-    );
-  }
+  await setCachedCloudKalaidoscopes(reconciled);
+  await invalidateLiveTags([CLOUD_WORKSPACES_TAG]);
 
   return ok(undefined);
 }
@@ -70,7 +37,9 @@ export async function setKalaidoscopeArchived(
   targetId: string,
   archived: boolean,
 ): Promise<Result<void, Error>> {
-  const meta = appState.availableKalaidoscopes.find((k) => k.id === targetId);
+  const meta = desktopScope.state.cachedCloudKalaidoscopes.find(
+    (k) => k.id === targetId,
+  );
   if (meta?.type !== "cloud") {
     return err(new Error("Only cloud kalaidoscopes can be archived."));
   }
@@ -78,17 +47,13 @@ export async function setKalaidoscopeArchived(
   const updated = await setCloudArchived(meta.locator, archived);
   if (updated.isErr()) return err(updated.error);
 
-  const next = appState.availableKalaidoscopes.map((k) =>
+  const next = desktopScope.state.cachedCloudKalaidoscopes.map((k) =>
     k.id === targetId
       ? { ...k, archivedAt: archived ? new Date().toISOString() : undefined }
       : k,
   );
-  setAvailableKalaidoscopes(next);
-
-  const persisted = await setSetting("availableKalaidoscopes", next);
-  if (persisted.isErr()) {
-    console.error("Failed to persist updated kalaidoscopes:", persisted.error);
-  }
+  await setCachedCloudKalaidoscopes(next);
+  await invalidateLiveTags([CLOUD_WORKSPACES_TAG]);
 
   if (archived) await closeIfActive(targetId);
 

@@ -1,9 +1,14 @@
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import type { StageError } from "@kalaido/client/lib/errors";
 import { RecoveryView } from "@kalaido/components/recovery-view";
-import { useSnapshot } from "valtio/react";
+import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
-import { appState } from "@/state/app-state";
+import {
+  allKalaidoscopes,
+  DesktopScopeContext,
+  prepareDesktopReset,
+} from "@/state/app-state";
 
 export interface RecoveryScreenProps {
   title: string;
@@ -26,13 +31,19 @@ export function RecoveryScreen({
   excludeKalaidoscopeId,
   onSwitched,
 }: RecoveryScreenProps) {
-  const { availableKalaidoscopes } = useSnapshot(appState);
+  const root = useScopeContext(DesktopScopeContext);
+  const listScope = useScope({
+    from: root,
+    state: ["localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(listScope);
 
   const showSwitcher =
     allowSwitch &&
-    activeKalaidoscopes(availableKalaidoscopes).some(
-      (k) => k.id !== excludeKalaidoscopeId,
-    );
+    activeKalaidoscopes(
+      allKalaidoscopes({ localKalaidoscopes, cachedCloudKalaidoscopes }),
+    ).some((k) => k.id !== excludeKalaidoscopeId);
 
   return (
     <RecoveryView
@@ -41,6 +52,7 @@ export function RecoveryScreen({
       error={error}
       onRetry={onRetry}
       retryLabel={retryLabel}
+      onBeforeClear={prepareDesktopReset}
       resetNotice="Clears all saved kalaidoscopes, preferences, and app state, then restarts. Kalaidoscope data directories on disk are not deleted."
       footer={
         showSwitcher ? (
