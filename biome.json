@@ -53,7 +53,10 @@
                   "react": "packages/lib/* must remain React-free.",
                   "react-dom": "packages/lib/* must remain React-free.",
                   "better-auth/react": "Use better-auth/client in packages/lib/*.",
-                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*.",
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly."
                 }
               }
             }
@@ -76,7 +79,10 @@
                   "react": "packages/lib/* must remain React-free.",
                   "react-dom": "packages/lib/* must remain React-free.",
                   "better-auth/react": "Use better-auth/client in packages/lib/*.",
-                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*.",
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly."
                 },
                 "patterns": [
                   {
@@ -103,7 +109,10 @@
                   "react-dom": "packages/lib/* must remain React-free.",
                   "better-auth/react": "Use better-auth/client in packages/lib/*.",
                   "react-router-dom": "Routing belongs in apps/*, not packages/*.",
-                  "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages."
+                  "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly."
                 },
                 "patterns": [
                   {
@@ -127,7 +136,11 @@
               "options": {
                 "paths": {
                   "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
-                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*.",
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly.",
+                  "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
                 },
                 "patterns": [
                   {
@@ -157,7 +170,8 @@
                 "paths": {
                   "pocketbase": "Only packages/react/state/src/pocketbase/** may import pocketbase.",
                   "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
-                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*.",
+                  "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
                 },
                 "patterns": [
                   {
@@ -185,7 +199,8 @@
               "options": {
                 "paths": {
                   "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
-                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*.",
+                  "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
                 },
                 "patterns": [
                   {
@@ -204,6 +219,26 @@
       }
     },
     {
+      "includes": ["apps/desktop/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly.",
+                  "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["apps/web/**"],
       "linter": {
         "rules": {
@@ -212,7 +247,11 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@kalaido/platform/tauri": "apps/web must use @kalaido/platform/web, not the Tauri adapter."
+                  "@kalaido/platform/tauri": "apps/web must use @kalaido/platform/web, not the Tauri adapter.",
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly.",
+                  "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
                 },
                 "patterns": [
                   {
@@ -234,6 +273,12 @@
             "noRestrictedImports": {
               "level": "error",
               "options": {
+                "paths": {
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly.",
+                  "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
+                },
                 "patterns": [
                   {
                     "group": [

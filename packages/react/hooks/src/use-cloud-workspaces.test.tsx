@@ -1,9 +1,8 @@
 import type { KalaidoscopeMeta } from "@kalaido/platform";
-import { invalidateLiveTags } from "@kalaido/state/live";
+import { invalidateLiveTags, LiveCacheProvider } from "@kalaido/state/live";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { err, ok } from "neverthrow";
 import type { ReactNode } from "react";
-import { type Cache, SWRConfig } from "swr";
 import { vi } from "vitest";
 import {
   CLOUD_WORKSPACES_TAG,
@@ -60,11 +59,8 @@ vi.mock("@kalaido/client/cloud/auth", () => ({
 }));
 
 function makeWrapper() {
-  const cache: Cache = new Map();
   return ({ children }: { children: ReactNode }) => (
-    <SWRConfig value={{ provider: () => cache, dedupingInterval: 0 }}>
-      {children}
-    </SWRConfig>
+    <LiveCacheProvider dedupingInterval={0}>{children}</LiveCacheProvider>
   );
 }
 
