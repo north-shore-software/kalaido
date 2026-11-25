@@ -190,12 +190,11 @@ export interface OwnScopeOptions<
   OwnS extends object,
   H extends AnyOwnHandlers<NoInfer<OwnS>, EmptyState, never>,
   PKeys extends readonly (keyof OwnS & string)[] = never,
-  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 > {
   readonly from?: undefined;
   readonly initial: () => OwnS;
   readonly handlers?: H & AnyOwnHandlers<NoInfer<OwnS>, EmptyState, never>;
-  readonly persist?: P;
+  readonly persist?: ScopePersistOptions<NoInfer<OwnS>, PKeys>;
 }
 
 export interface NarrowScopeOptions<
@@ -232,7 +231,6 @@ export interface ExtendScopeOptions<
     NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
   > = Record<never, never>,
   PKeys extends readonly (keyof OwnS & string)[] = never,
-  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 > {
   readonly from: From;
   readonly state?: SKeys;
@@ -244,18 +242,18 @@ export interface ExtendScopeOptions<
       NoInfer<PickedState<UnwrapState<From>, SKeys>>,
       NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
     >;
-  readonly persist?: P;
+  readonly persist?: ScopePersistOptions<NoInfer<OwnS>, PKeys>;
 }
 
-type ScopeReturn<S extends object, E extends ScopeEvent, P> = [P] extends [
-  undefined,
-]
+type ScopeReturn<S extends object, E extends ScopeEvent, PKeys> = [
+  PKeys,
+] extends [never]
   ? ScopeInstance<S, E>
   : PersistedScopeInstance<S, E>;
 
-type UseScopeReturn<S extends object, E extends ScopeEvent, P> = [P] extends [
-  undefined,
-]
+type UseScopeReturn<S extends object, E extends ScopeEvent, PKeys> = [
+  PKeys,
+] extends [never]
   ? StateHandle<S, E>
   : PersistedStateHandle<S, E>;
 
@@ -777,10 +775,9 @@ export function createScope<
     never
   >,
   const PKeys extends readonly (keyof OwnS & string)[] = never,
-  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: OwnScopeOptions<OwnS, H, PKeys, P> & ValidHandlerEvents<H>,
-): ScopeReturn<OwnS, InferHandlerEvents<H>, P>;
+  options: OwnScopeOptions<OwnS, H, PKeys> & ValidHandlerEvents<H>,
+): ScopeReturn<OwnS, InferHandlerEvents<H>, PKeys>;
 
 export function createScope<
   From extends AnyStateHandle,
@@ -806,15 +803,14 @@ export function createScope<
     NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
   > = Record<never, never>,
   const PKeys extends readonly (keyof OwnS & string)[] = never,
-  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H, PKeys, P> &
+  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H, PKeys> &
     NoEventCollision<H, ETypes[number]> &
     ValidHandlerEvents<H>,
 ): ScopeReturn<
   MergeState<PickedState<UnwrapState<From>, SKeys>, OwnS>,
   PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>,
-  P
+  PKeys
 >;
 
 export function createScope(options: {
@@ -866,10 +862,9 @@ export function useScope<
     never
   >,
   const PKeys extends readonly (keyof OwnS & string)[] = never,
-  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: OwnScopeOptions<OwnS, H, PKeys, P> & ValidHandlerEvents<H>,
-): UseScopeReturn<OwnS, InferHandlerEvents<H>, P>;
+  options: OwnScopeOptions<OwnS, H, PKeys> & ValidHandlerEvents<H>,
+): UseScopeReturn<OwnS, InferHandlerEvents<H>, PKeys>;
 
 export function useScope<
   From extends AnyStateHandle,
@@ -895,15 +890,14 @@ export function useScope<
     NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
   > = Record<never, never>,
   const PKeys extends readonly (keyof OwnS & string)[] = never,
-  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H, PKeys, P> &
+  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H, PKeys> &
     NoEventCollision<H, ETypes[number]> &
     ValidHandlerEvents<H>,
 ): UseScopeReturn<
   MergeState<PickedState<UnwrapState<From>, SKeys>, OwnS>,
   PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>,
-  P
+  PKeys
 >;
 
 export function useScope(options: {
