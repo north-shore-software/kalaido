@@ -74,18 +74,18 @@ These 9 effects represent three distinct architectural smells:
 
 | ID | Decision | Feasible Options | Cross-Plan Coupling | Selected |
 |---|---|---|---|---|
-| **D3.1** | `ChatPanel` `onMessagesChange` upward sync removal | Option A (Caller-owned `useKalaidoChat` controller), Option B (`AbstractChat` + `ChatState` synchronous store callback inside `ChatPanel`) | **Cat 1** (`chat-panel.tsx` ref cleanup), **Cat 6** (`chat-panel.tsx` size & complexity; clears `no-high-complexity-react-function` on `ChatPanel`) | _Pending_ |
-| **D3.2** | `ChatPanel` `initialPrompt` one-shot send & `timeWindow` auto-send | Option A (`ChatPanelHandle.applyTimeWindow` + prop-seeded `initialPrompt` mount guard), Option B (Caller-owned chat controller imperative methods) | **Cat 1** (`useLatestRef` / `useState` baselines in `chat-panel.tsx`), **D3.1** (Option B requires D3.1 Option A) | _Pending_ |
-| **D3.3** | `ContextBar` `blocked === "size"` auto-downgrade | Option A (Derived effective context across `ChatPanel` + `ContextBar`), Option B (Shared `useChatContextSelection` hook in Explore callers), Option C (Clamp to `Summaries` on send + derived bar display) | None | _Pending_ |
-| **D3.4** | `useResumeRefinement` + `useRefineSession` + `useDraftName` inversion | Option A (Declarative `seed` inputs on existing `useRefineSession` & `useDraftName` hooks), Option B (Composite `useProjectionRefinement` feature hook) | **Cat 6** (`projection-detail-screen.tsx`, `projection-review-screen.tsx`; module-scope helper prevents `no-high-complexity-react-function` on `use-refine-session.ts`) | _Pending_ |
-| **D3.5** | `ProjectionReviewScreen` post-approval `pendingFoldIn` settlement | Option A (Async `settleFoldIn` helper querying `getPendingCandidate(id)`), Option B (Retain `pendingFoldIn` live-snapshot effect with targeted rule suppression) | **Cat 6** (`ProjectionReviewScreenInner` CC=62 decomposition; Option A removes state/events + 38-line effect) | _Pending_ |
-| **D3.6** | External live-data URL canonicalization redirects (`projection-detail-screen.tsx:130`, `projection-review-screen.tsx:204`) | Option A (`<AppRedirect>` in `apps/desktop/src/routes/` via screen render-redirect prop), Option B (Keep callback `useEffect` in `@kalaido/features` with inline or `doctor.config.json` suppression), Option C (Lift redirect check into desktop page wrappers using `<AppRedirect>`) | **Cat 5** (`only-export-components` on desktop pages), **Cat 6** (`doctor.config.json` `ignore.overrides` path format & screen decomposition) | _Pending_ |
+| **D3.1** | `ChatPanel` `onMessagesChange` upward sync removal | Option A (Caller-owned `useKalaidoChat` controller), Option B (`AbstractChat` + `ChatState` synchronous store callback inside `ChatPanel`) | **Cat 1** (`chat-panel.tsx` ref cleanup), **Cat 6** (`chat-panel.tsx` size & complexity; clears `no-high-complexity-react-function` on `ChatPanel`) | **Option A** (`@kalaido/hooks`) |
+| **D3.2** | `ChatPanel` `initialPrompt` one-shot send & `timeWindow` auto-send | Option A (`ChatPanelHandle.applyTimeWindow` + prop-seeded `initialPrompt` mount guard), Option B (Caller-owned chat controller imperative methods) | **Cat 1** (`useLatestRef` / `useState` baselines in `chat-panel.tsx`), **D3.1** (Option B requires D3.1 Option A) | **Option B** |
+| **D3.3** | `ContextBar` `blocked === "size"` auto-downgrade | Option A (Derived effective context across `ChatPanel` + `ContextBar`), Option B (Shared `useChatContextSelection` hook in Explore callers), Option C (Clamp to `Summaries` on send + derived bar display) | None | **Option B** |
+| **D3.4** | `useResumeRefinement` + `useRefineSession` + `useDraftName` inversion | Option A (Declarative `seed` inputs on existing `useRefineSession` & `useDraftName` hooks), Option B (Composite `useProjectionRefinement` feature hook) | **Cat 6** (`projection-detail-screen.tsx`, `projection-review-screen.tsx`; module-scope helper prevents `no-high-complexity-react-function` on `use-refine-session.ts`) | **Option B** |
+| **D3.5** | `ProjectionReviewScreen` post-approval `pendingFoldIn` settlement | Option A (Async `settleFoldIn` helper querying `getPendingCandidate(id)`), Option B (Retain `pendingFoldIn` live-snapshot effect with targeted rule suppression) | **Cat 6** (`ProjectionReviewScreenInner` CC=62 decomposition; Option A removes state/events + 38-line effect) | **Option A** |
+| **D3.6** | External live-data URL canonicalization redirects (`projection-detail-screen.tsx:130`, `projection-review-screen.tsx:204`) | Option A (`<AppRedirect>` in `apps/desktop/src/routes/` via screen render-redirect prop), Option B (Keep callback `useEffect` in `@kalaido/features` with inline or `doctor.config.json` suppression), Option C (Lift redirect check into desktop page wrappers using `<AppRedirect>`) | **Cat 5** (`only-export-components` on desktop pages), **Cat 6** (`doctor.config.json` `ignore.overrides` path format & screen decomposition) | **Option A** |
 
 ---
 
 ### D3.1 — `ChatPanel` `onMessagesChange` Upward Sync Removal
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Caller-Owned `useKalaidoChat` Controller Hook (placed in `@kalaido/hooks`, adding `"@ai-sdk/react": "^3.0.184"` to `packages/react/hooks/package.json`)
 
 **Files & Callers Verified:**
 - `packages/react/components/src/chat-panel.tsx:106, 232-256, 288-290`: Runs `useEffect(() => { onMessagesChange?.(messages); }, [messages, onMessagesChange])` (fires `no-pass-live-state-to-parent` and `no-prop-callback-in-effect`). Line 236 also has `onFinish: () => onTurnComplete?.(messages)` (closes over pre-finish `messages` instead of `onFinish`'s `{ messages }` event payload).
@@ -127,7 +127,7 @@ These 9 effects represent three distinct architectural smells:
 
 ### D3.2 — `ChatPanel` `initialPrompt` One-Shot Send & `timeWindow` Change Auto-Send
 
-**Decision:** _Pending_
+**Decision:** **Option B** — Caller-Driven Imperative Sends via `useKalaidoChat` Controller
 
 **Files & Callers Verified:**
 - `packages/react/components/src/chat-panel.tsx:270-278` (`initialPrompt` effect) & `:297-305` (`timeWindow` effect): Both have `biome-ignore lint/correctness/useExhaustiveDependencies` and fire `exhaustive-deps` (`:278, :305`) plus `no-pass-live-state-to-parent` (`:276, :303`).
@@ -165,7 +165,7 @@ These 9 effects represent three distinct architectural smells:
 
 ### D3.3 — `ContextBar` `blocked === "size"` Auto-Downgrade
 
-**Decision:** _Pending_
+**Decision:** **Option B** — Lift `useWholeScopeFits` + Resolution into a Shared `useChatContextSelection` Hook
 
 **Files & Callers Verified:**
 - `packages/react/components/src/context-bar/context-bar.tsx:65-81`: Calls `useWholeScopeFits(timeWindow)`, computes `blocked = fullBlockedBy(state, fit.fits)` and `summariesAvailable = entity === "chat"`, and runs `useEffect(() => { if (blocked === "size" && state.mode === "full" && summariesAvailable) onChange(setScopeMode(items, "summaries")); })` (fires `no-prop-callback-in-effect` at `:79`).
@@ -213,7 +213,7 @@ These 9 effects represent three distinct architectural smells:
 
 ### D3.4 — `useResumeRefinement` + `useRefineSession` + `useDraftName` (`adoptDraftName`) Inversion
 
-**Decision:** _Pending_
+**Decision:** **Option B** — Composite `useProjectionRefinement` Hook in `@kalaido/features/projections`
 
 **Files & Callers Verified:**
 - `packages/react/features/src/projections/hooks/use-resume-refinement.ts:32-111`: Called in only **2 places** — `ProjectionDetailScreen` (`projection-detail-screen.tsx:187-196`, `snapshotId: ""`, `enabled: noSnapshots`) and `ProjectionReviewScreen` (`projection-review-screen.tsx:264-273`, `snapshotId: pendingId ?? ""`, `enabled: !!pendingId`). Line 102 calls `session.resume(...)` inside `useEffect` (fires `no-pass-live-state-to-parent` and `no-pass-data-to-parent`).
@@ -250,7 +250,7 @@ These 9 effects represent three distinct architectural smells:
 
 ### D3.5 — `ProjectionReviewScreen` Post-Approval `pendingFoldIn` Settlement
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Settle Fold-In Directly in an Async Helper via `getPendingCandidate(id)`
 
 **Files & Callers Verified:**
 - `packages/react/features/src/projections/projection-review-screen.tsx:57-77, 133-142, 376-413, 476-501, 540-564`: `handleApproveAndRefresh` (`mode: "single"`) and `approveAndNext` when `isCandidateOutdated` (`mode: "wave"`) run `await runApprove()`, then `await regenerateWrite.run({ projectionId: id, opts: { foldIn: true } })`, then dispatch `setPendingFoldIn({ snapshotId: outcome.id, mode })`. Lines 376-413 watch `snapshots` in a `useEffect` and call `onViewReview` or `onApproveSuccess` / `advanceToNextInWave` (firing **5 warnings**: `no-prop-callback-in-effect` ×3 at `:390, :393, :400` and `no-pass-data-to-parent` ×2 at `:390, :393`).
@@ -288,7 +288,7 @@ These 9 effects represent three distinct architectural smells:
 
 ### D3.6 — External Live-Data URL Canonicalization Redirects
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Declarative `<AppRedirect>` in `apps/desktop/src/routes/` via Screen Render-Redirect Props
 
 **Files & Callers Verified:**
 - `packages/react/features/src/projections/projection-detail-screen.tsx:122-139`: When `state.status !== "loading" && !readOnly && !liveSnapshot && pendingCandidate && id`, calls `onReviewCandidate(id, pendingCandidate.id, { replace: true })` (fires `no-prop-callback-in-effect`, `no-pass-live-state-to-parent`, `no-pass-data-to-parent` at `:130`). Note: `:116-120` (`if (state.status === "missing") onBackToList({ replace: true })`) is not flagged by `react-doctor` because `{ replace: true }` passes no reactive data/state.
