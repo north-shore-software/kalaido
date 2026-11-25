@@ -152,7 +152,15 @@ function buildSpecDiffParts(
   return { parts, nextSpec, nextWindow };
 }
 
+function chatSeedKey(
+  chatId: string | undefined,
+  api: string | undefined,
+): string {
+  return `${chatId ?? ""}\0${api ?? ""}`;
+}
+
 interface KalaidoChatLatest {
+  api: string | undefined;
   context: ContextItem[] | undefined;
   timeWindow: TimeWindow | undefined;
   onTurnComplete: ((messages: UIMessage[]) => void) | undefined;
@@ -287,6 +295,7 @@ export function useKalaidoChat({
   );
 
   const latestRef = useRef<KalaidoChatLatest>({
+    api,
     context,
     timeWindow,
     onTurnComplete,
@@ -298,6 +307,7 @@ export function useKalaidoChat({
     createChatInstance,
   });
   useSyncRef(latestRef, {
+    api,
     context,
     timeWindow,
     onTurnComplete,
@@ -310,14 +320,14 @@ export function useKalaidoChat({
   });
 
   useLayoutEffect(() => {
-    const key = chatId ?? "";
+    const key = chatSeedKey(chatId, api);
     if (seededForIdRef.current === key) return;
     seededForIdRef.current = key;
     const baseline = seedBaselines(initialMessages);
     lastSentSpecRef.current = baseline.spec;
     lastSentWindowRef.current = baseline.window;
     pendingWindowResendRef.current = null;
-  }, [chatId, initialMessages]);
+  }, [chatId, api, initialMessages]);
 
   const sendUserMessage = useCallback(
     (text: string, overrides?: SendMessageOverrides) => {
@@ -342,19 +352,20 @@ export function useKalaidoChat({
       context: nextContext,
       timeWindow: nextWindow,
     }: OpenAndSendOptions) => {
+      const effectiveApi = nextApi ?? latestRef.current.api;
       const nextChat = latestRef.current.createChatInstance(
         nextChatId,
         nextInitialMessages,
-        nextApi,
+        effectiveApi,
       );
       const baseline = seedBaselines(nextInitialMessages);
-      seededForIdRef.current = nextChatId;
+      seededForIdRef.current = chatSeedKey(nextChatId, effectiveApi);
       lastSentSpecRef.current = baseline.spec;
       lastSentWindowRef.current = baseline.window;
       pendingWindowResendRef.current = null;
 
       setPrevChatId(nextChatId);
-      setPrevApi(nextApi);
+      setPrevApi(effectiveApi);
       setQuotaHit(false);
       setActiveChat(nextChat);
 

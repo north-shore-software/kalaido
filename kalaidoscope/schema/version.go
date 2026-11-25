@@ -25,7 +25,7 @@ import (
 // Version 7 raises chat_message.content to 8 MB and adds fragment.archived_at, .raw_content and .title; view_stream exposes archived_at and prefers the user title (deltas/v0007_chat_message_size_and_fragment_archive_raw.go).
 // Version 8 exposes fragment.ingest_ref on view_stream (deltas/v0008_view_stream_ingest_ref.go).
 // Version 9 adds projection.pinned and reflection.pinned (deltas/v0009_add_entity_pinned.go).
-// Version 10 adds view_chat_conversation with earliest non-system chat_message.content (deltas/v0010_view_chat_conversation.go).
+// Version 10 indexes chat_message(chat_conversation_id, created) and adds view_chat_conversation with truncated text preview (deltas/v0010_view_chat_conversation.go).
 const Version = 10
 
 // BuildRev identifies the build, for the failed-migration marker: the same

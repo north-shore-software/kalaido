@@ -290,4 +290,34 @@ func TestExplorePersistenceDeferredUntilValid(t *testing.T) {
 	if len(msgs) != 2 || msgs[0].Role != "system" || msgs[1].Role != "assistant" {
 		t.Errorf("system-opened persisted messages = %+v, want [system, assistant]", msgs)
 	}
+
+	// 4. Overlapping first turns for the same conversation ID must not duplicate incoming messages.
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	sharedMsgs := []api.UIMessage{
+		{ID: "race-u1", Role: "user", Parts: []api.UIMessagePart{{Type: "text", Text: "hello"}}},
+	}
+	for i := range 2 {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			_, errs[idx] = sendRaw("conv-race", sharedMsgs)
+		}(i)
+	}
+	wg.Wait()
+	for idx, e := range errs {
+		if e != nil {
+			t.Fatalf("concurrent first turn %d failed: %v", idx, e)
+		}
+	}
+	raceMsgs := persistedExplore(t, app, "conv-race")
+	userCount := 0
+	for _, m := range raceMsgs {
+		if m.ID == "race-u1" {
+			userCount++
+		}
+	}
+	if userCount != 1 {
+		t.Errorf("concurrent first turns persisted race-u1 %d times, want 1 (all msgs: %+v)", userCount, raceMsgs)
+	}
 }

@@ -490,12 +490,12 @@ export type UsersRecord = {
 	verified?: boolean
 }
 
-export type ViewChatConversationRecord<Tfirst_message_content = unknown> = {
+export type ViewChatConversationRecord = {
 	created: IsoAutoDateString
 	external_conversation_id?: string
-	first_message_content?: null | Tfirst_message_content
 	generate_with_model?: string
 	id: string
+	preview?: string
 }
 
 export const ViewStreamTypeOptions = {
@@ -545,7 +545,7 @@ export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tedits = unknown
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>
-export type ViewChatConversationResponse<Tfirst_message_content = unknown, Texpand = unknown> = Required<ViewChatConversationRecord<Tfirst_message_content>> & BaseSystemFields<Texpand>
+export type ViewChatConversationResponse<Texpand = unknown> = Required<ViewChatConversationRecord> & BaseSystemFields<Texpand>
 export type ViewStreamResponse<Tcolour_ids = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolour_ids>> & BaseSystemFields<Texpand>
 
 // Types containing all Records and Responses, useful for creating typing helper functions

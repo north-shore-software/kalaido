@@ -416,23 +416,6 @@ export function createKalaidoChatTransport(options: {
   });
 }
 
-function previewText(content: unknown): string {
-  let raw = content;
-  if (typeof raw === "string") {
-    if (!raw.trim()) return "";
-    try {
-      raw = JSON.parse(raw);
-    } catch {
-      return "";
-    }
-  }
-  const msg = raw as Partial<UIMessage> | null | undefined;
-  if (!msg || !Array.isArray(msg.parts)) return "";
-  return stripMentions(
-    msg.parts.map((p) => (p.type === "text" ? p.text : "")).join(""),
-  ).trim();
-}
-
 export async function listConversations(
   client: TypedPocketBase,
 ): Promise<Conversation[]> {
@@ -446,7 +429,7 @@ export async function listConversations(
   return records.map((r) => ({
     id: r.id,
     clientId: r.external_conversation_id ?? "",
-    preview: previewText(r.first_message_content) || "New conversation",
+    preview: stripMentions(r.preview ?? "").trim() || "New conversation",
     createdAt: r.created,
   }));
 }

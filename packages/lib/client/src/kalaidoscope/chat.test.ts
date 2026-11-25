@@ -13,51 +13,31 @@ function makeMockClient(records: Record<string, unknown>[]) {
 }
 
 describe("listConversations", () => {
-  test("queries view_chat_conversation and extracts previews from decoded and JSON-string content", async () => {
+  test("queries view_chat_conversation, strips mentions, and falls back to New conversation", async () => {
     const { client, collection, getFullList } = makeMockClient([
       {
         id: "c1",
         external_conversation_id: "ext-1",
         created: "2026-11-01 10:00:00.000Z",
-        first_message_content: {
-          id: "m1",
-          role: "user",
-          parts: [
-            { type: "text", text: "Summarize @[Fragment:f1|Meeting Notes]" },
-          ],
-        },
+        preview: "Summarize @[Fragment:f1|Meeting Notes]",
       },
       {
         id: "c2",
         external_conversation_id: "ext-2",
         created: "2026-11-01 09:00:00.000Z",
-        first_message_content: JSON.stringify({
-          id: "m2",
-          role: "assistant",
-          parts: [{ type: "text", text: "Good morning!" }],
-        }),
+        preview: "  Good morning!  ",
       },
       {
         id: "c3",
         external_conversation_id: "ext-3",
         created: "2026-11-01 08:00:00.000Z",
-        first_message_content: null,
+        preview: "",
       },
       {
         id: "c4",
-        external_conversation_id: "ext-4",
-        created: "2026-11-01 07:00:00.000Z",
-        first_message_content: "not-json",
-      },
-      {
-        id: "c5",
         external_conversation_id: "",
-        created: "2026-11-01 06:00:00.000Z",
-        first_message_content: {
-          id: "m5",
-          role: "assistant",
-          parts: [{ type: "tool-read_fragment" }],
-        },
+        created: "2026-11-01 07:00:00.000Z",
+        preview: "   ",
       },
     ]);
 
@@ -90,15 +70,9 @@ describe("listConversations", () => {
       },
       {
         id: "c4",
-        clientId: "ext-4",
-        preview: "New conversation",
-        createdAt: "2026-11-01 07:00:00.000Z",
-      },
-      {
-        id: "c5",
         clientId: "",
         preview: "New conversation",
-        createdAt: "2026-11-01 06:00:00.000Z",
+        createdAt: "2026-11-01 07:00:00.000Z",
       },
     ]);
   });
