@@ -1,20 +1,4 @@
 import {
-  ArrowUUpLeftIcon,
-  ChatCircleDotsIcon,
-  CheckIcon,
-  PencilSimpleIcon,
-  XIcon,
-} from "@phosphor-icons/react";
-import type { UIMessage } from "ai";
-import {
-  Fragment,
-  type ReactNode,
-  type Ref,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
-import {
   CONTEXT_CANCEL_PART_TYPE,
   CONTEXT_CONFIRM_PART_TYPE,
   CONTEXT_CONFIRMATION_PART_TYPE,
@@ -31,21 +15,24 @@ import {
   type TimeWindow,
 } from "@kalaido/client/kalaidoscope/chat";
 import type { SnapshotEdit } from "@kalaido/client/kalaidoscope/projections";
-import { useContextSources } from "@kalaido/hooks/use-context-sources";
-import { useFragmentLabels } from "@kalaido/hooks/use-fragment-labels";
-import { cn } from "@kalaido/primitives/lib/css-utils";
 import { formatWindowRange } from "@kalaido/client/lib/datetime";
 import { mentionsToTags, splitMentions } from "@kalaido/client/lib/mentions";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@kalaido/primitives/shadcn/tooltip";
+import { useContextSources } from "@kalaido/hooks/use-context-sources";
+import { useFragmentLabels } from "@kalaido/hooks/use-fragment-labels";
 import { ColourSwatch } from "@kalaido/primitives/kalaido/colour";
+import { cn } from "@kalaido/primitives/lib/css-utils";
+import { Button } from "@kalaido/primitives/shadcn/button";
+import type { UIMessage } from "ai";
+import { Fragment, type ReactNode, type Ref, useMemo, useRef } from "react";
+import type { EditNoticeKind, SystemEditNotice } from "./chat/edit-notice";
+import {
+  EditNoticeCard,
+  type EditNoticeCardProps,
+} from "./chat/edit-notice-card";
 import { KIND_ABBREV } from "./context-bar/state";
-import { EditDiffBoxes } from "@kalaido/primitives/kalaido/edit-diff-boxes";
 import { MarkdownContent } from "./markdown-content";
+
+export type { EditNoticeCardProps, EditNoticeKind, SystemEditNotice };
 
 export interface MessageBubbleProps {
   role: string;
@@ -426,22 +413,6 @@ function WindowDivider({
   );
 }
 
-// null = the tool is bookkeeping the user never needs narrated (its effect
-// shows up elsewhere in the UI), so a text-less turn stays silent.
-// apply_result is the server-fabricated part carrying the executed preview —
-export type EditNoticeKind = "hand_edit" | "refine_target" | "triage";
-
-export interface SystemEditNotice {
-  kind: EditNoticeKind;
-  editId?: string;
-  sequence?: number;
-  status?: "approved" | "rejected" | "proposed";
-  passage?: string;
-  before?: string;
-  after?: string;
-  rawText?: string;
-}
-
 // The server-written notice naming which accepted edits a regeneration
 // superseded (and which still stand); rendered as a plain notice row.
 function supersededNoticeFor(msg: UIMessage): string | null {
@@ -497,165 +468,6 @@ function editNoticeFor(msg: UIMessage): SystemEditNotice | null {
     }
   }
   return null;
-}
-
-export interface EditNoticeCardProps {
-  notice: SystemEditNotice;
-  isHighlighted?: boolean;
-  liveEdit?: SnapshotEdit;
-  onUndoEdit?: (editId: string) => void;
-  isBusy?: boolean;
-}
-
-function EditNoticeCard({
-  notice,
-  isHighlighted,
-  liveEdit,
-  onUndoEdit,
-  isBusy,
-}: EditNoticeCardProps) {
-  const isHandEdit = notice.kind === "hand_edit";
-  const isRefine = notice.kind === "refine_target";
-  const isTriage = notice.kind === "triage";
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (isHighlighted && cardRef.current) {
-      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [isHighlighted]);
-
-  const isUndone =
-    isTriage &&
-    (notice.status === "proposed" || liveEdit?.status === "proposed");
-  const canUndo =
-    isTriage &&
-    !isUndone &&
-    (notice.status === "approved" || notice.status === "rejected");
-  const isUndoable = canUndo && liveEdit?.undoable === true;
-  const undoReason = canUndo
-    ? liveEdit?.undoReason || "another edit was made on top"
-    : undefined;
-
-  const label = isHandEdit
-    ? notice.sequence
-      ? `Hand edit #${notice.sequence} applied`
-      : "Hand edit applied"
-    : isRefine
-      ? "Refine target selected"
-      : notice.status === "proposed"
-        ? notice.sequence
-          ? `Edit #${notice.sequence} undone`
-          : "Edit undone"
-        : isUndone
-          ? notice.status === "approved"
-            ? `Edit #${notice.sequence} accepted (undone)`
-            : `Edit #${notice.sequence} rejected (undone)`
-          : notice.status === "approved"
-            ? `Edit #${notice.sequence} accepted`
-            : `Edit #${notice.sequence} rejected`;
-
-  return (
-    <div
-      ref={cardRef}
-      id={notice.editId ? `chat-edit-${notice.editId}` : undefined}
-      className={cn(
-        "my-1.5 scroll-mt-6 rounded-none border border-line bg-surface-2/60 text-xs text-fg-2 shadow-xs transition-all duration-700",
-        isHighlighted && "ring-2 ring-magenta bg-magenta/10",
-      )}
-    >
-      <div className="flex items-center justify-between border-b border-line/60 bg-surface-2 px-3 py-1.5 font-mono text-fg-3">
-        <div className="flex items-center gap-1.5">
-          {isHandEdit && (
-            <PencilSimpleIcon className="size-3 shrink-0 text-fg-4" />
-          )}
-          {isRefine && (
-            <ChatCircleDotsIcon className="size-3 shrink-0 text-fg-4" />
-          )}
-          {isTriage && notice.status === "approved" && (
-            <CheckIcon className="size-3 shrink-0 text-stable" />
-          )}
-          {isTriage && notice.status === "rejected" && (
-            <XIcon className="size-3 shrink-0 text-critical" />
-          )}
-          {isTriage && notice.status === "proposed" && (
-            <ArrowUUpLeftIcon className="size-3 shrink-0 text-fg-3" />
-          )}
-          <span className="font-mono text-fg-2">{label}</span>
-        </div>
-        {canUndo && (
-          <div>
-            {isUndoable ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={isBusy}
-                onClick={() => notice.editId && onUndoEdit?.(notice.editId)}
-                className="h-6 gap-1 px-2 text-xs font-sans text-fg-2 hover:bg-surface-3 cursor-pointer"
-              >
-                <ArrowUUpLeftIcon className="size-3" />
-                Undo
-              </Button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    // aria-disabled rather than disabled: a disabled button
-                    // is unfocusable and unhoverable, which would hide the
-                    // tooltip that explains why Undo is unavailable.
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-disabled="true"
-                      className="h-6 gap-1 px-2 text-xs font-sans opacity-50 cursor-not-allowed"
-                    >
-                      <ArrowUUpLeftIcon className="size-3" />
-                      Undo
-                    </Button>
-                  }
-                />
-                <TooltipContent side="top">{undoReason}</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="space-y-2 p-3 text-body-sm">
-        {isHandEdit && (
-          <EditDiffBoxes
-            before={notice.before}
-            after={notice.after}
-            variant="chat"
-          />
-        )}
-        {isRefine && notice.passage && (
-          <div className="rounded-none border-l-2 border-line-focus bg-surface-1 px-3 py-2 italic text-fg-2">
-            <MarkdownContent variant="chat" content={notice.passage} />
-          </div>
-        )}
-        {isHandEdit && !notice.before && !notice.after && notice.rawText && (
-          <div className="font-mono whitespace-pre-wrap text-fg-3">
-            {notice.rawText}
-          </div>
-        )}
-        {isRefine && !notice.passage && notice.rawText && (
-          <div className="font-mono whitespace-pre-wrap text-fg-3">
-            {notice.rawText}
-          </div>
-        )}
-        {isTriage && (
-          <p className="text-meta text-fg-3">
-            {notice.rawText ||
-              (notice.status === "approved"
-                ? "The edit was approved."
-                : notice.status === "rejected"
-                  ? "The edit was rejected."
-                  : "The edit decision was undone.")}
-          </p>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // its effect is the preview pane itself.

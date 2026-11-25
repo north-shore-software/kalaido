@@ -8,7 +8,6 @@ import type {
   ColourFragmentMatchTypeOptions,
   FragmentTypeOptions,
 } from "@kalaido/client/kalaidoscope/types";
-import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
 import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
@@ -17,37 +16,28 @@ import {
   useLiveCollectionWatching,
 } from "@kalaido/hooks/use-live-collection";
 import { ColourSwatch } from "@kalaido/primitives/kalaido/colour";
-import { fragmentTypeIcon } from "@kalaido/primitives/kalaido/icons";
-import { StatusPill } from "@kalaido/primitives/kalaido/status-pill";
 import { Mono } from "@kalaido/primitives/kalaido/text";
-import { Button } from "@kalaido/primitives/shadcn/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@kalaido/primitives/shadcn/collapsible";
 import { Input } from "@kalaido/primitives/shadcn/input";
-import { ScrollArea } from "@kalaido/primitives/shadcn/scroll-area";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
   SheetTitle,
 } from "@kalaido/primitives/shadcn/sheet";
-import { Skeleton } from "@kalaido/primitives/shadcn/skeleton";
 import { useExternalWrite } from "@kalaido/state/live";
-import {
-  ArchiveIcon,
-  ArrowCounterClockwiseIcon,
-  CaretRightIcon,
-  PlusIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { CaretRightIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ItemPicker } from "./context-picker/item-picker";
-import { MarkdownContent } from "./markdown-content";
+import {
+  FragmentDrawerBody,
+  FragmentDrawerLoading,
+  FragmentDrawerMissing,
+} from "./fragment-drawer/fragment-drawer-body";
 
 export function FragmentDrawer({
   id,
@@ -74,8 +64,6 @@ export function FragmentDrawer({
   });
 
   const fragment = records[0];
-  const Icon = fragment ? fragmentTypeIcon(fragment.type) : null;
-  const occurredStr = fragment?.occurred_at || fragment?.created;
   const archived = !!fragment?.archived_at;
 
   async function toggleArchive() {
@@ -101,66 +89,34 @@ export function FragmentDrawer({
         className="w-full gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[60vw] data-[side=right]:sm:max-w-[60vw]"
       >
         {isLoading && !fragment ? (
-          <div className="flex flex-col gap-3 p-6 md:p-8">
-            <Skeleton className="h-6 w-40 rounded-none" />
-            <Skeleton className="h-3.5 w-24 rounded-none" />
-            <div className="mt-3 flex flex-col gap-2">
-              <Skeleton className="h-2 w-full rounded-none" />
-              <Skeleton className="h-2 w-[94%] rounded-none" />
-              <Skeleton className="h-2 w-[88%] rounded-none" />
-              <Skeleton className="h-2 w-[70%] rounded-none" />
-            </div>
-          </div>
+          <FragmentDrawerLoading />
         ) : !fragment ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center">
-            <SheetTitle>Fragment not found</SheetTitle>
-            <SheetDescription className="text-body-sm text-fg-3">
-              This fragment may have been removed.
-            </SheetDescription>
-          </div>
+          <FragmentDrawerMissing />
         ) : (
-          <>
-            <SheetHeader className="gap-2 border-b border-line p-6 md:p-8">
-              <div className="flex items-center gap-2.5 pr-8">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-none bg-surface-2">
-                  {Icon && <Icon className="size-3.5 text-fg-3" />}
-                </span>
-                <EditableTitle
-                  key={fragment.id}
-                  fragmentId={fragment.id}
-                  title={fragment.title ?? ""}
-                  fallback={fragmentTypeLabel(
-                    fragment.type as FragmentTypeOptions,
-                  )}
-                />
-                {archived && <StatusPill kind="neutral">archived</StatusPill>}
-                <div className="flex-1" />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={archiveWrite.isPending}
-                  onClick={() => void toggleArchive()}
-                >
-                  {archived ? <ArrowCounterClockwiseIcon /> : <ArchiveIcon />}
-                  {archived ? "Restore" : "Archive"}
-                </Button>
-              </div>
-              <SheetDescription className="font-mono text-meta text-fg-4">
-                {fragmentTypeLabel(fragment.type as FragmentTypeOptions)}
-                {occurredStr && ` · ${formatShortDateTime(occurredStr)}`}
-              </SheetDescription>
-              <FragmentColours fragmentId={fragment.id} />
-              <FragmentSummary fragmentId={fragment.id} />
-            </SheetHeader>
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="px-6 py-5 md:px-8 md:py-6">
-                <MarkdownContent
-                  variant="document"
-                  content={fragment.content}
-                />
-              </div>
-            </ScrollArea>
-          </>
+          <FragmentDrawerBody
+            type={fragment.type}
+            occurredStr={fragment.occurred_at || fragment.created}
+            content={fragment.content}
+            archived={archived}
+            archivePending={archiveWrite.isPending}
+            onToggleArchive={() => void toggleArchive()}
+            titleSlot={
+              <EditableTitle
+                key={fragment.id}
+                fragmentId={fragment.id}
+                title={fragment.title ?? ""}
+                fallback={fragmentTypeLabel(
+                  fragment.type as FragmentTypeOptions,
+                )}
+              />
+            }
+            metaSlots={
+              <>
+                <FragmentColours fragmentId={fragment.id} />
+                <FragmentSummary fragmentId={fragment.id} />
+              </>
+            }
+          />
         )}
       </SheetContent>
     </Sheet>
