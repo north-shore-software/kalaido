@@ -1,41 +1,27 @@
-import type { ContextSpec } from "@kalaido/client/kalaidoscope/chat";
-import { parseContextSpec } from "@kalaido/client/kalaidoscope/chat";
-import {
-  deleteProjection,
-  GenerationInFlightError,
-  parseProjectionOutput,
-  regenerateProjection,
-  restoreProjection,
-  updateProjection,
-} from "@kalaido/client/kalaidoscope/projections";
 import { extractSuggestedNameFromMessages } from "@kalaido/client/kalaidoscope/refinements";
-import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import { PageHeader, PanelErrorBoundary } from "@kalaido/components";
-import {
-  kalaidoscopeCollectionTag,
-  kalaidoscopeEndpointTag,
-} from "@kalaido/hooks/kalaidoscope-live";
 import { useContextSources } from "@kalaido/hooks/use-context-sources";
 import { useDraftName } from "@kalaido/hooks/use-draft-name";
-import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
-import { ConfirmDialog, type TimelineItem } from "@kalaido/primitives/kalaido";
+import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
-import { Button } from "@kalaido/primitives/shadcn/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@kalaido/primitives/shadcn/dropdown-menu";
-import { useExternalWrite } from "@kalaido/state/live";
-import { DotsThreeIcon, GitForkIcon, TrashIcon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { ProjectionDetailActions } from "./components/projection-detail-actions";
 import { ProjectionDraftEditor } from "./components/projection-draft-editor";
 import { ProjectionSideRail } from "./components/projection-side-rail";
 import { SnapshotPreview } from "./components/snapshot-preview";
+import {
+  buildDraftNameSeed,
+  buildForkSeed,
+  buildSnapshotTimeline,
+  deriveDetailHeaderState,
+  deriveHistoricalSnapshot,
+  deriveRotationSummary,
+  resolveBlockedNames,
+  shouldRedirectToPendingReview,
+} from "./detail-helpers";
+import { useProjectionDetailActions } from "./hooks/use-projection-detail-actions";
 import { useProjectionRefinement } from "./hooks/use-projection-refinement";
 import { useProjectionSnapshot } from "./hooks/use-projection-snapshot";
 import { getProjectionStatus } from "./status";
@@ -68,40 +54,13 @@ export function ProjectionDetailScreen({
   onFork,
   onOpenDetail,
 }: ProjectionDetailScreenProps) {
-  const client = useKalaidoscopeClient();
   const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const deleteWrite = useExternalWrite<string, void>({
-    execute: (targetId) => deleteProjection(targetId),
-    concurrency: "ignore",
-  });
+  const { regenerating, remove, handleRefresh, handleRename } =
+    useProjectionDetailActions({ id, onBackToList, onReviewCandidate });
 
-  const restoreWrite = useExternalWrite<string, void>({
-    execute: (targetId) => restoreProjection(targetId),
-    concurrency: "ignore",
-  });
-
-  const regenerateWrite = useExternalWrite<string, { readonly id: string }>({
-    execute: (targetId) => regenerateProjection(targetId),
-    concurrency: "ignore",
-    invalidates: () => [
-      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
-      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
-    ],
-  });
-
-  const renameWrite = useExternalWrite<
-    { targetId: string; name: string },
-    void
-  >({
-    execute: async ({ targetId, name }) =>
-      (await updateProjection(targetId, { name })).map(() => undefined),
-    concurrency: "ignore",
-  });
-
-  const regenerating = regenerateWrite.isPending;
   const pendingCandidate = snapshots.find((s) => s.status === "pending_review");
   const readOnly = !!snapshotId;
 
@@ -111,51 +70,15 @@ export function ProjectionDetailScreen({
     }
   }, [state.status, onBackToList]);
 
-  async function remove() {
-    if (!id) return;
-    const outcome = await deleteWrite.run(id);
-    if (outcome.status === "ignored") return;
-    if (outcome.status === "error") {
-      if (outcome.error instanceof GenerationInFlightError) {
-        toast.error("Can't delete while generating", {
-          description: outcome.error.message,
-        });
-      } else {
-        toast.error("Failed to delete projection", {
-          description: outcome.error.message,
-        });
-      }
-      return;
-    }
-    onBackToList({ replace: true });
-    toast("Projection deleted", {
-      description: "Find it under Recently deleted to restore later.",
-      action: {
-        label: "Undo",
-        onClick: () =>
-          void restoreWrite.run(id).then((r) => {
-            if (r.status === "error") {
-              toast.error("Failed to restore", {
-                description: r.error.message,
-              });
-            }
-          }),
-      },
-    });
-  }
-
-  const title = projection?.name || "Projection";
-
   const historicalQuery = useLiveCollection("projection_snapshot", {
     filter: snapshotId ? `id="${snapshotId}"` : undefined,
     enabled: readOnly,
   });
-  const historical = readOnly ? historicalQuery.records[0] : undefined;
-  const historicalContent = historical
-    ? parseProjectionOutput(historical.output).content
-    : undefined;
+  const { historical, historicalContent } = deriveHistoricalSnapshot(
+    readOnly,
+    historicalQuery.records,
+  );
 
-  const noSnapshots = !readOnly && state.status === "empty";
   const {
     session: authoringSession,
     openRefinement,
@@ -165,7 +88,7 @@ export function ProjectionDetailScreen({
   } = useProjectionRefinement({
     parentId: id,
     snapshotId: "",
-    enabled: noSnapshots,
+    enabled: !readOnly && state.status === "empty",
   });
 
   const resumedSuggestedName = useMemo(
@@ -173,130 +96,74 @@ export function ProjectionDetailScreen({
     [resumedMessages],
   );
   const draftNameSeed = useMemo(
-    () =>
-      resumed && projection
-        ? {
-            name: projection.name || "Untitled projection",
-            userNamed:
-              resumedSuggestedName !== "" &&
-              projection.name !== resumedSuggestedName,
-          }
-        : null,
+    () => buildDraftNameSeed(resumed, projection, resumedSuggestedName),
     [resumed, projection, resumedSuggestedName],
   );
   const draftName = useDraftName({
     target: "projection",
-    entityId: id ?? null,
+    entityId: id,
     suggestedName: resumed ? authoringSession.suggestedName : "",
     seed: draftNameSeed,
   });
 
-  async function handleRefresh() {
-    if (!id) return;
-    const outcome = await regenerateWrite.run(id);
-    if (outcome.status === "ignored") return;
-    if (outcome.status === "error") {
-      // 409s carry a specific reason (lens still preparing, generation
-      // already running) — surface the server's own message.
-      toast.error("Couldn't regenerate", {
-        description: outcome.error.message,
-      });
-      return;
-    }
-    onReviewCandidate(id, outcome.id);
-  }
-
   const { byId: statusById, isLoading: rotLoading } = useRotationStatus();
-  const info = id
-    ? getProjectionStatus(statusById.get(id), !!pendingCandidate, {
-        generating: generating || regenerating,
-        lensMissing: snapshots.length > 0 && !projection?.current_lens_id,
-      })
-    : undefined;
-
-  const newSinceCandidate =
-    statusById.get(id ?? "")?.candidate?.newFragmentIds?.length ?? 0;
-
-  const sources = useContextSources();
-  const blockedNames = useMemo(() => {
-    if (!info?.blockedBy.length) return [];
-    const byId = new Map(
-      [...sources.projections, ...sources.reflections].map((o) => [
-        o.id,
-        o.name,
-      ]),
-    );
-    return info.blockedBy.map((dep) => byId.get(dep) ?? "an upstream input");
-  }, [info?.blockedBy, sources.projections, sources.reflections]);
-
-  function fork(mode: "refine" | "orthogonal") {
-    if (!id) return;
-    const parentSpec = projection?.current_context_spec;
-    const seed: ProjectionSeed =
-      mode === "refine"
-        ? {
-            name: `${title} — next stage`,
-            draft: "",
-            contextSpec: { sourceProjectionIds: [id] },
-          }
-        : {
-            name: `${title} (fork)`,
-            draft: liveSnapshot
-              ? (parseProjectionOutput(liveSnapshot.output).content ?? "")
-              : "",
-            contextSpec: (parseContextSpec(parentSpec) ?? undefined) as
-              | ContextSpec
-              | undefined,
-          };
-    onFork(seed);
-  }
-
-  const liveId = liveSnapshot?.id;
-  const history = snapshots.filter((s) => s.status !== "discarded");
-  const historicalVersionIndex = history.findIndex((s) => s.id === snapshotId);
-  const historicalVersion =
-    historicalVersionIndex >= 0
-      ? history.length - historicalVersionIndex
-      : undefined;
-
-  const timeline: TimelineItem[] = history.map((snap, i) => {
-    const version = history.length - i;
-    const pending = snap.status === "pending_review";
-    const isLive = snap.id === liveId;
-    return {
-      id: snap.id,
-      label: `v${version}${pending ? " · candidate" : ""}`,
-      note: formatShortDateTime(snap.created),
-      current: isLive,
-      pending,
-      active: snap.id === (snapshotId ?? liveId),
-      onClick: () => {
-        if (pending) onReviewCandidate(id, snap.id);
-        else if (isLive) onViewLive(id);
-        else onViewSnapshot(id, snap.id);
-      },
-    };
+  const rotationEntry = statusById.get(id);
+  const rotation = deriveRotationSummary({
+    rotationEntry,
+    generating,
+    regenerating,
+    hasSnapshots: snapshots.length > 0,
+    hasCurrentLens: Boolean(projection?.current_lens_id),
+  });
+  const info = getProjectionStatus(rotationEntry, Boolean(pendingCandidate), {
+    generating: rotation.generating,
+    lensMissing: rotation.lensMissing,
   });
 
-  if (
-    state.status !== "loading" &&
-    !readOnly &&
-    !liveSnapshot &&
-    pendingCandidate &&
-    id &&
-    renderReviewRedirect
-  ) {
+  const sources = useContextSources();
+  const blockedNames = useMemo(
+    () => resolveBlockedNames(info.blockedBy, sources),
+    [info.blockedBy, sources],
+  );
+
+  const { timeline, historicalVersion } = buildSnapshotTimeline({
+    id,
+    snapshots,
+    liveId: liveSnapshot?.id,
+    snapshotId,
+    onReviewCandidate,
+    onViewLive,
+    onViewSnapshot,
+  });
+
+  const header = deriveDetailHeaderState({
+    id,
+    projection,
+    liveSnapshot,
+    pendingCandidate,
+    readOnly,
+    historicalVersion,
+    draftName: draftName.name,
+  });
+
+  const redirectToPending = shouldRedirectToPendingReview({
+    status: state.status,
+    readOnly,
+    hasLiveSnapshot: Boolean(liveSnapshot),
+    hasPendingCandidate: Boolean(pendingCandidate && renderReviewRedirect),
+    id,
+  });
+  if (redirectToPending && pendingCandidate && renderReviewRedirect) {
     return renderReviewRedirect(id, pendingCandidate.id);
   }
 
-  if (resumed && id) {
-    const draftTitle = draftName.name ?? title;
+  if (resumed) {
     return (
       <ProjectionDraftEditor
         session={authoringSession}
         projectionId={id}
-        title={draftTitle}
-        crumb={["Projections", draftTitle, "Draft"]}
+        title={header.draftTitle}
+        crumb={["Projections", header.draftTitle, "Draft"]}
         initialContext={authoringRefineContext}
         onTitleCommit={draftName.rename}
         onCancel={() => onBackToList()}
@@ -305,81 +172,34 @@ export function ProjectionDetailScreen({
     );
   }
 
+  const handleReviewPending = header.pendingCandidateId
+    ? () => onReviewCandidate(id, header.pendingCandidateId as string)
+    : undefined;
+
   return (
     <>
       <PageHeader
-        title={title}
-        crumb={[
-          "Projections",
-          title,
-          ...(readOnly
-            ? [historicalVersion ? `v${historicalVersion}` : "snapshot"]
-            : []),
-        ]}
+        title={header.title}
+        crumb={header.crumb}
         onTitleCommit={
-          !readOnly && id
-            ? (next) =>
-                void renameWrite
-                  .run({ targetId: id, name: next })
-                  .then((outcome) => {
-                    if (outcome.status === "error") {
-                      toast.error("Failed to rename", {
-                        description: outcome.error.message,
-                      });
-                    }
-                  })
-            : undefined
+          header.canEdit ? (next) => void handleRename(next) : undefined
         }
         actions={
           !readOnly && (
-            <div className="flex items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button size="sm" variant="outline">
-                      <GitForkIcon />
-                      Branch
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="end" className="w-72">
-                  <DropdownMenuItem onClick={() => fork("refine")}>
-                    <div className="flex flex-col gap-0.5">
-                      <span>Refine into next stage</span>
-                      <span className="text-meta text-fg-3">
-                        Reads this projection's output
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fork("orthogonal")}>
-                    <div className="flex flex-col gap-0.5">
-                      <span>Alternate view</span>
-                      <span className="text-meta text-fg-3">
-                        Reads this projection's inputs
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button size="sm" variant="ghost" aria-label="More actions">
-                      <DotsThreeIcon />
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    <TrashIcon />
-                    Delete projection
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <ProjectionDetailActions
+              onFork={(mode) =>
+                onFork(
+                  buildForkSeed({
+                    mode,
+                    id,
+                    title: header.title,
+                    projection,
+                    liveSnapshot,
+                  }),
+                )
+              }
+              onRequestDelete={() => setConfirmDelete(true)}
+            />
           )
         }
       />
@@ -408,14 +228,10 @@ export function ProjectionDetailScreen({
             readOnly={readOnly}
             rotLoading={rotLoading}
             info={info}
-            generatedAt={liveSnapshot?.generated_at || liveSnapshot?.created}
+            generatedAt={header.generatedAt}
             blockedNames={blockedNames}
-            onReviewCandidate={
-              pendingCandidate
-                ? () => onReviewCandidate(id, pendingCandidate.id)
-                : undefined
-            }
-            newSinceCandidate={newSinceCandidate}
+            onReviewCandidate={handleReviewPending}
+            newSinceCandidate={rotation.newSinceCandidate}
             regenerating={regenerating}
             onRefresh={() => void handleRefresh()}
             onBackToLive={() => onViewLive(id)}
