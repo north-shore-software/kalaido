@@ -111,7 +111,12 @@ export function StateNavigationListener() {
     const stageKey =
       appStage.stage === "kalaidoscope_open"
         ? `${appStage.stage}:${appStage.selectedKalaidoscopeId}`
-        : appStage.stage;
+        : appStage.stage === "kalaidoscope_loading" ||
+            appStage.stage === "kalaidoscope_load_requested"
+          ? `${appStage.stage}:${appStage.loadKalaidoscopeId ?? ""}`
+          : appStage.stage === "kalaidoscope_load_error"
+            ? `${appStage.stage}:${appStage.retryKalaidoscopeId ?? ""}`
+            : appStage.stage;
     if (handledStage.current === stageKey) return;
     handledStage.current = stageKey;
 

@@ -49,7 +49,12 @@ export async function switchLocalKalaidoscope(
     return err(error);
   }
 
-  if (surfaceError) setAppStage({ stage: "kalaidoscope_loading" });
+  if (surfaceError) {
+    setAppStage({
+      stage: "kalaidoscope_loading",
+      loadKalaidoscopeId: targetId,
+    });
+  }
 
   try {
     await teardownActiveClient();

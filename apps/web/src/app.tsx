@@ -1,9 +1,9 @@
 import { CloudErrorBoundary } from "@kalaido/components/cloud-error-boundary";
-import { SplashScreen } from "@kalaido/components/splash-screen";
 import {
   CloudBootErrorView,
   CloudExploreView,
   CloudSignInScreen,
+  CloudSplashView,
   CloudWorkspacePickerScreen,
 } from "@kalaido/features/auth";
 import {
@@ -38,8 +38,11 @@ function StageNavigationListener() {
 
   useEffect(() => {
     const key =
-      stage.stage === "workspace_open"
-        ? `${stage.stage}:${stage.workspaceId}`
+      stage.stage === "workspace_open" ||
+      stage.stage === "workspace_loading" ||
+      stage.stage === "workspace_load_error" ||
+      stage.stage === "workspace_load_requested"
+        ? `${stage.stage}:${stage.workspaceId ?? ""}`
         : stage.stage;
     if (handledStage.current === key) return;
     handledStage.current = key;
@@ -52,6 +55,16 @@ function StageNavigationListener() {
   }, [stage, navigate]);
 
   return null;
+}
+
+function SplashPage() {
+  const navigate = useNavigate();
+  return (
+    <CloudSplashView
+      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
+      onBackToWorkspaces={() => navigate("/workspaces", { replace: true })}
+    />
+  );
 }
 
 function LoginPage() {
@@ -95,7 +108,7 @@ function WorkspacesPage() {
           : null
       }
       onSyncWorkspaces={syncCloudWorkspaces}
-      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: false })}
+      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
       onAlreadyOpen={() => navigate(-1)}
       onSignOut={signOutOfCloud}
     />
@@ -106,7 +119,7 @@ function ExplorePage() {
   return (
     <CloudExploreView
       onSyncWorkspaces={syncCloudWorkspaces}
-      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: false })}
+      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
       onSignOut={signOutOfCloud}
       onBeforeClear={prepareCloudReset}
       renderNotOpen={(to) => <Navigate to={to} replace />}
@@ -119,8 +132,8 @@ function BootErrorPage() {
 }
 
 const CLOUD_ROUTES: readonly { path: string; Component: ComponentType }[] = [
-  { path: "/", Component: SplashScreen },
-  { path: "/splash", Component: SplashScreen },
+  { path: "/", Component: SplashPage },
+  { path: "/splash", Component: SplashPage },
   { path: "/boot-error", Component: BootErrorPage },
   { path: "/login", Component: LoginPage },
   { path: "/workspaces", Component: WorkspacesPage },

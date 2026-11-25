@@ -1,10 +1,14 @@
-import PocketBase from "pocketbase";
+import PocketBase, { ClientResponseError } from "pocketbase";
 import { getCloudJwt, getCloudRequestAuthHeaders } from "#cloud/auth";
 import { getCloudPbUrl } from "#config";
 import { splitLocalNetLocator } from "#kalaidoscope/local-url";
 import type { TypedPocketBase } from "#kalaidoscope/types";
 import { getActiveKalaidoscopeClient } from "#lib/active-kalaidoscope-client";
 import { toError } from "#lib/errors";
+
+const CLOUD_READY_MAX_ATTEMPTS = 30;
+const CLOUD_READY_RETRY_DELAY_MS = 1_000;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function createLocalNetClient(
   locator: string,
@@ -25,14 +29,60 @@ export async function createLocalNetClient(
   return pb;
 }
 
+export interface CreateCloudClientOptions {
+  readonly maxAttempts?: number;
+  readonly retryDelayMs?: number;
+}
+
 export async function createCloudClient(
   cloudId: string,
+  options: CreateCloudClientOptions = {},
 ): Promise<TypedPocketBase> {
   await requireCloudJwt();
 
   const pb = new PocketBase(resolveCloudUrl(cloudId)) as TypedPocketBase;
   attachCloudAuth(pb);
+  await waitForCloudReady(pb, options);
   return pb;
+}
+
+async function waitForCloudReady(
+  pb: TypedPocketBase,
+  {
+    maxAttempts = CLOUD_READY_MAX_ATTEMPTS,
+    retryDelayMs = CLOUD_READY_RETRY_DELAY_MS,
+  }: CreateCloudClientOptions,
+): Promise<void> {
+  let lastError: unknown;
+  const attempts = Math.max(1, maxAttempts);
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await pb.send("/api/status", { method: "GET", requestKey: null });
+      return;
+    } catch (e) {
+      lastError = e;
+      if (isFatalCloudStatusError(e) || attempt >= attempts) {
+        break;
+      }
+      await sleep(retryDelayMs);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? toError(lastError)
+    : new Error("Timed out waiting for cloud workspace container to start.");
+}
+
+function isFatalCloudStatusError(e: unknown): boolean {
+  if (!(e instanceof ClientResponseError)) return false;
+  return (
+    e.status >= 400 &&
+    e.status < 500 &&
+    e.status !== 408 &&
+    e.status !== 425 &&
+    e.status !== 429
+  );
 }
 
 function resolveCloudUrl(cloudId: string): string {

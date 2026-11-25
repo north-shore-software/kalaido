@@ -69,4 +69,4 @@ export {
   SourceList,
   type SourceListProps,
 } from "./source-list";
-export { SplashScreen } from "./splash-screen";
+export { SplashScreen, type SplashScreenProps } from "./splash-screen";

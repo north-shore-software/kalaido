@@ -37,8 +37,11 @@ export type AppStage =
       stage:
         | "bootstrap"
         | "onboarding_interstitial"
-        | "kalaidoscope_loading"
         | "no_kalaidoscopes_available";
+    }
+  | {
+      stage: "kalaidoscope_loading";
+      loadKalaidoscopeId?: string;
     }
   | {
       stage: "bootstrap_error";

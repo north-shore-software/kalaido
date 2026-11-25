@@ -45,9 +45,10 @@ import {
 } from "#use-cloud-workspaces";
 
 export type CloudStage =
-  | { stage: "bootstrap" | "signed_out" | "workspace_loading" }
+  | { stage: "bootstrap" | "signed_out" }
+  | { stage: "workspace_loading"; workspaceId?: string }
   | { stage: "bootstrap_error"; error?: StageError }
-  | { stage: "workspace_load_error"; error?: StageError }
+  | { stage: "workspace_load_error"; error?: StageError; workspaceId?: string }
   | { stage: "workspace_open"; workspaceId: string }
   | { stage: "workspace_load_requested"; workspaceId: string };
 
@@ -223,7 +224,7 @@ export async function syncCloudWorkspacesForScope(
 export async function openCloudWorkspaceForScope(
   scope: CloudRootScopeInstance,
   targetId: string,
-  { surfaceError = false }: { surfaceError?: boolean } = {},
+  { surfaceError = true }: { surfaceError?: boolean } = {},
 ): Promise<Result<void, Error>> {
   const meta = scope.state.cachedCloudKalaidoscopes.find(
     (k) => k.id === targetId,
@@ -238,6 +239,7 @@ export async function openCloudWorkspaceForScope(
         stage: {
           stage: "workspace_load_error",
           error: { message: error.message },
+          workspaceId: targetId,
         },
       });
     }
@@ -247,7 +249,7 @@ export async function openCloudWorkspaceForScope(
   if (surfaceError) {
     await scope.dispatch({
       type: "setStage",
-      stage: { stage: "workspace_loading" },
+      stage: { stage: "workspace_loading", workspaceId: targetId },
     });
   }
 
@@ -272,6 +274,7 @@ export async function openCloudWorkspaceForScope(
         stage: {
           stage: "workspace_load_error",
           error: stageError(e),
+          workspaceId: targetId,
         },
       });
     }
@@ -309,11 +312,11 @@ export function pathForCloudStage(stage: CloudStage): string {
     case "bootstrap":
     case "workspace_loading":
     case "workspace_load_requested":
+    case "workspace_load_error":
       return "/splash";
     case "bootstrap_error":
       return "/boot-error";
     case "signed_out":
-    case "workspace_load_error":
       return "/login";
     case "workspace_open":
       return "/explore";

@@ -112,6 +112,7 @@ describe("restoreKalaidoscope", () => {
     expect(listenerRegisteredAt).toBeLessThanOrEqual(restoreBackupCalledAt);
     expect(mockSetAppStage).toHaveBeenCalledWith({
       stage: "kalaidoscope_loading",
+      loadKalaidoscopeId: localMeta.id,
     });
     expect(mockSwitchLocalKalaidoscope).toHaveBeenCalledWith(localMeta.id);
   });

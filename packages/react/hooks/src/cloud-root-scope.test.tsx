@@ -1,15 +1,24 @@
 import { getCloudSessionToken } from "@kalaido/client/cloud/auth";
+import { createCloudClient } from "@kalaido/client/kalaidoscope/client";
+import type { TypedPocketBase } from "@kalaido/client/kalaidoscope/types";
 import type {
   KalaidoscopeMeta,
   PersistentAppSetting,
   SettingsStore,
 } from "@kalaido/platform";
 import { ok } from "neverthrow";
+import { vi } from "vitest";
 import {
   createCloudRootScope,
+  openCloudWorkspaceForScope,
+  pathForCloudStage,
   prepareCloudScopeReset,
   wireCloudScopeTokenBridge,
 } from "#cloud-root-scope";
+
+vi.mock("@kalaido/client/kalaidoscope/client", () => ({
+  createCloudClient: vi.fn(),
+}));
 
 function createMemorySettings(
   seed: Partial<PersistentAppSetting> = {},
@@ -104,6 +113,62 @@ describe("createCloudRootScope", () => {
     expect(store.data.cloudSessionToken).toBeUndefined();
     expect(store.data.lastOpenedKalaidoscopeId).toBeUndefined();
     expect(store.data.cachedCloudKalaidoscopes).toEqual([]);
+
+    scope.dispose();
+  });
+
+  test("openCloudWorkspaceForScope transitions through workspace_loading to workspace_open", async () => {
+    const store = createMemorySettings({
+      cloudSessionToken: "tok_1",
+      cachedCloudKalaidoscopes: [cloudMeta("w1")],
+    });
+    const scope = createCloudRootScope(store);
+    await scope.hydrate();
+
+    let stageWhileCreatingClient: unknown;
+    vi.mocked(createCloudClient).mockImplementationOnce(async () => {
+      stageWhileCreatingClient = scope.state.stage;
+      return {
+        baseURL: "https://s.kalaido.co/w1",
+        cancelAllRequests: vi.fn(),
+      } as unknown as TypedPocketBase;
+    });
+
+    const res = await openCloudWorkspaceForScope(scope, "w1");
+    expect(res.isOk()).toBe(true);
+    expect(stageWhileCreatingClient).toEqual({
+      stage: "workspace_loading",
+      workspaceId: "w1",
+    });
+    expect(scope.state.stage).toEqual({
+      stage: "workspace_open",
+      workspaceId: "w1",
+    });
+    expect(pathForCloudStage(scope.state.stage)).toBe("/explore");
+
+    scope.dispose();
+  });
+
+  test("openCloudWorkspaceForScope transitions to workspace_load_error on failure and routes to /splash", async () => {
+    const store = createMemorySettings({
+      cloudSessionToken: "tok_1",
+      cachedCloudKalaidoscopes: [cloudMeta("w1")],
+    });
+    const scope = createCloudRootScope(store);
+    await scope.hydrate();
+
+    vi.mocked(createCloudClient).mockRejectedValueOnce(
+      new Error("Container failed to start"),
+    );
+
+    const res = await openCloudWorkspaceForScope(scope, "w1");
+    expect(res.isErr()).toBe(true);
+    expect(scope.state.stage).toEqual({
+      stage: "workspace_load_error",
+      workspaceId: "w1",
+      error: expect.objectContaining({ message: "Container failed to start" }),
+    });
+    expect(pathForCloudStage(scope.state.stage)).toBe("/splash");
 
     scope.dispose();
   });

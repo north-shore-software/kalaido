@@ -106,7 +106,7 @@ export async function restoreKalaidoscope(
   // dispose SSE subscriptions and evict cached live data before reopening.
   await teardownActiveClient();
 
-  setAppStage({ stage: "kalaidoscope_loading" });
+  setAppStage({ stage: "kalaidoscope_loading", loadKalaidoscopeId: meta.id });
 
   let restarted = false;
   if (meta.type === "local_file" && stoppedWait) {

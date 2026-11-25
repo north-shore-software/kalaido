@@ -1,5 +1,6 @@
 import { getActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
 import { RecoveryView } from "@kalaido/components/recovery-view";
+import { SplashScreen } from "@kalaido/components/splash-screen";
 import {
   CloudRootScopeContext,
   type CloudStage,
@@ -15,6 +16,60 @@ import { useScope, useScopeState } from "@kalaido/state/scope";
 import type { Result } from "neverthrow";
 import { type ReactNode, useEffect } from "react";
 import { ExploreCompactScreen } from "#explore";
+
+export interface CloudSplashViewProps {
+  onOpenWorkspace: (id: string) => Promise<Result<void, Error>>;
+  onBackToWorkspaces: () => void;
+}
+
+export function CloudSplashView({
+  onOpenWorkspace,
+  onBackToWorkspaces,
+}: CloudSplashViewProps) {
+  const root = useScopeContext(CloudRootScopeContext);
+  const stageScope = useScope({ from: root, state: ["stage"] });
+  const { stage } = useScopeState(stageScope);
+  const workspaces = useCloudWorkspacesList();
+
+  useEffect(() => {
+    document.documentElement.dataset.section = "onboarding";
+  }, []);
+
+  if (stage.stage === "bootstrap") {
+    return <SplashScreen />;
+  }
+
+  const targetId =
+    stage.stage === "workspace_loading" ||
+    stage.stage === "workspace_load_requested" ||
+    stage.stage === "workspace_load_error"
+      ? stage.workspaceId
+      : undefined;
+  const workspace = targetId
+    ? workspaces.find((w) => w.id === targetId)
+    : undefined;
+  const workspaceName = workspace?.displayName ?? targetId ?? "Cloud workspace";
+
+  if (stage.stage === "workspace_load_error") {
+    return (
+      <SplashScreen
+        workspaceName={workspaceName}
+        statusText="Failed to start cloud container."
+        error={stage.error ?? { message: "Could not connect to workspace." }}
+        onRetry={targetId ? () => void onOpenWorkspace(targetId) : undefined}
+        onBack={onBackToWorkspaces}
+        backLabel="Back to workspaces"
+      />
+    );
+  }
+
+  return (
+    <SplashScreen
+      workspaceName={workspaceName}
+      statusText="Starting cloud container…"
+    />
+  );
+}
 
 export interface CloudBootErrorViewProps {
   onBeforeClear: () => Promise<void>;
@@ -110,16 +165,7 @@ export function CloudExploreView({
             }}
             onSyncWorkspaces={onSyncWorkspaces}
             onSelectWorkspace={async (id) => {
-              const result = await onOpenWorkspace(id);
-              if (result.isErr()) {
-                await exploreScope.dispatch({
-                  type: "setStage",
-                  stage: {
-                    stage: "workspace_load_error",
-                    error: { message: result.error.message },
-                  },
-                });
-              }
+              await onOpenWorkspace(id);
             }}
             onSignOut={onSignOut}
           />
