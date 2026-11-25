@@ -240,7 +240,7 @@ The target architecture enforces a strict separation into **five explicit state 
 ### 2.8 Next Steps (To Design & Phase)
 
 1. ~~**Piece 1 — External live reads & paired writes**~~ (locked in Part 3 below).
-2. **Piece 2 — Persisted `createScope` / `useScope` extension** (persisted key declaration, hydration gate, write-through coalescing, `HostAdapter.settings` unification including `theme` and `cloudSessionToken`).
+2. ~~**Piece 2 — Persisted `createScope` / `useScope` extension**~~ (drafted in Part 4 below; 3 minor choices open).
 3. **Phased migration plan** across `@kalaido/platform`, `@kalaido/client`, `@kalaido/hooks`, `@kalaido/primitives`, `@kalaido/components`, `@kalaido/features`, `apps/mobile`, `apps/web`, and `apps/desktop`.
 
 ---
@@ -356,3 +356,83 @@ export interface ExternalWriteHandle<TArgs, TOut extends WriteReturn> {
 - **Default concurrency (`"ignore"`):** If `run()` is called while already pending, it returns `{ status: "ignored" }` immediately without firing a duplicate request or clobbering the active status. Callers needing parallel independent writes on one handle (e.g. toggling multiple rows rapidly) can explicitly set `concurrency: "allow"`.
 - **Error handling:** `run()` never throws; callers inspect `res.status === "error"` (or `handle.error`) and decide whether to toast or render inline.
 - **Invalidation:** When `execute` returns `ok`, `run()` awaits `invalidateLiveTags(tags)` before resolving `{ status: "success", ... }`, ensuring paired non-push live reads (and opted-in push reads) have caught up before the caller clears local pending/optimistic UI.
+
+
+---
+
+## Part 4: Spec — Persisted `createScope` / `useScope` & Unified `HostAdapter.settings`
+
+### 4.1 Cleaned-Up `PersistentAppSetting` (`@kalaido/platform`)
+In `packages/lib/platform/src/index.ts`, remove dead keys (`lightDarkMode`, `pinnedProjections`) and add `theme` + `cloudSessionToken`:
+
+```ts
+export type ThemePreference = "light" | "dark" | "system";
+
+export type PersistentAppSetting = {
+  theme: ThemePreference;
+  cloudSessionToken: string;
+  availableKalaidoscopes: KalaidoscopeMeta[];
+  onboardingAcknowledged: boolean;
+  errorReportingEnabled: boolean;
+  usageStatisticsEnabled: boolean;
+  lastOpenedKalaidoscopeId: string;
+  ollamaModel: string;
+};
+```
+
+`HostAdapter.settings` (`kalaido-settings.json` on Desktop/Mobile via `@tauri-apps/plugin-store`; `localStorage["kalaido-settings"]` on Web) becomes the single client-local persistence store across all packages and apps.
+
+### 4.2 Persistence Extension on `createScope` / `useScope` (`@kalaido/hooks`)
+`packages/react/hooks/src/use-scope.ts` remains storage-agnostic by accepting an optional `persist` config on `OwnScopeOptions` and `ExtendScopeOptions`, paired with a `hostSettingsPersistence()` adapter factory in `packages/react/hooks/src/scope-persistence.ts`.
+
+```ts
+export type HydrationStatus = "pending" | "ready" | "error";
+
+export interface ScopePersistenceAdapter<T extends Record<string, unknown>> {
+  load(): Promise<Result<Partial<T>, Error>>;
+  save<K extends keyof T & string>(key: K, value: T[K]): Promise<Result<void, Error>>;
+  remove<K extends keyof T & string>(key: K): Promise<Result<void, Error>>;
+}
+
+export interface ScopePersistOptions<
+  OwnS extends object,
+  PKeys extends readonly (keyof OwnS & string)[] = readonly (keyof OwnS & string)[],
+> {
+  /** Subset of `OwnS` keys that persist transparently. */
+  readonly keys: PKeys;
+  /** Storage backing (e.g. `hostSettingsPersistence()`). */
+  readonly adapter: ScopePersistenceAdapter<Pick<OwnS, PKeys[number]>>;
+  /**
+   * Runs inside the hydration transaction once `adapter.load()` settles,
+   * before `viewProxy` syncs — used to derive post-boot state (e.g. `appStage`)
+   * without triggering write-through echoes.
+   */
+  readonly onHydrated?: (
+    state: OwnS,
+    result: Result<Partial<Pick<OwnS, PKeys[number]>>, Error>,
+  ) => void;
+  /** Non-fatal write error hook (default: `console.error`). */
+  readonly onWriteError?: (key: PKeys[number], error: Error) => void;
+}
+```
+
+#### Runtime Guarantees
+- **Boot hydration gate:** Persisted scopes track hydration state (`"pending" | "ready" | "error"`), load once via `adapter.load()`, and apply loaded keys under a `hydrating` guard so hydration never echoes writes back to disk. Any key mutated before `load()` resolves is marked dirty and not overwritten by stale disk data. `onHydrated(ownProxy, result)` runs inside the same guarded step so apps can transition out of `"bootstrap"` atomically.
+- **Optimistic background write-through:** Subscribes to `ownProxy` changes restricted to `persist.keys`. In-memory state updates synchronously inside `dispatch(event)`; disk writes run asynchronously in the background (`save` for defined values, `remove` for `undefined`).
+- **Per-key write serialization:** Concurrent updates to the same key are queued (`inFlight` + `latestPending`), preventing out-of-order writes and coalescing rapid intermediate values to the latest value.
+- **Unmount safety:** Disposing/unmounting stops observing new changes while already-queued writes finish flushing to disk.
+- **Optimistic error model:** Failed background writes never roll back in-memory state; they report to `onWriteError` / `console.error`.
+
+### 4.3 Boundary Wiring for `theme` & `cloudSessionToken`
+- **`theme` (`@kalaido/primitives` boundary):** `ThemeProvider` drops all `localStorage` calls and becomes controlled via props (`theme`, `onThemeChange`), keeping `applyTheme` and `watchSystemTheme`. Root scopes own persisted `theme` (default `"system"`) and pass `theme` + `dispatch({ type: "setTheme", theme })` through `CoreProviders`. Boot hydration runs behind `SplashScreen` (`stage === "bootstrap"`).
+- **`cloudSessionToken` (`@kalaido/client` sync Bearer header):** `packages/lib/client/src/cloud/auth.ts` drops all direct `localStorage` calls and reads/writes through a tiny in-memory token bridge (`configureCloudSessionTokenBridge({ get, onChange })`) seeded during boot hydration before leaving `"bootstrap"`. Better Auth's synchronous `token: () => ...` header callback reads from the bridge; `set-auth-token` headers and `dropCloudSession()` notify `onChange`, dispatching into the root scope (which writes through to `HostAdapter.settings`).
+
+### 4.4 Root Scope Layout & Distribution
+- **Shared cloud/base root scope** (eliminating duplicated `apps/mobile/src/state.ts` and `apps/web/src/state.ts`): owns persisted `theme`, `cloudSessionToken`, `lastOpenedKalaidoscopeId`, `availableKalaidoscopes` (offline cache for cloud), plus `stage`.
+- **Desktop root scope:** extends/composes the base with persisted `onboardingAcknowledged`, `errorReportingEnabled`, `usageStatisticsEnabled`, `ollamaModel` and ephemeral `appStage`, `sidecarStatus` (from Tauri `sidecar:pocketbase:status` events), `latestInferenceRate`, `addFragmentModalOpen`, `feedbackDialogOpen`.
+- **Distribution helper:** `createScopeContext<S, E>()` in `@kalaido/hooks` distributes the root `StateHandle` via React Context so leaf screens/components can narrow directly (`useScope({ from: root, state: [...], events: [...] })`) without prop-drilling.
+
+### 4.5 Open Minor Choices (To Confirm Before Implementing Piece 2)
+1. **Hydration trigger on `createScope`:** Auto-start hydration inside `createScope` (exposing `scope.ready: Promise<Result<void, Error>>`) vs. explicit `scope.hydrate()` call from `main.tsx`.
+2. **One-time legacy `localStorage` migration:** Fall back once on boot to legacy `localStorage["theme"]` and `localStorage["kalaido.cloud.session-token"]` when absent from `HostAdapter.settings` vs. skip migration.
+3. **Settings reset (`RecoveryView` / `DangerZoneSection`):** First-class `resetPersisted()` helper on persisted scopes vs. handling reset via a regular `dispatch` event handler.
