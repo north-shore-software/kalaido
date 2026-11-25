@@ -1,7 +1,44 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
-import { registerLiveBinding } from "./registry";
-import type { LiveReadResult, LiveReadStatus, LiveSource } from "./types";
+import { ensureLiveSubscription, registerLiveBinding } from "./registry";
+import type {
+  LiveOfflineCache,
+  LiveReadResult,
+  LiveReadStatus,
+  LiveSource,
+} from "./types";
+
+async function reconcileOfflineValue<T>(
+  offlineCache: LiveOfflineCache<T>,
+  seeds: Map<string, T>,
+  fetchKey: string,
+  fresh: T,
+): Promise<T> {
+  let cached = seeds.get(fetchKey);
+  if (cached === undefined) {
+    try {
+      cached = await offlineCache.read();
+    } catch (err) {
+      console.error("useLiveRead: offlineCache.read failed", err);
+    }
+  }
+  const reconciled = offlineCache.reconcile(cached, fresh);
+  seeds.set(fetchKey, reconciled);
+  void offlineCache.write(reconciled).catch((err) => {
+    console.error("useLiveRead: offlineCache.write failed", err);
+  });
+  return reconciled;
+}
+
+function deriveLiveStatus<T>(
+  data: T | undefined,
+  error: Error | null,
+  isLoading: boolean,
+): LiveReadStatus {
+  if (data !== undefined) return "ready";
+  if (error !== null) return "error";
+  return isLoading ? "loading" : "ready";
+}
 
 /**
  * Unified external live-read hook backed by SWR.
@@ -15,51 +52,66 @@ import type { LiveReadResult, LiveReadStatus, LiveSource } from "./types";
  * - optional offline cache fallback/reconciliation (cloud-workspaces exception)
  */
 export function useLiveRead<T>(source: LiveSource<T>): LiveReadResult<T> {
-  const { cache } = useSWRConfig();
+  const { cache, mutate: scopedMutate } = useSWRConfig();
   const sourceRef = useRef(source);
   sourceRef.current = source;
 
   const serializedKey = source.key ? unstable_serialize(source.key) : null;
   const tagsKey = source.tags ? [...source.tags].sort().join("\0") : "";
   const hasSubscribe = source.subscribe !== undefined;
+  const subscribeKey = source.subscribeKey;
   const hasOfflineCache = source.offlineCache !== undefined;
+  const hasInitialData = source.getInitialData !== undefined;
   const coalesceMs = source.coalesceMs ?? 0;
 
-  // Tracks whether authoritative server data has landed for the current key,
-  // so a slow offlineCache.read() never overwrites fresher server data.
-  const liveDataKeyRef = useRef<string | null>(null);
-  const offlineSeedRef = useRef<T | undefined>(undefined);
+  const offlineSeedsRef = useRef(new Map<string, T>());
+  const [offlineFallback, setOfflineFallback] = useState<{
+    readonly key: string;
+    readonly value: T;
+  } | null>(null);
+  const [evictedKey, setEvictedKey] = useState<string | null>(null);
+  const fetchedKeysRef = useRef(new Set<string>());
+
+  const canUseInitial =
+    Boolean(serializedKey) && hasInitialData && evictedKey !== serializedKey;
+  const initialFallback = canUseInitial ? source.getInitialData?.() : undefined;
 
   const swr = useSWR<T, Error>(
     source.key,
     async () => {
       const current = sourceRef.current;
+      const fetchKey = serializedKey;
+      if (fetchKey && fetchedKeysRef.current.has(fetchKey)) {
+        ensureLiveSubscription(cache, fetchKey);
+      }
       const result = await current.fetch();
       if (result.isErr()) {
+        if (fetchKey) fetchedKeysRef.current.add(fetchKey);
         throw result.error;
       }
 
       let value = result.value;
-      if (current.offlineCache) {
-        let cached = offlineSeedRef.current;
-        if (cached === undefined) {
-          try {
-            cached = await current.offlineCache.read();
-          } catch (err) {
-            console.error("useLiveRead: offlineCache.read failed", err);
-          }
-        }
-        value = current.offlineCache.reconcile(cached, value);
-        offlineSeedRef.current = value;
-        void current.offlineCache.write(value).catch((err) => {
-          console.error("useLiveRead: offlineCache.write failed", err);
-        });
+      if (current.offlineCache && fetchKey) {
+        value = await reconcileOfflineValue(
+          current.offlineCache,
+          offlineSeedsRef.current,
+          fetchKey,
+          value,
+        );
+        setOfflineFallback((prev) =>
+          prev?.key === fetchKey ? { key: fetchKey, value } : prev,
+        );
       }
 
-      liveDataKeyRef.current = serializedKey;
+      if (fetchKey) {
+        fetchedKeysRef.current.add(fetchKey);
+        setEvictedKey((prev) => (prev === fetchKey ? null : prev));
+      }
       return value;
     },
     {
+      fallbackData: initialFallback,
+      revalidateOnMount: hasInitialData ? false : undefined,
       revalidateOnFocus: source.revalidateOnFocus,
       revalidateOnReconnect: source.revalidateOnReconnect,
     },
@@ -68,11 +120,9 @@ export function useLiveRead<T>(source: LiveSource<T>): LiveReadResult<T> {
   const mutateRef = useRef(swr.mutate);
   mutateRef.current = swr.mutate;
 
-  // Seed offline cache when available and live data has not landed yet.
   useEffect(() => {
     if (!serializedKey || !hasOfflineCache) return;
     let cancelled = false;
-    offlineSeedRef.current = undefined;
 
     void (async () => {
       const offlineCache = sourceRef.current.offlineCache;
@@ -80,11 +130,16 @@ export function useLiveRead<T>(source: LiveSource<T>): LiveReadResult<T> {
       try {
         const cached = await offlineCache.read();
         if (cancelled || cached === undefined) return;
-        offlineSeedRef.current = cached;
-        if (liveDataKeyRef.current === serializedKey) return;
-        await mutateRef.current((current) => current ?? cached, {
-          revalidate: false,
-        });
+        const seeds = offlineSeedsRef.current;
+        if (!seeds.has(serializedKey)) {
+          seeds.set(serializedKey, cached);
+        }
+        const seed = seeds.get(serializedKey) ?? cached;
+        setOfflineFallback((prev) =>
+          prev?.key === serializedKey
+            ? prev
+            : { key: serializedKey, value: seed },
+        );
       } catch (err) {
         console.error("useLiveRead: offlineCache.read failed", err);
       }
@@ -95,7 +150,6 @@ export function useLiveRead<T>(source: LiveSource<T>): LiveReadResult<T> {
     };
   }, [serializedKey, hasOfflineCache]);
 
-  // Register active `(cache, key)` binding, tags, and shared push subscription.
   useEffect(() => {
     if (!serializedKey || !sourceRef.current.key) return;
     const rawKey = sourceRef.current.key;
@@ -104,34 +158,50 @@ export function useLiveRead<T>(source: LiveSource<T>): LiveReadResult<T> {
 
     return registerLiveBinding<T>({
       cache,
+      scopedMutate,
       serializedKey,
       rawKey,
       tags,
       coalesceMs,
       subscribe,
+      subscribeKey,
       revalidate: () => mutateRef.current(),
       setData: (value) => {
-        liveDataKeyRef.current = serializedKey;
+        setEvictedKey((prev) => (prev === serializedKey ? null : prev));
         return mutateRef.current(value, { revalidate: false });
       },
-      clear: () => mutateRef.current(undefined, { revalidate: false }),
+      clear: () => {
+        offlineSeedsRef.current.delete(serializedKey);
+        setOfflineFallback((prev) =>
+          prev?.key === serializedKey ? null : prev,
+        );
+        if (hasInitialData) {
+          setEvictedKey(serializedKey);
+        }
+        return mutateRef.current(undefined, { revalidate: false });
+      },
     });
-  }, [cache, serializedKey, tagsKey, hasSubscribe, coalesceMs]);
+  }, [
+    cache,
+    scopedMutate,
+    serializedKey,
+    tagsKey,
+    hasSubscribe,
+    subscribeKey,
+    hasInitialData,
+    coalesceMs,
+  ]);
 
+  const fallbackVal =
+    offlineFallback?.key === serializedKey ? offlineFallback.value : undefined;
+  const data = swr.data !== undefined ? swr.data : fallbackVal;
   const error = swr.error ?? null;
-  const status: LiveReadStatus =
-    swr.data !== undefined
-      ? "ready"
-      : error !== null
-        ? "error"
-        : swr.isLoading
-          ? "loading"
-          : "ready";
+  const isLoading = data === undefined && swr.isLoading;
 
   return {
-    data: swr.data,
-    status,
-    isLoading: swr.isLoading,
+    data,
+    status: deriveLiveStatus(data, error, isLoading),
+    isLoading,
     isValidating: swr.isValidating,
     error,
   };

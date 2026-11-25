@@ -32,6 +32,16 @@ export interface LiveSubscribeCallbacks<T> {
   readonly invalidate: () => void;
   /** Push an authoritative value directly into the SWR cache (atom sources). */
   readonly setData: (value: T) => void;
+  /**
+   * Signal that an async push channel finished connecting (used to trigger a
+   * catch-up revalidation when recovering from an earlier disconnect).
+   */
+  readonly connected?: () => void;
+  /**
+   * Signal that the underlying push channel disconnected or failed so the
+   * registry cleans up its active marker and re-subscribes on reconnect/mount.
+   */
+  readonly disconnect?: () => void;
 }
 
 export interface LiveSource<T> {
@@ -41,8 +51,18 @@ export interface LiveSource<T> {
   readonly tags?: readonly LiveTag[];
   /** Fetches the authoritative value from the external store. */
   readonly fetch: () => Promise<Result<T, Error>>;
+  /**
+   * Optional synchronous initial snapshot (e.g. an in-memory reactive atom)
+   * used to render immediately on mount without an async loading flash.
+   */
+  readonly getInitialData?: () => T;
   /** Optional push channel; returns an unsubscribe function. */
   readonly subscribe?: (callbacks: LiveSubscribeCallbacks<T>) => () => void;
+  /**
+   * Optional identity token for `subscribe` (e.g. a PocketBase client instance)
+   * when not part of `key`. Changing it tears down and re-attaches `subscribe`.
+   */
+  readonly subscribeKey?: unknown;
   /** Coalesce bursty `invalidate()` events into one revalidation (ms). */
   readonly coalesceMs?: number;
   /**
@@ -65,13 +85,47 @@ export type WriteReturn =
   // biome-ignore lint/suspicious/noConfusingVoidType: matches neverthrow Result<void, Error> returned by @kalaido/client mutations
   void | { readonly id: string } | { readonly ids: readonly string[] };
 
+export type ValidWriteReturn<TOut> =
+  // biome-ignore lint/suspicious/noConfusingVoidType: matches default TOut = void for non-create mutations
+  [TOut] extends [void]
+    ? unknown
+    : [TOut] extends [{ readonly id: string }]
+      ? Exclude<keyof TOut, "id"> extends never
+        ? unknown
+        : {
+            readonly execute?: (...args: never[]) => Promise<
+              Result<
+                { readonly id: string } & {
+                  readonly [K in Exclude<keyof TOut, "id">]: never;
+                },
+                Error
+              >
+            >;
+          }
+      : [TOut] extends [{ readonly ids: readonly string[] }]
+        ? Exclude<keyof TOut, "ids"> extends never
+          ? unknown
+          : {
+              readonly execute?: (...args: never[]) => Promise<
+                Result<
+                  { readonly ids: readonly string[] } & {
+                    readonly [K in Exclude<keyof TOut, "ids">]: never;
+                  },
+                  Error
+                >
+              >;
+            }
+        : never;
+
 export type WriteStatus = "idle" | "pending" | "success" | "error";
 
 export type WriteOutcome<TOut extends WriteReturn> =
   // biome-ignore lint/suspicious/noConfusingVoidType: matches default TOut = void for non-create mutations
   | ([TOut] extends [void]
       ? { readonly status: "success" }
-      : { readonly status: "success" } & TOut)
+      : [TOut] extends [{ readonly id: string }]
+        ? { readonly status: "success"; readonly id: string }
+        : { readonly status: "success"; readonly ids: readonly string[] })
   | { readonly status: "ignored" }
   | { readonly status: "error"; readonly error: Error };
 

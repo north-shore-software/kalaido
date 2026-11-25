@@ -142,6 +142,8 @@ describe("persisted createScope & useScope", () => {
 
     const hydratePromise = scope.hydrate();
     await scope.dispatch({ type: "setTheme", theme: "dark" });
+    // Writes are held until hydration succeeds
+    expect(mem.save).not.toHaveBeenCalled();
 
     resolveLoad(ok({ theme: "light", model: "saved" }));
     await hydratePromise;
@@ -151,6 +153,62 @@ describe("persisted createScope & useScope", () => {
     expect(scope.state.model).toBe("saved");
     expect(mem.save).toHaveBeenCalledTimes(1);
     expect(mem.save).toHaveBeenCalledWith("theme", "dark");
+
+    scope.dispose();
+  });
+
+  test("holds pre-hydrate writes off disk until hydrate() succeeds and preserves dirty keys across failed-hydrate retries", async () => {
+    type State = { theme: string; model: string };
+    const mem = createMemoryAdapter<State>({
+      theme: "disk-theme",
+      model: "disk-model",
+    });
+
+    const scope = createScope({
+      initial: (): State => ({ theme: "system", model: "default" }),
+      handlers: {
+        setTheme: (s, e: { type: "setTheme"; theme: string }) => {
+          s.theme = e.theme;
+        },
+        setModel: (s, e: { type: "setModel"; model: string }) => {
+          s.model = e.model;
+        },
+      },
+      persist: {
+        keys: ["theme", "model"] as const,
+        adapter: mem.adapter,
+      },
+    });
+
+    // Dispatch before hydrate() is ever called: updates memory, nothing written yet
+    await scope.dispatch({ type: "setTheme", theme: "pre-hydrate-dark" });
+    await scope.flush();
+    expect(scope.state.theme).toBe("pre-hydrate-dark");
+    expect(mem.save).not.toHaveBeenCalled();
+
+    // First hydrate() fails -> status = "error", still no disk writes
+    mem.load.mockResolvedValueOnce(err(new Error("transient read failure")));
+    const first = await scope.hydrate();
+    expect(first.isErr()).toBe(true);
+    expect(scope.getHydrationStatus()).toBe("error");
+    expect(mem.save).not.toHaveBeenCalled();
+
+    // User mutates `model` while status === "error" before retrying hydrate()
+    await scope.dispatch({ type: "setModel", model: "post-error-model" });
+    await scope.flush();
+    expect(mem.save).not.toHaveBeenCalled();
+
+    // Retry hydrate() succeeds: neither dirty key is clobbered, and both flush to disk
+    const second = await scope.hydrate();
+    expect(second.isOk()).toBe(true);
+    await scope.flush();
+
+    expect(scope.state.theme).toBe("pre-hydrate-dark");
+    expect(scope.state.model).toBe("post-error-model");
+    expect(mem.store).toEqual({
+      theme: "pre-hydrate-dark",
+      model: "post-error-model",
+    });
 
     scope.dispose();
   });

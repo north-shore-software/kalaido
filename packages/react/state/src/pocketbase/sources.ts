@@ -40,6 +40,46 @@ function canonicalWatch<TCollection extends string>(
   return [...new Set(watch)].sort() as TCollection[];
 }
 
+function subscribeWatchedCollections(
+  client: PocketBase,
+  watched: readonly string[],
+  filterForCollection: (name: string) => string | undefined,
+  invalidate: () => void,
+  connected: (() => void) | undefined,
+  disconnect: (() => void) | undefined,
+): () => void {
+  let dead = false;
+  let remainingToConnect = watched.length;
+  let unsubs: (() => void)[] = [];
+
+  const handleConnect = () => {
+    if (dead) return;
+    remainingToConnect -= 1;
+    if (remainingToConnect <= 0) {
+      connected?.();
+    }
+  };
+
+  const handleDisconnect = () => {
+    if (dead) return;
+    dead = true;
+    for (const unsub of unsubs) unsub();
+    disconnect?.();
+  };
+
+  unsubs = watched.map((name) =>
+    subscribePbCollection(client, name, invalidate, filterForCollection(name), {
+      onConnect: handleConnect,
+      onDisconnect: handleDisconnect,
+    }),
+  );
+
+  return () => {
+    dead = true;
+    for (const unsub of unsubs) unsub();
+  };
+}
+
 /**
  * PocketBase collection or SQL view live source.
  * Uses the shared ref-counted SSE hub so multiple mounted callers share one channel.
@@ -75,6 +115,7 @@ export function pbCollectionSource<
       : null,
     tags,
     coalesceMs,
+    subscribeKey: client,
     fetch: async () => {
       try {
         const list = await client.collection(collection).getFullList<TRecord>({
@@ -86,19 +127,15 @@ export function pbCollectionSource<
         return err(toError(e));
       }
     },
-    subscribe: ({ invalidate }) => {
-      const unsubs = watched.map((name) =>
-        subscribePbCollection(
-          client,
-          name,
-          invalidate,
-          name === collection ? params.filter : undefined,
-        ),
-      );
-      return () => {
-        for (const unsub of unsubs) unsub();
-      };
-    },
+    subscribe: ({ invalidate, connected, disconnect }) =>
+      subscribeWatchedCollections(
+        client,
+        watched,
+        (name) => (name === collection ? params.filter : undefined),
+        invalidate,
+        connected,
+        disconnect,
+      ),
   };
 }
 
@@ -156,17 +193,19 @@ export function pbEndpointSource<T, TCollection extends string = string>(
       : null,
     tags,
     coalesceMs,
+    subscribeKey: client,
     fetch,
     subscribe:
       watched.length > 0
-        ? ({ invalidate }) => {
-            const unsubs = watched.map((name) =>
-              subscribePbCollection(client, name, invalidate),
-            );
-            return () => {
-              for (const unsub of unsubs) unsub();
-            };
-          }
+        ? ({ invalidate, connected, disconnect }) =>
+            subscribeWatchedCollections(
+              client,
+              watched,
+              () => undefined,
+              invalidate,
+              connected,
+              disconnect,
+            )
         : undefined,
   };
 }
@@ -176,6 +215,6 @@ export function clearPocketBaseLiveCache(baseURL: string): Promise<void> {
   const serializedPrefix = unstable_serialize(["pb", baseURL]);
   return clearLiveCache(
     (k) => k[0] === "pb" && k[1] === baseURL,
-    (s) => s.includes(baseURL) && s.startsWith(serializedPrefix.slice(0, 6)),
+    (s) => s.startsWith(serializedPrefix),
   );
 }

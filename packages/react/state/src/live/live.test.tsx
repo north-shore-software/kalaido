@@ -34,10 +34,26 @@ function makeWrapper() {
   );
 }
 
+function useTypecheckForbiddenEntityReturn() {
+  type LeakyEntity = {
+    readonly id: string;
+    readonly status: "queued";
+    readonly title: string;
+  };
+  return useExternalWrite<void, LeakyEntity>({
+    // @ts-expect-error full entity records with extra keys are forbidden
+    execute: async () => ok({ id: "1", status: "queued", title: "Forbidden" }),
+  });
+}
+void useTypecheckForbiddenEntityReturn;
+
 describe("useLiveRead + atomLiveSource", () => {
-  test("pushes atom updates directly into SWR cache via setData and cleans up on unmount", async () => {
+  test("renders synchronously on initial mount, pushes atom updates via setData, and cleans up on unmount", async () => {
     let current = { signedIn: false, email: null as string | null };
     const listeners = new Set<(v: typeof current) => void>();
+    const refetch = vi.fn(async () =>
+      ok({ signedIn: true, email: "refetched@b.co" }),
+    );
 
     const { result, unmount } = renderHook(
       () =>
@@ -50,14 +66,17 @@ describe("useLiveRead + atomLiveSource", () => {
               listeners.add(fn);
               return () => listeners.delete(fn);
             },
+            refetch,
           }),
         ),
       { wrapper: makeWrapper() },
     );
 
-    await waitFor(() => {
-      expect(result.current.data).toEqual({ signedIn: false, email: null });
-    });
+    // Synchronous initial snapshot — no undefined loading flash and no mount refetch
+    expect(result.current.data).toEqual({ signedIn: false, email: null });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.status).toBe("ready");
+    expect(refetch).not.toHaveBeenCalled();
 
     act(() => {
       current = { signedIn: true, email: "a@b.co" };
@@ -69,6 +88,16 @@ describe("useLiveRead + atomLiveSource", () => {
         signedIn: true,
         email: "a@b.co",
       });
+    });
+
+    // Explicit tag invalidation invokes `refetch`
+    await act(async () => {
+      await invalidateLiveTags(["auth:session"]);
+    });
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toEqual({
+      signedIn: true,
+      email: "refetched@b.co",
     });
 
     await act(async () => {
@@ -154,6 +183,74 @@ describe("useLiveRead + httpLiveSource", () => {
     expect(write).toHaveBeenCalledWith([
       { id: "w1", name: "Fresh", icon: "star" },
     ]);
+  });
+
+  test("online boot with fast offlineCache.read does not discard slower fresh server fetch", async () => {
+    type Workspace = { id: string; name: string; icon?: string };
+    const wrapper = makeWrapper();
+
+    const { result, unmount } = renderHook(
+      () =>
+        useLiveRead(
+          httpLiveSource<Workspace[]>({
+            key: ["cloud", "online-boot"],
+            fetch: async () => {
+              await new Promise((r) => setTimeout(r, 40));
+              return ok([{ id: "w1", name: "FreshServer" }]);
+            },
+            offlineCache: {
+              read: async () => {
+                await new Promise((r) => setTimeout(r, 5));
+                return [{ id: "w1", name: "StaleDisk", icon: "pin" }];
+              },
+              reconcile: (cached, fresh) =>
+                fresh.map((f) => ({
+                  ...f,
+                  icon: cached?.find((c) => c.id === f.id)?.icon,
+                })),
+              write: async () => {},
+            },
+          }),
+        ),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual([
+        { id: "w1", name: "FreshServer", icon: "pin" },
+      ]);
+      expect(result.current.isValidating).toBe(false);
+    });
+
+    unmount();
+  });
+
+  test("clearLiveCache evicts unmounted keys from isolated SWRConfig caches", async () => {
+    const cache: Cache = new Map();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <TestSWRProvider cache={cache}>{children}</TestSWRProvider>
+    );
+
+    const mounted = renderHook(
+      () =>
+        useLiveRead(
+          httpLiveSource({
+            key: ["secret", "profile"],
+            fetch: async () => ok("sensitive"),
+          }),
+        ),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(mounted.result.current.data).toBe("sensitive");
+    });
+
+    mounted.unmount();
+    expect(Array.from(cache.keys()).length).toBeGreaterThan(0);
+
+    await clearLiveCache((k) => k[0] === "secret");
+    expect(Array.from(cache.keys())).toEqual([]);
   });
 });
 
@@ -305,5 +402,70 @@ describe("useExternalWrite", () => {
     });
     expect(thrownOutcome?.status).toBe("error");
     expect(throwHook.current.error?.message).toBe("unexpected");
+  });
+
+  test("rejects full entity records at compile time, strips extra fields at runtime, clears stale concurrent errors, and ignores mid-flight reset()", async () => {
+    // Runtime defense: even if cast past TypeScript, extra keys and `status` cannot leak or clobber
+    const untypedEntity = {
+      id: "rec_1",
+      status: "queued",
+      title: "Secret",
+    } as unknown as { readonly id: string };
+
+    const { result: stripHook } = renderHook(() =>
+      useExternalWrite<void, { readonly id: string }>({
+        execute: async () => ok(untypedEntity),
+      }),
+    );
+
+    let stripped: WriteOutcome<{ readonly id: string }> | undefined;
+    await act(async () => {
+      stripped = await stripHook.current.run();
+    });
+    expect(stripped).toEqual({ status: "success", id: "rec_1" });
+    expect("title" in (stripped ?? {})).toBe(false);
+
+    // Concurrency "allow": later success clears earlier error; mid-flight reset() is ignored
+    const resolvers: ((okVal: boolean) => void)[] = [];
+    const { result: concHook } = renderHook(() =>
+      useExternalWrite<void>({
+        concurrency: "allow",
+        execute: () =>
+          new Promise((resolve) => {
+            resolvers.push((succeed) =>
+              resolve(succeed ? ok(undefined) : err(new Error("first failed"))),
+            );
+          }),
+      }),
+    );
+
+    let p1!: Promise<WriteOutcome<void>>;
+    let p2!: Promise<WriteOutcome<void>>;
+    act(() => {
+      p1 = concHook.current.run();
+      p2 = concHook.current.run();
+    });
+
+    // Mid-flight reset() is a no-op while pending
+    act(() => {
+      concHook.current.reset();
+    });
+    expect(concHook.current.status).toBe("pending");
+    expect(concHook.current.isPending).toBe(true);
+
+    // First settles with error, second settles with success -> status="success", error=null
+    await act(async () => {
+      resolvers[0]?.(false);
+      await p1;
+    });
+    expect(concHook.current.status).toBe("pending");
+    expect(concHook.current.error?.message).toBe("first failed");
+
+    await act(async () => {
+      resolvers[1]?.(true);
+      await p2;
+    });
+    expect(concHook.current.status).toBe("success");
+    expect(concHook.current.error).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 export {
   disposeClientSubscriptions,
+  type PbSubscriptionLifecycle,
   subscribePbCollection,
 } from "./subscription-hub";
 export {

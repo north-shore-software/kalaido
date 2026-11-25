@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import { StrictMode, useEffect, useLayoutEffect } from "react";
 import { ref, snapshot } from "valtio";
 import { useSnapshot } from "valtio/react";
@@ -775,6 +775,25 @@ describe("useScope in React", () => {
     root.dispose();
   });
 
+  test("survives StrictMode remount when a child useLayoutEffect dispatches on a parent useScope", async () => {
+    const root = makeRoot();
+    const observed: number[] = [];
+
+    await act(async () => {
+      render(
+        <StrictMode>
+          <LayoutEffectParent root={root} observedAfterDispatch={observed} />
+        </StrictMode>,
+      );
+    });
+
+    expect(root.state.count).toBe(6);
+    expect(screen.getByTestId("leaf-count").textContent).toBe("6:true");
+    expect(observed).toHaveLength(2);
+
+    root.dispose();
+  });
+
   test("keeps local state on key-order permutations and resets local state when `from` switches", async () => {
     const workspaceA = makeRoot(10);
     const workspaceB = makeRoot(42);
@@ -844,6 +863,142 @@ describe("useScope in React", () => {
     });
 
     expect(root.state.count).toBe(10);
+    root.dispose();
+  });
+
+  test("deactivates useScope handles on unmount and when `from` switches, stopping post-unmount dispatches and persistence", async () => {
+    const saves: [string, unknown][] = [];
+    const rootA = makeRoot(1);
+    const rootB = makeRoot(2);
+
+    const { result, rerender, unmount } = renderHook(
+      ({ parent }) =>
+        useScope({
+          from: parent,
+          state: ["count"] as const,
+          initial: () => ({ theme: "light" }),
+          handlers: {
+            setTheme: (s, e: { type: "setTheme"; theme: string }) => {
+              s.theme = e.theme;
+            },
+          },
+          persist: {
+            keys: ["theme"] as const,
+            adapter: {
+              load: async () =>
+                ({ isOk: () => true, isErr: () => false, value: {} }) as never,
+              save: async (k, v) => {
+                saves.push([k, v]);
+                return {
+                  isOk: () => true,
+                  isErr: () => false,
+                  value: undefined,
+                } as never;
+              },
+              remove: async () =>
+                ({
+                  isOk: () => true,
+                  isErr: () => false,
+                  value: undefined,
+                }) as never,
+            },
+          },
+        }),
+      {
+        initialProps: { parent: rootA },
+        wrapper: StrictMode,
+      },
+    );
+
+    const handleA = result.current;
+
+    // Switching `from` permanently disposes the replaced child scope
+    rerender({ parent: rootB });
+
+    const handleB = result.current;
+    expect(handleB).not.toBe(handleA);
+    await expect(
+      handleA.dispatch({ type: "setTheme", theme: "stale" }),
+    ).rejects.toThrow(/disposed/i);
+
+    // Unmounting synchronously deactivates the active scope handle
+    unmount();
+    await expect(
+      handleB.dispatch({ type: "setTheme", theme: "after-unmount" }),
+    ).rejects.toThrow(/disposed/i);
+    expect(saves).toEqual([]);
+
+    rootA.dispose();
+    rootB.dispose();
+  });
+
+  test("batches consecutive post-await mutations in async handlers and catches post-await parent key collisions", async () => {
+    const savedConfigs: { host: string; port: number }[] = [];
+    const scope = createScope({
+      initial: () => ({ config: { host: "localhost", port: 3000 } }),
+      handlers: {
+        updateBothAsync: async (
+          s,
+          e: { type: "updateBothAsync"; host: string; port: number },
+        ) => {
+          await Promise.resolve();
+          s.config.host = e.host;
+          s.config.port = e.port;
+        },
+      },
+      persist: {
+        keys: ["config"] as const,
+        adapter: {
+          load: async () =>
+            ({ isOk: () => true, isErr: () => false, value: {} }) as never,
+          save: async (_k, v) => {
+            savedConfigs.push(v);
+            return {
+              isOk: () => true,
+              isErr: () => false,
+              value: undefined,
+            } as never;
+          },
+          remove: async () =>
+            ({
+              isOk: () => true,
+              isErr: () => false,
+              value: undefined,
+            }) as never,
+        },
+      },
+    });
+
+    await scope.hydrate();
+    await scope.dispatch({
+      type: "updateBothAsync",
+      host: "prod.local",
+      port: 8080,
+    });
+    await scope.flush();
+
+    // Persisted once with the complete post-await object, never a torn intermediate
+    expect(savedConfigs).toEqual([{ host: "prod.local", port: 8080 }]);
+    expect(scope.state.config).toEqual({ host: "prod.local", port: 8080 });
+    scope.dispose();
+
+    // Post-await dynamic parent-key collision rejects dispatch() cleanly
+    const root = makeRoot();
+    const child = createScope({
+      from: root,
+      state: ["count"],
+      initial: () => ({ local: 0 }),
+      handlers: {
+        asyncCollide: async (s) => {
+          await Promise.resolve();
+          (s as Record<string, unknown>).count = 999;
+        },
+      },
+    });
+    await expect(child.dispatch({ type: "asyncCollide" })).rejects.toThrow(
+      /collides with forwarded parent state key/i,
+    );
+    child.dispose();
     root.dispose();
   });
 });

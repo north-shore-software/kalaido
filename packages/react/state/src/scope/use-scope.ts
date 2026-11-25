@@ -27,6 +27,7 @@ interface ScopeMeta {
    */
   readonly keys: ReadonlySet<string> | null;
   readonly events: ReadonlySet<string>;
+  readonly retainChild?: () => () => void;
 }
 
 /**
@@ -266,6 +267,7 @@ type InternalHandle = StateHandle<Record<string, unknown>, ScopeEvent> & {
 
 interface InternalScope<S extends object, E extends ScopeEvent> {
   readonly handle: StateHandle<S, E>;
+  readonly mount: () => () => void;
   readonly attach: () => () => void;
   readonly dispose: () => void;
   readonly hydrate?: () => Promise<Result<void, Error>>;
@@ -432,12 +434,18 @@ function buildInternalScope(options: {
   let syncing = false;
   let attached = false;
   let disposed = false;
+  let selfMounted = true;
+  let retainedChildren = 0;
   let batchDepth = 0;
   let ownDirty = false;
+  let microtaskScheduled = false;
   let cleaningCollision = false;
 
+  const isInactive = (): boolean =>
+    disposed || (!selfMounted && retainedChildren === 0);
+
   const syncParent = () => {
-    if (!from || parentKeySet.size === 0 || disposed) return;
+    if (!from || parentKeySet.size === 0 || isInactive()) return;
     syncing = true;
     try {
       const parentSnap = snapshot(from.state) as Record<string, unknown>;
@@ -464,7 +472,7 @@ function buildInternalScope(options: {
   };
 
   const syncOwn = () => {
-    if (!ownProxy || disposed || cleaningCollision) return;
+    if (!ownProxy || isInactive() || cleaningCollision) return;
     const ownSnap = snapshot(ownProxy) as Record<string, unknown>;
     const currentKeys = new Set(Object.keys(ownSnap));
 
@@ -506,22 +514,48 @@ function buildInternalScope(options: {
     persistence?.onOwnSync(ownSnap);
   };
 
-  // Subscribe `ownProxy` for the life of this scope (no external leak since
-  // `ownProxy` and `viewProxy` share the exact same owner lifetime).
-  const unsubOwn = ownProxy
-    ? subscribe(
-        ownProxy,
-        () => {
-          if (disposed || cleaningCollision) return;
-          if (batchDepth > 0) {
-            ownDirty = true;
-            return;
+  const scheduleOwnSync = () => {
+    if (microtaskScheduled) return;
+    microtaskScheduled = true;
+    queueMicrotask(() => {
+      microtaskScheduled = false;
+      if (batchDepth === 0 && ownDirty && !isInactive()) {
+        ownDirty = false;
+        syncOwn();
+      }
+    });
+  };
+
+  let unsubOwn: (() => void) | null = null;
+  const ensureOwnSubscribed = () => {
+    if (!ownProxy || unsubOwn || disposed) return;
+    unsubOwn = subscribe(
+      ownProxy,
+      () => {
+        if (isInactive() || cleaningCollision) return;
+        if (parentKeySet.size > 0) {
+          for (const rootKey of parentKeySet) {
+            if (hasOwn(ownProxy, rootKey)) {
+              cleaningCollision = true;
+              try {
+                delete ownProxy[rootKey];
+              } finally {
+                cleaningCollision = false;
+              }
+              throw new Error(
+                `Scope state key "${rootKey}" collides with forwarded parent state key.`,
+              );
+            }
           }
-          syncOwn();
-        },
-        true,
-      )
-    : null;
+        }
+        ownDirty = true;
+        if (batchDepth === 0) {
+          scheduleOwnSync();
+        }
+      },
+      true,
+    );
+  };
 
   // Guard `viewProxy` against direct external mutations at runtime (even via `as any`).
   subscribe(
@@ -589,7 +623,7 @@ function buildInternalScope(options: {
   };
 
   const dispatchParent = async (event: ScopeEvent): Promise<void> => {
-    if (disposed) {
+    if (isInactive()) {
       throw new Error("Cannot dispatch on a disposed scope.");
     }
     if (!from || !parentEventSet.has(event.type)) {
@@ -600,14 +634,14 @@ function buildInternalScope(options: {
     try {
       await from.dispatch(event);
     } finally {
-      if (!attached && !disposed) {
+      if (!attached && !isInactive()) {
         syncParent();
       }
     }
   };
 
   const dispatch = async (event: ScopeEvent): Promise<void> => {
-    if (disposed) {
+    if (isInactive()) {
       throw new Error("Cannot dispatch on a disposed scope.");
     }
 
@@ -618,6 +652,7 @@ function buildInternalScope(options: {
           `No handler registered for owned event "${event.type}".`,
         );
       }
+      ensureOwnSubscribed();
       const ctx: ScopeHandlerContext<Record<string, unknown>, ScopeEvent> = {
         get parent() {
           return readParentSnapshot();
@@ -631,12 +666,19 @@ function buildInternalScope(options: {
         result = handler(ownProxy, event, ctx);
       } finally {
         batchDepth -= 1;
-        if (batchDepth === 0 && ownDirty && !disposed) {
+        if (batchDepth === 0 && ownDirty && !isInactive()) {
           ownDirty = false;
           syncOwn();
         }
       }
-      await result;
+      try {
+        await result;
+      } finally {
+        if (batchDepth === 0 && ownDirty && !isInactive()) {
+          ownDirty = false;
+          syncOwn();
+        }
+      }
       return;
     }
 
@@ -644,7 +686,7 @@ function buildInternalScope(options: {
       try {
         await from.dispatch(event);
       } finally {
-        if (!attached && !disposed) {
+        if (!attached && !isInactive()) {
           syncParent();
         }
       }
@@ -657,10 +699,52 @@ function buildInternalScope(options: {
   };
 
   let detachCurrent: (() => void) | null = null;
+  let unmountCurrent: (() => void) | null = null;
+
+  const retainChild = (): (() => void) => {
+    if (disposed) return () => {};
+    retainedChildren += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      retainedChildren -= 1;
+      if (!selfMounted && retainedChildren === 0) {
+        detachCurrent?.();
+        unsubOwn?.();
+        unsubOwn = null;
+      }
+    };
+  };
+
+  const parentMetaForRetain = from ? getScopeMeta(from) : undefined;
+
+  const mount = (): (() => void) => {
+    if (disposed) return () => {};
+    unmountCurrent?.();
+    selfMounted = true;
+    ensureOwnSubscribed();
+    const releaseParent = parentMetaForRetain?.retainChild?.();
+    const unmount = () => {
+      if (unmountCurrent === unmount) {
+        unmountCurrent = null;
+      }
+      selfMounted = false;
+      releaseParent?.();
+      if (!selfMounted && retainedChildren === 0) {
+        detachCurrent?.();
+        unsubOwn?.();
+        unsubOwn = null;
+      }
+    };
+    unmountCurrent = unmount;
+    return unmount;
+  };
 
   const attach = (): (() => void) => {
-    if (disposed) return () => {};
+    if (isInactive()) return () => {};
     detachCurrent?.();
+    ensureOwnSubscribed();
 
     const unsubs: (() => void)[] = [];
     attached = true;
@@ -698,9 +782,12 @@ function buildInternalScope(options: {
     if (disposed) return;
     disposed = true;
     persistence?.stop();
+    unmountCurrent?.();
+    unmountCurrent = null;
     detachCurrent?.();
     detachCurrent = null;
     unsubOwn?.();
+    unsubOwn = null;
   };
 
   const hydrate =
@@ -714,12 +801,12 @@ function buildInternalScope(options: {
               } finally {
                 batchDepth -= 1;
                 ownDirty = false;
-                if (!disposed) {
+                if (!isInactive()) {
                   syncOwn();
                 }
               }
             },
-            () => disposed,
+            () => isInactive(),
           )
       : undefined;
 
@@ -735,11 +822,13 @@ function buildInternalScope(options: {
     [SCOPE_META]: {
       keys: allowedMetaKeys,
       events: allAllowedEvents,
+      retainChild,
     },
   });
 
   return {
     handle,
+    mount,
     attach,
     dispose,
     hydrate,
@@ -829,6 +918,7 @@ export function createScope(options: {
     handlers: options.handlers,
     persist: options.persist,
   });
+  internal.mount();
   internal.attach();
 
   return Object.freeze({
@@ -935,10 +1025,16 @@ export function useScope(options: {
         });
 
   useLayoutEffect(() => {
+    const prev = committedRef.current;
+    if (prev && prev.internal !== internal) {
+      prev.internal.dispose();
+    }
     committedRef.current = { from: options.from, sig, internal };
     internal.setHandlers(options.handlers);
     internal.setPersistCallbacks(options.persist);
   });
+
+  useLayoutEffect(() => internal.mount(), [internal]);
 
   useEffect(() => internal.attach(), [internal]);
 

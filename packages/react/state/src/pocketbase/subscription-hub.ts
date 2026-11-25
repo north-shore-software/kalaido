@@ -1,8 +1,18 @@
 import type PocketBase from "pocketbase";
 
+export interface PbSubscriptionLifecycle {
+  /** Invoked when a newly opened SSE channel finishes connecting. */
+  readonly onConnect?: () => void;
+  /** Invoked if opening the SSE channel fails. */
+  readonly onDisconnect?: () => void;
+}
+
 interface HubEntry {
   readonly listeners: Set<() => void>;
+  readonly pendingConnectCallbacks: Set<() => void>;
+  readonly disconnectCallbacks: Set<() => void>;
   unsub: (() => void) | null;
+  connected: boolean;
   disposed: boolean;
 }
 
@@ -37,6 +47,8 @@ function teardownEntry(
   if (entry.disposed) return;
   entry.disposed = true;
   entry.listeners.clear();
+  entry.pendingConnectCallbacks.clear();
+  entry.disconnectCallbacks.clear();
   if (map.get(key) === entry) {
     map.delete(key);
   }
@@ -52,6 +64,7 @@ export function subscribePbCollection(
   collection: string,
   listener: () => void,
   filter?: string,
+  lifecycle?: PbSubscriptionLifecycle,
 ): () => void {
   const map = getClientMap(client);
   const key = channelKey(collection, filter);
@@ -60,7 +73,10 @@ export function subscribePbCollection(
   if (!entry) {
     const created: HubEntry = {
       listeners: new Set(),
+      pendingConnectCallbacks: new Set(),
+      disconnectCallbacks: new Set(),
       unsub: null,
+      connected: false,
       disposed: false,
     };
     map.set(key, created);
@@ -84,6 +100,12 @@ export function subscribePbCollection(
           return;
         }
         created.unsub = unsub;
+        created.connected = true;
+        const onConnects = Array.from(created.pendingConnectCallbacks);
+        created.pendingConnectCallbacks.clear();
+        for (const fn of onConnects) {
+          fn();
+        }
       } catch (err) {
         if (!created.disposed) {
           console.error(
@@ -94,16 +116,39 @@ export function subscribePbCollection(
             map.delete(key);
           }
           created.disposed = true;
+          const onDisconnects = Array.from(created.disconnectCallbacks);
+          created.listeners.clear();
+          created.pendingConnectCallbacks.clear();
+          created.disconnectCallbacks.clear();
+          for (const fn of onDisconnects) {
+            fn();
+          }
         }
       }
     })();
   }
 
   entry.listeners.add(listener);
+  if (lifecycle?.onConnect) {
+    if (entry.connected) {
+      lifecycle.onConnect();
+    } else {
+      entry.pendingConnectCallbacks.add(lifecycle.onConnect);
+    }
+  }
+  if (lifecycle?.onDisconnect) {
+    entry.disconnectCallbacks.add(lifecycle.onDisconnect);
+  }
   const currentEntry = entry;
 
   return () => {
     currentEntry.listeners.delete(listener);
+    if (lifecycle?.onConnect) {
+      currentEntry.pendingConnectCallbacks.delete(lifecycle.onConnect);
+    }
+    if (lifecycle?.onDisconnect) {
+      currentEntry.disconnectCallbacks.delete(lifecycle.onDisconnect);
+    }
     if (currentEntry.listeners.size === 0) {
       teardownEntry(map, key, currentEntry);
     }

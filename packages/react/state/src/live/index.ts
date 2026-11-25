@@ -14,6 +14,7 @@ export type {
   LiveSource,
   LiveSubscribeCallbacks,
   LiveTag,
+  ValidWriteReturn,
   WriteOutcome,
   WriteReturn,
   WriteStatus,

@@ -4,6 +4,7 @@ import { invalidateLiveTags } from "./registry";
 import type {
   ExternalWriteDef,
   ExternalWriteHandle,
+  ValidWriteReturn,
   WriteOutcome,
   WriteReturn,
   WriteStatus,
@@ -20,9 +21,9 @@ import type {
  *   non-push reads stay transparently live.
  */
 export function useExternalWrite<TArgs = void, TOut extends WriteReturn = void>(
-  def: ExternalWriteDef<TArgs, TOut>,
+  def: ExternalWriteDef<TArgs, TOut> & NoInfer<ValidWriteReturn<TOut>>,
 ): ExternalWriteHandle<TArgs, TOut> {
-  const defRef = useRef(def);
+  const defRef = useRef<ExternalWriteDef<TArgs, TOut>>(def);
   defRef.current = def;
 
   const mountedRef = useRef(true);
@@ -38,7 +39,7 @@ export function useExternalWrite<TArgs = void, TOut extends WriteReturn = void>(
   const [error, setError] = useState<Error | null>(null);
 
   const reset = useCallback(() => {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || inFlightRef.current > 0) return;
     setStatus("idle");
     setError(null);
   }, []);
@@ -85,18 +86,29 @@ export function useExternalWrite<TArgs = void, TOut extends WriteReturn = void>(
         }
 
         inFlightRef.current -= 1;
-        if (mountedRef.current && inFlightRef.current === 0) {
-          setStatus("success");
+        if (mountedRef.current) {
+          setError(null);
+          if (inFlightRef.current === 0) {
+            setStatus("success");
+          }
         }
 
         const payload = result.value;
         if (payload && typeof payload === "object") {
-          return {
-            status: "success",
-            ...payload,
-          } as WriteOutcome<TOut>;
+          if ("id" in payload && typeof payload.id === "string") {
+            return {
+              status: "success",
+              id: payload.id,
+            } as unknown as WriteOutcome<TOut>;
+          }
+          if ("ids" in payload && Array.isArray(payload.ids)) {
+            return {
+              status: "success",
+              ids: payload.ids as readonly string[],
+            } as unknown as WriteOutcome<TOut>;
+          }
         }
-        return { status: "success" } as WriteOutcome<TOut>;
+        return { status: "success" } as unknown as WriteOutcome<TOut>;
       } catch (e) {
         const err = toError(e);
         inFlightRef.current -= 1;

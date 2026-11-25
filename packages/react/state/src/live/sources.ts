@@ -35,6 +35,8 @@ export interface AtomLiveSourceOptions<T> {
   readonly read: () => T;
   /** Subscribe to atom changes; returns an unsubscribe function. */
   readonly subscribe: (listener: (value: T) => void) => () => void;
+  /** Optional identity token for the backing store when `key` stays constant. */
+  readonly subscribeKey?: unknown;
   /** Optional explicit refetch invoked when invalidated by a paired write. */
   readonly refetch?: () => Promise<Result<T, Error>>;
 }
@@ -48,14 +50,18 @@ export function atomLiveSource<T>(
   return {
     key: options.key,
     tags: options.tags,
+    getInitialData: options.read,
+    subscribeKey: options.subscribeKey,
     fetch: async () => {
       if (options.refetch) return options.refetch();
       return ok(options.read());
     },
-    subscribe: ({ setData }) =>
-      options.subscribe((value) => {
+    subscribe: ({ setData }) => {
+      setData(options.read());
+      return options.subscribe((value) => {
         setData(value);
-      }),
+      });
+    },
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   };

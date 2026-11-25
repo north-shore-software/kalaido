@@ -77,13 +77,16 @@ export interface PersistenceController {
  * Internal write-through & explicit-hydration controller for persisted scopes.
  *
  * Guarantees:
+ * - Nothing is loaded or written until `hydrate()` succeeds.
  * - Initial values are recorded as baseline so mounting never echoes defaults.
  * - `hydrate()` deduplicates concurrent calls, skips keys already dirtied by
- *   user dispatches before hydration resolved, and suppresses echo writes
- *   while applying loaded values + `onHydrated`.
+ *   user dispatches before hydration succeeded (including across failed-load
+ *   retries), suppresses echo writes while applying loaded values +
+ *   `onHydrated`, and flushes any pre-hydration dirty keys once ready.
  * - Subsequent mutations write optimistically in the background with per-key
  *   serialization + coalescing so rapid updates never arrive out of order.
- * - `stop()` stops observing new changes while already-queued writes finish.
+ * - `stop()` / deactivation stops observing new changes while already-queued
+ *   writes finish.
  */
 export function createPersistenceController(
   initialOptions: GenericPersistOptions,
@@ -92,10 +95,12 @@ export function createPersistenceController(
   let currentOptions = initialOptions;
   const persistedKeys = [...new Set(initialOptions.keys)];
 
+  const readVal = (snap: Record<string, unknown>, key: string): unknown =>
+    hasOwn(snap, key) && snap[key] !== undefined ? snap[key] : ABSENT;
+
   const lastSeen = new Map<string, unknown>();
   for (const key of persistedKeys) {
-    const val = hasOwn(initialSnapshot, key) ? initialSnapshot[key] : undefined;
-    lastSeen.set(key, val === undefined ? ABSENT : val);
+    lastSeen.set(key, readVal(initialSnapshot, key));
   }
 
   const dirtyBeforeHydrate = new Set<string>();
@@ -146,25 +151,29 @@ export function createPersistenceController(
     q.inFlight = drain();
   };
 
+  const enqueueValue = (key: string, val: unknown) => {
+    if (val === ABSENT) {
+      enqueue(key, { kind: "remove" });
+    } else {
+      enqueue(key, { kind: "save", value: val });
+    }
+  };
+
   const onOwnSync = (ownSnap: Record<string, unknown>) => {
     if (stopped || hydrating) return;
 
     for (const key of persistedKeys) {
-      const hasVal = hasOwn(ownSnap, key) && ownSnap[key] !== undefined;
-      const next = hasVal ? ownSnap[key] : ABSENT;
+      const next = readVal(ownSnap, key);
       const prev = lastSeen.get(key);
       if (Object.is(prev, next)) continue;
 
       lastSeen.set(key, next);
-      if (status === "pending") {
+      if (status !== "ready") {
         dirtyBeforeHydrate.add(key);
+        continue;
       }
 
-      if (next === ABSENT) {
-        enqueue(key, { kind: "remove" });
-      } else {
-        enqueue(key, { kind: "save", value: next });
-      }
+      enqueueValue(key, next);
     }
   };
 
@@ -183,9 +192,11 @@ export function createPersistenceController(
       }
 
       if (stopped || isDisposed()) {
+        inflightHydrate = null;
         return loadResult.isOk() ? ok(undefined) : err(loadResult.error);
       }
 
+      const dirtyToFlush = new Map<string, unknown>();
       hydrating = true;
       try {
         apply((ownProxy) => {
@@ -200,6 +211,14 @@ export function createPersistenceController(
             }
           }
           currentOptions.onHydrated?.(ownProxy, loadResult);
+
+          for (const key of persistedKeys) {
+            const current = readVal(ownProxy, key);
+            lastSeen.set(key, current);
+            if (loadResult.isOk() && dirtyBeforeHydrate.has(key)) {
+              dirtyToFlush.set(key, current);
+            }
+          }
         });
       } finally {
         hydrating = false;
@@ -212,6 +231,10 @@ export function createPersistenceController(
       }
 
       status = "ready";
+      dirtyBeforeHydrate.clear();
+      for (const [key, val] of dirtyToFlush) {
+        enqueueValue(key, val);
+      }
       return ok(undefined);
     })();
 
