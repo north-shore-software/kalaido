@@ -121,19 +121,19 @@ For decomposed screens, widgets, and hooks:
 
 | ID | Decision | Feasible Options | Cross-Plan Coupling | Selected |
 |---|---|---|---|---|
-| **D6.1** | Baseline `doctor.config.json` & vendored `shadcn/` exclusion | Option A (Commit `doctor.config.json` ignoring `shadcn/` with root + package globs) · Option B (Do not ignore `shadcn/`; patch 21 vendor issues in place) | **Cat 2** (`carousel.tsx:93`), **Cat 3** (`carousel.tsx:90`), **Cat 4** (`breadcrumb.tsx`, `item.tsx`), **Cat 5** (`chart.tsx`, `field.tsx`, 6 `only-export-components`) | _Pending_ |
-| **D6.2** | Desktop route-page `only-export-components` (25 files / 26 warnings) | Option A (Per-path `ignore.overrides` in `doctor.config.json`) · Option B (Split `defineRoute(...)` into sibling `*.route.ts` files) · Option C (Move `defineRoute(...)` declarations into `apps/desktop/src/routes/`) | **Cat 5** (§3.4 handles the 6 non-route `only-export-components` files) | _Pending_ |
-| **D6.3** | Cross-app cloud shell & router deduplication (`apps/mobile/src/app.tsx` & `apps/web/src/app.tsx`) | Option A (Extract shared router-free cloud shell/views + per-app mapped `<Route Component={...} />`) · Option B (Extract `CloudErrorBoundary` only + per-app mapped `<Route Component={...} />`) · Option C (Per-path `ignore.overrides` for `duplicate-jsx-subtree` on `app.tsx`) | None | _Pending_ |
-| **D6.4** | Shared `ConfirmDialog` package placement, API shape & adoption scope | Option A (`@kalaido/primitives/kalaido` with dual `trigger` + `open`/`onOpenChange` props, adopt at 2 flagged sites) · Option B (`@kalaido/primitives/kalaido`, adopt across all 5 simple confirm sites) · Option C (`@kalaido/components` instead of `@kalaido/primitives`) | **Part C Tier 1** (`ProjectionDetailScreen`, `ProjectionReviewScreen`) & **Tier 3** (`ColourDetailPane`) | _Pending_ |
-| **D6.5** | Part C decomposition scope, wave sizing & 250-LOC UI budget | Option A (All 3 tiers across small reviewable waves → `100 / 100`) · Option B (Tier 1 + top complexity hotspots only → `~89–92 / 100`) · Option C (Defer Part C code splits; land Cat 1–5 + Part A/B → `88 / 100 Great`) | **Cat 1–5** (8 shared files; Part C must run after Cat 1–5) | _Pending_ |
-| **D6.6** | Module placement & export-barrel policy for extracted Part C parts | Option A (Strictly private co-location; subdirectories in `@kalaido/components` to avoid `"./*"` wildcard exports; zero barrel changes) · Option B (Private co-location by default, selectively re-exporting sub-components targeted by direct unit tests) | None | _Pending_ |
-| **D6.7** | Tier 1 & borderline Tier 2 decomposition style | Option A (Pure `.ts` helpers + action hooks first, minimal JSX sub-components) · Option B (Section-per-file JSX sub-component splits alongside action hooks) | **Cat 1** (`ChatPanel`, `OrganizingSplash`), **Cat 2** (`OrganizingSplash`), **Cat 3** (`ProjectionReviewScreen`, `ProjectionDetailScreen`, `ChatPanel`) | _Pending_ |
+| **D6.1** | Baseline `doctor.config.json` & vendored `shadcn/` exclusion | Option A (Commit `doctor.config.json` ignoring `shadcn/` with root + package globs) · Option B (Do not ignore `shadcn/`; patch 21 vendor issues in place) | **Cat 2** (`carousel.tsx:93`), **Cat 3** (`carousel.tsx:90`), **Cat 4** (`breadcrumb.tsx`, `item.tsx`), **Cat 5** (`chart.tsx`, `field.tsx`, 6 `only-export-components`) | **Option A** |
+| **D6.2** | Desktop route-page `only-export-components` (25 files / 26 warnings) | Option A (Per-path `ignore.overrides` in `doctor.config.json`) · Option B (Split `defineRoute(...)` into sibling `*.route.ts` files) · Option C (Move `defineRoute(...)` declarations into `apps/desktop/src/routes/`) | **Cat 5** (§3.4 handles the 6 non-route `only-export-components` files) | **Option C** |
+| **D6.3** | Cross-app cloud shell & router deduplication (`apps/mobile/src/app.tsx` & `apps/web/src/app.tsx`) | Option A (Extract shared router-free cloud shell/views + per-app mapped `<Route Component={...} />`) · Option B (Extract `CloudErrorBoundary` only + per-app mapped `<Route Component={...} />`) · Option C (Per-path `ignore.overrides` for `duplicate-jsx-subtree` on `app.tsx`) | None | **Option A** |
+| **D6.4** | Shared `ConfirmDialog` package placement, API shape & adoption scope | Option A (`@kalaido/primitives/kalaido` with dual `trigger` + `open`/`onOpenChange` props, adopt at 2 flagged sites) · Option B (`@kalaido/primitives/kalaido`, adopt across all 5 simple confirm sites) · Option C (`@kalaido/components` instead of `@kalaido/primitives`) | **Part C Tier 1** (`ProjectionDetailScreen`, `ProjectionReviewScreen`) & **Tier 3** (`ColourDetailPane`) | **Option B** |
+| **D6.5** | Part C decomposition scope, wave sizing & 250-LOC UI budget | Option A (All 3 tiers across small reviewable waves → `100 / 100`) · Option B (Tier 1 + top complexity hotspots only → `~89–92 / 100`) · Option C (Defer Part C code splits; land Cat 1–5 + Part A/B → `88 / 100 Great`) | **Cat 1–5** (8 shared files; Part C must run after Cat 1–5) | **Option A** |
+| **D6.6** | Module placement & export-barrel policy for extracted Part C parts | Option A (Strictly private co-location; subdirectories in `@kalaido/components` to avoid `"./*"` wildcard exports; zero barrel changes) · Option B (Private co-location by default, selectively re-exporting sub-components targeted by direct unit tests) | None | **Option A** |
+| **D6.7** | Tier 1 & borderline Tier 2 decomposition style | Option A (Pure `.ts` helpers + action hooks first, minimal JSX sub-components) · Option B (Section-per-file JSX sub-component splits alongside action hooks) | **Cat 1** (`ChatPanel`, `OrganizingSplash`), **Cat 2** (`OrganizingSplash`), **Cat 3** (`ProjectionReviewScreen`, `ProjectionDetailScreen`, `ChatPanel`) | **Option A** |
 
 ---
 
 ### D6.1 — Baseline `doctor.config.json` & Vendored `shadcn/` Exclusion
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Commit root `doctor.config.json` ignoring `shadcn/` with root + package globs
 
 **Files & Callers Verified:**
 - `biome.json` (`:33`) and `scripts/check-design-classes.mjs` already exclude `packages/react/primitives/src/shadcn` (55 files).
@@ -166,7 +166,7 @@ For decomposed screens, widgets, and hooks:
 
 ### D6.2 — Desktop Route-Page `only-export-components` (25 files / 26 warnings)
 
-**Decision:** _Pending_
+**Decision:** **Option C** — Move `defineRoute(...)` calls into `apps/desktop/src/routes/registry.ts` (or route table modules)
 
 **Files & Callers Verified:**
 - Every desktop screen under `apps/desktop/src/features/*/pages/*.tsx` (25 files) exports its page component plus `export const <name>Route = defineRoute(...)` (`ReflectionRefine.tsx` exports 2: `newReflectionRoute` and `refineReflectionRoute` = 26 warnings).
@@ -223,7 +223,7 @@ For decomposed screens, widgets, and hooks:
 
 ### D6.3 — Cross-App Cloud Shell & Router Deduplication (`apps/mobile/src/app.tsx` & `apps/web/src/app.tsx`)
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Extract router-free cloud shell & page views to shared packages + per-app mapped `<Route Component={...} />`
 
 **Files & Callers Verified:**
 - `diff -u apps/mobile/src/app.tsx apps/web/src/app.tsx` showed **lines 1–279 are 100% identical**; only line 280 (`export function MobileApp()` vs `export function WebApp()`) differs. `diff -u apps/mobile/src/state.ts apps/web/src/state.ts` also showed **0 differences** (46 lines).
@@ -275,7 +275,7 @@ For decomposed screens, widgets, and hooks:
 
 ### D6.4 — Shared `ConfirmDialog` Package Placement, API Shape & Adoption Scope
 
-**Decision:** _Pending_
+**Decision:** **Option B** — Place `ConfirmDialog` in `@kalaido/primitives/kalaido` and adopt across all 5 simple confirm sites
 
 **Files & Callers Verified:**
 - Full-repo search for `AlertDialog` found **6 call sites** (plus the definition in `packages/react/primitives/src/shadcn/alert-dialog.tsx`):
@@ -321,7 +321,7 @@ For decomposed screens, widgets, and hooks:
 
 ### D6.5 — Part C Decomposition Scope, Wave Sizing & 250-LOC UI Change Budget
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Execute all 3 tiers in small reviewable waves after Categories 1–5 + Part A/B (target: `100 / 100`, 0 warnings)
 
 **Files & Callers Verified:**
 - **Empirically verified `react-doctor` score curve** (measured with `pnpm dlx react-doctor@latest . --no-cache --yes`):
@@ -370,7 +370,7 @@ For decomposed screens, widgets, and hooks:
 
 ### D6.6 — Module Placement & Export-Barrel Policy for Extracted Part C Parts
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Strictly private co-location with zero public barrel expansion
 
 **Files & Callers Verified:**
 - `packages/react/features/package.json` exposes feature barrels (`./explore`, `./projections`, `./reflections`, `./colours`, `./fragments`, `./map`, `./rotation`, `./auth`); `AGENTS.md` explicitly bans deep hook subpath exports in `@kalaido/features/package.json`.
@@ -401,7 +401,7 @@ For decomposed screens, widgets, and hooks:
 
 ### D6.7 — Tier 1 & Borderline Tier 2 Decomposition Style
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Pure `.ts` helper & custom-hook extraction first, adding JSX sub-components only for distinct UI regions
 
 **Files & Callers Verified:**
 - Inspecting all 20 Part C files revealed two critical factual nuances:
