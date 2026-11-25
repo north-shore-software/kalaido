@@ -12,10 +12,12 @@ Prescriptive React, accessibility, modal, data-flow, and module conventions for 
 
 - **Pure render bodies:** Never read or write `ref.current` (or `ref.current.<prop>`) during render, and never pass eager factory calls (`useRef(compute())`) to `useRef`.
 - **Post-commit latest-value refs (`useSyncRef`):** Declare a native `useRef` from `"react"` and sync it via `useSyncRef` (`@kalaido/hooks/use-sync-ref`, or `#use-sync-ref` inside `@kalaido/hooks`), grouping multiple values into a single ref object when practical:
+
   ```ts
   const latestRef = useRef({ context, timeWindow, onTurnComplete });
   useSyncRef(latestRef, { context, timeWindow, onTurnComplete });
   ```
+
   Always keep literal `useRef` at the call site — Biome and `react-doctor/exhaustive-deps` recognize `useRef` by hook name as stable, whereas custom ref-returning wrapper hooks (`useLatestRef`) force ref variables into `useEffect` / `useCallback` dependency arrays. Inside `@kalaido/primitives` or `@kalaido/state` (which cannot import `@kalaido/hooks`), use an inline `useLayoutEffect`.
 - **Prop-driven & monotonic state:** Never mirror or clamp props/inputs into state inside `useEffect`. Prefer pure render derivation; when state must genuinely latch or reset on a transition (e.g. monotonic `if (next > highWater) setHighWater(next)` or modal `prevOpen` session counters), adjust `useState` during render behind a strict guard.
 
@@ -24,7 +26,7 @@ Prescriptive React, accessibility, modal, data-flow, and module conventions for 
 - **No upward `useEffect` sync:** Never mirror child or hook state upward via `useEffect(() => onXChange(x), [x])` or push fetched records into another hook imperatively (`useEffect(() => session.resume(data))`).
 - **Own controllers at the parent; pass seeds downward:**
   - Lift stateful controllers to the owning screen or session hook (`useKalaidoChat` in `@kalaido/hooks/use-kalaido-chat`, `useChatContextSelection`) so parent and view read the same `useSyncExternalStore` / scope snapshot in a single render pass. Trigger initial prompts and parameter re-applies imperatively from event/action methods (`openAndSend`, `applyTimeWindow`) rather than reactive `useEffect` watchers.
-  - Pass async initial/resumed state *into* stateful hooks as declarative `seed` / `resumed` inputs (`useRefineSession`, `useDraftName`, `useProjectionRefinement`) resolved via pure module-scope helpers while local override state is unset.
+  - Pass async initial/resumed state _into_ stateful hooks as declarative `seed` / `resumed` inputs (`useRefineSession`, `useDraftName`, `useProjectionRefinement`) resolved via pure module-scope helpers while local override state is unset.
 - **Post-write settlement (CQRS):** `useExternalWrite` returns `void | { id } | { ids }` only. When post-mutation navigation depends on server-settled state, query the read helper directly inside the async event handler after `await write.run(...)` instead of storing a pending-navigation flag in state and watching live collections in `useEffect`.
 - **Router-free screen redirects:** `packages/*` cannot import `react-router-dom`, and `apps/desktop` forbids `Navigate` outside `apps/desktop/src/routes/`. When a shared screen in `@kalaido/features` must canonicalize the URL on live data, expose an optional render prop (e.g. `renderReviewRedirect?: (...) => ReactNode`) evaluated during render, and supply `<AppRedirect transition={...} replace />` (`apps/desktop/src/routes/app-redirect.tsx`) from the desktop page wrapper.
 
@@ -44,6 +46,7 @@ Prescriptive React, accessibility, modal, data-flow, and module conventions for 
 
 - **Semantic HTML only:** Never use `<div role="button">`, `<span role="button">`, `<div onClick>`, or `<button>` nested inside `<button>`.
 - **Stretched primary `<button>` + sibling secondary `<button>`s:** For any clickable row or card that also hosts secondary actions or links (`ListRow`, `ProjectionRow`, `DocumentCard`, `FragmentCard`, `StreamTimelineRow`):
+
   ```tsx
   <div
     className={cn(
@@ -66,10 +69,11 @@ Prescriptive React, accessibility, modal, data-flow, and module conventions for 
     )}
   </div>
   ```
+
   - Wrap only the concise title/header inside the primary `<button>` so screen readers do not read metadata columns or multi-line body previews as the button label.
   - Use `pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto` on `relative z-10` slots (`trailing`, `footer`) so secondary buttons/links are clickable while non-interactive badges (`StatusPill`, `SourceList`) let clicks fall through to `after:inset-0`.
   - Use `group-focus-within:opacity-100` (not `group-focus-visible`) on hover/focus-revealed controls inside the `<div>` shell.
-  - *Vitest/jsdom note:* jsdom has no CSS `::after` layout geometry — click `getByRole("button", { name: ... })` in tests, not the outer `<div>`.
+  - _Vitest/jsdom note:_ jsdom has no CSS `::after` layout geometry — click `getByRole("button", { name: ... })` in tests, not the outer `<div>`.
 
 ## Module Hygiene, Decomposition & Client Rules
 
