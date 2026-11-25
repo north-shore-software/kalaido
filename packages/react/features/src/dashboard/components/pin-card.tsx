@@ -57,11 +57,8 @@ export function PinCard({ item, onOpen, onUnpin }: PinCardProps) {
           <button
             type="button"
             aria-label="Unpin"
-            className="flex size-6 items-center justify-center rounded-none text-fg-4 transition-colors hover:bg-surface-2 hover:text-fg-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              onUnpin(item);
-            }}
+            className="flex size-6 cursor-pointer items-center justify-center rounded-none text-fg-4 outline-none transition-colors hover:bg-surface-2 hover:text-fg-2 focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={() => onUnpin(item)}
           >
             <PushPinSlashIcon className="size-3.5" />
           </button>

@@ -30,60 +30,76 @@ export function DocumentCard({
   footer,
   onClick,
 }: DocumentCardProps) {
-  const body = (
-    <>
-      <div className="flex items-center justify-between gap-2 px-3.5 py-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          {leading}
-          <span className="truncate text-row font-semibold text-fg-1 first-letter:uppercase">
-            {title}
-          </span>
-        </div>
-        {trailing && (
-          <div className="flex shrink-0 items-center gap-2">{trailing}</div>
-        )}
-      </div>
-      {/* The footer supplies the card's bottom padding when present. */}
-      <div className={cn("px-3.5", !footer && "pb-3.5")}>
-        <div
-          className={cn(
-            "rounded-none border border-line bg-background p-3",
-            contentClassName,
-          )}
-        >
-          {children ??
-            (lines && <Lines widths={lines} h={6} className="bg-surface-2" />)}
-        </div>
-      </div>
-      {footer && <div className="p-3.5">{footer}</div>}
-    </>
-  );
-
   const shell = "overflow-hidden rounded-none border border-line bg-card";
 
+  const content = (
+    <div className={cn("px-3.5", !footer && "pb-3.5")}>
+      <div
+        className={cn(
+          "rounded-none border border-line bg-background p-3",
+          contentClassName,
+        )}
+      >
+        {children ??
+          (lines && <Lines widths={lines} h={6} className="bg-surface-2" />)}
+      </div>
+    </div>
+  );
+
   if (!onClick) {
-    return <div className={cn(shell, className)}>{body}</div>;
+    return (
+      <div className={cn(shell, className)}>
+        <div className="flex items-center justify-between gap-2 px-3.5 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {leading}
+            <span className="truncate text-row font-semibold text-fg-1 first-letter:uppercase">
+              {title}
+            </span>
+          </div>
+          {trailing && (
+            <div className="flex shrink-0 items-center gap-2">{trailing}</div>
+          )}
+        </div>
+        {/* The footer supplies the card's bottom padding when present. */}
+        {content}
+        {footer && <div className="p-3.5">{footer}</div>}
+      </div>
+    );
   }
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> — the `trailing` and `footer` slots render their own buttons, and nesting interactive elements inside a button is invalid.
     <div
-      role="button"
-      onClick={onClick}
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
       className={cn(
         shell,
-        "cursor-pointer transition-colors hover:bg-surface-2/50",
+        "relative cursor-pointer transition-colors hover:bg-surface-2/50 has-[[data-card-primary]:focus-visible]:ring-2 has-[[data-card-primary]:focus-visible]:ring-inset has-[[data-card-primary]:focus-visible]:ring-ring/50",
         className,
       )}
     >
-      {body}
+      <div className="flex items-center justify-between gap-2 px-3.5 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {leading}
+          <button
+            type="button"
+            data-card-primary
+            onClick={onClick}
+            className="min-w-0 cursor-pointer truncate text-left text-row font-semibold text-fg-1 outline-none first-letter:uppercase after:absolute after:inset-0 after:content-['']"
+          >
+            {title}
+          </button>
+        </div>
+        {trailing && (
+          <div className="relative z-10 pointer-events-none flex shrink-0 items-center gap-2 [&_a]:pointer-events-auto [&_button]:pointer-events-auto">
+            {trailing}
+          </div>
+        )}
+      </div>
+      {/* The footer supplies the card's bottom padding when present. */}
+      {content}
+      {footer && (
+        <div className="relative z-10 pointer-events-none p-3.5 [&_a]:pointer-events-auto [&_button]:pointer-events-auto">
+          {footer}
+        </div>
+      )}
     </div>
   );
 }

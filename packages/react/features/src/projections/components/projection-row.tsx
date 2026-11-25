@@ -59,27 +59,30 @@ export function ProjectionRow({
   const pinned = Boolean(p.pinned);
   const hasCandidate = Boolean(candidateId) && status.status === "pending";
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(p.id)}
+    <div
       title={p.description || undefined}
       className={cn(
         COLUMNS,
-        "group w-full border-b border-line py-3 text-left transition-colors hover:bg-surface-2/50",
+        "group relative w-full border-b border-line py-3 text-left transition-colors hover:bg-surface-2/50 has-[[data-row-primary]:focus-visible]:ring-2 has-[[data-row-primary]:focus-visible]:ring-inset has-[[data-row-primary]:focus-visible]:ring-ring/50",
       )}
     >
-      <span className="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        data-row-primary
+        onClick={() => onOpen(p.id)}
+        className="flex min-w-0 cursor-pointer items-center gap-3 text-left outline-none after:absolute after:inset-0 after:content-['']"
+      >
         <span className="size-[13px] shrink-0 rounded-none bg-section" />
         <span className="truncate text-row font-medium text-fg-1">
           {p.name || "Untitled projection"}
         </span>
         {hasCandidate && <Pill>candidate</Pill>}
-      </span>
+      </button>
       <GeneratedCell status={status} generatedAt={generatedAt} />
       <span className="min-w-0 overflow-hidden">
         <SourceList sources={sources} className="flex-nowrap" />
       </span>
-      <span className="flex items-center justify-end gap-1">
+      <span className="relative z-10 pointer-events-none flex items-center justify-end gap-1 [&_button]:pointer-events-auto">
         {hasCandidate && candidateId && (
           <RowAction
             label="Review candidate"
@@ -92,13 +95,13 @@ export function ProjectionRow({
           className={cn(
             "transition-opacity",
             !pinned &&
-              "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+              "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
           )}
         >
           <PinToggle pinned={pinned} onToggle={() => onTogglePin(p)} />
         </span>
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -125,8 +128,7 @@ function GeneratedCell({
   );
 }
 
-/** An icon action inside the row. A span (not a button) for the same reason as
- *  `PinToggle`: the row itself is a button. */
+/** An icon action inside the row. */
 function RowAction({
   label,
   onClick,
@@ -137,26 +139,14 @@ function RowAction({
   children: ReactNode;
 }) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: the row is a <button>; a nested <button> is invalid.
-    <span
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={label}
       title={label}
-      className="flex size-6 shrink-0 items-center justify-center rounded-none text-section-ink transition-colors hover:bg-surface-2"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          e.stopPropagation();
-          onClick();
-        }
-      }}
+      className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-none text-section-ink outline-none transition-colors hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring/50"
+      onClick={onClick}
     >
       {children}
-    </span>
+    </button>
   );
 }

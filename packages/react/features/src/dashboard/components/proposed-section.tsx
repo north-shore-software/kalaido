@@ -104,11 +104,8 @@ export function ProposedSection({
                   <button
                     type="button"
                     aria-label="Dismiss"
-                    className="flex size-6 items-center justify-center rounded-none text-fg-4 transition-colors hover:bg-surface-2 hover:text-fg-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDismiss(it);
-                    }}
+                    className="flex size-6 cursor-pointer items-center justify-center rounded-none text-fg-4 outline-none transition-colors hover:bg-surface-2 hover:text-fg-2 focus-visible:ring-2 focus-visible:ring-ring/50"
+                    onClick={() => onDismiss(it)}
                   >
                     <XIcon className="size-3.5" />
                   </button>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { ColourSwatch } from "@kalaido/primitives/kalaido/colour";
 
@@ -55,6 +55,8 @@ interface ItemPickerProps {
    * a multi-select caller simply doesn't close on pick.
    */
   selectedIds?: ReadonlySet<string>;
+  /** Optional ref forwarded to the search input (e.g. for popover initialFocus). */
+  inputRef?: RefObject<HTMLInputElement | null>;
 }
 
 /**
@@ -74,9 +76,16 @@ export function ItemPicker({
   onQueryChange,
   remoteFiltered,
   selectedIds,
+  inputRef,
 }: ItemPickerProps) {
   const [query, setQuery] = useState("");
+  const localInputRef = useRef<HTMLInputElement>(null);
+  const resolvedInputRef = inputRef ?? localInputRef;
   const t = TINT[tint];
+
+  useEffect(() => {
+    resolvedInputRef.current?.focus();
+  }, [resolvedInputRef]);
 
   const rows = useMemo(() => {
     if (remoteFiltered) return options;
@@ -97,11 +106,7 @@ export function ItemPicker({
           {kindLabel}
         </span>
         <input
-          // The picker exists only while open, and it is opened by an explicit
-          // "+ …" press — landing the caret anywhere else would make every add
-          // a two-step action.
-          // biome-ignore lint/a11y/noAutofocus: search-first is the point
-          autoFocus
+          ref={resolvedInputRef}
           value={query}
           placeholder={`Search ${kindLabel.toLowerCase()}s…`}
           onChange={(e) => {
