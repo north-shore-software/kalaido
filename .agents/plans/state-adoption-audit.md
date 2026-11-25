@@ -2,7 +2,7 @@
 
 **Companion to:** [`.agents/plans/react-state-architecture.md`](./react-state-architecture.md) and [`packages/react/state/README.md`](../../packages/react/state/README.md).
 **Scope:** Full workspace — `packages/lib/{platform,client}`, `packages/react/{state,primitives,hooks,components,features}`, `apps/{desktop,mobile,web}`, `biome.json`, `scripts/check-boundaries.mjs`, and `AGENTS.md`.
-**Status:** Site-by-site inventory and decision checklist prior to implementation.
+**Status:** Audit complete; all adoption decisions locked (ready for phased execution plan).
 
 ---
 
@@ -33,49 +33,40 @@
 - **Missing vs `react-state-architecture.md` Part 4:**
   - `createScopeContext<S, E>()` (planned for `@kalaido/hooks`, §4.4) — not implemented yet.
   - Shared cloud/base root scope (planned to unify `apps/mobile/src/state.ts` and `apps/web/src/state.ts`, §4.4) — not implemented yet.
-  - `resetPersisted()` helper (§4.5 #3) — open decision.
+  - *(Decided: no `resetPersisted()` helper needed on `@kalaido/state` — reset runs at the app boundary via `dispose()` + `flush()` + `host.settings.clear()` + `host.reload()`.)*
 
 ---
 
-## Decisions & Blockers to Settle Before Migrating
+## Locked Adoption Decisions
 
-These items require a human choice before execution begins:
-
-1. **Client helpers conflicting with `WriteReturn` (`void | { id } | { ids }`):**
-   18 of 42 mutation helpers in `packages/lib/client/src/{cloud,kalaidoscope}/` violate `ValidWriteReturn` (full list in §1.2). Six of those return payload fields that UI callers actively consume today:
-   - `createRefinement` (`packages/lib/client/src/kalaidoscope/refinements.ts:45`) returns `{ refinementId, messages?: UIMessage[] }`; `useRefineSession` (`packages/react/hooks/src/use-refine-session.ts:176-199`) uses `messages` to seed `ChatPanel` with server-generated IDs so the next turn does not duplicate seeded rows.
-   - `editProjectionCandidate` (`packages/lib/client/src/kalaidoscope/projections.ts:153`) returns `{ fragmentId, edit: SnapshotEdit }`; `useCandidateTriage` (`packages/react/features/src/projections/hooks/use-candidate-triage.ts:249-256`) reads `edit.{id,sequence,contentBefore,contentAfter}` to append a `HAND_EDIT_PART_TYPE` notice to chat.
-   - `saveBookmarks` (`packages/lib/client/src/kalaidoscope/chat.ts:531`) returns `{ saved: SavedBookmark[] }`; `useBookmarkActions` (`packages/react/features/src/explore/hooks/use-bookmark-actions.ts:48-63`) reads `s.created` (count for toast) and `s.fragmentId`.
-   - `backfillReflection` (`packages/lib/client/src/kalaidoscope/reflections.ts:64`) returns `{ windows: TimeWindow[] }`; `BackfillCard` (`packages/react/features/src/reflections/components/backfill-card.tsx:35`) reads `windows.length` for toast (can narrow to `{ ids }`).
-   - `ingestFile` (`packages/lib/client/src/kalaidoscope/ingest.ts:75`) returns `IngestStatus = { id, status, ingested, error }`; `useFileIngest` (`packages/react/features/src/import/hooks/use-file-ingest.ts:69`) applies the returned record immediately before subscribing (resolved if `useFileIngest` switches to `useLiveRead` on `ingest` by returned `{ id }`).
-   - **Decision needed:** Normalize the client functions in `@kalaido/client` directly (breaking return shapes for callers to match `WriteReturn`), or adapt at the `useExternalWrite` wrapper layer — and specifically how should `createRefinement` seeded `messages` and `editProjectionCandidate` chat notice data flow?
-
-2. **Awaiting `snapshotsQuery.mutate()` return value in `ProjectionReviewScreen`:**
-   `packages/react/features/src/projections/projection-review-screen.tsx:332,404` awaits the returned `ProjectionSnapshotResponse[]` array from `mutate()` right after `regenerateProjection(...)` to check whether the newly created fold-in snapshot is already `pending_review` (falling back to imperative `collection("projection_snapshot").getOne(snapshotId)` at `:338,410`). Since `useLiveRead` exposes no `mutate()`, this needs either a reactive transition (navigate to the returned `snapshotId` and let the review screen's live read render generating vs pending_review) or an explicit design for post-fold-in navigation.
-
-3. **Undocumented `localStorage["sidebar_state"]` in `shadcn/sidebar.tsx`:**
-   `packages/react/primitives/src/shadcn/sidebar.tsx:25,48-65,107` reads/writes `localStorage["sidebar_state"]` — and line 107 **still writes to `localStorage` even when controlled `open`/`onOpenChange` props are passed**. Currently only mounted in `apps/desktop/src/components/layout/page-layout.tsx:30` (uncontrolled).
-   - **Decision needed:** Add `sidebarOpen?: boolean` to `PersistentAppSetting`, remove `localStorage` from `shadcn/sidebar.tsx`, and control it from desktop root scope; or leave `shadcn/sidebar.tsx` untouched as an excluded shadcn file?
-
-4. **Mixed local + cloud workspaces in one `PersistentAppSetting` key (`availableKalaidoscopes`):**
-   On desktop, `availableKalaidoscopes` mixes `local_file`, `local_net`, and cached `cloud` entries in a single setting key. When cloud workspaces move to `httpLiveSource` with `offlineCache`, `offlineCache.write` must not clobber local entries (and local scope edits must not race cloud reconciliation).
-   - **Decision needed:** Keep one `availableKalaidoscopes` key and route `offlineCache.write` through a desktop root-scope dispatch (`reconcileCloudWorkspaces`), or split `PersistentAppSetting` into separate `localKalaidoscopes` (scope-persisted) and `cachedCloudKalaidoscopes` (offline-cache-owned)?
-
-5. **`useFragmentSearch` keystroke churn (`packages/react/components/src/context-picker/data.ts:31`):**
-   Currently calls `useCollection("fragment", { filter: 'content ~ ...' })` on every keystroke. Converting blindly to `pbCollectionSource` opens and closes a filtered PocketBase SSE subscription on every keystroke.
-   - **Decision needed:** Use debounced query + `pbCollectionSource`, or use `httpLiveSource` (non-SSE) for transient search-as-you-type queries?
-
-6. **`usePromptEstimate` preserving last estimate during streaming (`packages/react/components/src/context-meter/use-prompt-estimate.ts:58-104`):**
-   `usePromptEstimate` pauses server `/api/llm/count-tokens` fetches while `streaming === true` and overlays `+ Math.ceil(streamingChars / 4)` onto the last settled `est.total`. Passing `key: null` to `useLiveRead` during streaming clears `data` to `undefined`.
-   - **Decision needed:** Keep the SWR key frozen on the pre-stream `turnKey` while streaming (advancing `turnKey` when streaming settles) so SWR retains the last settled estimate, or keep a local fallback ref?
-
-7. **Remaining minor choices from `react-state-architecture.md §4.5`:**
-   - *(Resolved by implementation)* §4.5 #1 is already implemented as explicit `scope.hydrate()`.
-   - **§4.5 #2 (One-time legacy `localStorage` migration):** On first boot after upgrading, fall back once to legacy `localStorage["theme"]` and `localStorage["kalaido.cloud.session-token"]` if absent from `HostAdapter.settings`, or skip migration (signed-in users re-authenticate once and theme resets to `"system"`)?
-   - **§4.5 #3 (Settings reset in `RecoveryView` / `DangerZoneSection`):** Add a first-class `resetPersisted()` helper on persisted scopes (preventing late queued write-throughs before `host.reload()`), or handle via scope `dispose()` + `host.settings.clear()` + `host.reload()`?
-
-8. **Scope granularity for feature-local workflows:**
-   `react-state-architecture.md §2.6` lists ~10 feature workflow states for `useScope` (`lastExploreSession`, `useRefineSession`, `useDraftName`, `useCandidateTriage`, Rotation `skipped`, Stream filters/selection, Import picker, plus screen-level authoring in `Colours`, `ProjectionReview`, `ReflectionRefine`). Confirm whether to adopt `useScope` across all of them in the feature migration wave, or prioritize shared/multi-component workflows first and leave single-component screen drafts in `useState`.
+1. **`@kalaido/client` vs React `useExternalWrite` normalization:**
+   - Normalize all 18 conflicting mutation helpers in `@kalaido/client` (standardize ID keys to `{ id }` / `{ ids }`, wrap `signOutCloudAuth` in `Result<void, Error>`), **while keeping server-returned entity payloads on the `@kalaido/client` functions** so non-React / direct library callers still have them.
+   - Inside each React `useExternalWrite` wrapper, **drop/project payloads** to `void` / `{ id }` / `{ ids }` so React strictly follows CQRS.
+2. **Pure CQRS for payload-dependent React flows (zero payload returns / zero `.mutate()`):**
+   - **`useRefineSession` (`createRefinement`):** `useExternalWrite` returns `{ id }` only; `useRefineSession` reads seeded `chat_message` rows via `useLiveRead` (filtered by `projection_refinement_id` / `reflection_refinement_id`) before mounting `ChatPanel`.
+   - **`ProjectionReviewScreen` fold-in (`handleApproveAndRefresh` / `approveAndNext`):** `useExternalWrite` returns `{ id: snapshotId }`, stores `pendingFoldInId` in scope state, and a reactive effect over the live `snapshots` read navigates once that snapshot appears with `status !== "generating"` (removes `await mutate()` and imperative `getOne`).
+   - **`useCandidateTriage` (`editProjectionCandidate`):** `useExternalWrite` returns `{ id: editId }`; a reactive effect over live `pending.edits` appends the `HAND_EDIT_PART_TYPE` system notice once the edit arrives.
+   - **`useBookmarkActions` (`saveBookmarks`):** `useExternalWrite` returns `{ ids }`; newly-created count for the toast is derived from pre-write live `bookmarks.marks`.
+   - **`BackfillCard` (`backfillReflection`) & `useFileIngest` (`ingestFile`):** `useExternalWrite` returns `{ ids }` and `{ id }` respectively; `useFileIngest` switches to `useLiveRead` on `ingest`.
+3. **Split `availableKalaidoscopes` cleanly (clean break — no legacy migration):**
+   - Replace `PersistentAppSetting.availableKalaidoscopes` with two distinct keys:
+     - `localKalaidoscopes: KalaidoscopeMeta[]` — desktop-only (`local_file`, `local_net`), persisted by the desktop root scope.
+     - `cachedCloudKalaidoscopes: KalaidoscopeMeta[]` — owned by `useCloudWorkspaces` `httpLiveSource.offlineCache`, persisted in `HostAdapter.settings` so cloud workspaces remain visible in the picker when offline (even though unreachable/inaccessible), and cleared on sign-out.
+4. **Remove `localStorage` from `shadcn/sidebar.tsx`:**
+   - Add `sidebarOpen?: boolean` to `PersistentAppSetting`, control `SidebarProvider` from the desktop root scope in `PageLayout`, and remove `localStorage["sidebar_state"]` from `packages/react/primitives/src/shadcn/sidebar.tsx` so `packages/react/*` has zero `localStorage` usage.
+5. **Clean break for `theme` and `cloudSessionToken`:**
+   - No one-time legacy `localStorage` fallback on boot (consistent with #3).
+6. **Settings reset at app boundary (no `resetPersisted()` in `@kalaido/state`):**
+   - `DangerZoneSection` and `RecoveryView` perform `rootScope.dispose()` + `await rootScope.flush()` (when a scope is active), then `await host.settings.clear()` + `host.reload()`.
+7. **`useFragmentSearch` & `usePromptEstimate`:**
+   - `useFragmentSearch`: debounced query (~200ms) + `httpLiveSource` tagged with `kalaidoscopeCollectionTag(client.baseURL, "fragment")` (avoids per-keystroke PocketBase SSE channel churn).
+   - `usePromptEstimate`: freeze the debounced `(conversationId, specKey, settledTurnKey)` SWR key while `streaming === true` so `useLiveRead` retains the last settled estimate for the `+ streamingChars / 4` overlay without clearing to `undefined`.
+8. **Feature `useScope` granularity — all 10 workflows:**
+   - Adopt `useScope` across all 7 shared/multi-component workflows (`Explore` session replacing `lastExploreSession` across desktop/mobile/web, `useRefineSession`, `useDraftName`, `useCandidateTriage`, `useImportPicker`, `Stream` filters/selection, `Rotation` skipped) **and** all 3 single-screen authoring workflows (`ProjectionReview`, `ReflectionRefine`, `Colours`).
+9. **Desktop Ollama daemon probes (`checkOllamaStatus`, `getLocalAiStatus`):**
+   - Move both onto `useLiveRead(httpLiveSource)` with `revalidateOnFocus: true`; trigger `invalidateLiveTags` after `pullModel` completes and on the Recheck/Refresh button.
+10. **Post-migration lock-in guardrails:**
+    - In the final wave, ban direct `valtio`, `valtio/react`, `swr`, and `better-auth/react` outside `packages/react/state/**`, ban direct `localStorage` outside `packages/lib/platform/src/web.ts` (allowlisting only the dev restore stub `apps/desktop/src/features/onboarding/restore.ts`), fix the `biome.json` `packages/react/state/src/pocketbase/**` override gap, and update `AGENTS.md`.
 
 ---
 
@@ -85,7 +76,7 @@ These items require a human choice before execution begins:
 
 | File & Lines | Current | Target |
 |---|---|---|
-| `index.ts:14-23` | `PersistentAppSetting` contains dead keys `lightDarkMode` and `pinnedProjections`; lacks `theme` and `cloudSessionToken` (and optional `sidebarOpen`) | Remove `lightDarkMode` (only other refs: `apps/desktop/src/state/app-state.ts:51,63`) and `pinnedProjections` (zero runtime refs). Add `ThemePreference = "light" \| "dark" \| "system"`, `theme: ThemePreference`, `cloudSessionToken: string` (plus `sidebarOpen?: boolean` if Decision #3 adopts it). |
+| `index.ts:14-23` | `PersistentAppSetting` contains dead keys `lightDarkMode` and `pinnedProjections` and mixed `availableKalaidoscopes`; lacks `theme`, `cloudSessionToken`, `sidebarOpen` | Remove `lightDarkMode` (only other refs: `apps/desktop/src/state/app-state.ts:51,63`), `pinnedProjections` (zero runtime refs), and mixed `availableKalaidoscopes`. Add `ThemePreference = "light" \| "dark" \| "system"`, `theme: ThemePreference`, `cloudSessionToken: string`, `localKalaidoscopes: KalaidoscopeMeta[]`, `cachedCloudKalaidoscopes: KalaidoscopeMeta[]`, `sidebarOpen: boolean` (clean break, no legacy migration). |
 | `tauri.ts:36-37` | `getStore = () => (storePromise ??= load(STORE_FILE))` permanently caches a rejected `load()` promise for process lifetime | Clear `storePromise = null` on rejection so `hydrate()` retries / `RecoveryView` can recover without requiring a reload. |
 | `web.ts:8,22-61` | `localStorage["kalaido-settings"]` JSON blob | Keep — sole permitted `localStorage` persistence adapter in the repo. |
 
@@ -155,7 +146,7 @@ These items require a human choice before execution begins:
 
 | File & Line | Collection | Notes |
 |---|---|---|
-| `packages/react/components/src/context-picker/data.ts:31` (`useFragmentSearch`) | `fragment` (keystroke filter) | See Decision #5 (SSE churn vs `httpLiveSource` / debounce). |
+| `packages/react/components/src/context-picker/data.ts:31` (`useFragmentSearch`) | `fragment` (keystroke filter) | Debounced (~200ms) `httpLiveSource` tagged with `kalaidoscopeCollectionTag(client.baseURL, "fragment")` (no per-keystroke SSE churn). |
 | `packages/react/components/src/fragment-drawer.tsx:262` (`FragmentColours`) | `colour` | Upgrade to `useLiveCollection`. |
 | `packages/react/features/src/colours/colours-screen.tsx:32,37,49` | `colour`, `colour_fragment` (×2) | Upgrade to `useLiveCollection`; eliminates 5 manual `.mutate()` calls. |
 | `packages/react/features/src/dashboard/components/import-notes-dialog.tsx:40` | `colour` | Upgrade to `useLiveCollection`. |
@@ -180,10 +171,10 @@ These items require a human choice before execution begins:
 | `packages/react/features/src/reflections/hooks/use-reflection-series.ts:66-86` & `components/window-select.tsx:37-47` | **Duplicated** `useEffect` calling `listReflectionWindows(reflectionId)` (`GET /api/reflections/:id/windows`); `WindowSelect` relies on manual `refreshKey` prop (`reflection-refine-screen.tsx:308`) | Single shared `useReflectionWindows(reflectionId)` hook using `kalaidoscopeEndpointSource({ client, endpoint: "reflection-windows", params: [reflectionId], fetch: ..., watch: ["reflection", "reflection_snapshot", "reflection_window"], enabled })`. Eliminates duplicate fetch & `refreshKey`. |
 | `packages/react/features/src/import/hooks/use-file-ingest.ts:71,82` | Manual `subscribeIngest(id)` + `getIngest(id)` into local `useState` | Store `activeIngestId` locally/in scope + read via `useLiveCollection("ingest", { filter: 'id="..."', enabled: !!activeIngestId })`. |
 | `packages/react/components/src/context-bar/use-whole-scope-fits.ts:22-49` | `useEffect` calling `resolveContextTokens({ wholeScope: "full" }, timeWindow)` into `useState` (never updates on new fragments/model changes) | `useLiveRead(kalaidoscopeEndpointSource({ client, endpoint: "whole-scope-fits", params: [windowKey], fetch: ..., watch: ["fragment", "kalaidoscope_config"], coalesceMs: 300 }))`. |
-| `packages/react/components/src/context-meter/use-prompt-estimate.ts:58-104` | Debounced `useEffect` calling `resolveContextTokens(...)` + local streaming char overlay | `httpLiveSource` for settled estimate + keep local streaming overlay (see Decision #6). |
-| `apps/desktop/src/lib/cloud-workspaces.ts:30`, `apps/mobile/src/state.ts:65`, `apps/web/src/state.ts:65` (`syncCloudWorkspaces`) | Manual imperative `listCloudKalaidoscopes()` + reconcile + dual-write to Valtio & `HostAdapter.settings`, triggered on mount in `CloudWorkspaces.tsx`, `CloudWorkspacePickerScreen`, `ExploreCompactScreen`, and `CloudAuthPanel` | Single shared `useCloudWorkspaces()` hook in `@kalaido/hooks` built on `useLiveRead(httpLiveSource({ key: signedIn ? ["cloud", "workspaces"] : null, tags: ["cloud:workspaces"], fetch: listCloudKalaidoscopes, offlineCache: ... }))` (see Decision #4). |
-| `apps/desktop/src/features/create-kalaidoscope/components/ollama-setup-status.tsx:23-38` | `useEffect` calling Rust IPC `checkOllamaStatus()` + Recheck button | Optional `httpLiveSource` (or keep as desktop host diagnostic probe — no backend push / paired write; user clicks "Recheck" after installing Ollama outside the app). |
-| `apps/desktop/src/features/settings/components/local-ai-section.tsx:27-47` | `useEffect` calling `getLocalAiStatus()` + Refresh button + post-pull refresh (`:78`) | `httpLiveSource` (`key: ["local-ai", "status"]`, `tags: ["local-ai:status"]`) invalidated on pull completion (note: manual "Refresh" button is for external Ollama daemon changes — clarify if Refresh stays or becomes focus/reconnect). |
+| `packages/react/components/src/context-meter/use-prompt-estimate.ts:58-104` | Debounced `useEffect` calling `resolveContextTokens(...)` + local streaming char overlay | `httpLiveSource` with frozen pre-stream SWR key while `streaming === true` + local `+ streamingChars / 4` overlay. |
+| `apps/desktop/src/lib/cloud-workspaces.ts:30`, `apps/mobile/src/state.ts:65`, `apps/web/src/state.ts:65` (`syncCloudWorkspaces`) | Manual imperative `listCloudKalaidoscopes()` + reconcile + dual-write to Valtio & `HostAdapter.settings`, triggered on mount in `CloudWorkspaces.tsx`, `CloudWorkspacePickerScreen`, `ExploreCompactScreen`, and `CloudAuthPanel` | Single shared `useCloudWorkspaces()` hook in `@kalaido/hooks` built on `useLiveRead(httpLiveSource({ key: signedIn ? ["cloud", "workspaces"] : null, tags: ["cloud:workspaces"], fetch: listCloudKalaidoscopes, offlineCache: ... }))` backed by `HostAdapter.settings` key `cachedCloudKalaidoscopes`. |
+| `apps/desktop/src/features/create-kalaidoscope/components/ollama-setup-status.tsx:23-38` | `useEffect` calling Rust IPC `checkOllamaStatus()` + Recheck button | `useLiveRead(httpLiveSource)` with `revalidateOnFocus: true` + `invalidateLiveTags` on Recheck button. |
+| `apps/desktop/src/features/settings/components/local-ai-section.tsx:27-47` | `useEffect` calling `getLocalAiStatus()` + Refresh button + post-pull refresh (`:78`) | `useLiveRead(httpLiveSource({ key: ["local-ai", "status"], tags: ["local-ai:status"], revalidateOnFocus: true, ... }))`; trigger `invalidateLiveTags(["local-ai:status"])` after `pullModel` completes and on Refresh button. |
 | `apps/desktop/src/features/create-kalaidoscope/pages/KalaidoscopeSetup.tsx:168-190,249` | Debounced `checkCloudIdAvailability(candidateId)` form validator | Keep as debounced async form validation (ephemeral pre-submit check, not persistent cached entity state) or wrap in `httpLiveSource` with `enabled: valid`. |
 
 ### 2.5 Exhaustive `.mutate()` / `.refetch()` Removal Checklist (19 sites across 10 files)
@@ -197,7 +188,7 @@ These items require a human choice before execution begins:
 | `packages/react/features/src/explore/hooks/use-bookmarks.ts:78,89` | `chat_message` `mutate()` & exported `refresh: mutate` | Remove; `setBookmark` & `saveBookmarks` `useExternalWrite` invalidate `kalaidoscopeCollectionTag(baseURL, "chat_message")`. |
 | `packages/react/features/src/explore/explore-screen.tsx:301` & `explore-compact-screen.tsx:249` | `conversations.refresh()` (`useSWR` `mutate`) on `onTurnComplete` | Remove; `useConversations` watches `chat_conversation` (and/or `invalidateLiveTags` on turn complete). |
 | `packages/react/features/src/fragments/stream-screen.tsx:166,175` | `view_stream` `mutate()` after `archiveFragments` / `unarchiveFragments` | Remove; `view_stream` SSE + `useExternalWrite` invalidating `fragment` tag. |
-| `packages/react/features/src/projections/hooks/use-projection-snapshot.ts:156` + callers `use-candidate-triage.ts:207,248` & `projection-review-screen.tsx:298,312,332,404` | `snapshotsQuery.mutate()` (and **`await mutate()` return value at `:332,404`**!) | Remove `mutate` export; triage writes invalidate `projection_snapshot` tag; resolve `:332,404` per Decision #2. |
+| `packages/react/features/src/projections/hooks/use-projection-snapshot.ts:156` + callers `use-candidate-triage.ts:207,248` & `projection-review-screen.tsx:298,312,332,404` | `snapshotsQuery.mutate()` (and **`await mutate()` return value at `:332,404`**!) | Remove `mutate` export; triage writes invalidate `projection_snapshot` tag; fold-in stores `pendingFoldInId` and navigates via reactive effect over live `snapshots`. |
 | `packages/react/features/src/projections/projections-screen.tsx:90` & `projection-detail-screen.tsx:200` | `useRotationStatus().refetch()` triggered by `useEffect` on snapshot changes | Remove; `useRotationStatus` becomes `kalaidoscopeEndpointSource` watching snapshot/entity collections. |
 | `packages/react/features/src/rotation/rotation-screen.tsx:110,126` | `useRotationStatus().refetch()` after approve / regenerate | Remove; `useExternalWrite` invalidates `kalaidoscopeEndpointTag(baseURL, "reconcile")` + SSE push. |
 | `apps/desktop/src/features/settings/components/workspace-ai-panel.tsx:93` | `useSWR` `mutate()` after `writeWorkspaceLlmConfig` | Remove; `useExternalWrite` invalidating `llm-config` tag + `kalaidoscope_config` SSE. |
@@ -212,7 +203,7 @@ These items require a human choice before execution begins:
 | File & Line | Write | Concurrency | Invalidates (Tags) | Notes |
 |---|---|---|---|---|
 | `packages/react/hooks/src/use-draft-name.ts:39-45` | `updateProjection` / `updateReflection` | `"allow"` (auto-rename vs user rename) | *(push-live)* | Narrow return to `void`. |
-| `packages/react/hooks/src/use-refine-session.ts:161,229` | `createRefinement`, `commitRefinement` | `"ignore"` | *(push-live)* | Replaces `creating`/`committing` flags. See Decision #1 for `createRefinement` `messages`. |
+| `packages/react/hooks/src/use-refine-session.ts:161,229` | `createRefinement`, `commitRefinement` | `"ignore"` | *(push-live)* | Replaces `creating`/`committing` flags; `createRefinement` wrapper returns `{ id }` and `useRefineSession` reads seeded `chat_message` rows via `useLiveRead` before mounting `ChatPanel`. |
 | `packages/react/components/src/fragment-drawer.tsx:66,193,287` | `archiveFragment`/`unarchiveFragment`, `renameFragment`, `updateColour` | `"ignore"` (archive, rename); `"allow"` (multi-select colour toggles) | `fragment` / `colour_fragment` tags | Narrow `updateColour` to `void`. |
 | `packages/react/components/src/auth/cloud-auth-panel.tsx:52-80` | `signInWithEmail` / `signUpWithEmail` | `"ignore"` | `["cloud:session", "cloud:workspaces"]` | Narrow `CloudUser` return to `void`; call `reset()` when switching signin/signup tab. |
 
@@ -233,7 +224,7 @@ These items require a human choice before execution begins:
 | **Projections** | `projections/new-projection-screen.tsx:85,115,171` | `createProjection` (`{ id }`), `deleteProjection` | `"ignore"` | *(push-live `projection`)* |
 | **Projections** | `projections/projection-detail-screen.tsx:108,127,186,311` | `deleteProjection`, `restoreProjection`, `regenerateProjection` (`{ id }`), `updateProjection` | `"ignore"` | `projection_snapshot` / `reconcile` tags |
 | **Projections** | `projections/projection-review-screen.tsx:266,292,305,322,394` | `approveProjectionCandidate`, `regenerateProjection` (`{ id }`) | `"ignore"` | `projection_snapshot`, `reconcile` tags |
-| **Projections** | `projections/hooks/use-candidate-triage.ts:195,238` | `updateSnapshotEditStatus` (`void`), `editProjectionCandidate` *(see Decision #1)* | `"allow"` (status toggle), `"ignore"` (hand edit) | `projection_snapshot` tag |
+| **Projections** | `projections/hooks/use-candidate-triage.ts:195,238` | `updateSnapshotEditStatus` (`void`), `editProjectionCandidate` (`{ id }` + reactive effect over live `pending.edits`) | `"allow"` (status toggle), `"ignore"` (hand edit) | `projection_snapshot` tag |
 | **Reflections** | `reflections/reflections-screen.tsx:14` | `updateReflection` (pin) | `"allow"` | *(push-live `reflection`)* |
 | **Reflections** | `reflections/components/reflection-header.tsx:25`, `reflection-refine-screen.tsx:157,188`, `hooks/use-persist-schedule.ts:43` | `createReflection` (`{ id }`), `updateReflection` (rename & debounced schedule) | `"ignore"` (create, rename), `"allow"` (debounced schedule) | *(push-live `reflection` + `reflection-windows` watches `reflection`)* |
 | **Reflections** | `reflections/components/reflection-series-panel.tsx:68,82` | `regenerateReflection` (`{ ids }`) | `"ignore"` | *(push-live `reflection_snapshot`)* |
@@ -264,16 +255,16 @@ These items require a human choice before execution begins:
 |---|---|---|
 | `packages/react/primitives/src/lib/theme.ts:9,35-53` | `getInitialTheme()` / `persistTheme()` reading/writing `localStorage["theme"]` | Remove `localStorage` helpers; keep `Theme`, `LIGHT_THEME_SHIPPED`, `resolveTheme`, `applyTheme`, `watchSystemTheme`. |
 | `packages/react/primitives/src/providers/theme-provider.tsx:21-54` | Uncontrolled `useState` + `localStorage` | Controlled Context provider accepting `{ theme, onThemeChange, children }` (preserves zero `@kalaido/*` dep boundary). Consumed by `shadcn/sonner.tsx:19`, `appearance-section.tsx:23`, `utility-bar.tsx:345`. |
-| `packages/react/primitives/src/shadcn/sidebar.tsx:25,48-65,107` | Reads/writes `localStorage["sidebar_state"]` even when controlled | See Decision #3 (remove `localStorage`, control via desktop root scope in `page-layout.tsx:30`). |
+| `packages/react/primitives/src/shadcn/sidebar.tsx:25,48-65,107` | Reads/writes `localStorage["sidebar_state"]` even when controlled | Remove `localStorage` from `shadcn/sidebar.tsx`; control via desktop root scope (`sidebarOpen`) in `page-layout.tsx:30`. |
 | `packages/react/components/src/core-providers.tsx:19-79` | Renders uncontrolled `<ThemeProvider>` | Accept `theme` + `onThemeChange` props (wired from each app's root scope) and pass to `<ThemeProvider>`. |
-| `packages/react/components/src/recovery-view.tsx:37-52` | Calls `getHost().settings.clear()` + `host.reload()` directly | See Decision #7 (§4.5 #3). |
+| `packages/react/components/src/recovery-view.tsx:37-52` | Calls `getHost().settings.clear()` + `host.reload()` directly | Accept optional `onBeforeClear` (wired to `rootScope.dispose()` + `await rootScope.flush()` when a scope exists), then `host.settings.clear()` + `host.reload()`. |
 
 ### 4.2 Mobile & Web: Unifying Duplicated Root Stores
 
 `apps/mobile/src/state.ts` and `apps/web/src/state.ts` (145 lines) are **byte-for-byte identical**, and `apps/mobile/src/app.tsx` and `apps/web/src/app.tsx` (236 lines) differ by **one symbol** (`MobileApp` vs `WebApp`).
 
 - **Target:** Extract a single shared cloud root scope factory (in `@kalaido/hooks`, distributed via `createScopeContext`) owning:
-  - **Persisted (`hostSettingsPersistence`):** `theme`, `cloudSessionToken`, `lastOpenedKalaidoscopeId`, `availableKalaidoscopes` *(offline cache for cloud entries)*.
+  - **Persisted (`hostSettingsPersistence`):** `theme`, `cloudSessionToken`, `lastOpenedKalaidoscopeId`. *(Cloud workspace list lives in `useCloudWorkspaces` `httpLiveSource` backed by `HostAdapter.settings` key `cachedCloudKalaidoscopes` so offline entries remain visible in the picker.)*
   - **Ephemeral:** `stage: CloudStage`.
 - **Replaces across both `apps/mobile` and `apps/web`:**
   - `state.ts:29-145` (`cloudState` proxy, 10 direct mutations, 5 `getHost().settings.*` calls, `bootstrapCloudState`, `syncCloudWorkspaces`, `openCloudWorkspace`, `signOutOfCloud`).
@@ -297,7 +288,7 @@ These items require a human choice before execution begins:
     - `lib/cloud-sign-out.ts:33-35,63,73` (`setAvailableKalaidoscopes` + `getSetting`/`setSetting`/`deleteSetting`)
     - `features/settings/components/danger-zone-section.tsx:14` (`resetAppSettings`)
 - **Desktop root scope shape:**
-  - **Persisted (`hostSettingsPersistence`):** `theme`, `cloudSessionToken`, `availableKalaidoscopes` *(or split local/cloud per Decision #4)*, `lastOpenedKalaidoscopeId`, `onboardingAcknowledged`, `errorReportingEnabled`, `usageStatisticsEnabled`, `ollamaModel` *(+ optional `sidebarOpen` per Decision #3)*.
+  - **Persisted (`hostSettingsPersistence`):** `theme`, `cloudSessionToken`, `localKalaidoscopes`, `lastOpenedKalaidoscopeId`, `onboardingAcknowledged`, `errorReportingEnabled`, `usageStatisticsEnabled`, `ollamaModel`, `sidebarOpen`. *(Cloud workspaces come from `useCloudWorkspaces`, persisted as offline cache under `cachedCloudKalaidoscopes`.)*
   - **Ephemeral:** `appStage`, `sidecarStatus`, `latestInferenceRate`, `addFragmentModalOpen`, `feedbackDialogOpen`.
 - **All 14 reactive `useSnapshot(appState)` consumers to migrate to narrowed `useScope` + `useScopeState`:**
   - `providers/app-providers.tsx:9`, `routes/app-router.tsx:63,118`, `routes/router-listeners.tsx:40,93`, `components/layout/page-layout.tsx:24`, `components/layout/utility-bar.tsx:278`, `features/boot/components/recovery-screen.tsx:29`, `features/boot/pages/BootError.tsx:10`, `features/create-kalaidoscope/components/kalaidoscope-list.tsx:19`, `features/create-kalaidoscope/components/nav-kalaidoscope-switcher.tsx:35`, `features/onboarding/pages/CloudWorkspaces.tsx:33`, `features/onboarding/pages/OnboardingLanding.tsx:30`, `features/settings/components/kalaidoscopes-section.tsx:12`, `features/status/pages/Status.tsx:53`.
@@ -320,7 +311,7 @@ These items require a human choice before execution begins:
 | **High** | `packages/react/features/src/import/hooks/use-import-picker.ts:16-19` | `file`, `entries`, `scanning`, `pickError` shared across `ImportFields`, `ImportNotesDialog`, `AddFragmentModal`, desktop `Import`/`OnboardingImport` | Multi-component picker workflow. |
 | **Medium** | `packages/react/features/src/fragments/stream-screen.tsx:86-91` | `query`, `colourId`, `importId`, `selecting`, `selected` | Coordinated transitions (`selecting=false` clears `selected`, `clearFilters`) passed to `StreamToolbar` & rows. |
 | **Medium** | `packages/react/features/src/rotation/rotation-screen.tsx:25,29` | `skipped: Set<string>`, `generatingFor` ref | Explicitly listed in Plan §2.6 (`busy` moves to `useExternalWrite`). |
-| **Optional** *(Decision #8)* | `projections/projection-review-screen.tsx:100,138,142,153,168` (`advancing`, `foldingIn`, `context`, `refineInput`), `reflections/reflection-refine-screen.tsx:78-89` (`cadence`, `fromDate`, `windowOverride`, `context`, `reflectionId`, `input`, `nameInput`), `colours/colours-screen.tsx:63-65` (`selectedId`, `composing`, `draftName`, `draftPrompt`) | Screen-level authoring drafts | Benefit from typed transitions if narrowed to child panes; can alternatively stay local if single-owner screen state is preferred. |
+| **Included** | `projections/projection-review-screen.tsx:100,138,142,153,168` (`advancing`, `foldingIn`, `pendingFoldInId`, `context`, `refineInput`), `reflections/reflection-refine-screen.tsx:78-89` (`cadence`, `fromDate`, `windowOverride`, `context`, `reflectionId`, `input`, `nameInput`), `colours/colours-screen.tsx:63-65` (`selectedId`, `composing`, `draftName`, `draftPrompt`) | Screen-level authoring drafts | Locked in Decision #8: adopt `useScope` across all 10 feature workflows. |
 
 ### 5.2 Strictly UI-Local Optimistic Overlays (Keep Local — Locked Decision #3)
 - `packages/react/features/src/dashboard/dashboard-screen.tsx:180-189` (`useOptimistic` `visibleProposed`, `visiblePinned`).
@@ -383,29 +374,33 @@ Currently, **neither desktop nor mobile/web disposes SSE subscriptions or evicts
   - `biome.json:145-177`: current `@kalaido/state` override excludes `packages/react/state/src/pocketbase/**` from the `@kalaido/*`, `@tauri-apps/*`, and `react-router-dom` import restrictions — add a second override for `packages/react/state/src/pocketbase/**` applying those same restrictions while permitting `pocketbase`.
 - **Lock in after migration:**
   - `biome.json`: `noRestrictedImports` banning `"valtio"`, `"valtio/react"`, `"swr"`, and `"better-auth/react"` outside `packages/react/state/**` (forcing `@kalaido/state` / `@kalaido/hooks`).
-  - `scripts/check-boundaries.mjs`: add `"swr"` and `"valtio"` to `BANNED_DEPS_BY_PKG` for `hooks`, `components`, `features`, and all 3 apps; add a `localStorage` check restricting direct access to `packages/lib/platform/src/web.ts` (with explicit allowlist for `apps/desktop/src/features/onboarding/restore.ts`, and `primitives/src/shadcn/sidebar.tsx` if Decision #3 keeps it).
+  - `scripts/check-boundaries.mjs`: add `"swr"` and `"valtio"` to `BANNED_DEPS_BY_PKG` for `hooks`, `components`, `features`, and all 3 apps; add a `localStorage` check restricting direct access to `packages/lib/platform/src/web.ts` (allowlisting only `apps/desktop/src/features/onboarding/restore.ts`).
 
 ---
 
-## 8. Proposed Phased Migration Waves
+## 8. Locked Phased Migration Waves
 
-Pending resolution of the 8 decisions above, a dependency-safe rollout order:
+Dependency-safe rollout order reflecting all locked decisions:
 
 - **Wave 0 — Foundations & Contracts:**
-  - Update `PersistentAppSetting` (`@kalaido/platform`), fix `tauri.ts` rejected `storePromise`, add `configureCloudSessionTokenBridge` (`@kalaido/client/cloud/auth`), settle and normalize `WriteReturn` shapes in `@kalaido/client` (Decision #1), add `createScopeContext` (and `resetPersisted` if chosen) in `@kalaido/hooks` / `@kalaido/state`, fix `biome.json` `pocketbase/**` override & `AGENTS.md`.
+  - Update `PersistentAppSetting` (`@kalaido/platform`: remove `lightDarkMode`, `pinnedProjections`, `availableKalaidoscopes`; add `theme`, `cloudSessionToken`, `localKalaidoscopes`, `cachedCloudKalaidoscopes`, `sidebarOpen`; clean break). Fix `tauri.ts` rejected `storePromise`.
+  - Add `configureCloudSessionTokenBridge` (`@kalaido/client/cloud/auth`), normalize ID key names (`{ id }`/`{ ids }`) & wrap `signOutCloudAuth` in `Result<void, Error>` in `@kalaido/client` while preserving server-returned entity payloads for direct library callers.
+  - Add `createScopeContext<S, E>()` in `@kalaido/hooks`, fix `biome.json` `packages/react/state/src/pocketbase/**` override, and update `AGENTS.md`.
 - **Wave 1 — Core Live-Read Layer (`@kalaido/hooks`):**
-  - Rewrite `useLiveCollection` / `useLiveCollectionWatching` on `useLiveRead` + `kalaidoscopeCollectionSource` (temporarily decoupling `.mutate()` callers or pairing with Wave 3).
+  - Rewrite `useLiveCollection` / `useLiveCollectionWatching` on `useLiveRead` + `kalaidoscopeCollectionSource` (paired with Wave 3 `.mutate()` removals or clean staged transition).
   - Migrate `useCloudSession` (`atomLiveSource`), `useOrganizeStatus` & `useRotationStatus` (`kalaidoscopeEndpointSource`), `useColourSwatches`, `useContextSources`, `useFragmentLabels`.
-  - Build shared `useCloudWorkspaces` (`httpLiveSource` + `offlineCache`).
+  - Build shared `useCloudWorkspaces` (`httpLiveSource` + `offlineCache` reading/writing `cachedCloudKalaidoscopes` in `HostAdapter.settings` so cloud workspaces remain visible in pickers when offline).
 - **Wave 2 — Persisted Root Scopes & Settings Unification (`primitives`, `components`, `mobile`, `web`, `desktop`):**
-  - Make `ThemeProvider` & `CoreProviders` controlled (remove `localStorage` from `primitives/src/lib/theme.ts`; handle `shadcn/sidebar.tsx` per Decision #3).
-  - Create shared cloud root scope and migrate `apps/mobile` + `apps/web` (eliminating duplicated `state.ts` and wiring switch/sign-out teardowns).
-  - Create desktop root scope and migrate `appState`, `useOllamaModel`, `sidecarStatus`, `latestInferenceRate`, `OnboardingInterstitial`, `DangerZoneSection`, `RecoveryView`, and all desktop lifecycle teardowns.
+  - Make `ThemeProvider` & `CoreProviders` controlled (remove `localStorage` from `primitives/src/lib/theme.ts`), and remove `localStorage["sidebar_state"]` from `primitives/src/shadcn/sidebar.tsx` (controlled via desktop root scope `sidebarOpen`).
+  - Create shared cloud root scope and migrate `apps/mobile` + `apps/web` (eliminating duplicated `state.ts` and wiring switch/sign-out teardowns + `flush()` before `reload()`).
+  - Create desktop root scope and migrate `appState`, `useOllamaModel`, `sidecarStatus`, `latestInferenceRate`, `OnboardingInterstitial`, `DangerZoneSection` & `RecoveryView` (`dispose()` + `flush()` + `settings.clear()` + `reload()`), and all desktop lifecycle teardowns.
 - **Wave 3 — Shared Components & Features (`@kalaido/components`, `@kalaido/features`):**
-  - Migrate `FragmentDrawer`, `CloudAuthPanel`, `useFragmentSearch`, `useWholeScopeFits`, `usePromptEstimate`.
-  - Migrate features slice by slice (`map`, `fragments`, `import`, `colours`, `dashboard`, `explore`, `reflections`, `projections`, `rotation`, `auth`) — replacing remaining `useCollection` & raw `useSWR`, removing all `.mutate()`/`.refetch()` calls, adopting `useExternalWrite`, and moving target workflows (starting with `lastExploreSession`, `useRefineSession`, `useDraftName`, `useCandidateTriage`, `useImportPicker`) onto `useScope`.
+  - Migrate `FragmentDrawer`, `CloudAuthPanel`, `useFragmentSearch` (debounced `httpLiveSource` with `fragment` tag), `useWholeScopeFits`, `usePromptEstimate` (frozen pre-stream SWR key + local streaming overlay).
+  - Migrate all features slice by slice (`map`, `fragments`, `import`, `colours`, `dashboard`, `explore`, `reflections`, `projections`, `rotation`, `auth`) — replacing remaining `useCollection` & raw `useSWR`, removing all `.mutate()`/`.refetch()` calls (pure CQRS for `createRefinement` seeded `chat_message`, `ProjectionReviewScreen` fold-in, `editProjectionCandidate`, `saveBookmarks`, `backfillReflection`, `useFileIngest`), adopting `useExternalWrite` (projecting/dropping payloads in React wrappers), and moving all 10 target workflows onto `useScope`.
   - Delete `packages/react/hooks/src/use-collection.ts`.
 - **Wave 4 — Desktop-Only Features (`apps/desktop/src/features/*`):**
-  - Migrate `Import.tsx` (`useCollection`), `WorkspaceAiPanel` / `WorkspaceBackupsPanel` / `WorkspaceQuotaPanel` (raw `useSWR` -> `useLiveRead` + `useExternalWrite`), `Status.tsx` (`startMap`/`startDiscover`/`startReconcile`), `create-kalaidoscope/actions.ts`, `LocalAISection` (`ollamaModel` + status + pull abort cleanup), `CloudWorkspaces.tsx` & `Onboarding*`.
+  - Migrate `Import.tsx` (`useCollection`), `WorkspaceAiPanel` / `WorkspaceBackupsPanel` / `WorkspaceQuotaPanel` (raw `useSWR` -> `useLiveRead` + `useExternalWrite`), `Status.tsx` (`startMap`/`startDiscover`/`startReconcile`), `create-kalaidoscope/actions.ts`, `OllamaSetupStatus` & `LocalAISection` (`useLiveRead(httpLiveSource)` with `revalidateOnFocus: true` + `invalidateLiveTags` on pull/button + pull abort cleanup), `CloudWorkspaces.tsx` & `Onboarding*`.
 - **Wave 5 — Cleanup & Lock-In:**
-  - Prune `swr`, `valtio`, `better-auth` (hooks), and `next-themes` (primitives) from `package.json`s; add Biome + `check-boundaries.mjs` lock-in rules; run full `./kalaido.sh check:ts && ./kalaido.sh test:ts`.
+  - Prune `swr`, `valtio`, `better-auth` (hooks), and `next-themes` (primitives) from `package.json`s.
+  - Lock in Biome `noRestrictedImports` (`valtio`, `valtio/react`, `swr`, `better-auth/react` outside `packages/react/state/**`) and `scripts/check-boundaries.mjs` (`BANNED_DEPS_BY_PKG` + `localStorage` restriction outside `packages/lib/platform/src/web.ts`, allowlisting only `apps/desktop/src/features/onboarding/restore.ts`).
+  - Run `./kalaido.sh check:ts && ./kalaido.sh test:ts`.
