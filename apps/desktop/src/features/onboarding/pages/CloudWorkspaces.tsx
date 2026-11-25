@@ -25,7 +25,6 @@ import { useMemo, useState } from "react";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { DesktopScopeContext } from "@/state/app-state.ts";
 import { cloudWorkspacesTransitions as transitions } from "./CloudWorkspaces.transitions";
@@ -204,12 +203,3 @@ export default function CloudWorkspaces() {
     </div>
   );
 }
-
-export const cloudWorkspacesRoute = defineRoute({
-  id: "cloud-workspaces",
-  path: "/onboarding/cloud",
-  feature: "Onboarding",
-  requiredScope: [],
-  transitions,
-  Component: CloudWorkspaces,
-});

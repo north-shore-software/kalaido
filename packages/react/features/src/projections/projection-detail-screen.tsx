@@ -20,18 +20,8 @@ import { useDraftName } from "@kalaido/hooks/use-draft-name";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
-import type { TimelineItem } from "@kalaido/primitives/kalaido";
+import { ConfirmDialog, type TimelineItem } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@kalaido/primitives/shadcn/alert-dialog";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
   DropdownMenu,
@@ -393,23 +383,14 @@ export function ProjectionDetailScreen({
           )
         }
       />
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this projection?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Anything that reads it as a source stops doing so. Its history is
-              kept, and you can restore it from the projections list.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void remove()}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this projection?"
+        description="Anything that reads it as a source stops doing so. Its history is kept, and you can restore it from the projections list."
+        confirmLabel="Delete"
+        onConfirm={() => void remove()}
+      />
       <PageCard>
         <div className="flex min-h-0 flex-1">
           <PanelErrorBoundary label="the preview" resetKey={snapshotId ?? id}>

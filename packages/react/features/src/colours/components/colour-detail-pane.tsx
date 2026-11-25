@@ -12,6 +12,7 @@ import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import {
   ColourSwatch,
+  ConfirmDialog,
   EditableText,
   EmptyState,
   FragmentCard,
@@ -20,17 +21,6 @@ import {
   type StatusKind,
   StatusPill,
 } from "@kalaido/primitives/kalaido";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@kalaido/primitives/shadcn/alert-dialog";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Textarea } from "@kalaido/primitives/shadcn/textarea";
 import { useExternalWrite } from "@kalaido/state/live";
@@ -202,30 +192,17 @@ export function ColourDetailPane({
         >
           Rematch
         </Button>
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <Button variant="destructive" disabled={deleteWrite.isPending}>
-                Delete
-              </Button>
-            }
-          />
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete this colour?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Its members and examples go with it, and any projection or
-                reflection using it as context stops doing so.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void remove()}>
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ConfirmDialog
+          trigger={
+            <Button variant="destructive" disabled={deleteWrite.isPending}>
+              Delete
+            </Button>
+          }
+          title="Delete this colour?"
+          description="Its members and examples go with it, and any projection or reflection using it as context stops doing so."
+          confirmLabel="Delete"
+          onConfirm={() => void remove()}
+        />
       </div>
 
       <div className="rounded-none border border-line bg-surface-2 p-4">

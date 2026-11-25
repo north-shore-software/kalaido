@@ -28,15 +28,21 @@ import {
   createScope,
   type PersistedScopeInstance,
   type ScopeHandlers,
+  useScope,
+  useScopeState,
 } from "@kalaido/state/scope";
 import { err, ok, type Result } from "neverthrow";
-import { createScopeContext } from "#create-scope-context";
+import { useMemo } from "react";
+import { createScopeContext, useScopeContext } from "#create-scope-context";
 import {
   clearCloudLiveCache,
   clearWorkspaceLiveCache,
 } from "#kalaidoscope-live";
 import { hostSettingsPersistence } from "#scope-persistence";
-import { CLOUD_WORKSPACES_TAG } from "#use-cloud-workspaces";
+import {
+  CLOUD_WORKSPACES_TAG,
+  useCloudWorkspaces,
+} from "#use-cloud-workspaces";
 
 export type CloudStage =
   | { stage: "bootstrap" | "signed_out" | "workspace_loading" }
@@ -296,4 +302,43 @@ export async function prepareCloudScopeReset(
   await clearCloudLiveCache();
   scope.dispose();
   await scope.flush();
+}
+
+export function pathForCloudStage(stage: CloudStage): string {
+  switch (stage.stage) {
+    case "bootstrap":
+    case "workspace_loading":
+    case "workspace_load_requested":
+      return "/splash";
+    case "bootstrap_error":
+      return "/boot-error";
+    case "signed_out":
+    case "workspace_load_error":
+      return "/login";
+    case "workspace_open":
+      return "/explore";
+  }
+}
+
+export function useCloudWorkspacesList(): readonly KalaidoscopeMeta[] {
+  const root = useScopeContext(CloudRootScopeContext);
+  const wsScope = useScope({
+    from: root,
+    state: ["cachedCloudKalaidoscopes"],
+    events: ["setCachedCloudKalaidoscopes"],
+  });
+  const { cachedCloudKalaidoscopes } = useScopeState(wsScope);
+  const offlineBridge = useMemo(
+    () => ({
+      read: () => wsScope.state.cachedCloudKalaidoscopes,
+      write: (workspaces: KalaidoscopeMeta[]) =>
+        wsScope.dispatch({
+          type: "setCachedCloudKalaidoscopes",
+          workspaces,
+        }),
+    }),
+    [wsScope],
+  );
+  const live = useCloudWorkspaces({ offlineBridge });
+  return live.data ?? cachedCloudKalaidoscopes;
 }

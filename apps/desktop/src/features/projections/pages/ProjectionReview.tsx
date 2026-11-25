@@ -2,7 +2,6 @@ import { ProjectionReviewScreen } from "@kalaido/features/projections";
 import { useCallback } from "react";
 import { PageLayout } from "@/components/layout/page-layout";
 import { AppRedirect } from "@/routes/app-redirect";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { useAppRouteState } from "@/routes/use-app-route-state";
@@ -69,12 +68,3 @@ export default function ProjectionReview() {
     </PageLayout>
   );
 }
-
-export const projectionReviewRoute = defineRoute({
-  id: "projection-review",
-  path: "/projections/:id/review/:snapshotId",
-  feature: "Projections",
-  requiredScope: ["kalaidoscope"],
-  transitions: projectionReviewTransitions,
-  Component: ProjectionReview,
-});

@@ -18,6 +18,10 @@ export {
   type ChatPanelProps,
 } from "./chat-panel";
 export {
+  CloudErrorBoundary,
+  type CloudErrorBoundaryProps,
+} from "./cloud-error-boundary";
+export {
   ContextBar,
   type ContextBarProps,
 } from "./context-bar/context-bar";

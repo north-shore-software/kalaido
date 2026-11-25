@@ -1,13 +1,4 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@kalaido/primitives/shadcn/alert-dialog";
+import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 
 interface DuplicateWorkspaceDialogProps {
   open: boolean;
@@ -25,27 +16,16 @@ export function DuplicateWorkspaceDialog({
   onCancel,
 }: DuplicateWorkspaceDialogProps) {
   return (
-    <AlertDialog
+    <ConfirmDialog
       open={open}
       onOpenChange={(next) => {
         if (!next) onCancel();
       }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Workspace Already Exists</AlertDialogTitle>
-          <AlertDialogDescription>
-            A local workspace named &ldquo;{existingName}&rdquo; already exists
-            on this device. Would you like to restore this backup as a new copy?
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={busy}>
-            Restore as New Copy
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      title="Workspace Already Exists"
+      description={`A local workspace named \u201c${existingName}\u201d already exists on this device. Would you like to restore this backup as a new copy?`}
+      confirmLabel="Restore as New Copy"
+      busy={busy}
+      onConfirm={onConfirm}
+    />
   );
 }

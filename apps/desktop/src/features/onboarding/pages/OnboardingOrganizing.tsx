@@ -1,4 +1,3 @@
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { OrganizingSplash } from "../components/organizing-splash";
 import { usePipelineProgress } from "../hooks/use-pipeline-progress";
@@ -19,12 +18,3 @@ export default function OnboardingOrganizing() {
     />
   );
 }
-
-export const onboardingOrganizingRoute = defineRoute({
-  id: "onboarding-organizing",
-  path: "/onboarding/organizing/:ingestId",
-  feature: "Onboarding",
-  requiredScope: ["kalaidoscope"],
-  transitions,
-  Component: OnboardingOrganizing,
-});

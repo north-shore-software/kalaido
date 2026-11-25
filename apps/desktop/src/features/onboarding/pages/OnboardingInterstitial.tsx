@@ -3,7 +3,6 @@ import { Checkbox } from "@kalaido/primitives/shadcn/checkbox";
 import { Label } from "@kalaido/primitives/shadcn/label";
 import { WarningIcon } from "@phosphor-icons/react";
 import { useId, useState } from "react";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { completeOnboardingInterstitial } from "@/state/app-state-actions.ts";
 import { OnboardingShell } from "../components/onboarding-shell";
@@ -103,12 +102,3 @@ export default function OnboardingInterstitial() {
     </OnboardingShell>
   );
 }
-
-export const onboardingInterstitialRoute = defineRoute({
-  id: "onboarding-interstitial",
-  path: "/onboarding/welcome",
-  feature: "Onboarding",
-  requiredScope: [],
-  transitions,
-  Component: OnboardingInterstitial,
-});

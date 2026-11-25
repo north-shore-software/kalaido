@@ -35,10 +35,8 @@ import {
   PageLayout,
 } from "@/components/layout/page-layout";
 import { queueHeldLabels } from "@/components/layout/queue-labels";
-import { defineRoute } from "@/routes/route-kit";
 import { DesktopScopeContext } from "@/state/app-state";
 import { useEventLog } from "../hooks/use-event-log";
-import { statusTransitions } from "./Status.transitions";
 
 interface QueueTask {
   role: string;
@@ -429,12 +427,3 @@ export default function StatusPage() {
     </PageLayout>
   );
 }
-
-export const statusRoute = defineRoute({
-  id: "status",
-  path: "/status",
-  feature: "Status",
-  requiredScope: ["kalaidoscope"],
-  transitions: statusTransitions,
-  Component: StatusPage,
-});

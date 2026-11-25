@@ -1,6 +1,5 @@
 import { ReflectionRefineScreen } from "@kalaido/features/reflections";
 import { PageLayout } from "@/components/layout/page-layout";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { useAppRouteState } from "@/routes/use-app-route-state";
@@ -32,21 +31,3 @@ export default function ReflectionRefine() {
     </PageLayout>
   );
 }
-
-export const newReflectionRoute = defineRoute({
-  id: "new-reflection",
-  path: "/reflections/new",
-  feature: "Reflections",
-  requiredScope: ["kalaidoscope"],
-  transitions: reflectionRefineTransitions,
-  Component: ReflectionRefine,
-});
-
-export const refineReflectionRoute = defineRoute({
-  id: "refine-reflection",
-  path: "/reflections/:id/refine",
-  feature: "Reflections",
-  requiredScope: ["kalaidoscope"],
-  transitions: reflectionRefineTransitions,
-  Component: ReflectionRefine,
-});

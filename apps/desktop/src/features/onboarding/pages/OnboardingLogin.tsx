@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { PageBackButton } from "@kalaido/primitives/layout/page-back-button";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { CloudAuthPanel } from "../components/cloud-auth-panel";
 import { onboardingLoginTransitions as transitions } from "./OnboardingLogin.transitions";
@@ -57,12 +56,3 @@ export default function OnboardingLogin() {
     </div>
   );
 }
-
-export const onboardingLoginRoute = defineRoute({
-  id: "onboarding-login",
-  path: "/onboarding/login",
-  feature: "Onboarding",
-  requiredScope: [],
-  transitions,
-  Component: OnboardingLogin,
-});

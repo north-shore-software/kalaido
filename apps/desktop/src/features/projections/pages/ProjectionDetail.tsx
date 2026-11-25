@@ -5,7 +5,6 @@ import {
 import { useCallback } from "react";
 import { PageLayout } from "@/components/layout/page-layout";
 import { AppRedirect } from "@/routes/app-redirect";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { projectionDetailTransitions } from "./ProjectionDetail.transitions";
@@ -77,13 +76,3 @@ export default function ProjectionDetail() {
     </PageLayout>
   );
 }
-
-export const projectionDetailRoute = defineRoute({
-  id: "projection-detail",
-  path: "/projections/:id",
-  aliases: ["/projections/:id/snapshot/:snapshotId"],
-  feature: "Projections",
-  requiredScope: ["kalaidoscope"],
-  transitions: projectionDetailTransitions,
-  Component: ProjectionDetail,
-});

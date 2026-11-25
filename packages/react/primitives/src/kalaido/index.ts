@@ -3,6 +3,7 @@ export { Mark } from "./brand";
 export { Chip } from "./chip";
 export { ColourSwatch } from "./colour";
 export { ComposerSendButton } from "./composer-send-button";
+export { ConfirmDialog, type ConfirmDialogProps } from "./confirm-dialog";
 export {
   DecisionCard,
   type DecisionCardProps,

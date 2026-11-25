@@ -16,7 +16,6 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { desktopImportAdapter } from "../desktop-import-adapter";
 import { importTransitions } from "./Import.transitions";
@@ -86,12 +85,3 @@ export default function Import() {
     </PageLayout>
   );
 }
-
-export const importRoute = defineRoute({
-  id: "import",
-  path: "/import",
-  feature: "Import",
-  requiredScope: ["kalaidoscope"],
-  transitions: importTransitions,
-  Component: Import,
-});

@@ -4,7 +4,6 @@ import { useActiveKalaidoscope } from "@kalaido/hooks/use-active-kalaidoscope";
 import { useScope, useScopeState } from "@kalaido/state/scope";
 import { useCallback } from "react";
 import { PageLayout } from "@/components/layout/page-layout";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppRouteState } from "@/routes/use-app-route-state";
 import { DesktopScopeContext } from "@/state/app-state";
@@ -60,13 +59,3 @@ export default function Explore() {
     </PageLayout>
   );
 }
-
-export const exploreRoute = defineRoute({
-  id: "explore",
-  path: "/explore",
-  aliases: ["/chat"],
-  feature: "Explore",
-  requiredScope: ["kalaidoscope"],
-  transitions: exploreTransitions,
-  Component: Explore,
-});

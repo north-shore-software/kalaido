@@ -31,7 +31,6 @@ import {
 } from "@/features/create-kalaidoscope/actions.ts";
 import { CloudAuthPanel } from "@/features/onboarding/components/cloud-auth-panel";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppRouteState } from "@/routes/use-app-route-state";
 import {
@@ -44,7 +43,6 @@ import {
   StorageOptionCards,
   type StorageType,
 } from "../components/storage-option-cards";
-import { kalaidoscopeSetupTransitions } from "./KalaidoscopeSetup.transitions";
 
 const CLOUD_ID_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
 const FALLBACK_CLOUD_ID_LENGTH = 8;
@@ -558,12 +556,3 @@ export default function KalaidoscopeSetup() {
     </div>
   );
 }
-
-export const kalaidoscopeSetupRoute = defineRoute({
-  id: "kalaidoscope-setup",
-  path: "/kalaidoscope/setup",
-  feature: "Create Kalaidoscope",
-  requiredScope: [],
-  transitions: kalaidoscopeSetupTransitions,
-  Component: KalaidoscopeSetup,
-});

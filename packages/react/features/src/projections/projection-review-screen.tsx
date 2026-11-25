@@ -25,18 +25,12 @@ import {
 } from "@kalaido/hooks/kalaidoscope-live";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
-import { DecisionCard, StatusPill } from "@kalaido/primitives/kalaido";
-import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@kalaido/primitives/shadcn/alert-dialog";
+  ConfirmDialog,
+  DecisionCard,
+  StatusPill,
+} from "@kalaido/primitives/kalaido";
+import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { useExternalWrite } from "@kalaido/state/live";
 import {
@@ -779,30 +773,20 @@ function ProjectionReviewScreenInner({
           </div>
         </div>
       </PageCard>
-      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Start over from a fresh candidate?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {engagedEditsCount > 0
-                ? `This candidate has ${engagedEditsCount} edit${engagedEditsCount > 1 ? "s" : ""} that will be permanently lost if you discard it. A fresh candidate will be generated.`
-                : "This candidate has refinements that will be permanently lost if you discard it. A fresh candidate will be generated."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => void handleDiscardAndRefresh()}
-              disabled={busy}
-            >
-              {busy ? "Refreshing…" : "Start over"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        title="Start over from a fresh candidate?"
+        description={
+          engagedEditsCount > 0
+            ? `This candidate has ${engagedEditsCount} edit${engagedEditsCount > 1 ? "s" : ""} that will be permanently lost if you discard it. A fresh candidate will be generated.`
+            : "This candidate has refinements that will be permanently lost if you discard it. A fresh candidate will be generated."
+        }
+        confirmLabel={busy ? "Refreshing…" : "Start over"}
+        variant="destructive"
+        busy={busy}
+        onConfirm={() => void handleDiscardAndRefresh()}
+      />
     </>
   );
 }
