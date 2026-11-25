@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -33,6 +34,7 @@ import type { SnapshotEdit } from "@kalaido/client/kalaidoscope/projections";
 import { PaneHeader } from "@kalaido/primitives/layout/page-primitives";
 import { emitInferenceRate } from "@kalaido/client/lib/inference-rate";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { useLatestRef } from "@kalaido/primitives/hooks/use-latest-ref";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessages, type ChatMessagesProps } from "./chat-messages";
@@ -188,39 +190,39 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
     // conversation's existing pinned context untouched rather than treating the
     // absence as an empty selection (which itemsToSpec would turn into
     // `wholeScope`, silently resetting the context on the next turn).
-    const manageContextRef = useRef(context !== undefined);
-    manageContextRef.current = context !== undefined;
+    const manageContextRef = useLatestRef(context !== undefined);
 
     // Read live in the transport so the spec is always current when a turn fires.
-    const specRef = useRef(itemsToSpec(context ?? []));
-    specRef.current = itemsToSpec(context ?? []);
+    const activeSpec = useMemo(() => itemsToSpec(context ?? []), [context]);
+    const specRef = useLatestRef(activeSpec);
     // The spec the backend already knows for this conversation: seeded from the
     // resumed history's last context_spec (a fresh chat has none and starts
     // empty). Switching conversations remounts the panel (keyed on chat id), so
     // we never carry one conversation's baseline into another. We only emit a
     // context_spec when the active spec diverges from this.
     const lastSentSpecRef = useRef<string | null>(null);
-    if (lastSentSpecRef.current === null) {
-      lastSentSpecRef.current = specKey(
-        parseActiveContext(initialMessages ?? []) ?? {},
-      );
-    }
 
     // Same machinery for the optional target window. A caller that omits
     // `timeWindow` opts out (e.g. projections / plain chat); otherwise we emit a
     // `window` part whenever it diverges from the last one sent — the baseline
     // being the window the conversation was seeded/resumed with, so re-opening
     // a session never re-announces its own window.
-    const manageWindowRef = useRef(timeWindow !== undefined);
-    manageWindowRef.current = timeWindow !== undefined;
-    const timeWindowRef = useRef(timeWindow);
-    timeWindowRef.current = timeWindow;
+    const manageWindowRef = useLatestRef(timeWindow !== undefined);
+    const timeWindowRef = useLatestRef(timeWindow);
     const lastSentWindowRef = useRef<string | null>(null);
-    if (lastSentWindowRef.current === null) {
-      lastSentWindowRef.current = timeWindowKey(
-        parseActiveWindow(initialMessages ?? []),
-      );
-    }
+
+    useLayoutEffect(() => {
+      if (lastSentSpecRef.current === null) {
+        lastSentSpecRef.current = specKey(
+          parseActiveContext(initialMessages ?? []) ?? {},
+        );
+      }
+      if (lastSentWindowRef.current === null) {
+        lastSentWindowRef.current = timeWindowKey(
+          parseActiveWindow(initialMessages ?? []),
+        );
+      }
+    }, [initialMessages]);
 
     const [quotaHit, setQuotaHit] = useState(false);
 
@@ -302,7 +304,14 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
       if (!messages.some((m) => m.role === "assistant")) return;
       appendSpecChanges();
       sendMessage();
-    }, [timeWindow, isLoading, quotaHit, messages, sendMessage]);
+    }, [
+      manageWindowRef,
+      timeWindow,
+      isLoading,
+      quotaHit,
+      messages,
+      sendMessage,
+    ]);
 
     /**
      * Append any spec change (context and/or window) to the live transcript as a

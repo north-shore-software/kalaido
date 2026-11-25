@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useState } from "react";
 import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
 import { organizeStage, pipelineProgress } from "../pipeline-progress";
 
@@ -16,8 +16,10 @@ export function usePipelineProgress() {
   const stage = error ? "idle" : organizeStage(status);
   const next = error ? 1 : pipelineProgress(status);
 
-  const highWater = useRef(0);
-  highWater.current = Math.max(highWater.current, next);
+  const [highWater, setHighWater] = useState(next);
+  if (next > highWater) {
+    setHighWater(next);
+  }
 
-  return { stage, error, progress: highWater.current };
+  return { stage, error, progress: highWater };
 }

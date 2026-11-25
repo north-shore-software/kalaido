@@ -1,3 +1,4 @@
+import { useLatestRef } from "@kalaido/primitives/hooks/use-latest-ref";
 import { ArrowRightIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -781,38 +782,24 @@ export function OrganizingSplash({
   const [statusOpacity, setStatusOpacity] = useState(1);
   const [percent, setPercent] = useState(0);
 
-  const stateRef = useRef({
+  const propsRef = useLatestRef({
     speed,
-    ending,
     progress,
     onEnded,
     onSnapshotReady,
-    endAt: null as number | null,
-    snapshotReadyFired: false,
-    endedFired: false,
-    t0: performance.now(),
-    last: performance.now(),
-    ft: 0,
-    pi: 0,
-    lastPercent: 0,
-    chips: generateChips(),
   });
-
-  stateRef.current.speed = speed;
-  stateRef.current.progress = progress;
-  stateRef.current.onEnded = onEnded;
-  stateRef.current.onSnapshotReady = onSnapshotReady;
+  const endAtRef = useRef<number | null>(null);
 
   const triggerEnd = useCallback(() => {
-    if (stateRef.current.endAt === null) {
-      stateRef.current.endAt = performance.now();
+    if (endAtRef.current === null) {
+      endAtRef.current = performance.now();
       setStatus("finalizing snapshot…");
       setStatusOpacity(1);
     }
   }, []);
 
   useEffect(() => {
-    if (ending && stateRef.current.endAt === null) {
+    if (ending && endAtRef.current === null) {
       triggerEnd();
     }
   }, [ending, triggerEnd]);
@@ -823,6 +810,18 @@ export function OrganizingSplash({
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    const now0 = performance.now();
+    const st = {
+      t0: now0,
+      last: now0,
+      ft: 0,
+      pi: 0,
+      lastPercent: 0,
+      snapshotReadyFired: false,
+      endedFired: false,
+      chips: generateChips(),
+    };
 
     const reduced =
       typeof window !== "undefined" &&
@@ -839,12 +838,12 @@ export function OrganizingSplash({
 
     let swapTimer: ReturnType<typeof setTimeout> | undefined;
     const statusTimer = setInterval(() => {
-      if (stateRef.current.endAt !== null) return;
+      if (endAtRef.current !== null) return;
       setStatusOpacity(0);
       swapTimer = setTimeout(() => {
-        if (stateRef.current.endAt !== null) return;
-        stateRef.current.pi = (stateRef.current.pi + 1) % PHRASES.length;
-        setStatus(PHRASES[stateRef.current.pi]);
+        if (endAtRef.current !== null) return;
+        st.pi = (st.pi + 1) % PHRASES.length;
+        setStatus(PHRASES[st.pi]);
         setStatusOpacity(1);
       }, 650);
     }, 9000);
@@ -854,7 +853,7 @@ export function OrganizingSplash({
     const tick = () => {
       rafId = requestAnimationFrame(tick);
       const now = performance.now();
-      const st = stateRef.current;
+      const props = propsRef.current;
       const dt = Math.min(0.05, (now - st.last) / 1000);
       st.last = now;
       const t = (now - st.t0) / 1000;
@@ -863,7 +862,7 @@ export function OrganizingSplash({
         0.7 +
         0.3 * Math.sin((2 * Math.PI * t) / 45) +
         0.15 * Math.sin((2 * Math.PI * t) / 13 + 1.7);
-      flow = Math.max(0.2, flow) * st.speed * (reduced ? 0.15 : 1);
+      flow = Math.max(0.2, flow) * props.speed * (reduced ? 0.15 : 1);
       st.ft += dt * flow;
       const ft = st.ft;
 
@@ -884,23 +883,24 @@ export function OrganizingSplash({
       let b: number;
       let g = 1;
 
-      if (st.endAt === null) {
+      const endAt = endAtRef.current;
+      if (endAt === null) {
         b = smooth((t - 1.0) / 2.2);
       } else {
-        const te = (now - st.endAt) / 1000;
+        const te = (now - endAt) / 1000;
         b = 1 - smooth((te - 0.4) / 2.2);
         g = 1 - smooth((te - 3.8) / 1.2);
 
         if (te > 3.0 && !st.snapshotReadyFired) {
           st.snapshotReadyFired = true;
           setStatus("snapshot ready");
-          st.onSnapshotReady?.();
+          props.onSnapshotReady?.();
         }
 
         if (te > 5.2 && !st.endedFired) {
           st.endedFired = true;
           setStatusOpacity(0);
-          st.onEnded?.();
+          props.onEnded?.();
         }
       }
 
@@ -1032,7 +1032,7 @@ export function OrganizingSplash({
         ctx.restore();
 
         const activeProg =
-          st.progress !== undefined ? st.progress : (t % 20.0) / 20.0;
+          props.progress !== undefined ? props.progress : (t % 20.0) / 20.0;
         const curPct = Math.round(activeProg * 100);
         if (curPct !== st.lastPercent) {
           st.lastPercent = curPct;
@@ -1075,7 +1075,7 @@ export function OrganizingSplash({
       clearTimeout(swapTimer);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [propsRef]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-background">
