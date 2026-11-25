@@ -1,6 +1,5 @@
 import { ReflectionsScreen } from "@kalaido/features/reflections";
 import { PageLayout } from "@/components/layout/page-layout";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { reflectionsTransitions } from "./Reflections.transitions";
@@ -31,13 +30,3 @@ export default function Reflections() {
     </PageLayout>
   );
 }
-
-export const reflectionsRoute = defineRoute({
-  id: "reflections",
-  path: "/reflections/:id?",
-  aliases: ["/reflections/:id/window/:windowId"],
-  feature: "Reflections",
-  requiredScope: ["kalaidoscope"],
-  transitions: reflectionsTransitions,
-  Component: Reflections,
-});

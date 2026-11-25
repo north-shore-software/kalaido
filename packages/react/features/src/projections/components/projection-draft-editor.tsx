@@ -1,21 +1,25 @@
-import { CheckIcon } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
 import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
+import type { RefinePhase } from "@kalaido/client/kalaidoscope/refinements";
+import { withContextItem } from "@kalaido/client/lib/mentions";
 import {
   type ChatPanelHandle,
   type ContextItem,
   PageHeader,
   RefineChatPanel,
 } from "@kalaido/components";
+import type { RefineSession } from "@kalaido/hooks/use-refine-session";
 import { Pill } from "@kalaido/primitives/kalaido";
 import {
   PageCard,
   PaneHeader,
 } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
-import type { RefineSession } from "@kalaido/hooks/use-refine-session";
-import { withContextItem } from "@kalaido/client/lib/mentions";
-import { useCandidateTriage } from "../hooks/use-candidate-triage";
+import { CheckIcon } from "@phosphor-icons/react";
+import { useRef, useState } from "react";
+import {
+  useCandidateTriage,
+  type UseCandidateTriageResult,
+} from "../hooks/use-candidate-triage";
 import { useProjectionSnapshot } from "../hooks/use-projection-snapshot";
 import { EditsStatusPill } from "./edits-status-pill";
 import { ProjectionCanvasPane } from "./projection-canvas-pane";
@@ -30,6 +34,63 @@ export interface ProjectionDraftEditorProps {
   onTitleCommit?: (next: string) => void;
   onCancel: () => void;
   onApproveSuccess: (id: string) => void;
+}
+
+function draftPhaseStatus(phase: RefinePhase, hasDraftText: boolean): string {
+  if (phase === "drafting") return "drafting";
+  if (phase === "applying") return "generating";
+  return hasDraftText ? "draft" : "pending";
+}
+
+function draftEmptyCopy(phase: RefinePhase): string {
+  if (phase === "drafting") return "Drafting the instruction…";
+  if (phase === "applying") return "Generating the preview…";
+  return "Nothing drafted yet.";
+}
+
+function approveButtonLabel(
+  committing: boolean,
+  approveLabel: string | undefined,
+): string {
+  if (!committing) return approveLabel ?? "Approve";
+  return approveLabel === "Create projection" ? "Creating…" : "Approving…";
+}
+
+function DraftPreviewColumn({
+  phase,
+  hasDraftText,
+  triage,
+  canHandEdit,
+}: {
+  phase: RefinePhase;
+  hasDraftText: boolean;
+  triage: UseCandidateTriageResult;
+  canHandEdit: boolean;
+}) {
+  const busy = phase === "drafting" || phase === "applying";
+  return (
+    <div className="flex min-w-0 flex-[1.1] flex-col border-r border-line">
+      <PaneHeader
+        label="Live draft preview"
+        status={
+          <Pill tone="primary" dot>
+            {draftPhaseStatus(phase, hasDraftText)}
+          </Pill>
+        }
+      />
+      {hasDraftText ? (
+        <ProjectionCanvasPane
+          triage={triage}
+          busy={busy}
+          canHandEdit={canHandEdit}
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto p-6">
+          <p className="text-body-sm text-fg-2">{draftEmptyCopy(phase)}</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ProjectionDraftEditor({
@@ -51,7 +112,6 @@ export function ProjectionDraftEditor({
 
   const { snapshots } = useProjectionSnapshot(projectionId);
   const pending = snapshots.find((s) => s.status === "pending_review");
-  const pendingId = pending?.id;
 
   const triage = useCandidateTriage({
     projectionId,
@@ -59,16 +119,14 @@ export function ProjectionDraftEditor({
     session,
     chatPanelRef,
   });
-  const { edits, hasUnresolvedEdits, activeDraft, highlightedEditId } = triage;
 
-  const hasDraft =
-    (activeDraft && activeDraft.length > 0) || session.previewReady;
+  const hasDraftText = Boolean(triage.activeDraft?.length);
+  const busy = session.phase === "drafting" || session.phase === "applying";
   const canApprove =
-    hasDraft &&
-    !hasUnresolvedEdits &&
+    (hasDraftText || session.previewReady) &&
+    !triage.hasUnresolvedEdits &&
     !session.committing &&
-    session.phase !== "drafting" &&
-    session.phase !== "applying";
+    !busy;
 
   async function approve() {
     if (!canApprove) return;
@@ -86,7 +144,7 @@ export function ProjectionDraftEditor({
         actions={
           <>
             <EditsStatusPill
-              edits={edits}
+              edits={triage.edits}
               onNext={triage.jumpToNextEdit}
               onPrev={triage.jumpToPrevEdit}
               canNext={triage.canJumpNext}
@@ -101,53 +159,19 @@ export function ProjectionDraftEditor({
               onClick={() => void approve()}
             >
               <CheckIcon />
-              {session.committing
-                ? approveLabel === "Create projection"
-                  ? "Creating…"
-                  : "Approving…"
-                : (approveLabel ?? "Approve")}
+              {approveButtonLabel(session.committing, approveLabel)}
             </Button>
           </>
         }
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <div className="flex min-w-0 flex-[1.1] flex-col border-r border-line">
-            <PaneHeader
-              label="Live draft preview"
-              status={
-                <Pill tone="primary" dot>
-                  {session.phase === "drafting"
-                    ? "drafting"
-                    : session.phase === "applying"
-                      ? "generating"
-                      : activeDraft && activeDraft.length > 0
-                        ? "draft"
-                        : "pending"}
-                </Pill>
-              }
-            />
-            {activeDraft && activeDraft.length > 0 ? (
-              <ProjectionCanvasPane
-                triage={triage}
-                busy={
-                  session.phase === "drafting" || session.phase === "applying"
-                }
-                canHandEdit={Boolean(pendingId)}
-              />
-            ) : (
-              <div className="flex-1 overflow-y-auto p-6">
-                <p className="text-body-sm text-fg-2">
-                  {session.phase === "drafting"
-                    ? "Drafting the instruction…"
-                    : session.phase === "applying"
-                      ? "Generating the preview…"
-                      : "Nothing drafted yet."}
-                </p>
-              </div>
-            )}
-          </div>
-
+          <DraftPreviewColumn
+            phase={session.phase}
+            hasDraftText={hasDraftText}
+            triage={triage}
+            canHandEdit={Boolean(pending?.id)}
+          />
           <div className="flex min-w-0 flex-[1.05] flex-col">
             <RefineChatPanel
               ref={chatPanelRef}
@@ -159,8 +183,8 @@ export function ProjectionDraftEditor({
               }
               onContextChange={setContext}
               entity="projection"
-              highlightedEditId={highlightedEditId}
-              edits={edits}
+              highlightedEditId={triage.highlightedEditId}
+              edits={triage.edits}
               onUndoEdit={triage.handleUndoEdit}
               input={chatInput}
               onInputChange={setChatInput}

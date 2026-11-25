@@ -38,7 +38,114 @@ function windowState(w: SeriesWindow): string {
   return "summary";
 }
 
+function refreshAllButtonLabel(busy: string | null, needsWork: number): string {
+  if (busy === "all") return "Refreshing…";
+  return needsWork > 0 ? `Refresh (${needsWork})` : "Refresh";
+}
+
+function windowActionLabel(busy: string | null, w: SeriesWindow): string {
+  if (busy === w.id) return "Generating…";
+  return w.snapshot ? "Regenerate" : "Generate";
+}
+
+function refreshAllSuccessMessage(count: number): string {
+  if (count === 0) return "Everything is up to date";
+  return `Regenerated ${count} ${count === 1 ? "summary" : "summaries"}`;
+}
+
+function buildSeriesTimeline(
+  windows: readonly SeriesWindow[],
+  selectedId: string | undefined,
+  onSelectWindow: (id: string) => void,
+): TimelineItem[] {
+  return windows.map((w) => ({
+    id: w.id,
+    label: windowLabel(w),
+    note: windowState(w),
+    current: !!w.snapshot && !w.olderLens && !w.stale,
+    pending: w.generating || !w.snapshot,
+    active: selectedId === w.id,
+    onClick: () => onSelectWindow(w.id),
+  }));
+}
+
 type RegenArgs = { kind: "single"; window: SeriesWindow } | { kind: "all" };
+
+function SelectedWindowView({
+  error,
+  loading,
+  selected,
+  busy,
+  onRegenerate,
+}: {
+  error: Error | null | undefined;
+  loading: boolean;
+  selected: SeriesWindow | undefined;
+  busy: string | null;
+  onRegenerate: (w: SeriesWindow) => void;
+}) {
+  if (error) {
+    return (
+      <p className="text-body-sm text-destructive">
+        Couldn’t load this reflection: {error.message}
+      </p>
+    );
+  }
+  if (loading && !selected) {
+    return (
+      <div className="max-w-[500px]">
+        <DocBody paragraphs={3} />
+      </div>
+    );
+  }
+  if (!selected) {
+    return (
+      <EmptyState>
+        No windows yet — the first summary appears once the lens is committed
+        and a window completes.
+      </EmptyState>
+    );
+  }
+
+  const content = selected.snapshot
+    ? parseReflectionOutput(selected.snapshot.output).content
+    : undefined;
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-2.5">
+        <span className="text-item font-semibold">{windowLabel(selected)}</span>
+        {selected.generating && <StatusPill kind="cyan">generating</StatusPill>}
+        {selected.olderLens && (
+          <StatusPill kind="yellow">older lens</StatusPill>
+        )}
+        {selected.stale && !selected.olderLens && (
+          <StatusPill kind="magenta">new material</StatusPill>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto"
+          disabled={busy !== null || selected.generating}
+          onClick={() => onRegenerate(selected)}
+        >
+          {windowActionLabel(busy, selected)}
+        </Button>
+      </div>
+      {selected.snapshot ? (
+        <div className="max-w-[500px] text-body leading-relaxed text-fg-1">
+          {content ? <MarkdownContent content={content} /> : "(empty snapshot)"}
+        </div>
+      ) : (
+        <EmptyState>
+          {selected.generating
+            ? "Generating this window’s summary…"
+            : "No summary for this window yet."}
+        </EmptyState>
+      )}
+    </>
+  );
+}
 
 /**
  * A reflection read as a series: pick a window, read its current summary,
@@ -77,7 +184,6 @@ export function ReflectionSeriesPanel({
     windows.find((w) => w.id === windowId) ??
     windows.find((w) => w.snapshot) ??
     windows[0];
-
   const busy = regenWrite.isPending ? activeTarget : null;
 
   async function regenerate(w: SeriesWindow) {
@@ -103,12 +209,7 @@ export function ReflectionSeriesPanel({
       toast.error("Failed to refresh", { description: outcome.error.message });
       return;
     }
-    const n = outcome.ids.length;
-    toast.success(
-      n === 0
-        ? "Everything is up to date"
-        : `Regenerated ${n} ${n === 1 ? "summary" : "summaries"}`,
-    );
+    toast.success(refreshAllSuccessMessage(outcome.ids.length));
   }
 
   const schedDisplay = describeWindow(
@@ -117,20 +218,7 @@ export function ReflectionSeriesPanel({
   const needsWork = windows.filter(
     (w) => !w.generating && (!w.snapshot || w.olderLens || w.stale),
   ).length;
-
-  const timeline: TimelineItem[] = windows.map((w) => ({
-    id: w.id,
-    label: windowLabel(w),
-    note: windowState(w),
-    current: !!w.snapshot && !w.olderLens && !w.stale,
-    pending: w.generating || !w.snapshot,
-    active: selected?.id === w.id,
-    onClick: () => onSelectWindow(w.id),
-  }));
-
-  const content = selected?.snapshot
-    ? parseReflectionOutput(selected.snapshot.output).content
-    : undefined;
+  const timeline = buildSeriesTimeline(windows, selected?.id, onSelectWindow);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -147,11 +235,7 @@ export function ReflectionSeriesPanel({
               onClick={() => void refreshAll()}
             >
               <ArrowsClockwiseIcon />
-              {busy === "all"
-                ? "Refreshing…"
-                : needsWork > 0
-                  ? `Refresh (${needsWork})`
-                  : "Refresh"}
+              {refreshAllButtonLabel(busy, needsWork)}
             </Button>
             <Button size="sm" variant="section" onClick={onRefine}>
               <SlidersHorizontalIcon />
@@ -172,65 +256,13 @@ export function ReflectionSeriesPanel({
         </aside>
 
         <div className="min-w-0 flex-1 overflow-y-auto px-8 py-6">
-          {error ? (
-            <p className="text-body-sm text-destructive">
-              Couldn’t load this reflection: {error.message}
-            </p>
-          ) : loading && !selected ? (
-            <div className="max-w-[500px]">
-              <DocBody paragraphs={3} />
-            </div>
-          ) : !selected ? (
-            <EmptyState>
-              No windows yet — the first summary appears once the lens is
-              committed and a window completes.
-            </EmptyState>
-          ) : (
-            <>
-              <div className="mb-4 flex flex-wrap items-center gap-2.5">
-                <span className="text-item font-semibold">
-                  {windowLabel(selected)}
-                </span>
-                {selected.generating && (
-                  <StatusPill kind="cyan">generating</StatusPill>
-                )}
-                {selected.olderLens && (
-                  <StatusPill kind="yellow">older lens</StatusPill>
-                )}
-                {selected.stale && !selected.olderLens && (
-                  <StatusPill kind="magenta">new material</StatusPill>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="ml-auto"
-                  disabled={busy !== null || selected.generating}
-                  onClick={() => void regenerate(selected)}
-                >
-                  {busy === selected.id
-                    ? "Generating…"
-                    : selected.snapshot
-                      ? "Regenerate"
-                      : "Generate"}
-                </Button>
-              </div>
-              {selected.snapshot ? (
-                <div className="max-w-[500px] text-body leading-relaxed text-fg-1">
-                  {content ? (
-                    <MarkdownContent content={content} />
-                  ) : (
-                    "(empty snapshot)"
-                  )}
-                </div>
-              ) : (
-                <EmptyState>
-                  {selected.generating
-                    ? "Generating this window’s summary…"
-                    : "No summary for this window yet."}
-                </EmptyState>
-              )}
-            </>
-          )}
+          <SelectedWindowView
+            error={error}
+            loading={loading}
+            selected={selected}
+            busy={busy}
+            onRegenerate={(w) => void regenerate(w)}
+          />
         </div>
 
         <aside className="flex w-[280px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-line p-4">

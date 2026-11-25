@@ -436,31 +436,40 @@ export async function listConversations(
   // outside the fetched page fall back to "New conversation".
   const previews = new Map<string, string>();
   const CHUNK = 30;
+  const chunks: (typeof records)[] = [];
   for (let i = 0; i < records.length; i += CHUNK) {
-    const chunk = records.slice(i, i + CHUNK);
-    const filter = chunk
-      .map((r, idx) =>
-        client.filter(`chat_conversation_id = {:id${idx}}`, {
-          [`id${idx}`]: r.id,
-        }),
-      )
-      .join(" || ");
-    try {
-      const { items } = await client
-        .collection("chat_message")
-        .getList(1, 200, {
-          filter,
-          sort: "created",
-          requestKey: null,
-        });
-      for (const m of items) {
-        const convId = m.chat_conversation_id;
-        if (previews.has(convId)) continue;
-        const text = previewText(m.content);
-        if (text) previews.set(convId, text);
+    chunks.push(records.slice(i, i + CHUNK));
+  }
+  const chunkItems = await Promise.all(
+    chunks.map(async (chunk) => {
+      const filter = chunk
+        .map((r, idx) =>
+          client.filter(`chat_conversation_id = {:id${idx}}`, {
+            [`id${idx}`]: r.id,
+          }),
+        )
+        .join(" || ");
+      try {
+        const { items } = await client
+          .collection("chat_message")
+          .getList(1, 200, {
+            filter,
+            sort: "created",
+            requestKey: null,
+          });
+        return items;
+      } catch (e) {
+        console.warn("chat preview fetch failed", e);
+        return [];
       }
-    } catch (e) {
-      console.warn("chat preview fetch failed", e);
+    }),
+  );
+  for (const items of chunkItems) {
+    for (const m of items) {
+      const convId = m.chat_conversation_id;
+      if (previews.has(convId)) continue;
+      const text = previewText(m.content);
+      if (text) previews.set(convId, text);
     }
   }
 

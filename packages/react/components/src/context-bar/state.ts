@@ -4,8 +4,10 @@ import {
   type ScopeMode,
   scopeModeOf,
   selectionPins,
+  setScopeMode,
 } from "@kalaido/client/kalaidoscope/context-items";
 import { withContextItem } from "@kalaido/client/lib/mentions";
+import type { EntityKind } from "../context-picker/types";
 
 /**
  * Pure selection logic for the ContextBar: a scope mode (Full / Summaries /
@@ -68,4 +70,21 @@ export function fullBlockedBy(
   if (state.hasContentPins) return "pins";
   if (fits === false) return "size";
   return null;
+}
+
+/**
+ * Derive the effective context items for a surface without mutating caller
+ * state in an effect: when a chat's whole scope exceeds the model budget
+ * (`fits === false`) and `Full` is selected, downgrade to `Summaries` so
+ * outgoing turns and `@`-mention pins stay valid.
+ */
+export function resolveEffectiveContext(
+  items: ContextItem[],
+  entity: EntityKind,
+  fits: boolean | undefined,
+): ContextItem[] {
+  if (entity === "chat" && fits === false && scopeModeOf(items) === "full") {
+    return setScopeMode(items, "summaries");
+  }
+  return items;
 }

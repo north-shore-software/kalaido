@@ -18,9 +18,18 @@ export {
   type ChatPanelProps,
 } from "./chat-panel";
 export {
+  CloudErrorBoundary,
+  type CloudErrorBoundaryProps,
+} from "./cloud-error-boundary";
+export {
   ContextBar,
   type ContextBarProps,
 } from "./context-bar/context-bar";
+export { resolveEffectiveContext } from "./context-bar/state";
+export {
+  useWholeScopeFits,
+  type WholeScopeFit,
+} from "./context-bar/use-whole-scope-fits";
 export {
   ContextMeter,
   type ContextMeterProps,

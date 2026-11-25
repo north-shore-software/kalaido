@@ -1,7 +1,7 @@
-import { ClockIcon } from "@phosphor-icons/react";
 import { MarkdownContent } from "@kalaido/components";
 import { Mono, StatusPill } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
+import { ClockIcon } from "@phosphor-icons/react";
 
 export interface Window {
   start: string;
@@ -34,11 +34,91 @@ function windowRange(windows: Window[]): string {
   return start === end ? start : `${start} → ${end}`;
 }
 
+function describeRotationCard({
+  isReflection,
+  entropy,
+  windows,
+  busy,
+  hasCandidate,
+}: {
+  isReflection: boolean;
+  entropy: number;
+  windows: Window[];
+  busy: boolean;
+  hasCandidate: boolean;
+}) {
+  const statusBadge = isReflection
+    ? windows.length > 0
+      ? {
+          kind: "neutral" as const,
+          text: `${windows.length} window${windows.length > 1 ? "s" : ""}`,
+        }
+      : null
+    : entropy > 0
+      ? { kind: "drifting" as const, text: `${entropy} new` }
+      : null;
+
+  return {
+    swatchClass: isReflection
+      ? "size-4 bg-violet rounded-none shrink-0"
+      : "size-4 bg-green rounded-none shrink-0",
+    kindClass: isReflection
+      ? "border-violet/45 bg-violet/10 text-violet"
+      : "border-green/45 bg-green/10 text-green",
+    kindLabel: isReflection ? "REFL" : "PROJ",
+    statusBadge,
+    approveDisabled: busy || (!isReflection && !hasCandidate),
+    approveLabel: isReflection ? "Generate · next ↓" : "Approve · next ↓",
+  };
+}
+
+function RotationCardBody({
+  isReflection,
+  windows,
+  draft,
+}: {
+  isReflection: boolean;
+  windows: Window[];
+  draft?: string;
+}) {
+  if (isReflection) {
+    return (
+      <div className="px-5 py-4">
+        {windows.length > 0 ? (
+          <div className="flex items-center gap-2.5">
+            <ClockIcon className="size-4 text-fg-3" />
+            <Mono className="text-meta text-fg-2">
+              {windowRange(windows)} · auto-approved
+            </Mono>
+          </div>
+        ) : (
+          <p className="text-body-sm text-fg-2">
+            Dependencies moved on — regenerate to catch up.
+          </p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="max-h-[280px] overflow-y-auto px-5 py-4">
+      {draft ? (
+        <div className="text-body leading-relaxed text-fg-1">
+          <MarkdownContent content={draft} />
+        </div>
+      ) : (
+        <p className="text-body-sm text-fg-2">Generating draft…</p>
+      )}
+    </div>
+  );
+}
+
+const EMPTY_WINDOWS: Window[] = [];
+
 export function ActiveRotationCard({
   name,
   isReflection,
   entropy = 0,
-  windows = [],
+  windows = EMPTY_WINDOWS,
   draft,
   busy,
   hasCandidate,
@@ -46,66 +126,34 @@ export function ActiveRotationCard({
   onTweak,
   onApprove,
 }: ActiveRotationCardProps) {
+  const view = describeRotationCard({
+    isReflection,
+    entropy,
+    windows,
+    busy,
+    hasCandidate,
+  });
+
   return (
     <div className="mb-3 flex flex-1 flex-col overflow-hidden rounded-none border border-line bg-card">
       <div className="flex items-center justify-between border-b border-line px-4 py-3.5">
         <div className="flex items-center gap-2.5">
-          <span
-            className={
-              isReflection
-                ? "size-4 bg-violet rounded-none shrink-0"
-                : "size-4 bg-green rounded-none shrink-0"
-            }
-          />
+          <span className={view.swatchClass} />
           <span className="text-card-title font-bold text-fg-1">{name}</span>
-          <StatusPill
-            className={
-              isReflection
-                ? "border-violet/45 bg-violet/10 text-violet"
-                : "border-green/45 bg-green/10 text-green"
-            }
-          >
-            {isReflection ? "REFL" : "PROJ"}
-          </StatusPill>
+          <StatusPill className={view.kindClass}>{view.kindLabel}</StatusPill>
         </div>
-        {isReflection
-          ? windows.length > 0 && (
-              <StatusPill kind="neutral">
-                {windows.length} window
-                {windows.length > 1 ? "s" : ""}
-              </StatusPill>
-            )
-          : entropy > 0 && (
-              <StatusPill kind="drifting">{entropy} new</StatusPill>
-            )}
+        {view.statusBadge && (
+          <StatusPill kind={view.statusBadge.kind}>
+            {view.statusBadge.text}
+          </StatusPill>
+        )}
       </div>
 
-      {isReflection ? (
-        <div className="px-5 py-4">
-          {windows.length > 0 ? (
-            <div className="flex items-center gap-2.5">
-              <ClockIcon className="size-4 text-fg-3" />
-              <Mono className="text-meta text-fg-2">
-                {windowRange(windows)} · auto-approved
-              </Mono>
-            </div>
-          ) : (
-            <p className="text-body-sm text-fg-2">
-              Dependencies moved on — regenerate to catch up.
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="max-h-[280px] overflow-y-auto px-5 py-4">
-          {draft ? (
-            <div className="text-body leading-relaxed text-fg-1">
-              <MarkdownContent content={draft} />
-            </div>
-          ) : (
-            <p className="text-body-sm text-fg-2">Generating draft…</p>
-          )}
-        </div>
-      )}
+      <RotationCardBody
+        isReflection={isReflection}
+        windows={windows}
+        draft={draft}
+      />
 
       <div className="flex items-center justify-between border-t border-line bg-background px-4 py-3">
         <Button variant="ghost" onClick={onSkip}>
@@ -123,10 +171,10 @@ export function ActiveRotationCard({
           )}
           <Button
             variant="commit"
-            disabled={busy || (!isReflection && !hasCandidate)}
+            disabled={view.approveDisabled}
             onClick={onApprove}
           >
-            {isReflection ? "Generate · next ↓" : "Approve · next ↓"}
+            {view.approveLabel}
           </Button>
         </div>
       </div>

@@ -2,10 +2,8 @@ import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { useScope, useScopeState } from "@kalaido/state/scope";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
-import { defineRoute } from "@/routes/route-kit";
 import { DesktopScopeContext } from "@/state/app-state.ts";
 import { RecoveryScreen } from "../components/recovery-screen";
-import { bootErrorTransitions } from "./BootError.transitions";
 
 export default function BootError() {
   const root = useScopeContext(DesktopScopeContext);
@@ -47,12 +45,3 @@ export default function BootError() {
     />
   );
 }
-
-export const bootErrorRoute = defineRoute({
-  id: "boot-error",
-  path: "/boot-error",
-  feature: "Boot",
-  requiredScope: [],
-  transitions: bootErrorTransitions,
-  Component: BootError,
-});

@@ -10,17 +10,7 @@ import { kalaidoscopeAuthHeaders } from "@kalaido/client/kalaidoscope/client";
 import { kalaidoscopeEndpointTag } from "@kalaido/hooks/kalaidoscope-live";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import type { KalaidoscopeMeta } from "@kalaido/platform";
-import { Label, StatusPill } from "@kalaido/primitives/kalaido";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@kalaido/primitives/shadcn/alert-dialog";
+import { ConfirmDialog, Label, StatusPill } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
 import {
@@ -162,45 +152,28 @@ export function WorkspaceBackupsView({
         </div>
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!restoringId}
         onOpenChange={(open) => {
           if (!open) setRestoringId(null);
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Restore workspace</AlertDialogTitle>
-            <AlertDialogDescription>
-              Restore this workspace? A safety snapshot of your current state
-              will be created, and your workspace will reload.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={busy}
-              onClick={() => {
-                if (restoringId) {
-                  const id = restoringId;
-                  setRestoringId(null);
-                  onRestore(id);
-                }
-              }}
-            >
-              Restore
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Restore workspace"
+        description="Restore this workspace? A safety snapshot of your current state will be created, and your workspace will reload."
+        confirmLabel="Restore"
+        busy={busy}
+        onConfirm={() => {
+          if (restoringId) {
+            const id = restoringId;
+            setRestoringId(null);
+            onRestore(id);
+          }
+        }}
+      />
     </div>
   );
 }
 
-export function sanitizeExportName(
-  displayName: string,
-  fallbackId: string,
-): string {
+function sanitizeExportName(displayName: string, fallbackId: string): string {
   const sanitized = displayName
     // biome-ignore lint/suspicious/noControlCharactersInRegex: sanitize control characters for filesystem safety
     .replace(/[/\\:*?"<>|\x00-\x1f\x7f-\x9f]+/g, "-")

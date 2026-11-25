@@ -1,25 +1,7 @@
 import type { SidecarPhase } from "@/api/app/local-scopes";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 
-export function phaseLabel(phase: SidecarPhase): string {
-  switch (phase) {
-    case "running":
-      return "Connected";
-    case "spawning":
-    case "starting":
-      return "Starting…";
-    case "stopping":
-      return "Stopping…";
-    case "stopped":
-      return "Stopped";
-    case "failed":
-      return "Failed";
-    default:
-      return "Idle";
-  }
-}
-
-export function phaseDotClass(phase: SidecarPhase): string {
+function phaseDotClass(phase: SidecarPhase): string {
   switch (phase) {
     case "running":
       return "bg-stable";

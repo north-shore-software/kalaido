@@ -1,0 +1,118 @@
+import {
+  deleteProjection,
+  GenerationInFlightError,
+  regenerateProjection,
+  restoreProjection,
+  updateProjection,
+} from "@kalaido/client/kalaidoscope/projections";
+import {
+  kalaidoscopeCollectionTag,
+  kalaidoscopeEndpointTag,
+} from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { useExternalWrite } from "@kalaido/state/live";
+import { toast } from "sonner";
+
+function toastDeleteError(error: Error) {
+  if (error instanceof GenerationInFlightError) {
+    toast.error("Can't delete while generating", {
+      description: error.message,
+    });
+    return;
+  }
+  toast.error("Failed to delete projection", { description: error.message });
+}
+
+export function useProjectionDetailActions({
+  id,
+  onBackToList,
+  onReviewCandidate,
+}: {
+  id: string;
+  onBackToList: (opts?: { replace?: boolean }) => void;
+  onReviewCandidate: (
+    id: string,
+    snapshotId: string,
+    opts?: { replace?: boolean },
+  ) => void;
+}) {
+  const client = useKalaidoscopeClient();
+
+  const deleteWrite = useExternalWrite<string, void>({
+    execute: (targetId) => deleteProjection(targetId),
+    concurrency: "ignore",
+  });
+  const restoreWrite = useExternalWrite<string, void>({
+    execute: (targetId) => restoreProjection(targetId),
+    concurrency: "ignore",
+  });
+  const regenerateWrite = useExternalWrite<string, { readonly id: string }>({
+    execute: (targetId) => regenerateProjection(targetId),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
+  });
+  const renameWrite = useExternalWrite<
+    { targetId: string; name: string },
+    void
+  >({
+    execute: async ({ targetId, name }) =>
+      (await updateProjection(targetId, { name })).map(() => undefined),
+    concurrency: "ignore",
+  });
+
+  async function remove() {
+    if (!id) return;
+    const outcome = await deleteWrite.run(id);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toastDeleteError(outcome.error);
+      return;
+    }
+    onBackToList({ replace: true });
+    toast("Projection deleted", {
+      description: "Find it under Recently deleted to restore later.",
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void restoreWrite.run(id).then((r) => {
+            if (r.status === "error") {
+              toast.error("Failed to restore", {
+                description: r.error.message,
+              });
+            }
+          }),
+      },
+    });
+  }
+
+  async function handleRefresh() {
+    if (!id) return;
+    const outcome = await regenerateWrite.run(id);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Couldn't regenerate", {
+        description: outcome.error.message,
+      });
+      return;
+    }
+    onReviewCandidate(id, outcome.id);
+  }
+
+  async function handleRename(next: string) {
+    if (!id) return;
+    const outcome = await renameWrite.run({ targetId: id, name: next });
+    if (outcome.status === "error") {
+      toast.error("Failed to rename", { description: outcome.error.message });
+    }
+  }
+
+  return {
+    regenerating: regenerateWrite.isPending,
+    remove,
+    handleRefresh,
+    handleRename,
+  };
+}

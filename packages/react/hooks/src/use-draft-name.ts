@@ -23,31 +23,38 @@ type DraftNameEvent =
   | { readonly type: "applySuggestion"; readonly name: string }
   | { readonly type: "userRename"; readonly name: string };
 
+export interface DraftNameSeed {
+  readonly name: string;
+  readonly userNamed: boolean;
+}
+
 /**
  * The name of a projection/reflection while it is being drafted through a
  * refine chat. Owns the "who named it" question:
  *
- * - {@link adopt} seeds the state when the entity comes into being (or when a
- *   resumed draft is adopted): the starting name, and whether a person chose
- *   it (typed at creation, seeded from a fork) rather than a machine
- *   (prompt-derived fallback).
+ * - {@link adopt} (or declarative `seed`) seeds the state when the entity comes
+ *   into being (or when a resumed draft is adopted): the starting name, and
+ *   whether a person chose it (typed at creation, seeded from a fork) rather
+ *   than a machine (prompt-derived fallback).
  * - While the user hasn't named it, every new model suggestion (see
  *   `RefineSession.suggestedName`) is applied automatically — locally and via
  *   PATCH, so lists and sidebars show the good name mid-draft.
  * - {@link rename} is the user taking ownership: it patches and permanently
  *   stops suggestions from overwriting.
  *
- * `name` stays null until {@link adopt} — callers fall back to their static
- * title until then.
+ * `name` stays null until {@link adopt} or `seed` — callers fall back to their
+ * static title until then.
  */
 export function useDraftName({
   target,
   entityId,
   suggestedName,
+  seed,
 }: {
   target: "projection" | "reflection";
   entityId: string | null;
   suggestedName: string;
+  seed?: DraftNameSeed | null;
 }): {
   name: string | null;
   adopt: (initialName: string, userNamed: boolean) => void;
@@ -71,7 +78,10 @@ export function useDraftName({
     initial: (): DraftNameState => ({ name: null, userNamed: false }),
     handlers,
   });
-  const { name, userNamed } = useScopeState(scope);
+  const { name: localName, userNamed: localUserNamed } = useScopeState(scope);
+  const name = localName ?? seed?.name ?? null;
+  const userNamed =
+    localName !== null ? localUserNamed : (seed?.userNamed ?? false);
 
   const renameWrite = useExternalWrite<{ id: string; next: string }, void>({
     execute: async ({ id, next }) => {

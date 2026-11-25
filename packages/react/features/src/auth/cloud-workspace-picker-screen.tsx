@@ -1,4 +1,5 @@
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
+import { toError } from "@kalaido/client/lib/errors";
 import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
 import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { Button } from "@kalaido/primitives/shadcn/button";
@@ -35,9 +36,14 @@ export function CloudWorkspacePickerScreen({
   const load = useCallback(async () => {
     setLoading(true);
     setListError(null);
-    const result = await onSyncWorkspaces();
-    if (result.isErr()) setListError(result.error.message);
-    setLoading(false);
+    try {
+      const result = await onSyncWorkspaces();
+      if (result.isErr()) setListError(result.error.message);
+    } catch (e) {
+      setListError(toError(e).message);
+    } finally {
+      setLoading(false);
+    }
   }, [onSyncWorkspaces]);
 
   useEffect(() => {
@@ -51,9 +57,14 @@ export function CloudWorkspacePickerScreen({
     }
     setOpeningId(id);
     setOpenError(null);
-    const result = await onOpenWorkspace(id);
-    if (result.isErr()) setOpenError(result.error.message);
-    setOpeningId(null);
+    try {
+      const result = await onOpenWorkspace(id);
+      if (result.isErr()) setOpenError(result.error.message);
+    } catch (e) {
+      setOpenError(toError(e).message);
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   const cloudWorkspaces = activeKalaidoscopes(workspaces).filter(

@@ -1,4 +1,5 @@
 import type {
+  ContextItem,
   ContextSpec,
   TimeWindow,
 } from "@kalaido/client/kalaidoscope/chat";
@@ -20,9 +21,11 @@ import {
   useScopeState,
 } from "@kalaido/state/scope";
 import { generateId, type UIMessage } from "ai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useLiveCollection } from "#use-live-collection";
+import { type KalaidoChatController, useKalaidoChat } from "#use-kalaido-chat";
+import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
+import { useSyncRef } from "#use-sync-ref";
 
 export interface RefineSystemNotice {
   type: string;
@@ -31,37 +34,40 @@ export interface RefineSystemNotice {
   id?: string;
 }
 
+export interface ResumedRefinementSeed {
+  readonly parentId?: string;
+  readonly clientId: string;
+  readonly refinementId: string;
+  readonly messages: UIMessage[];
+}
+
 interface RefineControlState {
   parentId: string | null;
   clientId: string;
   refinementId: string | null;
-  firstPrompt: string | null;
   initialMessages: UIMessage[] | undefined;
-  seedStatus: "idle" | "loading" | "ready";
-  pendingNotices: RefineSystemNotice[] | null;
+  starting: boolean;
 }
 
 type RefineControlEvent =
+  | { readonly type: "setStarting"; readonly starting: boolean }
   | {
-      readonly type: "startSeed";
+      readonly type: "started";
       readonly parentId: string;
       readonly clientId: string;
       readonly refinementId: string;
-      readonly firstPrompt: string | null;
-      readonly pendingNotices: RefineSystemNotice[] | null;
-    }
-  | {
-      readonly type: "seedLoaded";
       readonly messages: UIMessage[];
     }
-  | {
-      readonly type: "resume";
-      readonly parentId?: string;
-      readonly clientId: string;
-      readonly refinementId: string;
-      readonly messages: UIMessage[] | undefined;
-    }
   | { readonly type: "reset" };
+
+interface ResolvedRefineIdentity {
+  readonly parentId: string | null;
+  readonly clientId: string;
+  readonly refinementId: string | null;
+  readonly initialMessages: UIMessage[] | undefined;
+  readonly started: boolean;
+  readonly api: string | undefined;
+}
 
 function buildSystemNoticeMessages(
   notices: readonly RefineSystemNotice[] | null,
@@ -83,38 +89,71 @@ function buildSystemNoticeMessages(
   });
 }
 
+function buildRefineApi(
+  target: "projection" | "reflection",
+  parentId: string | null,
+  refinementId: string | null,
+): string | undefined {
+  if (!parentId || !refinementId) return undefined;
+  return `/api/${target}s/${encodeURIComponent(parentId)}/refinements/${encodeURIComponent(refinementId)}/chat`;
+}
+
+function resolveRefineIdentity(
+  target: "projection" | "reflection",
+  control: RefineControlState,
+  resumed: ResumedRefinementSeed | null | undefined,
+): ResolvedRefineIdentity {
+  if (control.refinementId !== null) {
+    return {
+      parentId: control.parentId,
+      clientId: control.clientId,
+      refinementId: control.refinementId,
+      initialMessages: control.initialMessages,
+      started: true,
+      api: buildRefineApi(target, control.parentId, control.refinementId),
+    };
+  }
+  if (resumed) {
+    const parentId = resumed.parentId ?? null;
+    return {
+      parentId,
+      clientId: resumed.clientId,
+      refinementId: resumed.refinementId,
+      initialMessages: resumed.messages,
+      started: true,
+      api: buildRefineApi(target, parentId, resumed.refinementId),
+    };
+  }
+  return {
+    parentId: null,
+    clientId: control.clientId,
+    refinementId: null,
+    initialMessages: undefined,
+    started: false,
+    api: undefined,
+  };
+}
+
 /**
  * The shared lifecycle of a "refine via chat" session, used by every surface
  * that drafts a projection/reflection through {@link ChatPanel}: New Projection,
  * New Reflection, Projection Review, the reflection detail panel, and resuming an
- * uncommitted draft. Each of those keeps its own layout and parent-creation
- * logic; this hook owns the parts they all repeat — the chat identity, the live
- * message list, the drafted-snapshot preview, and committing.
- *
- * The session has three ways to come into being:
- * - {@link RefineSession.start} — open a fresh refinement over an existing parent
- *   (callers create the parent first when authoring something brand-new).
- * - {@link RefineSession.resume} — adopt a refinement that already exists, seeding
- *   the chat with its persisted history (used to reopen an uncommitted draft).
- * - {@link RefineSession.reset} — drop the session and mint a new chat id (used
- *   when re-targeting, e.g. after a reflection commit promotes a new snapshot).
+ * uncommitted draft. Owns the chat controller (`useKalaidoChat`), live message
+ * stream, drafted-snapshot preview, and committing.
  */
 export interface RefineSession {
   /** Target entity type being refined. */
   target: "projection" | "reflection";
   /** Parent entity id if known. */
   parentId: string | null;
-  /** AI SDK chat id — pass to {@link ChatPanel}'s `chatId`. */
+  /** AI SDK chat id. */
   clientId: string;
   /** Null until a refinement is opened/adopted; `started` mirrors readiness. */
   refinementId: string | null;
-  /** Auto-sent once on mount when authoring fresh; pass as `initialPrompt`. */
-  firstPrompt: string | null;
-  /** History to seed a resumed chat; pass as `initialMessages`. */
-  initialMessages: UIMessage[] | undefined;
-  /** Live message list (mid-stream included), fed by `onMessagesChange`. */
+  /** Live chat controller passed directly to {@link RefineChatPanel}. */
+  chat: KalaidoChatController;
+  /** Live message list (mid-stream included) from `chat.messages`. */
   messages: UIMessage[];
-  onMessagesChange: (m: UIMessage[]) => void;
   /**
    * The latest applied output scraped from the chat — the drafted lens
    * executed against the sources, mid-stream partials included (empty until
@@ -143,26 +182,20 @@ export interface RefineSession {
   /** A `commit` call is in flight. */
   committing: boolean;
   /**
-   * Open a fresh refinement over `parentId`. `prompt` is remembered as the chat's
-   * auto-sent first message; `snapshotId` scopes the session to an existing
-   * snapshot (its context/window spec seeds the conversation). Returns whether it
-   * succeeded (errors are toasted).
+   * Open a fresh refinement over `parentId`. `prompt` is sent immediately once
+   * seeded history finishes loading; `context` (when provided) emits a
+   * `context_spec` before that first turn if it differs from the seeded
+   * baseline.
    */
   start: (args: {
     parentId: string;
     prompt?: string;
     snapshotId?: string;
     contextSpec?: ContextSpec;
+    context?: ContextItem[];
     window?: TimeWindow;
     systemNotices?: RefineSystemNotice[];
   }) => Promise<boolean>;
-  /** Adopt an already-persisted refinement, seeding the chat with its history. */
-  resume: (args: {
-    parentId?: string;
-    clientId: string;
-    refinementId: string;
-    messages?: UIMessage[];
-  }) => void;
   /** Drop the session and mint a new chat id. */
   reset: () => void;
   /**
@@ -175,44 +208,34 @@ export interface RefineSession {
 
 export function useRefineSession({
   target,
+  resumed,
   onCommitted,
 }: {
   target: "projection" | "reflection";
+  /** Declarative resumed refinement seed (takes effect until `start()` runs). */
+  resumed?: ResumedRefinementSeed | null;
   onCommitted?: (snapshotId: string) => void;
 }): RefineSession {
+  const client = useKalaidoscopeClient();
+  const [idleChatId] = useState(() => generateId());
+
   const handlers: ScopeHandlers<RefineControlState, RefineControlEvent> = {
-    startSeed: (s, e) => {
+    setStarting: (s, e) => {
+      s.starting = e.starting;
+    },
+    started: (s, e) => {
       s.parentId = e.parentId;
       s.clientId = e.clientId;
       s.refinementId = e.refinementId;
-      s.firstPrompt = e.firstPrompt;
-      s.initialMessages = undefined;
-      s.seedStatus = "loading";
-      s.pendingNotices = e.pendingNotices;
-    },
-    seedLoaded: (s, e) => {
-      if (s.seedStatus !== "loading") return;
       s.initialMessages = e.messages.length ? e.messages : undefined;
-      s.seedStatus = "ready";
-      s.pendingNotices = null;
-    },
-    resume: (s, e) => {
-      s.clientId = e.clientId;
-      s.refinementId = e.refinementId;
-      if (e.parentId) s.parentId = e.parentId;
-      s.initialMessages = e.messages;
-      s.firstPrompt = null;
-      s.seedStatus = "ready";
-      s.pendingNotices = null;
+      s.starting = false;
     },
     reset: (s) => {
       s.clientId = generateId();
       s.parentId = null;
       s.refinementId = null;
-      s.firstPrompt = null;
       s.initialMessages = undefined;
-      s.seedStatus = "idle";
-      s.pendingNotices = null;
+      s.starting = false;
     },
   };
   const scope = useScope({
@@ -220,67 +243,23 @@ export function useRefineSession({
       parentId: null,
       clientId: generateId(),
       refinementId: null,
-      firstPrompt: null,
       initialMessages: undefined,
-      seedStatus: "idle",
-      pendingNotices: null,
+      starting: false,
     }),
     handlers,
   });
 
-  const {
-    parentId,
-    clientId,
-    refinementId,
-    firstPrompt,
-    initialMessages,
-    seedStatus,
-    pendingNotices,
-  } = useScopeState(scope);
+  const control = useScopeState(scope) as RefineControlState;
+  const identity = resolveRefineIdentity(target, control, resumed);
 
-  // Category 5 streaming mirror fed by ChatPanel's onMessagesChange.
-  const [messages, setMessages] = useState<UIMessage[]>([]);
-  const onMessagesChange = useCallback((m: UIMessage[]) => setMessages(m), []);
+  const identityRef = useRef(identity);
+  useSyncRef(identityRef, identity);
 
-  const fkField =
-    target === "projection"
-      ? "projection_refinement_id"
-      : "reflection_refinement_id";
-
-  // Pure CQRS seed read: enabled only while waiting for freshly-created
-  // refinement seed rows, then latched off so mid-turn SSE writes never race
-  // `useChat`'s live stream.
-  const seedQuery = useLiveCollection("chat_message", {
-    filter: refinementId ? `${fkField}="${refinementId}"` : undefined,
-    sort: "created",
-    enabled: refinementId !== null && seedStatus === "loading",
+  const chat = useKalaidoChat({
+    chatId: identity.started ? identity.clientId : idleChatId,
+    api: identity.api,
+    initialMessages: identity.started ? identity.initialMessages : undefined,
   });
-
-  useEffect(() => {
-    if (seedStatus !== "loading" || refinementId === null) return;
-    if (seedQuery.status === "ready") {
-      const seeded = seedQuery.records
-        .map((r) => r.content as UIMessage | null)
-        .filter((m): m is UIMessage => m != null);
-      const history: UIMessage[] = seeded.length
-        ? [...normalizeRefinementMessages(seeded)]
-        : [];
-      history.push(...buildSystemNoticeMessages(pendingNotices));
-      setMessages(history);
-      void scope.dispatch({ type: "seedLoaded", messages: history });
-    } else if (seedQuery.status === "error") {
-      const fallback = buildSystemNoticeMessages(pendingNotices);
-      setMessages(fallback);
-      void scope.dispatch({ type: "seedLoaded", messages: fallback });
-    }
-  }, [
-    seedStatus,
-    refinementId,
-    seedQuery.status,
-    seedQuery.records,
-    pendingNotices,
-    scope,
-  ]);
 
   const createWrite = useExternalWrite<
     {
@@ -305,76 +284,98 @@ export function useRefineSession({
     concurrency: "ignore",
   });
 
+  const messages = chat.messages;
   const preview = extractPreviewFromMessages(messages);
   const previewReady = extractPreviewReady(messages);
   const hasDraftedLens = extractHasDraftedLens(messages);
   const phase = extractRefinePhase(messages);
   const suggestedName = extractSuggestedNameFromMessages(messages);
-  const started = refinementId != null && seedStatus === "ready";
-  const creating = createWrite.isPending || seedStatus === "loading";
+  const creating = createWrite.isPending || control.starting;
   const committing = commitWrite.isPending;
 
+  const { openAndSend } = chat;
   const start = useCallback<RefineSession["start"]>(
     async ({
       parentId: nextParentId,
       prompt,
       snapshotId,
       contextSpec,
+      context,
       window,
       systemNotices,
     }) => {
-      if (scope.state.seedStatus === "loading") return false;
+      if (scope.state.starting) return false;
       const newClientId = generateId();
-      const outcome = await createWrite.run({
-        parentId: nextParentId,
-        clientId: newClientId,
-        snapshotId,
-        contextSpec,
-        window,
-      });
-      if (outcome.status === "ignored") return false;
-      if (outcome.status === "error") {
-        toast.error("Failed to open refinement", {
-          description: outcome.error.message,
+      await scope.dispatch({ type: "setStarting", starting: true });
+      try {
+        const outcome = await createWrite.run({
+          parentId: nextParentId,
+          clientId: newClientId,
+          snapshotId,
+          contextSpec,
+          window,
         });
-        return false;
-      }
-      setMessages([]);
-      await scope.dispatch({
-        type: "startSeed",
-        parentId: nextParentId,
-        clientId: newClientId,
-        refinementId: outcome.id,
-        firstPrompt: prompt ?? null,
-        pendingNotices: systemNotices ?? null,
-      });
-      return true;
-    },
-    [createWrite, scope],
-  );
+        if (outcome.status === "ignored") return false;
+        if (outcome.status === "error") {
+          toast.error("Failed to open refinement", {
+            description: outcome.error.message,
+          });
+          return false;
+        }
 
-  const resume = useCallback<RefineSession["resume"]>(
-    (args) => {
-      setMessages(args.messages ?? []);
-      void scope.dispatch({
-        type: "resume",
-        parentId: args.parentId,
-        clientId: args.clientId,
-        refinementId: args.refinementId,
-        messages: args.messages,
-      });
+        const fkField =
+          target === "projection"
+            ? "projection_refinement_id"
+            : "reflection_refinement_id";
+        let seeded: UIMessage[] = [];
+        try {
+          const records = await client.collection("chat_message").getFullList({
+            filter: client.filter(`${fkField} = {:id}`, { id: outcome.id }),
+            sort: "created",
+            requestKey: null,
+          });
+          const raw = records
+            .map((r) => r.content as UIMessage | null)
+            .filter((m): m is UIMessage => m != null);
+          seeded = raw.length ? [...normalizeRefinementMessages(raw)] : [];
+        } catch {
+          // Proceed with system notices only if the one-shot seed read fails.
+        }
+        const history: UIMessage[] = [
+          ...seeded,
+          ...buildSystemNoticeMessages(systemNotices ?? null),
+        ];
+
+        openAndSend({
+          chatId: newClientId,
+          api: buildRefineApi(target, nextParentId, outcome.id),
+          initialMessages: history.length ? history : undefined,
+          prompt,
+          context,
+        });
+
+        await scope.dispatch({
+          type: "started",
+          parentId: nextParentId,
+          clientId: newClientId,
+          refinementId: outcome.id,
+          messages: history,
+        });
+        return true;
+      } finally {
+        await scope.dispatch({ type: "setStarting", starting: false });
+      }
     },
-    [scope],
+    [client, createWrite, openAndSend, scope, target],
   );
 
   const reset = useCallback<RefineSession["reset"]>(() => {
-    setMessages([]);
     void scope.dispatch({ type: "reset" });
   }, [scope]);
 
   const commit = useCallback<RefineSession["commit"]>(
     async (nextParentId) => {
-      const currentRefinementId = scope.state.refinementId;
+      const currentRefinementId = identityRef.current.refinementId;
       if (!currentRefinementId) return false;
       const outcome = await commitWrite.run({
         parentId: nextParentId,
@@ -390,28 +391,25 @@ export function useRefineSession({
       onCommitted?.(outcome.id);
       return true;
     },
-    [commitWrite, scope, onCommitted],
+    [commitWrite, onCommitted],
   );
 
   return {
     target,
-    parentId,
-    clientId,
-    refinementId,
-    firstPrompt,
-    initialMessages: initialMessages as UIMessage[] | undefined,
+    parentId: identity.parentId,
+    clientId: identity.clientId,
+    refinementId: identity.refinementId,
+    chat,
     messages,
-    onMessagesChange,
     preview,
     previewReady,
     hasDraftedLens,
     phase,
     suggestedName,
-    started,
+    started: identity.started,
     creating,
     committing,
     start,
-    resume,
     reset,
     commit,
   };

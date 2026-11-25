@@ -29,33 +29,6 @@ export function ListRow({
   variant = "list",
   className,
 }: ListRowProps) {
-  const body = (
-    <>
-      {leading}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span
-          className={cn(
-            "truncate text-row",
-            variant === "card" || selected ? "font-semibold" : "font-medium",
-          )}
-        >
-          {title}
-        </span>
-        {subtitle != null && (
-          <Mono
-            className={cn(
-              "text-mono-sm",
-              variant === "card" ? "text-fg-3" : "text-fg-4",
-            )}
-          >
-            {subtitle}
-          </Mono>
-        )}
-      </div>
-      {trailing}
-    </>
-  );
-
   const classes = cn(
     "flex items-center gap-4 rounded-none",
     variant === "card"
@@ -65,12 +38,58 @@ export function ListRow({
     className,
   );
 
+  const titleClasses = cn(
+    "w-full truncate text-row",
+    variant === "card" || selected ? "font-semibold" : "font-medium",
+  );
+
+  const subtitleNode =
+    subtitle != null ? (
+      <Mono
+        className={cn(
+          "text-mono-sm",
+          variant === "card" ? "text-fg-3" : "text-fg-4",
+        )}
+      >
+        {subtitle}
+      </Mono>
+    ) : null;
+
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={classes}>
-        {body}
-      </button>
+      <div
+        className={cn(
+          classes,
+          "relative has-[[data-row-primary]:focus-visible]:ring-2 has-[[data-row-primary]:focus-visible]:ring-inset has-[[data-row-primary]:focus-visible]:ring-ring/50",
+        )}
+      >
+        {leading}
+        <button
+          type="button"
+          data-row-primary
+          onClick={onClick}
+          className="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 text-left outline-none after:absolute after:inset-0 after:content-['']"
+        >
+          <span className={titleClasses}>{title}</span>
+          {subtitleNode}
+        </button>
+        {trailing && (
+          <div className="relative z-10 pointer-events-none flex shrink-0 items-center [&_a]:pointer-events-auto [&_button]:pointer-events-auto">
+            {trailing}
+          </div>
+        )}
+      </div>
     );
   }
-  return <div className={classes}>{body}</div>;
+
+  return (
+    <div className={classes}>
+      {leading}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className={titleClasses}>{title}</span>
+        {subtitleNode}
+      </div>
+      {trailing}
+    </div>
+  );
 }

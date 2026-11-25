@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
 import type { RefinePhase } from "@kalaido/client/kalaidoscope/refinements";
 import { MarkdownContent } from "@kalaido/components";
+import { useAutoScroll } from "@kalaido/hooks/use-auto-scroll";
 import { Pill } from "@kalaido/primitives/kalaido";
 import { PaneHeader } from "@kalaido/primitives/layout/page-primitives";
-import { useAutoScroll } from "@kalaido/hooks/use-auto-scroll";
 import { cn } from "@kalaido/primitives/lib/css-utils";
+import type { ReactNode } from "react";
 
 export interface LivePreviewPaneProps {
   started: boolean;
@@ -20,6 +20,22 @@ export interface LivePreviewPaneProps {
   className?: string;
 }
 
+function previewPhasePillLabel(
+  phase: RefinePhase,
+  hasPreview: boolean,
+): string {
+  if (phase === "drafting") return "drafting";
+  if (phase === "applying") return "generating";
+  return hasPreview ? "draft" : "pending";
+}
+
+function emptyPreviewCopy(started: boolean, phase: RefinePhase): string {
+  if (!started) return "Send a first message to generate a draft.";
+  if (phase === "drafting") return "Drafting the instruction…";
+  if (phase === "applying") return "Generating the preview…";
+  return "Generating…";
+}
+
 export function LivePreviewPane({
   started,
   preview = "",
@@ -32,6 +48,8 @@ export function LivePreviewPane({
     content: preview,
   });
 
+  const hasPreview = preview.length > 0;
+
   return (
     <div className={cn("flex min-w-0 flex-[1.1] flex-col", className)}>
       <PaneHeader
@@ -40,13 +58,7 @@ export function LivePreviewPane({
           <div className="flex min-w-0 items-center gap-2">
             {header}
             <Pill tone="primary" dot>
-              {phase === "drafting"
-                ? "drafting"
-                : phase === "applying"
-                  ? "generating"
-                  : preview.length > 0
-                    ? "draft"
-                    : "pending"}
+              {previewPhasePillLabel(phase, hasPreview)}
             </Pill>
           </div>
         }
@@ -56,21 +68,13 @@ export function LivePreviewPane({
         onScroll={onScroll}
         className="flex-1 overflow-y-auto p-5"
       >
-        {!started ? (
-          <p className="text-body-sm text-fg-2">
-            Send a first message to generate a draft.
-          </p>
-        ) : preview.length > 0 ? (
+        {started && hasPreview ? (
           <div className="text-body leading-relaxed text-fg-1">
             <MarkdownContent streaming content={preview} />
           </div>
         ) : (
           <p className="text-body-sm text-fg-2">
-            {phase === "drafting"
-              ? "Drafting the instruction…"
-              : phase === "applying"
-                ? "Generating the preview…"
-                : "Generating…"}
+            {emptyPreviewCopy(started, phase)}
           </p>
         )}
       </div>

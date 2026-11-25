@@ -1,7 +1,7 @@
 import { ProjectionReviewScreen } from "@kalaido/features/projections";
 import { useCallback } from "react";
 import { PageLayout } from "@/components/layout/page-layout";
-import { defineRoute } from "@/routes/route-kit";
+import { AppRedirect } from "@/routes/app-redirect";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { useAppRouteState } from "@/routes/use-app-route-state";
@@ -26,6 +26,18 @@ export default function ProjectionReview() {
     [go],
   );
 
+  const renderCandidateRedirect = useCallback(
+    (projId: string, nextSnapshotId: string, opts: { wave: boolean }) => (
+      <AppRedirect
+        transition={projectionReviewTransitions.viewReview}
+        params={{ id: projId, snapshotId: nextSnapshotId }}
+        state={opts.wave ? { wave: true } : undefined}
+        replace
+      />
+    ),
+    [],
+  );
+
   return (
     <PageLayout>
       <ProjectionReviewScreen
@@ -33,6 +45,7 @@ export default function ProjectionReview() {
         snapshotId={snapshotId}
         inWave={Boolean(routeState?.wave)}
         onViewReview={handleViewReview}
+        renderCandidateRedirect={renderCandidateRedirect}
         onApproveSuccess={(projId) =>
           go(projectionReviewTransitions.approveSuccess, {
             params: { id: projId },
@@ -55,12 +68,3 @@ export default function ProjectionReview() {
     </PageLayout>
   );
 }
-
-export const projectionReviewRoute = defineRoute({
-  id: "projection-review",
-  path: "/projections/:id/review/:snapshotId",
-  feature: "Projections",
-  requiredScope: ["kalaidoscope"],
-  transitions: projectionReviewTransitions,
-  Component: ProjectionReview,
-});

@@ -202,16 +202,14 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
             <ColourComposerPane
               name={draftName}
               prompt={draftPrompt}
-              typeFilter={preview.typeFilter}
               previewing={preview.previewing}
-              previewFragments={preview.fragments}
+              matches={preview.matches}
               onName={(name) =>
                 void scope.dispatch({ type: "setDraftName", name })
               }
               onPrompt={(prompt) =>
                 void scope.dispatch({ type: "setDraftPrompt", prompt })
               }
-              onTypeFilter={preview.setTypeFilter}
               seededCount={seedExamples.length}
             />
           ) : selected ? (

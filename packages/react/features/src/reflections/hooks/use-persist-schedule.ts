@@ -1,7 +1,8 @@
 import type { WindowSpec } from "@kalaido/client/kalaidoscope/chat";
 import { updateReflection } from "@kalaido/client/kalaidoscope/reflections";
+import { useSyncRef } from "@kalaido/hooks/use-sync-ref";
 import { useExternalWrite } from "@kalaido/state/live";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { scheduleKey } from "../schedule";
 
@@ -28,9 +29,7 @@ export function usePersistSchedule({
   const baselineRef = useRef<string | null>(null);
   const forRef = useRef<string | null>(null);
   const onPersistedRef = useRef(onPersisted);
-  useLayoutEffect(() => {
-    onPersistedRef.current = onPersisted;
-  });
+  useSyncRef(onPersistedRef, onPersisted);
 
   const scheduleWrite = useExternalWrite<
     { id: string; windowSpec: WindowSpec },

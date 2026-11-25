@@ -29,7 +29,7 @@ import {
   StateNavigationListener,
 } from "./router-listeners";
 
-export function routeElements(defs: RouteDef[]) {
+function routeElements(defs: RouteDef[]) {
   return defs.flatMap((def) =>
     [def.path, ...(def.aliases ?? [])].map((path) => (
       <Route

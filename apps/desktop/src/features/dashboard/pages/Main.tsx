@@ -2,7 +2,6 @@ import { DashboardScreen } from "@kalaido/features/dashboard";
 import { PageLayout } from "@/components/layout/page-layout";
 import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
 import { openAddFragmentModal } from "@/state/app-state-actions.ts";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { mainTransitions } from "./Main.transitions";
 
@@ -45,12 +44,3 @@ export default function Main() {
     </PageLayout>
   );
 }
-
-export const mainRoute = defineRoute({
-  id: "main",
-  path: "/main",
-  feature: "Dashboard",
-  requiredScope: ["kalaidoscope"],
-  transitions: mainTransitions,
-  Component: Main,
-});

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { checkForUpdatesAndPrompt } from "@/lib/app-updates.ts";
 import { cn } from "@kalaido/primitives/lib/css-utils";
-import { defineRoute } from "@/routes/route-kit";
 import { RouteLink } from "@/routes/route-link";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
@@ -113,12 +112,3 @@ export default function Settings() {
     </div>
   );
 }
-
-export const settingsRoute = defineRoute({
-  id: "settings",
-  path: "/settings/:section?",
-  feature: "Settings",
-  requiredScope: [],
-  transitions: settingsTransitions,
-  Component: Settings,
-});

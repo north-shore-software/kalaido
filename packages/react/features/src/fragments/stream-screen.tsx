@@ -21,7 +21,7 @@ import {
   useLiveCollection,
   useLiveCollectionWatching,
 } from "@kalaido/hooks/use-live-collection";
-import { Mono, Pill } from "@kalaido/primitives/kalaido";
+import { Pill } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Checkbox } from "@kalaido/primitives/shadcn/checkbox";
 import { useExternalWrite } from "@kalaido/state/live";
@@ -335,23 +335,17 @@ export function StreamScreen({
               return (
                 <F key={f.id}>
                   {head && <DayHeader day={f.day} first={i === 0} />}
-                  {/* biome-ignore lint/a11y/useSemanticElements: cannot be a <button> — child cards render markdown with interactive elements and nesting interactive elements inside a button is invalid. */}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={selecting ? isSelected : undefined}
-                    className="group flex w-full min-w-0 cursor-pointer items-start gap-4 text-left"
-                    onClick={() => openOrToggle(f.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        openOrToggle(f.id);
-                      }
-                    }}
-                  >
-                    <Mono className="w-11 shrink-0 pt-3 text-right text-meta text-fg-4">
+                  <div className="group relative flex w-full min-w-0 items-start gap-4 text-left has-[[data-row-primary]:focus-visible]:ring-2 has-[[data-row-primary]:focus-visible]:ring-inset has-[[data-row-primary]:focus-visible]:ring-ring/50">
+                    <button
+                      type="button"
+                      data-row-primary
+                      aria-label={f.title || f.type}
+                      aria-pressed={selecting ? isSelected : undefined}
+                      onClick={() => openOrToggle(f.id)}
+                      className="w-11 shrink-0 cursor-pointer pt-3 text-right font-mono text-meta text-fg-4 outline-none after:absolute after:inset-0 after:content-['']"
+                    >
                       {f.time}
-                    </Mono>
+                    </button>
                     <div className="flex w-3.5 shrink-0 flex-col items-center self-stretch">
                       {selecting ? (
                         <Checkbox

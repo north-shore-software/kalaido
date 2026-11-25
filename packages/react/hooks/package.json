@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/react": "^3.0.184",
     "@kalaido/client": "workspace:*",
     "@kalaido/platform": "workspace:*",
     "@kalaido/state": "workspace:*",

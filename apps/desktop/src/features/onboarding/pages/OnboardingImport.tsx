@@ -8,7 +8,6 @@ import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import { desktopImportAdapter } from "@/features/import/desktop-import-adapter";
 import { clearStageEntry } from "@/state/app-state-actions.ts";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { OnboardingShell } from "../components/onboarding-shell";
 import { onboardingImportTransitions as transitions } from "./OnboardingImport.transitions";
@@ -59,12 +58,3 @@ export default function OnboardingImport() {
     </OnboardingShell>
   );
 }
-
-export const onboardingImportRoute = defineRoute({
-  id: "onboarding-import",
-  path: "/onboarding/import",
-  feature: "Onboarding",
-  requiredScope: ["kalaidoscope"],
-  transitions,
-  Component: OnboardingImport,
-});

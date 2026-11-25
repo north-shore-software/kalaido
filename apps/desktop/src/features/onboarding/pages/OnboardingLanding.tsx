@@ -18,7 +18,6 @@ import {
   createKalaidoscope,
 } from "@/features/create-kalaidoscope/actions.ts";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { allKalaidoscopes, DesktopScopeContext } from "@/state/app-state.ts";
 import { PrimaryChoice, SecondaryChoice } from "../components/choice-cards";
@@ -197,12 +196,3 @@ export default function OnboardingLanding() {
     </>
   );
 }
-
-export const onboardingLandingRoute = defineRoute({
-  id: "onboarding-landing",
-  path: "/onboarding",
-  feature: "Onboarding",
-  requiredScope: [],
-  transitions,
-  Component: OnboardingLanding,
-});

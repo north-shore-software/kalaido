@@ -62,6 +62,51 @@ function turnKey(messages: UIMessage[]): string {
   return "";
 }
 
+function buildPromptEstimate({
+  enabled,
+  streaming,
+  resolved,
+  effective,
+  currentSpecKey,
+  currentTurnKey,
+  isLoading,
+  hasError,
+  messages,
+}: {
+  enabled: boolean;
+  streaming: boolean;
+  resolved: TokenResolutionResponse | undefined;
+  effective: SettledKey | null;
+  currentSpecKey: string;
+  currentTurnKey: string;
+  isLoading: boolean;
+  hasError: boolean;
+  messages: UIMessage[];
+}): PromptEstimate {
+  const debouncing =
+    enabled &&
+    !streaming &&
+    (effective === null ||
+      effective.specKey !== currentSpecKey ||
+      effective.turnKey !== currentTurnKey);
+
+  const base: PromptEstimate = resolved
+    ? {
+        total: resolved.totalTokens,
+        limit: resolved.limit,
+        model: resolved.model,
+        measured: resolved.measured,
+        loading: enabled && (debouncing || isLoading),
+      }
+    : { loading: enabled && !hasError };
+
+  const live = streaming ? Math.ceil(streamingChars(messages) / 4) : 0;
+  if (live > 0 && base.total !== undefined) {
+    return { ...base, total: base.total + live };
+  }
+  return base;
+}
+
 /**
  * How full the conversation's context window is: the server's estimate of
  * the next turn (system prompt + context + transcript) against the model's
@@ -166,26 +211,15 @@ export function usePromptEstimate(args: {
     read.data ??
     (lastGood?.conversationId === conversationId ? lastGood.data : undefined);
 
-  const debouncing =
-    enabled &&
-    !streaming &&
-    (effective === null ||
-      effective.specKey !== currentSpecKey ||
-      effective.turnKey !== currentTurnKey);
-
-  const base: PromptEstimate = resolved
-    ? {
-        total: resolved.totalTokens,
-        limit: resolved.limit,
-        model: resolved.model,
-        measured: resolved.measured,
-        loading: enabled && (debouncing || read.isLoading),
-      }
-    : { loading: enabled && !read.error };
-
-  const live = streaming ? Math.ceil(streamingChars(messages) / 4) : 0;
-  if (live > 0 && base.total !== undefined) {
-    return { ...base, total: base.total + live };
-  }
-  return base;
+  return buildPromptEstimate({
+    enabled,
+    streaming,
+    resolved,
+    effective,
+    currentSpecKey,
+    currentTurnKey,
+    isLoading: read.isLoading,
+    hasError: Boolean(read.error),
+    messages,
+  });
 }

@@ -1,41 +1,27 @@
-import type { UIMessage } from "ai";
-import { useEffect, useMemo } from "react";
 import {
+  type ContextItem,
   parseActiveContext,
   specToItems,
 } from "@kalaido/client/kalaidoscope/chat";
 import { normalizeRefinementMessages } from "@kalaido/client/kalaidoscope/refinements";
 import type { ProjectionRefinementResponse } from "@kalaido/client/kalaidoscope/types";
-import type { ContextItem } from "@kalaido/client/kalaidoscope/chat";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import type { RefineSession } from "@kalaido/hooks/use-refine-session";
+import type { ResumedRefinementSeed } from "@kalaido/hooks/use-refine-session";
+import type { UIMessage } from "ai";
+import { useMemo } from "react";
 
 /**
- * Finds the in-progress refinement for a projection scope and adopts it into a
- * {@link RefineSession}, so a page re-entered mid-refinement resumes the chat and
- * live draft instead of showing an empty shell. Shared by the two surfaces that
- * can be left mid-refinement and returned to:
- * - {@link ProjectionDetail} authoring a brand-new projection — scope
- *   `snapshotId=""` (a draft that hasn't materialized a snapshot yet).
- * - {@link ProjectionReview} refining a pending candidate — scope
- *   `snapshotId=<pendingId>`.
- *
- * The two differ only in that scope; everything else — the conversation lookup,
- * loading its persisted history, and the guarded `resume` — is identical, and the
- * guard is load-bearing rather than cosmetic (see the effect below).
- *
- * Scoped to projections: both real call sites are projections, and the reflection
- * detail view opens its session eagerly (`start`) with no resume path. If a
- * reflection resume site ever appears, lift the collection / FK / parent-field
- * names into a `target` lookup here.
+ * Pure read hook that finds an in-progress refinement for a projection scope
+ * and produces a declarative {@link ResumedRefinementSeed} once its persisted
+ * history finishes loading. Passed directly into {@link useRefineSession}
+ * (via {@link useProjectionRefinement}) so resuming requires zero upward
+ * `useEffect` sync.
  */
 export function useResumeRefinement({
-  session,
   parentId,
   snapshotId,
   enabled,
 }: {
-  session: RefineSession;
   /** Projection id. */
   parentId: string | undefined;
   /** Snapshot scope: "" for an authoring draft, the pending id for a review candidate. */
@@ -46,8 +32,7 @@ export function useResumeRefinement({
   openRefinement: ProjectionRefinementResponse | undefined;
   messages: UIMessage[];
   context: ContextItem[];
-  /** The session has adopted this refinement. */
-  resumed: boolean;
+  seed: ResumedRefinementSeed | null;
   /** The conversation and its history have finished loading. */
   ready: boolean;
 } {
@@ -85,27 +70,18 @@ export function useResumeRefinement({
     return spec ? specToItems(spec) : [];
   }, [messages]);
 
-  // Adopt the refinement once we know which one it is and its history has
-  // loaded, so the chat and live preview seed correctly.
   const ready =
     !!openRefinement?.external_conversation_id && !messagesQuery.isLoading;
-  const resumed =
-    !!openRefinement && session.refinementId === openRefinement.id;
-  const { resume } = session;
-  useEffect(() => {
-    if (!ready || !openRefinement?.external_conversation_id) return;
-    // Idempotency guard — also the regression guard: once a *fresh* refinement is
-    // started here (start sets refinementId to this same id), the live query
-    // picks up its row; without this bail the effect would clobber the live /
-    // streaming session with the stale persisted messages.
-    if (session.refinementId === openRefinement.id) return;
-    resume({
+
+  const seed = useMemo<ResumedRefinementSeed | null>(() => {
+    if (!ready || !openRefinement?.external_conversation_id) return null;
+    return {
       parentId,
       clientId: openRefinement.external_conversation_id,
       refinementId: openRefinement.id,
       messages,
-    });
-  }, [ready, openRefinement, messages, session.refinementId, resume, parentId]);
+    };
+  }, [ready, openRefinement, parentId, messages]);
 
-  return { openRefinement, messages, context, resumed, ready };
+  return { openRefinement, messages, context, seed, ready };
 }

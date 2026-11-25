@@ -1,4 +1,10 @@
 export {
+  CloudBootErrorView,
+  type CloudBootErrorViewProps,
+  CloudExploreView,
+  type CloudExploreViewProps,
+} from "./cloud-shell-views";
+export {
   CloudSignInScreen,
   type CloudSignInScreenProps,
 } from "./cloud-sign-in-screen";

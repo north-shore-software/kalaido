@@ -1,4 +1,5 @@
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
+import { toError } from "@kalaido/client/lib/errors";
 import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import {
   CLOUD_WORKSPACES_TAG,
@@ -24,7 +25,6 @@ import { useMemo, useState } from "react";
 import type { KalaidoscopeSetupState } from "@/features/create-kalaidoscope/types";
 import { signOutOfCloud } from "@/lib/cloud-sign-out.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
-import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { DesktopScopeContext } from "@/state/app-state.ts";
 import { cloudWorkspacesTransitions as transitions } from "./CloudWorkspaces.transitions";
@@ -62,9 +62,14 @@ export default function CloudWorkspaces() {
   async function handleOpen(id: string) {
     setOpeningId(id);
     setOpenError(null);
-    const result = await switchLocalKalaidoscope(id, { surfaceError: false });
-    if (result.isErr()) setOpenError(result.error.message);
-    setOpeningId(null);
+    try {
+      const result = await switchLocalKalaidoscope(id, { surfaceError: false });
+      if (result.isErr()) setOpenError(result.error.message);
+    } catch (e) {
+      setOpenError(toError(e).message);
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   const workspaces = activeKalaidoscopes(live.data ?? cachedCloudKalaidoscopes);
@@ -198,12 +203,3 @@ export default function CloudWorkspaces() {
     </div>
   );
 }
-
-export const cloudWorkspacesRoute = defineRoute({
-  id: "cloud-workspaces",
-  path: "/onboarding/cloud",
-  feature: "Onboarding",
-  requiredScope: [],
-  transitions,
-  Component: CloudWorkspaces,
-});

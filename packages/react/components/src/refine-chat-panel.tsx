@@ -1,7 +1,7 @@
-import { forwardRef, type ReactNode } from "react";
 import type { TimeWindow } from "@kalaido/client/kalaidoscope/chat";
 import type { SnapshotEdit } from "@kalaido/client/kalaidoscope/projections";
 import type { RefineSession } from "@kalaido/hooks/use-refine-session";
+import { forwardRef, type ReactNode } from "react";
 import { ChatPanel, type ChatPanelHandle } from "./chat-panel";
 import type { ContextItem, EntityKind } from "./context-picker";
 import { PanelErrorBoundary } from "./panel-error-boundary";
@@ -51,29 +51,20 @@ export const RefineChatPanel = forwardRef<
   }: RefineChatPanelProps,
   ref,
 ) {
-  const api =
-    session.parentId && session.refinementId
-      ? `/api/${session.target}s/${encodeURIComponent(session.parentId)}/refinements/${encodeURIComponent(session.refinementId)}/chat`
-      : undefined;
-
   return (
     <PanelErrorBoundary label="the chat" resetKey={session.clientId}>
       <ChatPanel
         ref={ref}
         flat={flat}
         key={session.clientId}
-        chatId={session.clientId}
-        api={api}
+        chat={session.chat}
         input={input}
         onInputChange={onInputChange}
-        initialMessages={session.initialMessages}
-        initialPrompt={session.firstPrompt ?? undefined}
         context={context}
         onMention={onMention}
         onContextChange={onContextChange}
         entity={entity}
         timeWindow={timeWindow}
-        onMessagesChange={session.onMessagesChange}
         highlightedEditId={highlightedEditId}
         edits={edits}
         onUndoEdit={onUndoEdit}

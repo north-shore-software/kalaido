@@ -4,7 +4,7 @@ import {
 } from "@kalaido/features/projections";
 import { useCallback } from "react";
 import { PageLayout } from "@/components/layout/page-layout";
-import { defineRoute } from "@/routes/route-kit";
+import { AppRedirect } from "@/routes/app-redirect";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { useAppParams } from "@/routes/use-app-params";
 import { projectionDetailTransitions } from "./ProjectionDetail.transitions";
@@ -49,6 +49,17 @@ export default function ProjectionDetail() {
     [go],
   );
 
+  const renderReviewRedirect = useCallback(
+    (projId: string, nextSnapshotId: string) => (
+      <AppRedirect
+        transition={projectionDetailTransitions.reviewCandidate}
+        params={{ id: projId, snapshotId: nextSnapshotId }}
+        replace
+      />
+    ),
+    [],
+  );
+
   return (
     <PageLayout>
       <ProjectionDetailScreen
@@ -56,6 +67,7 @@ export default function ProjectionDetail() {
         snapshotId={snapshotId}
         onBackToList={handleBackToList}
         onReviewCandidate={handleReviewCandidate}
+        renderReviewRedirect={renderReviewRedirect}
         onViewLive={handleViewLive}
         onViewSnapshot={handleViewSnapshot}
         onFork={handleFork}
@@ -64,13 +76,3 @@ export default function ProjectionDetail() {
     </PageLayout>
   );
 }
-
-export const projectionDetailRoute = defineRoute({
-  id: "projection-detail",
-  path: "/projections/:id",
-  aliases: ["/projections/:id/snapshot/:snapshotId"],
-  feature: "Projections",
-  requiredScope: ["kalaidoscope"],
-  transitions: projectionDetailTransitions,
-  Component: ProjectionDetail,
-});

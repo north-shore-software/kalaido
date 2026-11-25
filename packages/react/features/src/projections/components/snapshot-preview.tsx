@@ -21,6 +21,98 @@ export interface SnapshotPreviewProps {
   historicalVersion: number | undefined;
 }
 
+function HistoricalSnapshotPreview({
+  historical,
+  historicalContent,
+  historicalLoading,
+  historicalVersion,
+}: Pick<
+  SnapshotPreviewProps,
+  "historical" | "historicalContent" | "historicalLoading" | "historicalVersion"
+>) {
+  const pillLabel = `${historicalVersion ? `v${historicalVersion}` : "snapshot"}${historical?.status ? ` · ${historical.status}` : ""}`;
+  return (
+    <>
+      <div className="mb-4 flex items-center gap-2.5">
+        <StatusPill kind="magenta">{pillLabel}</StatusPill>
+        <span className="text-meta text-fg-4">
+          Viewing a past snapshot — read-only
+        </span>
+      </div>
+      {historicalLoading && !historical ? (
+        <div className="max-w-[640px]">
+          <DocBody paragraphs={4} />
+        </div>
+      ) : historical ? (
+        <div className="max-w-[640px] text-body leading-relaxed text-fg-1">
+          {historicalContent ? (
+            <MarkdownContent content={historicalContent} />
+          ) : (
+            "(empty snapshot)"
+          )}
+        </div>
+      ) : (
+        <EmptyState>Snapshot not found.</EmptyState>
+      )}
+    </>
+  );
+}
+
+function LiveSnapshotPreview({
+  state,
+  awaitingDraftResume,
+}: Pick<SnapshotPreviewProps, "state" | "awaitingDraftResume">) {
+  if (state.status === "loading") {
+    return (
+      <div className="max-w-[640px]">
+        <DocBody paragraphs={4} />
+      </div>
+    );
+  }
+  if (state.status === "empty") {
+    if (awaitingDraftResume) {
+      return (
+        <div className="max-w-[640px]">
+          <DocBody paragraphs={4} />
+        </div>
+      );
+    }
+    return (
+      <EmptyState>
+        No snapshot yet — it’ll appear here once one is generated.
+      </EmptyState>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <p className="text-body-sm text-destructive">
+        Couldn’t load this projection: {state.error.message}
+      </p>
+    );
+  }
+  if (state.status !== "ready") return null;
+
+  return (
+    <>
+      <div className="mb-4 flex items-center gap-2.5">
+        <Pill tone="primary">plan of record</Pill>
+      </div>
+      <div className="flex items-start gap-8">
+        <div className="max-w-[640px] flex-1 text-body leading-relaxed text-fg-1">
+          {state.output.content ? (
+            <MarkdownContent content={state.output.content} />
+          ) : (
+            "(empty snapshot)"
+          )}
+        </div>
+        {state.current.edits && state.current.edits.length > 0 && (
+          <SnapshotEditMarkers edits={state.current.edits} />
+        )}
+      </div>
+    </>
+  );
+}
+
 export function SnapshotPreview({
   state,
   awaitingDraftResume,
@@ -33,77 +125,17 @@ export function SnapshotPreview({
   return (
     <div className="min-w-0 flex-1 overflow-y-auto px-8 py-6">
       {readOnly ? (
-        <>
-          <div className="mb-4 flex items-center gap-2.5">
-            <StatusPill kind="magenta">
-              {historicalVersion ? `v${historicalVersion}` : "snapshot"}
-              {historical?.status ? ` · ${historical.status}` : ""}
-            </StatusPill>
-            <span className="text-meta text-fg-4">
-              Viewing a past snapshot — read-only
-            </span>
-          </div>
-          {historicalLoading && !historical ? (
-            <div className="max-w-[640px]">
-              <DocBody paragraphs={4} />
-            </div>
-          ) : historical ? (
-            <div className="max-w-[640px] text-body leading-relaxed text-fg-1">
-              {historicalContent ? (
-                <MarkdownContent content={historicalContent} />
-              ) : (
-                "(empty snapshot)"
-              )}
-            </div>
-          ) : (
-            <EmptyState>Snapshot not found.</EmptyState>
-          )}
-        </>
+        <HistoricalSnapshotPreview
+          historical={historical}
+          historicalContent={historicalContent}
+          historicalLoading={historicalLoading}
+          historicalVersion={historicalVersion}
+        />
       ) : (
-        <>
-          {state.status === "loading" && (
-            <div className="max-w-[640px]">
-              <DocBody paragraphs={4} />
-            </div>
-          )}
-
-          {state.status === "empty" &&
-            (awaitingDraftResume ? (
-              <div className="max-w-[640px]">
-                <DocBody paragraphs={4} />
-              </div>
-            ) : (
-              <EmptyState>
-                No snapshot yet — it’ll appear here once one is generated.
-              </EmptyState>
-            ))}
-
-          {state.status === "error" && (
-            <p className="text-body-sm text-destructive">
-              Couldn’t load this projection: {state.error.message}
-            </p>
-          )}
-
-          {state.status === "ready" && (
-            <>
-              <div className="mb-4 flex items-center gap-2.5">
-                <Pill tone="primary">plan of record</Pill>
-              </div>
-              <div className="flex items-start gap-8">
-                <div className="max-w-[640px] flex-1 text-body leading-relaxed text-fg-1">
-                  {state.output.content ? (
-                    <MarkdownContent content={state.output.content} />
-                  ) : (
-                    "(empty snapshot)"
-                  )}
-                </div>
-                {state.current.edits && state.current.edits.length > 0 && (
-                  <SnapshotEditMarkers edits={state.current.edits} />
-                )}
-              </div>
-            </>
-          )}
-        </>
+        <LiveSnapshotPreview
+          state={state}
+          awaitingDraftResume={awaitingDraftResume}
+        />
       )}
     </div>
   );
