@@ -26,9 +26,15 @@ interface MapThing {
   last_seen?: string;
 }
 
+interface MapRelationship {
+  from: string;
+  to: string;
+  kind: string;
+}
+
 interface MapBody {
   things?: MapThing[];
-  relationships?: { from: string; to: string; kind: string }[];
+  relationships?: MapRelationship[];
   narrative?: string;
 }
 
@@ -36,6 +42,90 @@ function asMapBody(body: unknown): MapBody | null {
   if (!body || typeof body !== "object") return null;
   if (!Array.isArray((body as MapBody).things)) return null;
   return body as MapBody;
+}
+
+function MapThingsSection({ things }: { things: readonly MapThing[] }) {
+  return (
+    <SurfaceCard className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <Label>Discovered Things ({things.length})</Label>
+        <span className="font-mono text-mono-sm text-fg-4">
+          Sorted by fragment occurrences
+        </span>
+      </div>
+      {things.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {things.map((t) => (
+            <div
+              key={t.id}
+              className="flex flex-col gap-1 border border-line bg-surface-2 p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-row font-semibold truncate text-fg-1">
+                  {t.name}
+                </span>
+                <Pill tone="muted">{t.kind ?? "thing"}</Pill>
+              </div>
+              {t.aliases && t.aliases.length > 0 && (
+                <span className="text-meta text-fg-4 truncate">
+                  aka {t.aliases.join(", ")}
+                </span>
+              )}
+              {t.blurb && (
+                <p className="text-meta text-fg-3 line-clamp-2 mt-1">
+                  {t.blurb}
+                </p>
+              )}
+              <div className="mt-2 flex items-center justify-between border-t border-line pt-1.5 font-mono text-mono-sm text-fg-4">
+                <span>{t.fragments ?? 0} fragments</span>
+                {t.first_seen && (
+                  <span className="truncate">
+                    {t.first_seen} → {t.last_seen}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState centered className="py-6">
+          No things discovered in this map yet.
+        </EmptyState>
+      )}
+    </SurfaceCard>
+  );
+}
+
+function MapRelationshipsSection({
+  relationships,
+  thingNames,
+}: {
+  relationships: readonly MapRelationship[];
+  thingNames: ReadonlyMap<string, string>;
+}) {
+  if (relationships.length === 0) return null;
+  return (
+    <SurfaceCard className="flex flex-col gap-3">
+      <Label>Relationships ({relationships.length})</Label>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {relationships.map((rel) => (
+          <div
+            key={`${rel.from}|${rel.kind}|${rel.to}`}
+            className="flex items-center gap-2 border border-line bg-surface-2 px-3 py-2 font-mono text-mono-sm"
+          >
+            <span className="text-fg-1 font-medium truncate">
+              {thingNames.get(rel.from) ?? rel.from}
+            </span>
+            <Pill tone="muted">{rel.kind}</Pill>
+            <span className="text-fg-4">→</span>
+            <span className="text-fg-1 font-medium truncate">
+              {thingNames.get(rel.to) ?? rel.to}
+            </span>
+          </div>
+        ))}
+      </div>
+    </SurfaceCard>
+  );
 }
 
 export function MapScreen() {
@@ -56,15 +146,12 @@ export function MapScreen() {
     }
   }
 
-  const running = runMapWrite.isPending;
-
+  const busy = runMapWrite.isPending || organize?.map.state === "consolidating";
   const things = [...(body?.things ?? [])].sort(
     (a, b) => (b.fragments ?? 0) - (a.fragments ?? 0),
   );
   const relationships = body?.relationships ?? [];
-  // Consolidation rewrites relationship endpoints to thing ids; show names.
   const thingNames = new Map(things.map((t) => [t.id, t.name]));
-  const thingName = (id: string) => thingNames.get(id) ?? id;
 
   return (
     <>
@@ -72,16 +159,8 @@ export function MapScreen() {
         title="Map"
         crumb={["Map"]}
         actions={
-          <Button
-            size="sm"
-            onClick={() => void handleRunMap()}
-            disabled={running || organize?.map.state === "consolidating"}
-          >
-            {running || organize?.map.state === "consolidating" ? (
-              <Spinner />
-            ) : (
-              <PlayIcon className="mr-1.5 size-3.5" />
-            )}
+          <Button size="sm" onClick={() => void handleRunMap()} disabled={busy}>
+            {busy ? <Spinner /> : <PlayIcon className="mr-1.5 size-3.5" />}
             Run map
           </Button>
         }
@@ -120,76 +199,11 @@ export function MapScreen() {
               </SurfaceCard>
             )}
 
-            <SurfaceCard className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <Label>Discovered Things ({things.length})</Label>
-                <span className="font-mono text-mono-sm text-fg-4">
-                  Sorted by fragment occurrences
-                </span>
-              </div>
-              {things.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {things.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex flex-col gap-1 border border-line bg-surface-2 p-3"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-row font-semibold truncate text-fg-1">
-                          {t.name}
-                        </span>
-                        <Pill tone="muted">{t.kind ?? "thing"}</Pill>
-                      </div>
-                      {t.aliases && t.aliases.length > 0 && (
-                        <span className="text-meta text-fg-4 truncate">
-                          aka {t.aliases.join(", ")}
-                        </span>
-                      )}
-                      {t.blurb && (
-                        <p className="text-meta text-fg-3 line-clamp-2 mt-1">
-                          {t.blurb}
-                        </p>
-                      )}
-                      <div className="mt-2 flex items-center justify-between border-t border-line pt-1.5 font-mono text-mono-sm text-fg-4">
-                        <span>{t.fragments ?? 0} fragments</span>
-                        {t.first_seen && (
-                          <span className="truncate">
-                            {t.first_seen} → {t.last_seen}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState centered className="py-6">
-                  No things discovered in this map yet.
-                </EmptyState>
-              )}
-            </SurfaceCard>
-
-            {relationships.length > 0 && (
-              <SurfaceCard className="flex flex-col gap-3">
-                <Label>Relationships ({relationships.length})</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {relationships.map((rel) => (
-                    <div
-                      key={`${rel.from}|${rel.kind}|${rel.to}`}
-                      className="flex items-center gap-2 border border-line bg-surface-2 px-3 py-2 font-mono text-mono-sm"
-                    >
-                      <span className="text-fg-1 font-medium truncate">
-                        {thingName(rel.from)}
-                      </span>
-                      <Pill tone="muted">{rel.kind}</Pill>
-                      <span className="text-fg-4">→</span>
-                      <span className="text-fg-1 font-medium truncate">
-                        {thingName(rel.to)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </SurfaceCard>
-            )}
+            <MapThingsSection things={things} />
+            <MapRelationshipsSection
+              relationships={relationships}
+              thingNames={thingNames}
+            />
           </>
         ) : (
           <EmptyState centered className="py-12">

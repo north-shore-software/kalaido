@@ -50,6 +50,133 @@ const MATCH_BADGE: Record<
   prompt: { label: "matched", kind: "neutral" },
 };
 
+function ColourPromptSection({
+  prompt,
+  editingPrompt,
+  saving,
+  onStartEdit,
+  onChangePrompt,
+  onSave,
+  onCancel,
+}: {
+  prompt: string;
+  editingPrompt: string | null;
+  saving: boolean;
+  onStartEdit: (initial: string) => void;
+  onChangePrompt: (next: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="rounded-none border border-line bg-surface-2 p-4">
+      <Label className="mb-2 block">Prompt</Label>
+      {editingPrompt !== null ? (
+        <div className="flex flex-col gap-2.5">
+          <Textarea
+            value={editingPrompt}
+            onChange={(e) => onChangePrompt(e.target.value)}
+            rows={3}
+            placeholder="What should this colour match?"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <Button variant="commit" disabled={saving} onClick={onSave}>
+              Save prompt
+            </Button>
+            <Button variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : prompt ? (
+        <>
+          <Mono className="text-body leading-relaxed text-fg-1">
+            “{prompt}”
+          </Mono>
+          <div className="mt-3.5 flex gap-2">
+            <Button variant="outline" onClick={() => onStartEdit(prompt)}>
+              Refine prompt
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <Mono className="text-body-sm text-fg-3">
+            No prompt. Members come from the map and your examples.
+          </Mono>
+          <div className="mt-3.5 flex gap-2">
+            <Button variant="outline" onClick={() => onStartEdit("")}>
+              Add a prompt
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ColourMemberCard({
+  member,
+  onExample,
+}: {
+  member: MemberRow;
+  onExample: (input: UpdateColourInput) => void;
+}) {
+  const frag = member.expand?.fragment_id;
+  const rejected = member.match_type === "manual_negative";
+  const manual = rejected || member.match_type === "manual_positive";
+  const badge =
+    member.match_type === "manual_negative"
+      ? null
+      : MATCH_BADGE[member.match_type];
+
+  return (
+    <div className="group relative w-[calc(50%-6px)]">
+      <FragmentCard
+        type={fragmentTypeLabel(frag?.type ?? "")}
+        time={
+          <span className="flex items-center gap-1.5">
+            {badge && <StatusPill kind={badge.kind}>{badge.label}</StatusPill>}
+            {shortTime(frag?.occurred_at ?? frag?.created)}
+          </span>
+        }
+        rejected={rejected}
+        preview={frag ? preview(frag.content) : undefined}
+      />
+      <div className="absolute right-2 top-2 hidden gap-1 group-hover:flex">
+        {manual ? (
+          <CardAction
+            title={rejected ? "Undo exclusion" : "Unpin"}
+            onClick={() => onExample({ clearExamples: [member.fragment_id] })}
+          >
+            <ArrowUUpLeftIcon className="size-3.5" />
+          </CardAction>
+        ) : (
+          <>
+            <CardAction
+              title="Pin as example"
+              onClick={() =>
+                onExample({ positiveExamples: [member.fragment_id] })
+              }
+            >
+              <PushPinIcon className="size-3.5" />
+            </CardAction>
+            <CardAction
+              title="Exclude"
+              critical
+              onClick={() =>
+                onExample({ negativeExamples: [member.fragment_id] })
+              }
+            >
+              <XIcon className="size-3.5" />
+            </CardAction>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Keyed by colour id at the call site so edit state resets when the selection
  *  changes. */
 export function ColourDetailPane({
@@ -205,57 +332,15 @@ export function ColourDetailPane({
         />
       </div>
 
-      <div className="rounded-none border border-line bg-surface-2 p-4">
-        <Label className="mb-2 block">Prompt</Label>
-        {editingPrompt !== null ? (
-          <div className="flex flex-col gap-2.5">
-            <Textarea
-              value={editingPrompt}
-              onChange={(e) => setEditingPrompt(e.target.value)}
-              rows={3}
-              placeholder="What should this colour match?"
-              autoFocus
-            />
-            <div className="flex gap-2">
-              <Button
-                variant="commit"
-                disabled={patchWrite.isPending}
-                onClick={() => void savePrompt()}
-              >
-                Save prompt
-              </Button>
-              <Button variant="ghost" onClick={() => setEditingPrompt(null)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : colour.prompt ? (
-          <>
-            <Mono className="text-body leading-relaxed text-fg-1">
-              “{colour.prompt}”
-            </Mono>
-            <div className="mt-3.5 flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setEditingPrompt(colour.prompt)}
-              >
-                Refine prompt
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <Mono className="text-body-sm text-fg-3">
-              No prompt. Members come from the map and your examples.
-            </Mono>
-            <div className="mt-3.5 flex gap-2">
-              <Button variant="outline" onClick={() => setEditingPrompt("")}>
-                Add a prompt
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
+      <ColourPromptSection
+        prompt={colour.prompt}
+        editingPrompt={editingPrompt}
+        saving={patchWrite.isPending}
+        onStartEdit={setEditingPrompt}
+        onChangePrompt={setEditingPrompt}
+        onSave={() => void savePrompt()}
+        onCancel={() => setEditingPrompt(null)}
+      />
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -298,66 +383,13 @@ export function ColourDetailPane({
           </EmptyState>
         ) : (
           <div className="flex flex-wrap gap-3">
-            {members.map((m) => {
-              const frag = m.expand?.fragment_id;
-              const rejected = m.match_type === "manual_negative";
-              const manual = rejected || m.match_type === "manual_positive";
-              const badge =
-                m.match_type === "manual_negative"
-                  ? null
-                  : MATCH_BADGE[m.match_type];
-              return (
-                <div key={m.id} className="group relative w-[calc(50%-6px)]">
-                  <FragmentCard
-                    type={fragmentTypeLabel(frag?.type ?? "")}
-                    time={
-                      <span className="flex items-center gap-1.5">
-                        {badge && (
-                          <StatusPill kind={badge.kind}>
-                            {badge.label}
-                          </StatusPill>
-                        )}
-                        {shortTime(frag?.occurred_at ?? frag?.created)}
-                      </span>
-                    }
-                    rejected={rejected}
-                    preview={frag ? preview(frag.content) : undefined}
-                  />
-                  <div className="absolute right-2 top-2 hidden gap-1 group-hover:flex">
-                    {manual ? (
-                      <CardAction
-                        title={rejected ? "Undo exclusion" : "Unpin"}
-                        onClick={() =>
-                          void example({ clearExamples: [m.fragment_id] })
-                        }
-                      >
-                        <ArrowUUpLeftIcon className="size-3.5" />
-                      </CardAction>
-                    ) : (
-                      <>
-                        <CardAction
-                          title="Pin as example"
-                          onClick={() =>
-                            void example({ positiveExamples: [m.fragment_id] })
-                          }
-                        >
-                          <PushPinIcon className="size-3.5" />
-                        </CardAction>
-                        <CardAction
-                          title="Exclude"
-                          critical
-                          onClick={() =>
-                            void example({ negativeExamples: [m.fragment_id] })
-                          }
-                        >
-                          <XIcon className="size-3.5" />
-                        </CardAction>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {members.map((m) => (
+              <ColourMemberCard
+                key={m.id}
+                member={m}
+                onExample={(input) => void example(input)}
+              />
+            ))}
           </div>
         )}
       </div>
