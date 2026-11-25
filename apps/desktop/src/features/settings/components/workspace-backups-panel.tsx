@@ -1,8 +1,3 @@
-import { useState, useTransition } from "react";
-import useSWR from "swr";
-import { downloadToFile } from "@/api/app/downloads.ts";
-import { saveFilePicker } from "@/api/app/os-integrations.ts";
-import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { activeClient } from "@kalaido/client/kalaidoscope/_active";
 import {
   type BackupSummary,
@@ -12,6 +7,9 @@ import {
   listBackups,
 } from "@kalaido/client/kalaidoscope/backups";
 import { kalaidoscopeAuthHeaders } from "@kalaido/client/kalaidoscope/client";
+import { kalaidoscopeEndpointTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { Label, StatusPill } from "@kalaido/primitives/kalaido";
 import {
   AlertDialog,
@@ -25,7 +23,17 @@ import {
 } from "@kalaido/primitives/shadcn/alert-dialog";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import {
+  httpLiveSource,
+  useExternalWrite,
+  useLiveRead,
+} from "@kalaido/state/live";
+import { useMemo, useState } from "react";
+import { downloadToFile } from "@/api/app/downloads.ts";
+import { saveFilePicker } from "@/api/app/os-integrations.ts";
 import { restoreKalaidoscope } from "@/lib/restore-kalaidoscope.ts";
+
+const BACKUPS_ENDPOINT = "backups";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) {
@@ -208,58 +216,73 @@ export function WorkspaceBackupsPanel({
 }: {
   kalaidoscope: KalaidoscopeMeta;
 }) {
-  const {
-    data,
-    error: swrError,
-    isLoading,
-    mutate,
-  } = useSWR(["workspace-backups", kalaidoscope.id], async () => {
-    const r = await listBackups();
-    if (r.isErr()) throw r.error;
-    return r.value;
+  const client = useKalaidoscopeClient();
+  const backupsTag = kalaidoscopeEndpointTag(client.baseURL, BACKUPS_ENDPOINT);
+
+  const source = useMemo(
+    () =>
+      httpLiveSource<BackupSummary[]>({
+        key: ["pb", client.baseURL, BACKUPS_ENDPOINT],
+        tags: [backupsTag],
+        fetch: listBackups,
+      }),
+    [client.baseURL, backupsTag],
+  );
+  const { data, error: loadError, isLoading } = useLiveRead(source);
+
+  const [exporting, setExporting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const backupWrite = useExternalWrite<void, { readonly id: string }>({
+    execute: async () => (await createBackup()).map((b) => ({ id: b.id })),
+    concurrency: "ignore",
+    invalidates: () => [backupsTag],
   });
 
-  const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const restoreWrite = useExternalWrite<string, void>({
+    execute: (id) => restoreKalaidoscope(kalaidoscope, id),
+    concurrency: "ignore",
+    invalidates: () => [backupsTag],
+  });
+
+  const deleteWrite = useExternalWrite<string, void>({
+    execute: (id) => deleteBackup(id),
+    concurrency: "ignore",
+    invalidates: () => [backupsTag],
+  });
+
+  const busy =
+    backupWrite.isPending ||
+    restoreWrite.isPending ||
+    deleteWrite.isPending ||
+    exporting;
 
   const description =
     kalaidoscope.type === "cloud"
       ? "Snapshots of this workspace stored in Kalaido cloud."
       : "Snapshots of this workspace stored on this device.";
 
-  function handleBackup() {
-    startTransition(async () => {
-      setBusy(true);
-      setActionError(null);
-      try {
-        const res = await createBackup();
-        if (res.isErr()) {
-          setActionError(res.error.message);
-          return;
-        }
-        await mutate();
-      } finally {
-        setBusy(false);
-      }
-    });
+  async function handleBackup() {
+    if (busy) return;
+    setActionError(null);
+    const outcome = await backupWrite.run();
+    if (outcome.status === "error") {
+      setActionError(outcome.error.message);
+    }
   }
 
   async function handleRestore(id: string) {
-    setBusy(true);
+    if (busy) return;
     setActionError(null);
-    try {
-      const res = await restoreKalaidoscope(kalaidoscope, id);
-      if (res.isErr()) {
-        setActionError(res.error.message);
-      }
-    } finally {
-      setBusy(false);
+    const outcome = await restoreWrite.run(id);
+    if (outcome.status === "error") {
+      setActionError(outcome.error.message);
     }
   }
 
   async function handleExport(id: string) {
-    setBusy(true);
+    if (busy) return;
+    setExporting(true);
     setActionError(null);
     try {
       const baseName = sanitizeExportName(
@@ -291,22 +314,16 @@ export function WorkspaceBackupsPanel({
         setActionError(dlRes.error.message);
       }
     } finally {
-      setBusy(false);
+      setExporting(false);
     }
   }
 
   async function handleDelete(id: string) {
-    setBusy(true);
+    if (busy) return;
     setActionError(null);
-    try {
-      const res = await deleteBackup(id);
-      if (res.isErr()) {
-        setActionError(res.error.message);
-        return;
-      }
-      await mutate();
-    } finally {
-      setBusy(false);
+    const outcome = await deleteWrite.run(id);
+    if (outcome.status === "error") {
+      setActionError(outcome.error.message);
     }
   }
 
@@ -315,9 +332,9 @@ export function WorkspaceBackupsPanel({
       description={description}
       backups={data ?? []}
       loading={isLoading}
-      busy={busy || isPending}
-      error={actionError ?? (swrError ? swrError.message : null)}
-      onBackUp={handleBackup}
+      busy={busy}
+      error={actionError ?? (loadError ? loadError.message : null)}
+      onBackUp={() => void handleBackup()}
       onRestore={(id) => void handleRestore(id)}
       onExport={(id) => void handleExport(id)}
       onDelete={(id) => void handleDelete(id)}

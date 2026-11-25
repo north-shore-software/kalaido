@@ -1,34 +1,44 @@
-import useSWR from "swr";
-import type { KalaidoscopeMeta } from "@kalaido/platform";
 import {
   fetchQuota,
   fetchUsage,
   type QuotaStatus,
   type UsageStatus,
 } from "@kalaido/client/kalaidoscope/cloud/quota";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { Label, Mono, StatusPill } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import { httpLiveSource, useLiveRead } from "@kalaido/state/live";
+import { useMemo } from "react";
 
 export function WorkspaceQuotaPanel({
   kalaidoscope,
 }: {
   kalaidoscope: KalaidoscopeMeta;
 }) {
+  const client = useKalaidoscopeClient();
   const cloud = kalaidoscope.type === "cloud";
-  const usage = useSWR(["workspace-usage", kalaidoscope.id], async () => {
-    const result = await fetchUsage();
-    if (result.isErr()) throw result.error;
-    return result.value;
-  });
-  const quota = useSWR(
-    cloud ? ["workspace-quota", kalaidoscope.id] : null,
-    async () => {
-      const result = await fetchQuota();
-      if (result.isErr()) throw result.error;
-      return result.value;
-    },
+
+  const usageSource = useMemo(
+    () =>
+      httpLiveSource<UsageStatus>({
+        key: ["pb", client.baseURL, "usage"],
+        fetch: fetchUsage,
+      }),
+    [client.baseURL],
   );
+  const quotaSource = useMemo(
+    () =>
+      httpLiveSource<QuotaStatus>({
+        key: cloud ? ["pb", client.baseURL, "quota"] : null,
+        fetch: fetchQuota,
+      }),
+    [client.baseURL, cloud],
+  );
+
+  const usage = useLiveRead(usageSource);
+  const quota = useLiveRead(quotaSource);
 
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-2.5">
@@ -43,7 +53,13 @@ export function WorkspaceQuotaPanel({
   );
 }
 
-function Balance({ data, error }: { data?: QuotaStatus; error?: Error }) {
+function Balance({
+  data,
+  error,
+}: {
+  data?: QuotaStatus;
+  error?: Error | null;
+}) {
   if (error) {
     return (
       <span className="text-body text-critical-ink">
@@ -73,7 +89,13 @@ function Balance({ data, error }: { data?: QuotaStatus; error?: Error }) {
   );
 }
 
-function UsageSplit({ data, error }: { data?: UsageStatus; error?: Error }) {
+function UsageSplit({
+  data,
+  error,
+}: {
+  data?: UsageStatus;
+  error?: Error | null;
+}) {
   if (error) {
     return (
       <span className="text-body text-critical-ink">

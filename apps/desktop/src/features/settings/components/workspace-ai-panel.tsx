@@ -1,6 +1,3 @@
-import { useId, useState, useTransition } from "react";
-import useSWR from "swr";
-import type { KalaidoscopeMeta } from "@kalaido/platform";
 import {
   type LlmProvider,
   type LlmRole,
@@ -11,6 +8,12 @@ import {
   writeWorkspaceLlmConfig,
 } from "@kalaido/client/kalaidoscope/llm-config";
 import {
+  kalaidoscopeEndpointSource,
+  kalaidoscopeEndpointTag,
+} from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import type { KalaidoscopeMeta } from "@kalaido/platform";
+import {
   Label,
   Mono,
   StatusPill,
@@ -18,7 +21,11 @@ import {
 } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import { useExternalWrite, useLiveRead } from "@kalaido/state/live";
+import { useId, useMemo, useState } from "react";
 import { ProviderFields } from "@/features/create-kalaidoscope/components/provider-fields";
+
+const LLM_CONFIG_ENDPOINT = "llm-config";
 
 const PROVIDER_LABELS: Record<LlmProvider, string> = {
   ollama: "Local Ollama",
@@ -52,18 +59,22 @@ export function WorkspaceAiPanel({
       </div>
     );
   }
-  return <LocalAiPanel kalaidoscopeId={kalaidoscope.id} />;
+  return <LocalAiPanel />;
 }
 
-function LocalAiPanel({ kalaidoscopeId }: { kalaidoscopeId: string }) {
-  const { data, error, mutate } = useSWR(
-    ["workspace-llm-config", kalaidoscopeId],
-    async () => {
-      const result = await readWorkspaceLlmConfig();
-      if (result.isErr()) throw result.error;
-      return result.value;
-    },
+function LocalAiPanel() {
+  const client = useKalaidoscopeClient();
+  const source = useMemo(
+    () =>
+      kalaidoscopeEndpointSource<StoredWorkspaceLlmConfig>({
+        client,
+        endpoint: LLM_CONFIG_ENDPOINT,
+        watch: ["kalaidoscope_config"],
+        fetch: readWorkspaceLlmConfig,
+      }),
+    [client],
   );
+  const { data, error } = useLiveRead(source);
   const [draft, setDraft] = useState<Draft | null>(null);
 
   return (
@@ -88,10 +99,7 @@ function LocalAiPanel({ kalaidoscopeId }: { kalaidoscopeId: string }) {
           stored={data}
           draft={draft}
           onDraftChange={setDraft}
-          onDone={() => {
-            setDraft(null);
-            void mutate();
-          }}
+          onDone={() => setDraft(null)}
           onCancel={() => setDraft(null)}
         />
       ) : (
@@ -151,13 +159,20 @@ function ProviderEditor({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [isPending, startSave] = useTransition();
+  const client = useKalaidoscopeClient();
   const apiKeyFieldId = useId();
   const modelFieldId = useId();
   const { highlighted, trigger } = useRequiredHighlights({
     apiKey: apiKeyFieldId,
     model: modelFieldId,
+  });
+
+  const saveWrite = useExternalWrite<WorkspaceLlmConfig, void>({
+    execute: writeWorkspaceLlmConfig,
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeEndpointTag(client.baseURL, LLM_CONFIG_ENDPOINT),
+    ],
   });
 
   // The stored key can only be kept while staying on Gemini: it can't be read
@@ -176,9 +191,9 @@ function ProviderEditor({
     };
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isPending) return;
+    if (saveWrite.isPending) return;
 
     if (draft.provider === "gemini") {
       const missing: ("apiKey" | "model")[] = [];
@@ -190,25 +205,23 @@ function ProviderEditor({
       }
     }
 
-    startSave(async () => {
-      setSaveError(null);
-      const result = await writeWorkspaceLlmConfig(config());
-      if (result.isErr()) {
-        setSaveError(result.error.message);
-        return;
-      }
+    const outcome = await saveWrite.run(config());
+    if (outcome.status === "success") {
       onDone();
-    });
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form
+      onSubmit={(e) => void handleSubmit(e)}
+      className="flex flex-col gap-4"
+    >
       <ProviderFields
         provider={draft.provider}
         apiKey={draft.apiKey}
         defaultModel={draft.defaultModel}
         roleModels={draft.roleModels}
-        disabled={isPending}
+        disabled={saveWrite.isPending}
         highlightedFields={highlighted}
         apiKeyFieldId={apiKeyFieldId}
         modelFieldId={modelFieldId}
@@ -222,22 +235,22 @@ function ProviderEditor({
           patch({ roleModels: { ...draft.roleModels, [role]: model } })
         }
       />
-      {saveError && (
+      {saveWrite.error && (
         <span role="alert" className="text-body text-critical-ink">
-          {saveError}
+          {saveWrite.error.message}
         </span>
       )}
       <div className="flex items-center justify-end gap-2">
         <Button
           type="button"
           variant="ghost"
-          disabled={isPending}
+          disabled={saveWrite.isPending}
           onClick={onCancel}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? <Spinner /> : "Save"}
+        <Button type="submit" disabled={saveWrite.isPending}>
+          {saveWrite.isPending ? <Spinner /> : "Save"}
         </Button>
       </div>
     </form>

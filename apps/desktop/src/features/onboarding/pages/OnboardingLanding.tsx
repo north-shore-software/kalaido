@@ -3,6 +3,7 @@ import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
 import { Button } from "@kalaido/primitives/shadcn/button";
+import { useExternalWrite } from "@kalaido/state/live";
 import { useScope, useScopeState } from "@kalaido/state/scope";
 import {
   ArchiveIcon,
@@ -12,7 +13,10 @@ import {
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { openFilePicker } from "@/api/app/os-integrations.ts";
-import { createKalaidoscope } from "@/features/create-kalaidoscope/actions.ts";
+import {
+  type CreateKalaidoscopeInput,
+  createKalaidoscope,
+} from "@/features/create-kalaidoscope/actions.ts";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
 import { defineRoute } from "@/routes/route-kit";
 import { useAppNavigate } from "@/routes/use-app-navigate";
@@ -39,24 +43,33 @@ export default function OnboardingLanding() {
     cachedCloudKalaidoscopes,
   });
   const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState(false);
+  const [inspecting, setInspecting] = useState(false);
   const [pending, setPending] = useState<RestoreInspection | null>(null);
+
+  const createWrite = useExternalWrite<
+    CreateKalaidoscopeInput,
+    { readonly id: string }
+  >({
+    execute: async (input) =>
+      (await createKalaidoscope(input)).map((m) => ({ id: m.id })),
+    concurrency: "ignore",
+  });
+
+  const restoring = inspecting || createWrite.isPending;
 
   async function completeRestore(
     suggestedName: string,
     llmConfig?: WorkspaceLlmConfig,
   ) {
-    setRestoring(true);
-    const result = await createKalaidoscope({
+    const outcome = await createWrite.run({
       name: suggestedName,
       storage: "local_file",
       cloudId: "",
       locationInput: "",
       llmConfig,
     });
-    if (result.isErr()) {
-      setRestoreError(result.error.message);
-      setRestoring(false);
+    if (outcome.status === "error") {
+      setRestoreError(outcome.error.message);
     }
     setPending(null);
   }
@@ -73,9 +86,9 @@ export default function OnboardingLanding() {
     }
     if (!picked.value) return;
 
-    setRestoring(true);
+    setInspecting(true);
     const inspected = await inspectWorkspaceArchive(picked.value);
-    setRestoring(false);
+    setInspecting(false);
 
     if (inspected.isErr()) {
       setRestoreError(inspected.error.message);
