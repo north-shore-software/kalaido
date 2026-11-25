@@ -33,6 +33,7 @@ export const Collections = {
 	ReflectionWindow: "reflection_window",
 	Usage: "usage",
 	Users: "users",
+	ViewChatConversation: "view_chat_conversation",
 	ViewStream: "view_stream",
 } as const
 export type Collections = typeof Collections[keyof typeof Collections]
@@ -489,6 +490,14 @@ export type UsersRecord = {
 	verified?: boolean
 }
 
+export type ViewChatConversationRecord = {
+	created: IsoAutoDateString
+	external_conversation_id?: string
+	generate_with_model?: string
+	id: string
+	preview?: string
+}
+
 export const ViewStreamTypeOptions = {
 	"email": "email",
 	"note": "note",
@@ -536,6 +545,7 @@ export type ReflectionSnapshotResponse<Tcontext_spec = unknown, Tedits = unknown
 export type ReflectionWindowResponse<Texpand = unknown> = Required<ReflectionWindowRecord> & BaseSystemFields<Texpand>
 export type UsageResponse<Texpand = unknown> = Required<UsageRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<Texpand = unknown> = Required<UsersRecord> & AuthSystemFields<Texpand>
+export type ViewChatConversationResponse<Texpand = unknown> = Required<ViewChatConversationRecord> & BaseSystemFields<Texpand>
 export type ViewStreamResponse<Tcolour_ids = unknown, Texpand = unknown> = Required<ViewStreamRecord<Tcolour_ids>> & BaseSystemFields<Texpand>
 
 // Types containing all Records and Responses, useful for creating typing helper functions
@@ -568,6 +578,7 @@ export type CollectionRecords = {
 	reflection_window: ReflectionWindowRecord
 	usage: UsageRecord
 	users: UsersRecord
+	view_chat_conversation: ViewChatConversationRecord
 	view_stream: ViewStreamRecord
 }
 
@@ -599,6 +610,7 @@ export type CollectionResponses = {
 	reflection_window: ReflectionWindowResponse
 	usage: UsageResponse
 	users: UsersResponse
+	view_chat_conversation: ViewChatConversationResponse
 	view_stream: ViewStreamResponse
 }
 

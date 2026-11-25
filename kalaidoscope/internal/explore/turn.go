@@ -2,6 +2,7 @@ package explore
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -45,11 +46,12 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 	var conv *core.Record
 	var dbMsgs []api.UIMessage
 	if req.ID != "" {
-		if c, err := FindOrCreateConversation(ctx, app, req.ID); err == nil {
+		c, err := FindConversation(app, req.ID)
+		if err == nil {
 			conv = c
 			dbMsgs, _ = chat.LoadMessages(ctx, app, conv)
-		} else {
-			logger().Error("explore persist: find or create conversation failed", "conversation_id", req.ID, "error", err)
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			logger().Error("explore persist: find conversation failed", "conversation_id", req.ID, "error", err)
 		}
 	}
 
@@ -57,15 +59,6 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 
 	// Phase 1: Resolve ContextSpec to PinnedIDs
 	chat.ResolveContextSpecs(ctx, app, dbMsgs, newMsgs)
-
-	// Persist new messages
-	if conv != nil {
-		for _, m := range newMsgs {
-			if _, err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
-				logger().Error("explore persist message failed", "message_id", m.ID, "error", err)
-			}
-		}
-	}
 
 	allMsgs := append(dbMsgs, newMsgs...)
 
@@ -99,10 +92,49 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 		return &PromptTooLargeError{Err: err, Text: text}
 	}
 
+	// Persist the conversation and incoming messages only once validation,
+	// model resolution, prompt budget, quota, and provider stream startup all
+	// succeed — so pre-stream 4xx/5xx/402 failures never leave an orphaned row.
+	// Both new and existing conversations write inside one transaction,
+	// re-deduping against stored messages so overlapping first turns or an
+	// earlier lookup failure cannot duplicate history.
+	persistIncoming := func() *core.Record {
+		if req.ID == "" {
+			return conv
+		}
+		var persisted *core.Record
+		err := app.RunInTransaction(func(tx core.App) error {
+			c := conv
+			if c == nil {
+				var err error
+				c, err = FindOrCreateConversation(ctx, tx, req.ID)
+				if err != nil {
+					return fmt.Errorf("find or create conversation: %w", err)
+				}
+			}
+			txMsgs, err := chat.LoadMessages(ctx, tx, c)
+			if err != nil {
+				return fmt.Errorf("load messages: %w", err)
+			}
+			for _, m := range chat.ExtractNewMessages(txMsgs, newMsgs) {
+				if _, err := chat.PersistMessage(ctx, tx, c, m, ""); err != nil {
+					return fmt.Errorf("persist message %s: %w", m.ID, err)
+				}
+			}
+			persisted = c
+			return nil
+		})
+		if err != nil {
+			logger().Error("explore persist: save conversation and messages failed", "conversation_id", req.ID, "error", err)
+			return conv
+		}
+		return persisted
+	}
+
 	textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
 
 	if summaries {
-		return StreamSummariesTurn(ctx, app, conv, hydratedMsgs, assistantModel, textID, w)
+		return streamSummariesTurn(ctx, app, persistIncoming, hydratedMsgs, assistantModel, textID, w)
 	}
 
 	comp, err := usage.Stream(ctx, app, llm.RoleChat, assistantModel, hydratedMsgs, nil)
@@ -110,6 +142,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 		return err
 	}
 
+	conv = persistIncoming()
 	turn := chat.StreamAssistantResponse(w, comp, textID, nil)
 
 	// Persist the assistant turn once the stream has fully drained.

@@ -386,10 +386,13 @@ export function diffContextSpecs(
 
 export function createKalaidoChatTransport(options: {
   baseURL: string;
-  api?: string;
+  api: string;
   prepareSendMessagesRequest?: PrepareSendMessagesRequest<UIMessage>;
 }): DefaultChatTransport<UIMessage> {
-  const apiPath = options.api ?? "/api/explore";
+  const apiPath = options.api.trim();
+  if (!apiPath) {
+    throw new Error("createKalaidoChatTransport requires a non-empty api path");
+  }
   return new DefaultChatTransport<UIMessage>({
     // api is overridden by the custom fetch below — it always targets the
     // ACTIVE kalaidoscope (local sidecar or <cloud gateway>/<cloudId>) and
@@ -413,75 +416,22 @@ export function createKalaidoChatTransport(options: {
   });
 }
 
-function previewText(content: unknown): string {
-  const msg = content as UIMessage | undefined;
-  if (!msg?.parts) return "";
-  return stripMentions(
-    msg.parts.map((p) => (p.type === "text" ? p.text : "")).join(""),
-  ).trim();
-}
-
 export async function listConversations(
   client: TypedPocketBase,
 ): Promise<Conversation[]> {
-  const records = await client.collection("chat_conversation").getFullList({
-    sort: "-created",
-    requestKey: null,
-  });
+  const records = await client
+    .collection("view_chat_conversation")
+    .getFullList({
+      sort: "-created",
+      requestKey: null,
+    });
 
-  // Batch-fetch early messages for all conversations (chunked OR filter) instead
-  // of one request per conversation. A conversation can lead with `context_spec`/
-  // `pinned_ids` system messages, which carry no chat text to preview, so we take
-  // the earliest message with text. Conversations whose first text message falls
-  // outside the fetched page fall back to "New conversation".
-  const previews = new Map<string, string>();
-  const CHUNK = 30;
-  const chunks: (typeof records)[] = [];
-  for (let i = 0; i < records.length; i += CHUNK) {
-    chunks.push(records.slice(i, i + CHUNK));
-  }
-  const chunkItems = await Promise.all(
-    chunks.map(async (chunk) => {
-      const filter = chunk
-        .map((r, idx) =>
-          client.filter(`chat_conversation_id = {:id${idx}}`, {
-            [`id${idx}`]: r.id,
-          }),
-        )
-        .join(" || ");
-      try {
-        const { items } = await client
-          .collection("chat_message")
-          .getList(1, 200, {
-            filter,
-            sort: "created",
-            requestKey: null,
-          });
-        return items;
-      } catch (e) {
-        console.warn("chat preview fetch failed", e);
-        return [];
-      }
-    }),
-  );
-  for (const items of chunkItems) {
-    for (const m of items) {
-      const convId = m.chat_conversation_id;
-      if (previews.has(convId)) continue;
-      const text = previewText(m.content);
-      if (text) previews.set(convId, text);
-    }
-  }
-
-  return records.map(
-    (r) =>
-      ({
-        id: r.id,
-        clientId: r.external_conversation_id ?? "",
-        preview: previews.get(r.id) ?? "New conversation",
-        createdAt: r.created,
-      }) as Conversation,
-  );
+  return records.map((r) => ({
+    id: r.id,
+    clientId: r.external_conversation_id ?? "",
+    preview: stripMentions(r.preview ?? "").trim() || "New conversation",
+    createdAt: r.created,
+  }));
 }
 
 export async function getConversationMessages(

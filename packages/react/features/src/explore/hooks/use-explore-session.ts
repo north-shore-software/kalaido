@@ -220,6 +220,7 @@ export function useExploreSession({
 
   const chat = useKalaidoChat({
     chatId: activeClientId,
+    api: "/api/explore",
     initialMessages: selectedMessages,
     context: effectiveContext,
     onTurnComplete: () => {

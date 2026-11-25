@@ -24,7 +24,9 @@ import (
 // Version 6 adds ingest.colour_id, fragment.ingest_ref and the "ingest" match_type (deltas/v0006_add_ingest_colour_and_fragment_ingest_ref.go).
 // Version 7 raises chat_message.content to 8 MB and adds fragment.archived_at, .raw_content and .title; view_stream exposes archived_at and prefers the user title (deltas/v0007_chat_message_size_and_fragment_archive_raw.go).
 // Version 8 exposes fragment.ingest_ref on view_stream (deltas/v0008_view_stream_ingest_ref.go).
-const Version = 9
+// Version 9 adds projection.pinned and reflection.pinned (deltas/v0009_add_entity_pinned.go).
+// Version 10 replaces idx_chat_message_chat_conv with chat_message(chat_conversation_id, created) and adds view_chat_conversation with truncated text preview (deltas/v0010_view_chat_conversation.go).
+const Version = 10
 
 // BuildRev identifies the build, for the failed-migration marker: the same
 // build never retries a migration it already failed, a different build does.
