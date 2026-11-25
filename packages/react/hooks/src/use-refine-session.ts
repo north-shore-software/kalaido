@@ -21,13 +21,7 @@ import {
   useScopeState,
 } from "@kalaido/state/scope";
 import { generateId, type UIMessage } from "ai";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { type KalaidoChatController, useKalaidoChat } from "#use-kalaido-chat";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
@@ -50,8 +44,6 @@ interface RefineControlState {
   parentId: string | null;
   clientId: string;
   refinementId: string | null;
-  firstPrompt: string | null;
-  firstContext: ContextItem[] | undefined;
   initialMessages: UIMessage[] | undefined;
   starting: boolean;
 }
@@ -63,8 +55,6 @@ type RefineControlEvent =
       readonly parentId: string;
       readonly clientId: string;
       readonly refinementId: string;
-      readonly firstPrompt: string | null;
-      readonly firstContext: ContextItem[] | undefined;
       readonly messages: UIMessage[];
     }
   | { readonly type: "reset" };
@@ -191,9 +181,10 @@ export interface RefineSession {
   /** A `commit` call is in flight. */
   committing: boolean;
   /**
-   * Open a fresh refinement over `parentId`. `prompt` is sent once seeded
-   * history finishes loading; `context` (when provided) emits a `context_spec`
-   * before that first turn if it differs from the seeded baseline.
+   * Open a fresh refinement over `parentId`. `prompt` is sent immediately once
+   * seeded history finishes loading; `context` (when provided) emits a
+   * `context_spec` before that first turn if it differs from the seeded
+   * baseline.
    */
   start: (args: {
     parentId: string;
@@ -235,8 +226,6 @@ export function useRefineSession({
       s.parentId = e.parentId;
       s.clientId = e.clientId;
       s.refinementId = e.refinementId;
-      s.firstPrompt = e.firstPrompt;
-      s.firstContext = e.firstContext;
       s.initialMessages = e.messages.length ? e.messages : undefined;
       s.starting = false;
     },
@@ -244,8 +233,6 @@ export function useRefineSession({
       s.clientId = generateId();
       s.parentId = null;
       s.refinementId = null;
-      s.firstPrompt = null;
-      s.firstContext = undefined;
       s.initialMessages = undefined;
       s.starting = false;
     },
@@ -255,8 +242,6 @@ export function useRefineSession({
       parentId: null,
       clientId: generateId(),
       refinementId: null,
-      firstPrompt: null,
-      firstContext: undefined,
       initialMessages: undefined,
       starting: false,
     }),
@@ -276,26 +261,6 @@ export function useRefineSession({
     api: identity.api,
     initialMessages: identity.started ? identity.initialMessages : undefined,
   });
-
-  const sentPromptForRef = useRef<string | null>(null);
-  const { sendUserMessage } = chat;
-  useEffect(() => {
-    if (control.refinementId === null || !control.firstPrompt?.trim()) return;
-    if (sentPromptForRef.current === control.clientId) return;
-    sentPromptForRef.current = control.clientId;
-    sendUserMessage(
-      control.firstPrompt,
-      control.firstContext !== undefined
-        ? { context: control.firstContext }
-        : undefined,
-    );
-  }, [
-    control.refinementId,
-    control.clientId,
-    control.firstPrompt,
-    control.firstContext,
-    sendUserMessage,
-  ]);
 
   const createWrite = useExternalWrite<
     {
@@ -329,6 +294,7 @@ export function useRefineSession({
   const creating = createWrite.isPending || control.starting;
   const committing = commitWrite.isPending;
 
+  const { openAndSend } = chat;
   const start = useCallback<RefineSession["start"]>(
     async ({
       parentId: nextParentId,
@@ -381,13 +347,19 @@ export function useRefineSession({
           ...buildSystemNoticeMessages(systemNotices ?? null),
         ];
 
+        openAndSend({
+          chatId: newClientId,
+          api: buildRefineApi(target, nextParentId, outcome.id),
+          initialMessages: history.length ? history : undefined,
+          prompt,
+          context,
+        });
+
         await scope.dispatch({
           type: "started",
           parentId: nextParentId,
           clientId: newClientId,
           refinementId: outcome.id,
-          firstPrompt: prompt ?? null,
-          firstContext: context,
           messages: history,
         });
         return true;
@@ -395,7 +367,7 @@ export function useRefineSession({
         await scope.dispatch({ type: "setStarting", starting: false });
       }
     },
-    [client, createWrite, scope, target],
+    [client, createWrite, openAndSend, scope, target],
   );
 
   const reset = useCallback<RefineSession["reset"]>(() => {

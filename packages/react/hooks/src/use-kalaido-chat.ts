@@ -1,4 +1,4 @@
-import { useChat } from "@ai-sdk/react";
+import { Chat, useChat } from "@ai-sdk/react";
 import {
   CONTEXT_CANCEL_PART_TYPE,
   CONTEXT_CONFIRM_PART_TYPE,
@@ -57,6 +57,15 @@ export interface SendMessageOverrides {
   timeWindow?: TimeWindow;
 }
 
+export interface OpenAndSendOptions {
+  chatId: string;
+  api?: string;
+  initialMessages?: UIMessage[];
+  prompt?: string;
+  context?: ContextItem[];
+  timeWindow?: TimeWindow;
+}
+
 export interface KalaidoChatController {
   readonly chatId: string | undefined;
   readonly messages: UIMessage[];
@@ -65,6 +74,12 @@ export interface KalaidoChatController {
   readonly quotaHit: boolean;
   readonly quotaMessage: string | undefined;
   sendUserMessage: (text: string, overrides?: SendMessageOverrides) => void;
+  /**
+   * Imperatively open a new `Chat` instance for `chatId` (seeded with
+   * `initialMessages`) and optionally send `prompt` immediately — without
+   * waiting for a render + `useEffect` round-trip.
+   */
+  openAndSend: (options: OpenAndSendOptions) => void;
   applyTimeWindow: (nextWindow: TimeWindow) => void;
   appendSystemNotice: (
     type: string,
@@ -96,13 +111,48 @@ function seedBaselines(initialMessages: UIMessage[] | undefined) {
   };
 }
 
+function buildSpecDiffParts(
+  effectiveContext: ContextItem[] | undefined,
+  effectiveWindow: TimeWindow | undefined,
+  baselines: { spec: string | null; window: string | null },
+): {
+  parts: Record<string, unknown>[];
+  nextSpec: string | null;
+  nextWindow: string | null;
+} {
+  const parts: Record<string, unknown>[] = [];
+  let nextSpec = baselines.spec;
+  let nextWindow = baselines.window;
+
+  if (effectiveContext !== undefined) {
+    const spec = itemsToSpec(effectiveContext);
+    const ctxKey = specKey(spec);
+    if (ctxKey !== nextSpec) {
+      parts.push({ type: "context_spec", data: spec });
+      nextSpec = ctxKey;
+    }
+  }
+
+  if (effectiveWindow !== undefined) {
+    const winKey = timeWindowKey(effectiveWindow);
+    if (winKey !== nextWindow) {
+      const { start, end, id } = effectiveWindow;
+      parts.push({ type: "window", data: { start, end, id } });
+      nextWindow = winKey;
+    }
+  }
+
+  return { parts, nextSpec, nextWindow };
+}
+
 /**
- * Caller-owned chat controller wrapping AI SDK `useChat`, Kalaido's transport,
- * quota/telemetry handling, and diffed `context_spec` / `window` emission.
+ * Caller-owned chat controller wrapping AI SDK `Chat` + `useChat`, Kalaido's
+ * transport, quota/telemetry handling, and diffed `context_spec` / `window`
+ * emission.
  *
  * Callers read `chat.messages` directly from `useChat`'s `useSyncExternalStore`
  * snapshot — eliminating child-to-parent `onMessagesChange` effects and
- * reactive send effects inside `ChatPanel`.
+ * reactive send effects inside `ChatPanel` and `useRefineSession`.
  */
 export function useKalaidoChat({
   chatId,
@@ -115,17 +165,10 @@ export function useKalaidoChat({
 }: UseKalaidoChatOptions): KalaidoChatController {
   const client = useKalaidoscopeClient();
 
-  const [prevChatId, setPrevChatId] = useState(chatId);
-  const [quotaHit, setQuotaHit] = useState(false);
-  if (chatId !== prevChatId) {
-    setPrevChatId(chatId);
-    setQuotaHit(false);
-  }
-
   const contextRef = useRef(context);
   const timeWindowRef = useRef(timeWindow);
   const onTurnCompleteRef = useRef(onTurnComplete);
-  const quotaHitRef = useRef(quotaHit);
+  const quotaHitRef = useRef(false);
 
   const lastSentSpecRef = useRef<string | null>(null);
   const lastSentWindowRef = useRef<string | null>(null);
@@ -139,47 +182,68 @@ export function useKalaidoChat({
     ((overrides?: SendMessageOverrides) => void) | null
   >(null);
 
-  const transport = useMemo(() => {
-    if (transportProp) return transportProp;
-    return createKalaidoChatTransport({ baseURL: client.baseURL, api });
-  }, [transportProp, client, api]);
+  function createChatInstance(
+    nextId: string | undefined,
+    nextMessages: UIMessage[] | undefined,
+    nextApi: string | undefined,
+  ): Chat<UIMessage> {
+    const transport =
+      transportProp ??
+      createKalaidoChatTransport({ baseURL: client.baseURL, api: nextApi });
+    return new Chat<UIMessage>({
+      id: nextId,
+      messages: nextMessages,
+      transport,
+      onFinish: ({ messages: finishedMessages }) => {
+        onTurnCompleteRef.current?.(finishedMessages);
+        const queuedWindow = pendingWindowResendRef.current;
+        if (!queuedWindow) return;
+        pendingWindowResendRef.current = null;
+        if (quotaHitRef.current) return;
+        if (timeWindowKey(queuedWindow) === lastSentWindowRef.current) return;
+        if (!finishedMessages.some((m) => m.role === "assistant")) return;
+        appendSpecChangesRef.current?.({ timeWindow: queuedWindow });
+        sendMessageRef.current?.();
+      },
+      onError: (err) => {
+        if (isQuotaError(err)) {
+          setQuotaHit(true);
+          return;
+        }
+        toast.error("Chat failed", { description: err.message });
+      },
+      onData: (dataPart) => {
+        if (dataPart.type === "data-inference_rate") {
+          const rate = (dataPart.data as { tokensPerSecond?: number })
+            ?.tokensPerSecond;
+          if (rate) {
+            emitInferenceRate(rate);
+          }
+        }
+      },
+    });
+  }
+
+  const [prevChatId, setPrevChatId] = useState(chatId);
+  const [quotaHit, setQuotaHit] = useState(false);
+  const [activeChat, setActiveChat] = useState<Chat<UIMessage>>(() =>
+    createChatInstance(chatId, initialMessages, api),
+  );
+
+  if (chatId !== prevChatId) {
+    setPrevChatId(chatId);
+    setQuotaHit(false);
+    setActiveChat(createChatInstance(chatId, initialMessages, api));
+  }
 
   const { messages, sendMessage, status, setMessages } = useChat({
-    id: chatId,
-    messages: initialMessages,
-    transport,
-    onFinish: ({ messages: finishedMessages }) => {
-      onTurnCompleteRef.current?.(finishedMessages);
-      const queuedWindow = pendingWindowResendRef.current;
-      if (!queuedWindow) return;
-      pendingWindowResendRef.current = null;
-      if (quotaHitRef.current) return;
-      if (timeWindowKey(queuedWindow) === lastSentWindowRef.current) return;
-      if (!finishedMessages.some((m) => m.role === "assistant")) return;
-      appendSpecChangesRef.current?.({ timeWindow: queuedWindow });
-      sendMessageRef.current?.();
-    },
-    onError: (err) => {
-      if (isQuotaError(err)) {
-        setQuotaHit(true);
-        return;
-      }
-      toast.error("Chat failed", { description: err.message });
-    },
-    onData: (dataPart) => {
-      if (dataPart.type === "data-inference_rate") {
-        const rate = (dataPart.data as { tokensPerSecond?: number })
-          ?.tokensPerSecond;
-        if (rate) {
-          emitInferenceRate(rate);
-        }
-      }
-    },
+    chat: activeChat,
   });
 
   const isLoading = status === "submitted" || status === "streaming";
   const messagesRef = useRef(messages);
   const isLoadingRef = useRef(isLoading);
+  const createChatInstanceRef = useRef(createChatInstance);
 
   const appendSpecChanges = useCallback(
     (overrides?: SendMessageOverrides) => {
@@ -192,28 +256,19 @@ export function useKalaidoChat({
           ? overrides.timeWindow
           : timeWindowRef.current;
 
-      const specParts: Record<string, unknown>[] = [];
+      const { parts, nextSpec, nextWindow } = buildSpecDiffParts(
+        effectiveContext,
+        effectiveWindow,
+        {
+          spec: lastSentSpecRef.current,
+          window: lastSentWindowRef.current,
+        },
+      );
+      lastSentSpecRef.current = nextSpec;
+      lastSentWindowRef.current = nextWindow;
 
-      if (effectiveContext !== undefined) {
-        const spec = itemsToSpec(effectiveContext);
-        const ctxKey = specKey(spec);
-        if (ctxKey !== lastSentSpecRef.current) {
-          specParts.push({ type: "context_spec", data: spec });
-          lastSentSpecRef.current = ctxKey;
-        }
-      }
-
-      if (effectiveWindow !== undefined) {
-        const winKey = timeWindowKey(effectiveWindow);
-        if (winKey !== lastSentWindowRef.current) {
-          const { start, end, id } = effectiveWindow;
-          specParts.push({ type: "window", data: { start, end, id } });
-          lastSentWindowRef.current = winKey;
-        }
-      }
-
-      if (specParts.length === 0) return;
-      const specMsg = makeSystemMessage(specParts);
+      if (parts.length === 0) return;
+      const specMsg = makeSystemMessage(parts);
       setMessages((prev) => [...prev, specMsg]);
     },
     [setMessages],
@@ -228,6 +283,7 @@ export function useKalaidoChat({
     isLoadingRef.current = isLoading;
     sendMessageRef.current = sendMessage;
     appendSpecChangesRef.current = appendSpecChanges;
+    createChatInstanceRef.current = createChatInstance;
   });
 
   useLayoutEffect(() => {
@@ -247,6 +303,48 @@ export function useKalaidoChat({
       void sendMessage({ text });
     },
     [appendSpecChanges, sendMessage],
+  );
+
+  const openAndSend = useCallback(
+    ({
+      chatId: nextChatId,
+      api: nextApi,
+      initialMessages: nextInitialMessages,
+      prompt,
+      context: nextContext,
+      timeWindow: nextWindow,
+    }: OpenAndSendOptions) => {
+      const nextChat = createChatInstanceRef.current(
+        nextChatId,
+        nextInitialMessages,
+        nextApi,
+      );
+      const baseline = seedBaselines(nextInitialMessages);
+      seededForIdRef.current = nextChatId;
+      lastSentSpecRef.current = baseline.spec;
+      lastSentWindowRef.current = baseline.window;
+      pendingWindowResendRef.current = null;
+
+      setPrevChatId(nextChatId);
+      setQuotaHit(false);
+      setActiveChat(nextChat);
+
+      const trimmedPrompt = prompt?.trim();
+      if (trimmedPrompt) {
+        const {
+          parts,
+          nextSpec,
+          nextWindow: updatedWindow,
+        } = buildSpecDiffParts(nextContext, nextWindow, baseline);
+        lastSentSpecRef.current = nextSpec;
+        lastSentWindowRef.current = updatedWindow;
+        if (parts.length > 0) {
+          nextChat.messages = [...nextChat.messages, makeSystemMessage(parts)];
+        }
+        void nextChat.sendMessage({ text: trimmedPrompt });
+      }
+    },
+    [],
   );
 
   const applyTimeWindow = useCallback(
@@ -329,6 +427,7 @@ export function useKalaidoChat({
       quotaHit,
       quotaMessage: quotaHit ? QUOTA_MESSAGE : undefined,
       sendUserMessage,
+      openAndSend,
       applyTimeWindow,
       appendSystemNotice,
       confirmRegenerate,
@@ -343,6 +442,7 @@ export function useKalaidoChat({
       isLoading,
       quotaHit,
       sendUserMessage,
+      openAndSend,
       applyTimeWindow,
       appendSystemNotice,
       confirmRegenerate,
