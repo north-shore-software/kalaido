@@ -1,11 +1,15 @@
 import { createColour } from "@kalaido/client/kalaidoscope/colours";
 import { PageHeader } from "@kalaido/components";
-import { useCollection } from "@kalaido/hooks/use-collection";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { EmptyState } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import { PlusIcon } from "@phosphor-icons/react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ColourComposerPane } from "./components/colour-composer-pane";
 import { ColourDetailPane } from "./components/colour-detail-pane";
@@ -16,25 +20,74 @@ import type { ColourSeed } from "./types";
 
 const NO_SEED: readonly string[] = [];
 
+interface ColoursWorkflowState {
+  selectedId: string | null;
+  composing: boolean;
+  draftName: string;
+  draftPrompt: string;
+}
+
+type ColoursWorkflowEvent =
+  | { readonly type: "openComposer" }
+  | { readonly type: "closeComposer" }
+  | { readonly type: "selectColour"; readonly id: string | null }
+  | { readonly type: "setDraftName"; readonly name: string }
+  | { readonly type: "setDraftPrompt"; readonly prompt: string }
+  | { readonly type: "created"; readonly id: string };
+
 export interface ColoursScreenProps {
   seed?: ColourSeed;
 }
 
 export function ColoursScreen({ seed }: ColoursScreenProps) {
   // Captured once: a seed is a one-shot handoff, not a mode of the page.
-  const seedRef = useRef(seed);
-  // One identity for the page's life: the preview effect depends on it.
-  const seedExamples = seedRef.current?.positiveExamples ?? NO_SEED;
+  const [seedExamples] = useState<readonly string[]>(
+    () => seed?.positiveExamples ?? NO_SEED,
+  );
+  const client = useKalaidoscopeClient();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [composing, setComposing] = useState(seedExamples.length > 0);
+  const scope = useScope<ColoursWorkflowState, ColoursWorkflowEvent>({
+    initial: () => ({
+      selectedId: null,
+      composing: seedExamples.length > 0,
+      draftName: "",
+      draftPrompt: "",
+    }),
+    handlers: {
+      openComposer: (s) => {
+        s.composing = true;
+        s.draftName = "";
+        s.draftPrompt = "";
+      },
+      closeComposer: (s) => {
+        s.composing = false;
+      },
+      selectColour: (s, e) => {
+        s.composing = false;
+        s.selectedId = e.id;
+      },
+      setDraftName: (s, e) => {
+        s.draftName = e.name;
+      },
+      setDraftPrompt: (s, e) => {
+        s.draftPrompt = e.prompt;
+      },
+      created: (s, e) => {
+        s.composing = false;
+        s.selectedId = e.id;
+      },
+    },
+  });
 
-  const colours = useCollection("colour", {
+  const { selectedId, composing, draftName, draftPrompt } =
+    useScopeState(scope);
+
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,prompt,swatch",
   });
 
-  const allLinks = useCollection("colour_fragment", {
+  const allLinks = useLiveCollection("colour_fragment", {
     fields: "colour_id,match_type",
   });
   const countByColour = useMemo(() => {
@@ -46,7 +99,7 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
     return m;
   }, [allLinks.records]);
 
-  const memberQuery = useCollection("colour_fragment", {
+  const memberQuery = useLiveCollection("colour_fragment", {
     filter: selectedId ? `colour_id="${selectedId}"` : "",
     expand: "fragment_id",
     fields: "id,colour_id,fragment_id,match_type,expand",
@@ -60,28 +113,22 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
     [colours.records, selectedId],
   );
 
-  const [draftName, setDraftName] = useState("");
-  const [draftPrompt, setDraftPrompt] = useState("");
-  const [saving, setSaving] = useState(false);
   const preview = useColourPreview(draftPrompt, composing, seedExamples);
 
-  function openComposer() {
-    setComposing(true);
-    setDraftName("");
-    setDraftPrompt("");
-  }
-
-  function selectColour(id: string) {
-    setComposing(false);
-    setSelectedId(id);
-  }
+  const createWrite = useExternalWrite<
+    Parameters<typeof createColour>[0],
+    { readonly id: string }
+  >({
+    execute: (input) => createColour(input),
+    concurrency: "ignore",
+    invalidates: () => [kalaidoscopeCollectionTag(client.baseURL, "colour")],
+  });
 
   async function saveNew() {
     const name = draftName.trim();
     const prompt = draftPrompt.trim();
-    if (!name || !prompt || saving) return;
-    setSaving(true);
-    const res = await createColour({
+    if (!name || !prompt) return;
+    const outcome = await createWrite.run({
       name,
       prompt,
       // Seed every match, not the type-filtered view — the colour matches on the
@@ -91,16 +138,14 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
         ? { positiveExamples: [...seedExamples] }
         : {}),
     });
-    setSaving(false);
-    if (res.isErr()) {
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
       toast.error("Failed to create colour", {
-        description: res.error.message,
+        description: outcome.error.message,
       });
       return;
     }
-    await colours.mutate();
-    setComposing(false);
-    setSelectedId(res.value.id);
+    void scope.dispatch({ type: "created", id: outcome.id });
   }
 
   return (
@@ -110,19 +155,29 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
         actions={
           composing ? (
             <>
-              <Button variant="ghost" onClick={() => setComposing(false)}>
+              <Button
+                variant="ghost"
+                onClick={() => void scope.dispatch({ type: "closeComposer" })}
+              >
                 Cancel
               </Button>
               <Button
                 variant="commit"
-                disabled={!draftName.trim() || !draftPrompt.trim() || saving}
+                disabled={
+                  !draftName.trim() ||
+                  !draftPrompt.trim() ||
+                  createWrite.isPending
+                }
                 onClick={() => void saveNew()}
               >
-                {saving ? "Creating…" : "Create colour"}
+                {createWrite.isPending ? "Creating…" : "Create colour"}
               </Button>
             </>
           ) : (
-            <Button variant="section" onClick={openComposer}>
+            <Button
+              variant="section"
+              onClick={() => void scope.dispatch({ type: "openComposer" })}
+            >
               <PlusIcon />
               New Colour
             </Button>
@@ -136,7 +191,7 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
             isLoading={colours.isLoading}
             countByColour={countByColour}
             selectedId={composing ? null : selectedId}
-            onSelect={selectColour}
+            onSelect={(id) => void scope.dispatch({ type: "selectColour", id })}
           />
           {composing ? (
             <ColourComposerPane
@@ -145,8 +200,12 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
               typeFilter={preview.typeFilter}
               previewing={preview.previewing}
               previewFragments={preview.fragments}
-              onName={setDraftName}
-              onPrompt={setDraftPrompt}
+              onName={(name) =>
+                void scope.dispatch({ type: "setDraftName", name })
+              }
+              onPrompt={(prompt) =>
+                void scope.dispatch({ type: "setDraftPrompt", prompt })
+              }
               onTypeFilter={preview.setTypeFilter}
               seededCount={seedExamples.length}
             />
@@ -157,13 +216,8 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
               count={countByColour.get(selected.id) ?? 0}
               members={members}
               membersLoading={memberQuery.isLoading}
-              onColourChanged={() => colours.mutate()}
-              onDeleted={async () => {
-                setSelectedId(null);
-                await Promise.all([colours.mutate(), allLinks.mutate()]);
-              }}
-              onMembersChanged={() =>
-                Promise.all([memberQuery.mutate(), allLinks.mutate()])
+              onDeleted={() =>
+                void scope.dispatch({ type: "selectColour", id: null })
               }
             />
           ) : (

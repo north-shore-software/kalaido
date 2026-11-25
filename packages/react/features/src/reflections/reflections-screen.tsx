@@ -5,18 +5,11 @@ import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { EmptyState, ListRow, PinToggle } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
+import { useExternalWrite } from "@kalaido/state/live";
 import { ClockIcon, PlusIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { ReflectionSeriesPanel } from "./components/reflection-series-panel";
 import { currentWindowSpec, describeWindow } from "./schedule";
-
-async function togglePin(r: ReflectionResponse) {
-  const res = await updateReflection(r.id, {
-    pinned: !r.pinned,
-  });
-  if (res.isErr())
-    toast.error("Failed to update pin", { description: res.error.message });
-}
 
 export interface ReflectionsScreenProps {
   id?: string;
@@ -39,6 +32,23 @@ export function ReflectionsScreen({
     filter: 'name != "" && status = "active" && deleted_at = ""',
     sort: "-updated",
   });
+
+  const pinWrite = useExternalWrite<ReflectionResponse, void>({
+    execute: async (r) =>
+      (await updateReflection(r.id, { pinned: !r.pinned })).map(
+        () => undefined,
+      ),
+    concurrency: "allow",
+  });
+
+  async function togglePin(r: ReflectionResponse) {
+    const outcome = await pinWrite.run(r);
+    if (outcome.status === "error") {
+      toast.error("Failed to update pin", {
+        description: outcome.error.message,
+      });
+    }
+  }
 
   const activeId =
     id || (reflections.length > 0 ? reflections[0].id : undefined);

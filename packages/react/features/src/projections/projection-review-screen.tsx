@@ -1,4 +1,3 @@
-import { withActiveClient } from "@kalaido/client/kalaidoscope/_active";
 import {
   parseContextSpec,
   specToItems,
@@ -19,6 +18,11 @@ import {
   RefineChatPanel,
   RefineComposer,
 } from "@kalaido/components";
+import {
+  kalaidoscopeCollectionTag,
+  kalaidoscopeEndpointTag,
+} from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useRefineSession } from "@kalaido/hooks/use-refine-session";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
 import { DecisionCard, StatusPill } from "@kalaido/primitives/kalaido";
@@ -34,18 +38,39 @@ import {
   AlertDialogTitle,
 } from "@kalaido/primitives/shadcn/alert-dialog";
 import { Button } from "@kalaido/primitives/shadcn/button";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import { ArrowRightIcon, CheckIcon, WarningIcon } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { findNextTarget } from "#rotation";
-import {
-  type ProjectionSnapshotWithEdits,
-  useProjectionSnapshot,
-} from "./hooks/use-projection-snapshot";
-import { useResumeRefinement } from "./hooks/use-resume-refinement";
 import { EditsStatusPill } from "./components/edits-status-pill";
 import { ProjectionCanvasPane } from "./components/projection-canvas-pane";
 import { useCandidateTriage } from "./hooks/use-candidate-triage";
+import { useProjectionSnapshot } from "./hooks/use-projection-snapshot";
+import { useResumeRefinement } from "./hooks/use-resume-refinement";
+
+interface PendingFoldIn {
+  readonly snapshotId: string;
+  readonly mode: "single" | "wave";
+}
+
+interface ReviewWorkflowState {
+  advancing: boolean;
+  foldingIn: boolean;
+  pendingFoldIn: PendingFoldIn | null;
+  context: ContextItem[];
+  refineInput: string;
+}
+
+type ReviewWorkflowEvent =
+  | { readonly type: "setAdvancing"; readonly advancing: boolean }
+  | { readonly type: "startFoldIn" }
+  | { readonly type: "setPendingFoldIn"; readonly pending: PendingFoldIn }
+  | { readonly type: "clearFoldIn" }
+  | { readonly type: "setContext"; readonly context: ContextItem[] }
+  | { readonly type: "mentionContext"; readonly item: ContextItem }
+  | { readonly type: "setRefineInput"; readonly input: string };
 
 export interface ProjectionReviewScreenProps {
   id: string;
@@ -94,13 +119,47 @@ function ProjectionReviewScreenInner({
   onCaughtUp,
   onReviewNext,
 }: ProjectionReviewScreenProps) {
-  const [busy, setBusy] = useState(false);
-  // An "approve & next" is in flight: approving, then working out and preparing
-  // whatever comes after it.
-  const [advancing, setAdvancing] = useState(false);
+  const client = useKalaidoscopeClient();
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
-  const { projection, snapshots, liveSnapshot, mutate } =
-    useProjectionSnapshot(id);
+  const scope = useScope<ReviewWorkflowState, ReviewWorkflowEvent>({
+    initial: () => ({
+      advancing: false,
+      foldingIn: false,
+      pendingFoldIn: null,
+      context: [WHOLE_SCOPE_ITEM],
+      refineInput: "",
+    }),
+    handlers: {
+      setAdvancing: (s, e) => {
+        s.advancing = e.advancing;
+      },
+      startFoldIn: (s) => {
+        s.foldingIn = true;
+      },
+      setPendingFoldIn: (s, e) => {
+        s.pendingFoldIn = e.pending;
+      },
+      clearFoldIn: (s) => {
+        s.foldingIn = false;
+        s.pendingFoldIn = null;
+      },
+      setContext: (s, e) => {
+        s.context = e.context;
+      },
+      mentionContext: (s, e) => {
+        s.context = withContextItem(s.context, e.item);
+      },
+      setRefineInput: (s, e) => {
+        s.refineInput = e.input;
+      },
+    },
+  });
+
+  const { advancing, foldingIn, pendingFoldIn, context, refineInput } =
+    useScopeState(scope);
+
+  const { projection, snapshots, liveSnapshot } = useProjectionSnapshot(id);
 
   // Always review the newest pending candidate. Tracking the latest pending —
   // rather than the id pinned in the URL — keeps the view correct if the set
@@ -135,12 +194,6 @@ function ProjectionReviewScreenInner({
       outdatedReason = "context changed";
   }
 
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
-  // A fold-in has approved the candidate and is generating its successor.
-  // The approved row is no longer pending, so without this the canvas would
-  // read "candidate not found" for the whole generation.
-  const [foldingIn, setFoldingIn] = useState(false);
-
   useEffect(() => {
     if (pendingId && pendingId !== snapshotId) {
       onViewReview(id, pendingId, { wave: inWave, replace: true });
@@ -150,14 +203,16 @@ function ProjectionReviewScreenInner({
   // Editable context for the refine chat, seeded from the candidate's own
   // context_spec. Editing it re-emits a context_spec through the chat
   // (ChatPanel), and commit re-distills the lens with it.
-  const [context, setContext] = useState<ContextItem[]>([WHOLE_SCOPE_ITEM]);
   const ctxInitedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!pending || ctxInitedFor.current === pending.id) return;
     ctxInitedFor.current = pending.id;
     const spec = parseContextSpec(pending.context_spec);
-    setContext(spec ? specToItems(spec) : [WHOLE_SCOPE_ITEM]);
-  }, [pending]);
+    void scope.dispatch({
+      type: "setContext",
+      context: spec ? specToItems(spec) : [WHOLE_SCOPE_ITEM],
+    });
+  }, [pending, scope]);
 
   // The refine session is created lazily on the user's first message (see
   // startRefine), so /api/chat routes to the refinement handler only once the
@@ -165,7 +220,38 @@ function ProjectionReviewScreenInner({
   // Scoped to the pending candidate so its context/window spec seeds the chat.
   const session = useRefineSession({ target: "projection" });
   const chatPanelRef = useRef<ChatPanelHandle>(null);
-  const [refineInput, setRefineInput] = useState("");
+
+  const approveWrite = useExternalWrite<
+    { projectionId: string; snapshotId: string },
+    void
+  >({
+    execute: ({ projectionId, snapshotId: targetSnapshotId }) =>
+      approveProjectionCandidate(projectionId, targetSnapshotId),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
+  });
+
+  const regenerateWrite = useExternalWrite<
+    {
+      projectionId: string;
+      opts?: { discardEngaged?: boolean; foldIn?: boolean };
+    },
+    { readonly id: string }
+  >({
+    execute: ({ projectionId, opts }) =>
+      regenerateProjection(projectionId, false, opts),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
+  });
+
+  const busy =
+    approveWrite.isPending || regenerateWrite.isPending || session.committing;
 
   // If a refinement was already started over this candidate (e.g. the user hit
   // "Come back later" mid-refine), resume it so the chat history and drafted
@@ -190,8 +276,8 @@ function ProjectionReviewScreenInner({
     if (!resumed || !openRefinement || refineContext.length === 0) return;
     if (ctxResumedFor.current === openRefinement.id) return;
     ctxResumedFor.current = openRefinement.id;
-    setContext(refineContext);
-  }, [resumed, openRefinement, refineContext]);
+    void scope.dispatch({ type: "setContext", context: refineContext });
+  }, [resumed, openRefinement, refineContext, scope]);
 
   async function startRefine() {
     const text = refineInput.trim();
@@ -202,7 +288,6 @@ function ProjectionReviewScreenInner({
   const triage = useCandidateTriage({
     projectionId: id,
     pending,
-    mutate,
     session,
     chatPanelRef,
   });
@@ -250,182 +335,9 @@ function ProjectionReviewScreenInner({
   // while it is up, because folding in needs every one of them decided.
   const gateOpen = isCandidateOutdated && !!pending;
 
-  // Approve either commits the refinement (when the chat produced a draft) or
-  // promotes the pending candidate as-is. Approval discards superseded pending
-  // candidates server-side, for commits and as-is approvals alike.
-  // Returns whether the approval landed, so callers can decide where to go.
-  async function runApprove(): Promise<boolean> {
-    if (!id || !pending || busy) return false;
-    if (session.started && session.hasDraftedLens) {
-      setBusy(true);
-      const ok = await session.commit(id);
-      setBusy(false);
-      return ok;
-    }
-    setBusy(true);
-    const res = await approveProjectionCandidate(id, pending.id);
-    setBusy(false);
-    if (res.isErr()) {
-      console.error("review: approve failed", res.error);
-      toast.error("Failed to approve", { description: res.error.message });
-      return false;
-    }
-    return true;
-  }
-
-  async function approve() {
-    if (!id) return;
-    if (await runApprove()) {
-      onApproveSuccess(id);
-    }
-  }
-
-  /** Move to another candidate of this projection, staying in the wave if in one. */
-  function goToCandidate(nextSnapshotId: string) {
-    if (!id) return;
-    onViewReview(id, nextSnapshotId, { wave: inWave, replace: true });
-  }
-
-  async function handleRefresh() {
-    if (!id || busy || advancing) return;
-    setBusy(true);
-    const res = await regenerateProjection(id, false);
-    setBusy(false);
-    if (res.isErr()) {
-      toast.error("Couldn't refresh", { description: res.error.message });
-      return;
-    }
-    await mutate();
-    goToCandidate(res.value.id);
-  }
-
-  async function handleDiscardAndRefresh() {
-    if (!id || busy || advancing) return;
-    setBusy(true);
-    const res = await regenerateProjection(id, false, { discardEngaged: true });
-    setBusy(false);
-    setConfirmDiscard(false);
-    if (res.isErr()) {
-      toast.error("Couldn't refresh", { description: res.error.message });
-      return;
-    }
-    await mutate();
-    goToCandidate(res.value.id);
-  }
-
-  async function handleApproveAndRefresh() {
-    if (!id || busy || advancing) return;
-    const ok = await runApprove();
-    if (!ok) return;
-    setBusy(true);
-    setFoldingIn(true);
-    const res = await regenerateProjection(id, false, { foldIn: true });
-    setBusy(false);
-    if (res.isErr()) {
-      setFoldingIn(false);
-      toast.error("Approved, but couldn't refresh", {
-        description: res.error.message,
-      });
-      onApproveSuccess(id);
-      return;
-    }
-    const resSnaps = (await mutate()) as
-      | ProjectionSnapshotWithEdits[]
-      | undefined;
-    const target = resSnaps?.find((s) => s.id === res.value.id);
-    let isPending = target?.status === "pending_review";
-    if (!target) {
-      const snapRes = await withActiveClient((c) =>
-        c.collection("projection_snapshot").getOne(res.value.id),
-      );
-      if (snapRes.isOk()) {
-        isPending = snapRes.value.status === "pending_review";
-      }
-    }
-    setFoldingIn(false);
-    if (isPending) {
-      toast.info("Candidate updated with new context");
-      goToCandidate(res.value.id);
-    } else {
-      toast.success("Approved and up to date");
-      onApproveSuccess(id);
-    }
-  }
-
-  /**
-   * Skip this projection in the wave and work out what to go to next.
-   */
-  async function skipCurrent() {
-    if (!id || advancing) return;
-    setAdvancing(true);
-    const next = await findNextTarget({ skip: [id], projectionsOnly: true });
-    setAdvancing(false);
-
-    if (next.isErr()) {
-      toast.error("Couldn't work out what's next", {
-        description: next.error.message,
-      });
-      return;
-    }
-    if (!next.value?.snapshotId) {
-      toast.info("Nothing else to review in wave");
-      onExitWave();
-      return;
-    }
-    onReviewNext(next.value.id, next.value.snapshotId);
-  }
-
-  /**
-   * Approve, then go wherever the plan says to go next. The plan is re-read
-   * after the approval precisely because approving changes it: this projection
-   * drops out, and anything that was waiting on it becomes available.
-   */
-  async function approveAndNext() {
-    if (!id || advancing) return;
-
-    // Held across both steps so the buttons never re-enable in between.
-    setAdvancing(true);
-    if (!(await runApprove())) {
-      setAdvancing(false);
-      return;
-    }
-    if (isCandidateOutdated) {
-      setFoldingIn(true);
-      const res = await regenerateProjection(id, false, { foldIn: true });
-      setFoldingIn(false);
-      if (res.isErr()) {
-        toast.error("Approved, but couldn't refresh", {
-          description: res.error.message,
-        });
-        setAdvancing(false);
-        onApproveSuccess(id);
-        return;
-      }
-      const resSnaps = (await mutate()) as
-        | ProjectionSnapshotWithEdits[]
-        | undefined;
-      const target = resSnaps?.find((s) => s.id === res.value.id);
-      let isPending = target?.status === "pending_review";
-      if (!target) {
-        const snapRes = await withActiveClient((c) =>
-          c.collection("projection_snapshot").getOne(res.value.id),
-        );
-        if (snapRes.isOk()) {
-          isPending = snapRes.value.status === "pending_review";
-        }
-      }
-      if (isPending) {
-        toast.info("Approved — fresh candidate ready to review", {
-          description:
-            "New context landed after this candidate was generated, so a fresh one is ready to review.",
-        });
-        setAdvancing(false);
-        onViewReview(id, res.value.id, { wave: true, replace: true });
-        return;
-      }
-    }
+  const advanceToNextInWave = useCallback(async () => {
     const next = await findNextTarget({ projectionsOnly: true });
-    setAdvancing(false);
+    void scope.dispatch({ type: "setAdvancing", advancing: false });
 
     if (next.isErr()) {
       // The approval itself succeeded, so land somewhere sane and say why.
@@ -451,6 +363,202 @@ function ProjectionReviewScreenInner({
     // Projection stops always carry the candidate to review.
     if (!next.value.snapshotId) return;
     onReviewNext(next.value.id, next.value.snapshotId);
+  }, [id, scope, onApproveSuccess, onCaughtUp, onReviewNext]);
+
+  // Pure CQRS fold-in settlement: once `regenerateWrite` resolves (after
+  // awaiting invalidation of `projection_snapshot` and `reconcile`), branch on
+  // the live snapshot's status.
+  useEffect(() => {
+    if (!pendingFoldIn) return;
+    const target = snapshots.find((s) => s.id === pendingFoldIn.snapshotId);
+    if (!target) return;
+    const { snapshotId: targetId, mode } = pendingFoldIn;
+    void scope.dispatch({ type: "clearFoldIn" });
+
+    if (target.status === "pending_review") {
+      if (mode === "wave") {
+        toast.info("Approved — fresh candidate ready to review", {
+          description:
+            "New context landed after this candidate was generated, so a fresh one is ready to review.",
+        });
+        void scope.dispatch({ type: "setAdvancing", advancing: false });
+        onViewReview(id, targetId, { wave: true, replace: true });
+      } else {
+        toast.info("Candidate updated with new context");
+        onViewReview(id, targetId, { wave: inWave, replace: true });
+      }
+      return;
+    }
+
+    if (mode === "single") {
+      toast.success("Approved and up to date");
+      onApproveSuccess(id);
+    } else {
+      void advanceToNextInWave();
+    }
+  }, [
+    pendingFoldIn,
+    snapshots,
+    id,
+    inWave,
+    scope,
+    onViewReview,
+    onApproveSuccess,
+    advanceToNextInWave,
+  ]);
+
+  // Approve either commits the refinement (when the chat produced a draft) or
+  // promotes the pending candidate as-is. Approval discards superseded pending
+  // candidates server-side, for commits and as-is approvals alike.
+  // Returns whether the approval landed, so callers can decide where to go.
+  async function runApprove(): Promise<boolean> {
+    if (!id || !pending || busy) return false;
+    if (session.started && session.hasDraftedLens) {
+      return session.commit(id);
+    }
+    const outcome = await approveWrite.run({
+      projectionId: id,
+      snapshotId: pending.id,
+    });
+    if (outcome.status === "ignored") return false;
+    if (outcome.status === "error") {
+      console.error("review: approve failed", outcome.error);
+      toast.error("Failed to approve", { description: outcome.error.message });
+      return false;
+    }
+    return true;
+  }
+
+  async function approve() {
+    if (!id) return;
+    if (await runApprove()) {
+      onApproveSuccess(id);
+    }
+  }
+
+  /** Move to another candidate of this projection, staying in the wave if in one. */
+  function goToCandidate(nextSnapshotId: string) {
+    if (!id) return;
+    onViewReview(id, nextSnapshotId, { wave: inWave, replace: true });
+  }
+
+  async function handleRefresh() {
+    if (!id || busy || advancing) return;
+    const outcome = await regenerateWrite.run({ projectionId: id });
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Couldn't refresh", { description: outcome.error.message });
+      return;
+    }
+    goToCandidate(outcome.id);
+  }
+
+  async function handleDiscardAndRefresh() {
+    if (!id || busy || advancing) return;
+    const outcome = await regenerateWrite.run({
+      projectionId: id,
+      opts: { discardEngaged: true },
+    });
+    setConfirmDiscard(false);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Couldn't refresh", { description: outcome.error.message });
+      return;
+    }
+    goToCandidate(outcome.id);
+  }
+
+  async function handleApproveAndRefresh() {
+    if (!id || busy || advancing) return;
+    const ok = await runApprove();
+    if (!ok) return;
+    await scope.dispatch({ type: "startFoldIn" });
+    const outcome = await regenerateWrite.run({
+      projectionId: id,
+      opts: { foldIn: true },
+    });
+    if (outcome.status === "ignored") {
+      void scope.dispatch({ type: "clearFoldIn" });
+      return;
+    }
+    if (outcome.status === "error") {
+      void scope.dispatch({ type: "clearFoldIn" });
+      toast.error("Approved, but couldn't refresh", {
+        description: outcome.error.message,
+      });
+      onApproveSuccess(id);
+      return;
+    }
+    await scope.dispatch({
+      type: "setPendingFoldIn",
+      pending: { snapshotId: outcome.id, mode: "single" },
+    });
+  }
+
+  /**
+   * Skip this projection in the wave and work out what to go to next.
+   */
+  async function skipCurrent() {
+    if (!id || advancing) return;
+    await scope.dispatch({ type: "setAdvancing", advancing: true });
+    const next = await findNextTarget({ skip: [id], projectionsOnly: true });
+    await scope.dispatch({ type: "setAdvancing", advancing: false });
+
+    if (next.isErr()) {
+      toast.error("Couldn't work out what's next", {
+        description: next.error.message,
+      });
+      return;
+    }
+    if (!next.value?.snapshotId) {
+      toast.info("Nothing else to review in wave");
+      onExitWave();
+      return;
+    }
+    onReviewNext(next.value.id, next.value.snapshotId);
+  }
+
+  /**
+   * Approve, then go wherever the plan says to go next. The plan is re-read
+   * after the approval precisely because approving changes it: this projection
+   * drops out, and anything that was waiting on it becomes available.
+   */
+  async function approveAndNext() {
+    if (!id || advancing) return;
+
+    // Held across both steps so the buttons never re-enable in between.
+    await scope.dispatch({ type: "setAdvancing", advancing: true });
+    if (!(await runApprove())) {
+      await scope.dispatch({ type: "setAdvancing", advancing: false });
+      return;
+    }
+    if (isCandidateOutdated) {
+      await scope.dispatch({ type: "startFoldIn" });
+      const outcome = await regenerateWrite.run({
+        projectionId: id,
+        opts: { foldIn: true },
+      });
+      if (outcome.status === "ignored") {
+        await scope.dispatch({ type: "clearFoldIn" });
+        await scope.dispatch({ type: "setAdvancing", advancing: false });
+        return;
+      }
+      if (outcome.status === "error") {
+        await scope.dispatch({ type: "clearFoldIn" });
+        await scope.dispatch({ type: "setAdvancing", advancing: false });
+        toast.error("Approved, but couldn't refresh", {
+          description: outcome.error.message,
+        });
+        onApproveSuccess(id);
+        return;
+      }
+      await scope.dispatch({
+        type: "setPendingFoldIn",
+        pending: { snapshotId: outcome.id, mode: "wave" },
+      });
+      return;
+    }
+    await advanceToNextInWave();
   }
 
   const generatedAt = pending
@@ -548,7 +656,7 @@ function ProjectionReviewScreenInner({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={approve}
+                  onClick={() => void approve()}
                   disabled={approveBlocked || gateOpen}
                 >
                   <CheckIcon />
@@ -557,7 +665,7 @@ function ProjectionReviewScreenInner({
                 <Button
                   variant="commit"
                   size="sm"
-                  onClick={approveAndNext}
+                  onClick={() => void approveAndNext()}
                   disabled={approveBlocked || gateOpen}
                 >
                   {advancing ? "Finding next…" : "Approve & next"}
@@ -576,7 +684,7 @@ function ProjectionReviewScreenInner({
                 <Button
                   variant="commit"
                   size="sm"
-                  onClick={approve}
+                  onClick={() => void approve()}
                   disabled={approveBlocked || gateOpen}
                 >
                   <CheckIcon />
@@ -632,18 +740,22 @@ function ProjectionReviewScreenInner({
                 ref={chatPanelRef}
                 session={session}
                 title="Refine with chat"
-                context={context}
+                context={context as ContextItem[]}
                 onMention={(item) =>
-                  setContext((prev) => withContextItem(prev, item))
+                  void scope.dispatch({ type: "mentionContext", item })
                 }
-                onContextChange={setContext}
+                onContextChange={(next) =>
+                  void scope.dispatch({ type: "setContext", context: next })
+                }
                 entity="projection"
                 highlightedEditId={highlightedEditId}
                 edits={edits}
                 onUndoEdit={triage.handleUndoEdit}
                 placeholder="Tell Kalaido what to change…"
                 input={refineInput}
-                onInputChange={setRefineInput}
+                onInputChange={(next) =>
+                  void scope.dispatch({ type: "setRefineInput", input: next })
+                }
                 disabled={gateOpen || foldingIn}
                 trailing={gateCard}
               />
@@ -653,19 +765,26 @@ function ProjectionReviewScreenInner({
                 helperText="Tell Kalaido what to change about this candidate to refine it before approving."
                 helperTextClassName="max-w-[80%]"
                 value={refineInput}
-                onChange={setRefineInput}
+                onChange={(next) =>
+                  void scope.dispatch({ type: "setRefineInput", input: next })
+                }
                 placeholder="Tell Kalaido what to change…"
                 disabled={!pending || gateOpen || foldingIn}
                 busy={session.creating}
                 onSubmit={() => void startRefine()}
                 onMention={(item) =>
-                  setContext((prev) => withContextItem(prev, item))
+                  void scope.dispatch({ type: "mentionContext", item })
                 }
                 beforeInput={
                   <div inert={gateOpen || foldingIn}>
                     <ContextBar
-                      items={context}
-                      onChange={setContext}
+                      items={context as ContextItem[]}
+                      onChange={(next) =>
+                        void scope.dispatch({
+                          type: "setContext",
+                          context: next,
+                        })
+                      }
                       entity="projection"
                     />
                   </div>

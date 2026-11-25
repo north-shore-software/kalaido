@@ -12,8 +12,9 @@ import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
 import { EmptyState, Mono } from "@kalaido/primitives/kalaido";
 import { PageBody } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
+import { useExternalWrite } from "@kalaido/state/live";
 import { PlusIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import {
   ProjectionRow,
@@ -21,20 +22,6 @@ import {
 } from "./components/projection-row";
 import { resolveSources } from "./sources";
 import { getProjectionStatus } from "./status";
-
-async function restore(id: string) {
-  const res = await restoreProjection(id);
-  if (res.isErr())
-    toast.error("Failed to restore", { description: res.error.message });
-}
-
-async function togglePin(p: ProjectionResponse) {
-  const res = await updateProjection(p.id, {
-    pinned: !p.pinned,
-  });
-  if (res.isErr())
-    toast.error("Failed to update pin", { description: res.error.message });
-}
 
 export interface ProjectionsScreenProps {
   onNewProjection: () => void;
@@ -64,6 +51,36 @@ export function ProjectionsScreen({
     sort: "-deleted_at",
     fields: "id,name,deleted_at",
   });
+
+  const restoreWrite = useExternalWrite<string, void>({
+    execute: (id) => restoreProjection(id),
+    concurrency: "allow",
+  });
+
+  const pinWrite = useExternalWrite<ProjectionResponse, void>({
+    execute: async (p) =>
+      (await updateProjection(p.id, { pinned: !p.pinned })).map(
+        () => undefined,
+      ),
+    concurrency: "allow",
+  });
+
+  async function restore(id: string) {
+    const outcome = await restoreWrite.run(id);
+    if (outcome.status === "error") {
+      toast.error("Failed to restore", { description: outcome.error.message });
+    }
+  }
+
+  async function togglePin(p: ProjectionResponse) {
+    const outcome = await pinWrite.run(p);
+    if (outcome.status === "error") {
+      toast.error("Failed to update pin", {
+        description: outcome.error.message,
+      });
+    }
+  }
+
   const candidateByProjection = useMemo(() => {
     const map = new Map<string, { id: string }>();
     for (const s of pending.records) {
@@ -87,18 +104,7 @@ export function ProjectionsScreen({
     [pending.records],
   );
 
-  const { byId: statusById, refetch: refetchRotation } = useRotationStatus();
-  // /api/rotation is a plain fetch, not realtime — recompute whenever the
-  // candidate/claim set changes (generate, approve, supersede) so the badges
-  // don't sit stale while the page is open.
-  const planInputsKey = useMemo(
-    () => pending.records.map((s) => `${s.id}:${s.status}`).join(","),
-    [pending.records],
-  );
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch on snapshot-set changes.
-  useEffect(() => {
-    refetchRotation();
-  }, [planInputsKey, refetchRotation]);
+  const { byId: statusById } = useRotationStatus();
   const contextSources = useContextSources();
 
   // When each projection's live output was generated: the newest approved

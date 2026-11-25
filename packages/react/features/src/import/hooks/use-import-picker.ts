@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { useCallback } from "react";
 import {
   FILE_FILTERS,
   type ImportAdapter,
@@ -12,17 +13,59 @@ export { SUPPORTED_EXTENSIONS_HINT, SUPPORTED_FORMATS_HINT };
 
 export type ImportPicker = ReturnType<typeof useImportPicker>;
 
+interface ImportPickerState {
+  file: PickedImportFile | null;
+  entries: ImportFileEntry[];
+  scanning: boolean;
+  pickError: string;
+}
+
+type ImportPickerEvent =
+  | { readonly type: "clear" }
+  | { readonly type: "selectFile"; readonly file: PickedImportFile }
+  | { readonly type: "startScan" }
+  | { readonly type: "scanSuccess"; readonly entries: ImportFileEntry[] }
+  | { readonly type: "scanError"; readonly message: string };
+
 export function useImportPicker(adapter: ImportAdapter, onPicked?: () => void) {
-  const [file, setFile] = useState<PickedImportFile | null>(null);
-  const [entries, setEntries] = useState<ImportFileEntry[]>([]);
-  const [scanning, setScanning] = useState(false);
-  const [pickError, setPickError] = useState("");
+  const scope = useScope<ImportPickerState, ImportPickerEvent>({
+    initial: () => ({
+      file: null,
+      entries: [],
+      scanning: false,
+      pickError: "",
+    }),
+    handlers: {
+      clear: (s) => {
+        s.file = null;
+        s.entries = [];
+        s.scanning = false;
+        s.pickError = "";
+      },
+      selectFile: (s, e) => {
+        s.file = e.file;
+        s.entries = [];
+        s.pickError = "";
+      },
+      startScan: (s) => {
+        s.scanning = true;
+      },
+      scanSuccess: (s, e) => {
+        s.scanning = false;
+        s.entries = e.entries;
+      },
+      scanError: (s, e) => {
+        s.scanning = false;
+        s.pickError = e.message;
+      },
+    },
+  });
+
+  const { file, entries, scanning, pickError } = useScopeState(scope);
 
   const clear = useCallback(() => {
-    setFile(null);
-    setEntries([]);
-    setPickError("");
-  }, []);
+    void scope.dispatch({ type: "clear" });
+  }, [scope]);
 
   async function chooseFile() {
     const pickerResult = await adapter.pickFile(FILE_FILTERS);
@@ -30,9 +73,7 @@ export function useImportPicker(adapter: ImportAdapter, onPicked?: () => void) {
     const selected = pickerResult.value;
     if (!selected) return;
 
-    setFile(selected);
-    setEntries([]);
-    setPickError("");
+    await scope.dispatch({ type: "selectFile", file: selected });
     onPicked?.();
 
     if (!selected.scanEntries) return;
@@ -40,20 +81,22 @@ export function useImportPicker(adapter: ImportAdapter, onPicked?: () => void) {
     // Preview the contents when the platform supports scanning. Failing to scan
     // doesn't block the import — the whole file is uploaded regardless, and the
     // backend infers the format per file from its name.
-    setScanning(true);
+    await scope.dispatch({ type: "startScan" });
     const result = await selected.scanEntries();
-    setScanning(false);
     if (result.isErr()) {
-      setPickError("Couldn't read that file to preview it.");
+      await scope.dispatch({
+        type: "scanError",
+        message: "Couldn't read that file to preview it.",
+      });
       return;
     }
-    setEntries(result.value);
+    await scope.dispatch({ type: "scanSuccess", entries: result.value });
   }
 
   return {
-    file,
+    file: file as PickedImportFile | null,
     path: file?.displayPath ?? "",
-    entries,
+    entries: entries as ImportFileEntry[],
     scanning,
     pickError,
     chooseFile,

@@ -1,12 +1,3 @@
-import {
-  ArchiveIcon,
-  ArrowCounterClockwiseIcon,
-  CaretRightIcon,
-  PlusIcon,
-  XIcon,
-} from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { updateColour } from "@kalaido/client/kalaidoscope/colours";
 import {
   archiveFragment,
@@ -17,6 +8,18 @@ import type {
   ColourFragmentMatchTypeOptions,
   FragmentTypeOptions,
 } from "@kalaido/client/kalaidoscope/types";
+import { formatShortDateTime } from "@kalaido/client/lib/datetime";
+import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import {
+  useLiveCollection,
+  useLiveCollectionWatching,
+} from "@kalaido/hooks/use-live-collection";
+import { ColourSwatch } from "@kalaido/primitives/kalaido/colour";
+import { fragmentTypeIcon } from "@kalaido/primitives/kalaido/icons";
+import { StatusPill } from "@kalaido/primitives/kalaido/status-pill";
+import { Mono } from "@kalaido/primitives/kalaido/text";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
   Collapsible,
@@ -33,16 +36,18 @@ import {
   SheetTitle,
 } from "@kalaido/primitives/shadcn/sheet";
 import { Skeleton } from "@kalaido/primitives/shadcn/skeleton";
-import { useCollection } from "@kalaido/hooks/use-collection";
-import { useLiveCollectionWatching } from "@kalaido/hooks/use-live-collection";
-import { formatShortDateTime } from "@kalaido/client/lib/datetime";
-import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
-import { ColourSwatch } from "@kalaido/primitives/kalaido/colour";
+import { useExternalWrite } from "@kalaido/state/live";
+import {
+  ArchiveIcon,
+  ArrowCounterClockwiseIcon,
+  CaretRightIcon,
+  PlusIcon,
+  XIcon,
+} from "@phosphor-icons/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ItemPicker } from "./context-picker/item-picker";
-import { fragmentTypeIcon } from "@kalaido/primitives/kalaido/icons";
 import { MarkdownContent } from "./markdown-content";
-import { StatusPill } from "@kalaido/primitives/kalaido/status-pill";
-import { Mono } from "@kalaido/primitives/kalaido/text";
 
 export function FragmentDrawer({
   id,
@@ -51,12 +56,22 @@ export function FragmentDrawer({
   id?: string;
   onClose: () => void;
 }) {
-  const { records, isLoading, mutate } = useLiveCollectionWatching(
+  const client = useKalaidoscopeClient();
+  const { records, isLoading } = useLiveCollectionWatching(
     "view_stream",
     ["fragment", "colour_fragment"],
     { filter: id ? `id="${id}"` : undefined, enabled: !!id },
   );
-  const [archiving, setArchiving] = useState(false);
+
+  const archiveWrite = useExternalWrite<
+    { fragmentId: string; archived: boolean },
+    void
+  >({
+    execute: ({ fragmentId, archived: isArchived }) =>
+      isArchived ? unarchiveFragment(fragmentId) : archiveFragment(fragmentId),
+    concurrency: "ignore",
+    invalidates: () => [kalaidoscopeCollectionTag(client.baseURL, "fragment")],
+  });
 
   const fragment = records[0];
   const Icon = fragment ? fragmentTypeIcon(fragment.type) : null;
@@ -65,19 +80,18 @@ export function FragmentDrawer({
 
   async function toggleArchive() {
     if (!fragment) return;
-    setArchiving(true);
-    const res = archived
-      ? await unarchiveFragment(fragment.id)
-      : await archiveFragment(fragment.id);
-    setArchiving(false);
-    if (res.isErr()) {
+    const outcome = await archiveWrite.run({
+      fragmentId: fragment.id,
+      archived,
+    });
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
       toast.error(archived ? "Couldn't restore" : "Couldn't archive", {
-        description: res.error.message,
+        description: outcome.error.message,
       });
       return;
     }
     toast.success(archived ? "Fragment restored" : "Fragment archived");
-    await mutate();
   }
 
   return (
@@ -118,14 +132,13 @@ export function FragmentDrawer({
                   fallback={fragmentTypeLabel(
                     fragment.type as FragmentTypeOptions,
                   )}
-                  onSaved={() => void mutate()}
                 />
                 {archived && <StatusPill kind="neutral">archived</StatusPill>}
                 <div className="flex-1" />
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={archiving}
+                  disabled={archiveWrite.isPending}
                   onClick={() => void toggleArchive()}
                 >
                   {archived ? <ArrowCounterClockwiseIcon /> : <ArchiveIcon />}
@@ -163,17 +176,22 @@ function EditableTitle({
   fragmentId,
   title,
   fallback,
-  onSaved,
 }: {
   fragmentId: string;
   title: string;
   fallback: string;
-  onSaved: () => void;
 }) {
+  const client = useKalaidoscopeClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
   const inputRef = useRef<HTMLInputElement>(null);
   const cancelled = useRef(false);
+
+  const renameWrite = useExternalWrite<string, void>({
+    execute: (next) => renameFragment(fragmentId, next),
+    concurrency: "ignore",
+    invalidates: () => [kalaidoscopeCollectionTag(client.baseURL, "fragment")],
+  });
 
   useEffect(() => {
     if (editing) inputRef.current?.select();
@@ -190,12 +208,10 @@ function EditableTitle({
     if (cancelled.current) return;
     const next = draft.trim();
     if (next === title.trim()) return;
-    const res = await renameFragment(fragmentId, next);
-    if (res.isErr()) {
-      toast.error("Couldn't rename", { description: res.error.message });
-      return;
+    const outcome = await renameWrite.run(next);
+    if (outcome.status === "error") {
+      toast.error("Couldn't rename", { description: outcome.error.message });
     }
-    onSaved();
   }
 
   if (editing) {
@@ -251,6 +267,7 @@ const MATCH_LABEL: Record<ColourFragmentMatchTypeOptions, string> = {
 };
 
 function FragmentColours({ fragmentId }: { fragmentId: string }) {
+  const client = useKalaidoscopeClient();
   const links = useLiveCollectionWatching(
     "colour_fragment",
     ["colour_fragment"],
@@ -259,11 +276,26 @@ function FragmentColours({ fragmentId }: { fragmentId: string }) {
       fields: "id,colour_id,match_type",
     },
   );
-  const colours = useCollection("colour", {
+  const colours = useLiveCollection("colour", {
     sort: "-created",
     fields: "id,name,swatch",
   });
   const [picking, setPicking] = useState(false);
+
+  const colourWrite = useExternalWrite<
+    {
+      colourId: string;
+      input: Parameters<typeof updateColour>[1];
+    },
+    void
+  >({
+    execute: async ({ colourId, input }) =>
+      (await updateColour(colourId, input)).map(() => undefined),
+    concurrency: "allow",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "colour_fragment"),
+    ],
+  });
 
   const linkByColour = useMemo(() => {
     const m = new Map<string, Link>();
@@ -284,14 +316,12 @@ function FragmentColours({ fragmentId }: { fragmentId: string }) {
         ? { clearExamples: [fragmentId] }
         : { negativeExamples: [fragmentId] }
       : { positiveExamples: [fragmentId] };
-    const res = await updateColour(colourId, input);
-    if (res.isErr()) {
+    const outcome = await colourWrite.run({ colourId, input });
+    if (outcome.status === "error") {
       toast.error("Failed to update colour", {
-        description: res.error.message,
+        description: outcome.error.message,
       });
-      return;
     }
-    await links.mutate();
   }
 
   const chips = colours.records.filter((c) => memberIds.has(c.id));

@@ -2,12 +2,11 @@ import {
   type EntityStatus,
   getRotation,
 } from "@kalaido/client/kalaidoscope/rotation";
-import { invalidateLiveTags, useLiveRead } from "@kalaido/state/live";
-import { useCallback, useMemo } from "react";
+import { useLiveRead } from "@kalaido/state/live";
+import { useMemo } from "react";
 import {
   type KalaidoscopeCollectionName,
   kalaidoscopeEndpointSource,
-  kalaidoscopeEndpointTag,
 } from "#kalaidoscope-live";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
 
@@ -30,11 +29,6 @@ export interface UseRotationStatusResult {
   readonly isLoading: boolean;
   readonly isValidating: boolean;
   readonly error: Error | null;
-  /**
-   * @deprecated Temporary Wave 1 bridge; removed in Wave 3 once callers drop
-   * manual `.refetch()` in favor of live SSE + `useExternalWrite` invalidation.
-   */
-  readonly refetch: () => void;
 }
 
 /**
@@ -43,7 +37,6 @@ export interface UseRotationStatusResult {
  */
 export function useRotationStatus(): UseRotationStatusResult {
   const client = useKalaidoscopeClient();
-  const baseURL = client.baseURL;
 
   const result = useLiveRead(
     kalaidoscopeEndpointSource({
@@ -65,16 +58,11 @@ export function useRotationStatus(): UseRotationStatusResult {
     return m;
   }, [statuses]);
 
-  const refetch = useCallback(() => {
-    void invalidateLiveTags([kalaidoscopeEndpointTag(baseURL, "reconcile")]);
-  }, [baseURL]);
-
   return {
     statuses,
     byId,
     isLoading: result.isLoading,
     isValidating: result.isValidating,
     error: result.error,
-    refetch,
   };
 }

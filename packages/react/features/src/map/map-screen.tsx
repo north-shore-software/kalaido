@@ -11,8 +11,8 @@ import {
 import { PageBody } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
+import { useExternalWrite } from "@kalaido/state/live";
 import { PlayIcon } from "@phosphor-icons/react";
-import { useState } from "react";
 import { toast } from "sonner";
 
 interface MapThing {
@@ -43,17 +43,20 @@ export function MapScreen() {
   const { status: organize } = useOrganizeStatus();
   const map = maps?.[0];
   const body = asMapBody(map?.body);
-  const [running, setRunning] = useState(false);
+
+  const runMapWrite = useExternalWrite<void, void>({
+    execute: () => startMap(),
+    concurrency: "ignore",
+  });
 
   async function handleRunMap() {
-    setRunning(true);
-    try {
-      const res = await startMap();
-      if (res.isErr()) toast.error(`Map failed to start: ${res.error.message}`);
-    } finally {
-      setRunning(false);
+    const outcome = await runMapWrite.run();
+    if (outcome.status === "error") {
+      toast.error(`Map failed to start: ${outcome.error.message}`);
     }
   }
+
+  const running = runMapWrite.isPending;
 
   const things = [...(body?.things ?? [])].sort(
     (a, b) => (b.fragments ?? 0) - (a.fragments ?? 0),
@@ -71,7 +74,7 @@ export function MapScreen() {
         actions={
           <Button
             size="sm"
-            onClick={handleRunMap}
+            onClick={() => void handleRunMap()}
             disabled={running || organize?.map.state === "consolidating"}
           >
             {running || organize?.map.state === "consolidating" ? (

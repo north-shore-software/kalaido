@@ -1,18 +1,15 @@
 import {
-  ArrowUUpLeftIcon,
-  PlusIcon,
-  PushPinIcon,
-  XIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { toast } from "sonner";
-import {
   deleteColour,
   rematchColour,
   type UpdateColourInput,
   updateColour,
 } from "@kalaido/client/kalaidoscope/colours";
 import type { ColourResponse } from "@kalaido/client/kalaidoscope/types";
+import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
+import { useFragmentSearch } from "@kalaido/components/context-picker/data";
+import { ItemPicker } from "@kalaido/components/context-picker/item-picker";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import {
   ColourSwatch,
   EditableText,
@@ -23,8 +20,6 @@ import {
   type StatusKind,
   StatusPill,
 } from "@kalaido/primitives/kalaido";
-import { useFragmentSearch } from "@kalaido/components/context-picker/data";
-import { ItemPicker } from "@kalaido/components/context-picker/item-picker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +33,15 @@ import {
 } from "@kalaido/primitives/shadcn/alert-dialog";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Textarea } from "@kalaido/primitives/shadcn/textarea";
-import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
+import { useExternalWrite } from "@kalaido/state/live";
+import {
+  ArrowUUpLeftIcon,
+  PlusIcon,
+  PushPinIcon,
+  XIcon,
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   type MatchType,
   type MemberRow,
@@ -64,79 +67,113 @@ export function ColourDetailPane({
   count,
   members,
   membersLoading,
-  onColourChanged,
   onDeleted,
-  onMembersChanged,
 }: {
   colour: ColourResponse;
   count: number;
   members: MemberRow[];
   membersLoading: boolean;
-  /** Revalidate the colour list after a rename or prompt change. */
-  onColourChanged: () => Promise<unknown>;
   /** The colour is gone; the page drops the selection. */
-  onDeleted: () => Promise<unknown>;
-  /** Revalidate members + counts after an example changes. */
-  onMembersChanged: () => Promise<unknown>;
+  onDeleted: () => void;
 }) {
+  const client = useKalaidoscopeClient();
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
   const search = useFragmentSearch(adding ? query : "");
   const memberIds = new Set(members.map((m) => m.fragment_id));
 
-  async function patch(input: UpdateColourInput, failure: string) {
-    const res = await updateColour(colour.id, input);
-    if (res.isErr()) {
-      toast.error(failure, { description: res.error.message });
-      return false;
-    }
-    return true;
-  }
+  const patchWrite = useExternalWrite<UpdateColourInput, void>({
+    execute: async (input) =>
+      (await updateColour(colour.id, input)).map(() => undefined),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "colour"),
+      kalaidoscopeCollectionTag(client.baseURL, "colour_fragment"),
+    ],
+  });
+
+  const exampleWrite = useExternalWrite<UpdateColourInput, void>({
+    execute: async (input) =>
+      (await updateColour(colour.id, input)).map(() => undefined),
+    concurrency: "allow",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "colour_fragment"),
+    ],
+  });
+
+  const rematchWrite = useExternalWrite<void, void>({
+    execute: () => rematchColour(colour.id),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "colour_fragment"),
+    ],
+  });
+
+  const deleteWrite = useExternalWrite<void, void>({
+    execute: () => deleteColour(colour.id),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "colour"),
+      kalaidoscopeCollectionTag(client.baseURL, "colour_fragment"),
+    ],
+  });
 
   async function savePrompt() {
     if (editingPrompt === null) return;
-    if (
-      await patch({ prompt: editingPrompt.trim() }, "Failed to update prompt")
-    ) {
-      setEditingPrompt(null);
-      await Promise.all([onColourChanged(), onMembersChanged()]);
+    const outcome = await patchWrite.run({ prompt: editingPrompt.trim() });
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Failed to update prompt", {
+        description: outcome.error.message,
+      });
+      return;
     }
+    setEditingPrompt(null);
   }
 
   async function rename(name: string) {
-    if (await patch({ name }, "Failed to rename colour"))
-      await onColourChanged();
+    const outcome = await patchWrite.run({ name });
+    if (outcome.status === "error") {
+      toast.error("Failed to rename colour", {
+        description: outcome.error.message,
+      });
+    }
   }
 
   async function example(input: UpdateColourInput) {
-    if (await patch(input, "Failed to update example"))
-      await onMembersChanged();
+    const outcome = await exampleWrite.run(input);
+    if (outcome.status === "error") {
+      toast.error("Failed to update example", {
+        description: outcome.error.message,
+      });
+    }
   }
 
   async function rematch() {
-    const res = await rematchColour(colour.id);
-    if (res.isErr()) {
+    const outcome = await rematchWrite.run();
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
       toast.error("Failed to restart matching", {
-        description: res.error.message,
+        description: outcome.error.message,
       });
       return;
     }
     toast("Matching restarted", {
       description: "Members refresh as fragments are re-judged.",
     });
-    await onMembersChanged();
   }
 
   async function remove() {
-    const res = await deleteColour(colour.id);
-    if (res.isErr()) {
+    const outcome = await deleteWrite.run();
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
       toast.error("Failed to delete colour", {
-        description: res.error.message,
+        description: outcome.error.message,
       });
       return;
     }
-    await onDeleted();
+    onDeleted();
   }
 
   return (
@@ -158,12 +195,20 @@ export function ColourDetailPane({
             {count} fragment{count === 1 ? "" : "s"}
           </Mono>
         </div>
-        <Button variant="outline" onClick={() => void rematch()}>
+        <Button
+          variant="outline"
+          disabled={rematchWrite.isPending}
+          onClick={() => void rematch()}
+        >
           Rematch
         </Button>
         <AlertDialog>
           <AlertDialogTrigger
-            render={<Button variant="destructive">Delete</Button>}
+            render={
+              <Button variant="destructive" disabled={deleteWrite.isPending}>
+                Delete
+              </Button>
+            }
           />
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -195,7 +240,11 @@ export function ColourDetailPane({
               autoFocus
             />
             <div className="flex gap-2">
-              <Button variant="commit" onClick={() => void savePrompt()}>
+              <Button
+                variant="commit"
+                disabled={patchWrite.isPending}
+                onClick={() => void savePrompt()}
+              >
                 Save prompt
               </Button>
               <Button variant="ghost" onClick={() => setEditingPrompt(null)}>

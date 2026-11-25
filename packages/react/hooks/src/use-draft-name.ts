@@ -1,7 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { updateProjection } from "@kalaido/client/kalaidoscope/projections";
 import { updateReflection } from "@kalaido/client/kalaidoscope/reflections";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useScope, useScopeState } from "@kalaido/state/scope";
+import { useCallback, useEffect } from "react";
+import { toast } from "sonner";
+
+interface DraftNameState {
+  name: string | null;
+  userNamed: boolean;
+}
+
+type DraftNameEvent =
+  | {
+      readonly type: "adopt";
+      readonly name: string;
+      readonly userNamed: boolean;
+    }
+  | { readonly type: "applySuggestion"; readonly name: string }
+  | { readonly type: "userRename"; readonly name: string };
 
 /**
  * The name of a projection/reflection while it is being drafted through a
@@ -33,44 +49,70 @@ export function useDraftName({
   adopt: (initialName: string, userNamed: boolean) => void;
   rename: (next: string) => void;
 } {
-  const [name, setName] = useState<string | null>(null);
-  const userNamed = useRef(false);
+  const scope = useScope<DraftNameState, DraftNameEvent>({
+    initial: () => ({ name: null, userNamed: false }),
+    handlers: {
+      adopt: (s, e) => {
+        s.name = e.name;
+        s.userNamed = e.userNamed;
+      },
+      applySuggestion: (s, e) => {
+        if (s.userNamed) return;
+        s.name = e.name;
+      },
+      userRename: (s, e) => {
+        s.userNamed = true;
+        s.name = e.name;
+      },
+    },
+  });
+  const { name, userNamed } = useScopeState(scope);
 
-  const patch = useCallback(
-    (id: string, next: string) =>
-      target === "projection"
-        ? updateProjection(id, { name: next })
-        : updateReflection(id, { name: next }),
-    [target],
+  const renameWrite = useExternalWrite<{ id: string; next: string }, void>({
+    execute: async ({ id, next }) => {
+      const res =
+        target === "projection"
+          ? await updateProjection(id, { name: next })
+          : await updateReflection(id, { name: next });
+      return res.map(() => undefined);
+    },
+    concurrency: "allow",
+  });
+
+  const adopt = useCallback(
+    (initialName: string, named: boolean) => {
+      void scope.dispatch({
+        type: "adopt",
+        name: initialName,
+        userNamed: named,
+      });
+    },
+    [scope],
   );
-
-  const adopt = useCallback((initialName: string, named: boolean) => {
-    userNamed.current = named;
-    setName(initialName);
-  }, []);
 
   // Auto-apply the model's suggestion. A failed background patch is not worth
   // a toast — the local name still shows, and the next suggestion retries.
   useEffect(() => {
-    if (!entityId || name === null || userNamed.current) return;
+    if (!entityId || name === null || userNamed) return;
     const next = suggestedName.trim();
     if (!next || next === name) return;
-    setName(next);
-    void patch(entityId, next);
-  }, [entityId, name, suggestedName, patch]);
+    void scope.dispatch({ type: "applySuggestion", name: next });
+    void renameWrite.run({ id: entityId, next });
+  }, [entityId, name, userNamed, suggestedName, scope, renameWrite]);
 
   const rename = useCallback(
     (next: string) => {
-      userNamed.current = true;
-      setName(next);
+      void scope.dispatch({ type: "userRename", name: next });
       if (!entityId) return;
-      void patch(entityId, next).then((res) => {
-        if (res.isErr()) {
-          toast.error("Failed to rename", { description: res.error.message });
+      void renameWrite.run({ id: entityId, next }).then((outcome) => {
+        if (outcome.status === "error") {
+          toast.error("Failed to rename", {
+            description: outcome.error.message,
+          });
         }
       });
     },
-    [entityId, patch],
+    [entityId, scope, renameWrite],
   );
 
   return { name, adopt, rename };

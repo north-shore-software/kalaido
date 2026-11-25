@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
-import { toast } from "sonner";
 import { updateReflection } from "@kalaido/client/kalaidoscope/reflections";
 import { EditableText, Mono } from "@kalaido/primitives/kalaido";
+import { useExternalWrite } from "@kalaido/state/live";
+import type { ReactNode } from "react";
+import { toast } from "sonner";
 
 export interface ReflectionHeaderProps {
   reflectionId: string;
@@ -21,10 +22,18 @@ export function ReflectionHeader({
   schedDisplay,
   actions,
 }: ReflectionHeaderProps) {
+  const renameWrite = useExternalWrite<string, void>({
+    execute: async (next) =>
+      (await updateReflection(reflectionId, { name: next })).map(
+        () => undefined,
+      ),
+    concurrency: "ignore",
+  });
+
   function rename(next: string) {
-    void updateReflection(reflectionId, { name: next }).then((res) => {
-      if (res.isErr()) {
-        toast.error("Failed to rename", { description: res.error.message });
+    void renameWrite.run(next).then((outcome) => {
+      if (outcome.status === "error") {
+        toast.error("Failed to rename", { description: outcome.error.message });
       }
     });
   }

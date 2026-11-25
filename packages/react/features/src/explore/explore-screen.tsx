@@ -12,12 +12,15 @@ import {
   PageHeader,
   PanelErrorBoundary,
 } from "@kalaido/components";
+import { kalaidoscopeEndpointTag } from "@kalaido/hooks/kalaidoscope-live";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import {
   PageCard,
   PaneHeader,
 } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
+import { invalidateLiveTags } from "@kalaido/state/live";
+import { useScope, useScopeState } from "@kalaido/state/scope";
 import {
   BookmarkSimpleIcon,
   ClockCounterClockwiseIcon,
@@ -25,7 +28,7 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { generateId, type UIMessage } from "ai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookmarkActions, type ProjectionStart } from "./bookmark-actions";
 import { type BookmarkRow, BookmarksTray } from "./bookmarks-tray";
 import { ChatMessageActions } from "./chat-message-actions";
@@ -33,7 +36,10 @@ import { ConversationList } from "./conversation-list";
 import { useActiveContext } from "./hooks/use-active-context";
 import { useBookmarkActions } from "./hooks/use-bookmark-actions";
 import { useBookmarks } from "./hooks/use-bookmarks";
-import { useConversations } from "./hooks/use-conversations";
+import {
+  CHAT_CONVERSATIONS_ENDPOINT,
+  useConversations,
+} from "./hooks/use-conversations";
 
 /** The text a turn shows — what a bookmark of it keeps. */
 function messageText(msg: UIMessage): string {
@@ -43,19 +49,37 @@ function messageText(msg: UIMessage): string {
     .join("\n\n");
 }
 
-interface ExploreSessionState {
-  baseURL: string;
-  selected: {
-    id: string;
-    clientId: string;
-    messages: UIMessage[];
-  } | null;
-  newChatId: string;
+interface SelectedConversation {
+  id: string;
+  clientId: string;
   messages: UIMessage[];
-  context: ContextItem[];
 }
 
-let lastExploreSession: ExploreSessionState | null = null;
+interface ExploreWorkflowState {
+  selected: SelectedConversation | null;
+  newChatId: string;
+  context: ContextItem[];
+  syncedClientId: string | null;
+  historyOpen: boolean;
+  bookmarksOpen: boolean;
+}
+
+type ExploreWorkflowEvent =
+  | {
+      readonly type: "selectConversation";
+      readonly conversation: SelectedConversation;
+    }
+  | { readonly type: "startNew"; readonly nextChatId: string }
+  | { readonly type: "setContext"; readonly context: ContextItem[] }
+  | { readonly type: "mentionContext"; readonly item: ContextItem }
+  | {
+      readonly type: "syncHistoryContext";
+      readonly clientId: string;
+      readonly context: ContextItem[];
+    }
+  | { readonly type: "setHistoryOpen"; readonly open: boolean }
+  | { readonly type: "toggleHistory" }
+  | { readonly type: "setBookmarksOpen"; readonly open: boolean };
 
 export interface ExploreProjectionSeed {
   name: string;
@@ -67,50 +91,125 @@ export interface ExploreProjectionSeed {
 
 export interface ExploreScreenProps {
   initialPrompt?: string;
+  /** Most recent conversation id for this workspace, handed down from root app state. */
+  recentConversationId?: string | null;
+  onRecentConversationChange?: (conversationId: string | null) => void;
   onNewColourFromBookmarks: (positiveExamples: string[]) => void;
   onGraduateToProjection: (seed: ExploreProjectionSeed) => void;
 }
 
 export function ExploreScreen({
   initialPrompt,
+  recentConversationId,
+  onRecentConversationChange,
   onNewColourFromBookmarks,
   onGraduateToProjection,
 }: ExploreScreenProps) {
   const client = useKalaidoscopeClient();
+  const [capturedInitialPrompt] = useState(() => initialPrompt);
+  const [firstChatId] = useState(() => generateId());
 
-  // The session to pick up where the last visit left off — only read by the
-  // one-shot state/ref initialisers below, so it is deliberately not reactive.
-  const restored =
-    !initialPrompt && lastExploreSession?.baseURL === client.baseURL
-      ? lastExploreSession
-      : null;
+  const scope = useScope<ExploreWorkflowState, ExploreWorkflowEvent>({
+    initial: () => ({
+      selected: null,
+      newChatId: firstChatId,
+      context: [WHOLE_SCOPE_ITEM],
+      syncedClientId: null,
+      historyOpen: true,
+      bookmarksOpen: false,
+    }),
+    handlers: {
+      selectConversation: (s, e) => {
+        s.selected = e.conversation;
+      },
+      startNew: (s, e) => {
+        s.selected = null;
+        s.newChatId = e.nextChatId;
+        s.context = [WHOLE_SCOPE_ITEM];
+        s.syncedClientId = null;
+      },
+      setContext: (s, e) => {
+        s.context = e.context;
+      },
+      mentionContext: (s, e) => {
+        s.context = withContextItem(s.context, e.item);
+      },
+      syncHistoryContext: (s, e) => {
+        s.context = e.context;
+        s.syncedClientId = e.clientId;
+      },
+      setHistoryOpen: (s, e) => {
+        s.historyOpen = e.open;
+      },
+      toggleHistory: (s) => {
+        s.historyOpen = !s.historyOpen;
+      },
+      setBookmarksOpen: (s, e) => {
+        s.bookmarksOpen = e.open;
+      },
+    },
+  });
 
-  const [context, setContext] = useState<ContextItem[]>(
-    () => restored?.context ?? [WHOLE_SCOPE_ITEM],
-  );
-  const initialPromptRef = useRef(initialPrompt);
+  const {
+    selected,
+    newChatId,
+    context,
+    syncedClientId,
+    historyOpen,
+    bookmarksOpen,
+  } = useScopeState(scope);
 
-  const [historyOpen, setHistoryOpen] = useState(true);
-  const { conversations, loading: loadingList, refresh } = useConversations();
-  const [selected, setSelected] = useState<{
-    id: string;
-    clientId: string;
-    messages: UIMessage[];
-  } | null>(() => restored?.selected ?? null);
-  const [newChatId, setNewChatId] = useState(
-    () => restored?.newChatId ?? generateId(),
-  );
-  const firstChatIdRef = useRef(newChatId);
+  // Category 5 streaming mirror fed by ChatPanel.
+  const [liveMessages, setLiveMessages] = useState<UIMessage[]>([]);
 
-  const initialMessagesRef = useRef<UIMessage[]>(
-    restored ? (restored.selected?.messages ?? restored.messages) : [],
-  );
+  const { conversations, loading: loadingList } = useConversations();
 
+  // One-shot restore of the workspace's most recent persisted conversation on
+  // mount (skipped when arriving with an explicit `initialPrompt`).
+  const restoredRecentRef = useRef(false);
+  useEffect(() => {
+    if (
+      restoredRecentRef.current ||
+      capturedInitialPrompt ||
+      !recentConversationId ||
+      loadingList
+    ) {
+      return;
+    }
+    const target = conversations.find(
+      (c) =>
+        c.clientId === recentConversationId || c.id === recentConversationId,
+    );
+    restoredRecentRef.current = true;
+    if (!target) return;
+    let cancelled = false;
+    void getConversationMessages(client, target.id)
+      .then((messages) => {
+        if (cancelled) return;
+        setLiveMessages(messages);
+        void scope.dispatch({
+          type: "selectConversation",
+          conversation: { id: target.id, clientId: target.clientId, messages },
+        });
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    capturedInitialPrompt,
+    recentConversationId,
+    loadingList,
+    conversations,
+    client,
+    scope,
+  ]);
+
+  const selectedMessages = (selected?.messages ?? []) as UIMessage[];
   const { items: historyContext, ready: historyContextReady } =
-    useActiveContext(selected?.messages ?? []);
-  const [syncedClientId, setSyncedClientId] = useState<string | null>(
-    () => restored?.selected?.clientId ?? null,
-  );
+    useActiveContext(selectedMessages);
 
   useEffect(() => {
     if (
@@ -118,56 +217,43 @@ export function ExploreScreen({
       historyContextReady &&
       syncedClientId !== selected.clientId
     ) {
-      setContext(historyContext);
-      setSyncedClientId(selected.clientId);
+      void scope.dispatch({
+        type: "syncHistoryContext",
+        clientId: selected.clientId,
+        context: historyContext,
+      });
     }
-  }, [selected, historyContext, historyContextReady, syncedClientId]);
+  }, [selected, historyContext, historyContextReady, syncedClientId, scope]);
 
-  async function handleSelect(conv: Conversation) {
-    try {
-      const messages = await getConversationMessages(client, conv.id);
-      setSelected({ id: conv.id, clientId: conv.clientId, messages });
-      setLiveMessages(messages);
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  const handleSelect = useCallback(
+    async (conv: Conversation) => {
+      restoredRecentRef.current = true;
+      try {
+        const messages = await getConversationMessages(client, conv.id);
+        setLiveMessages(messages);
+        await scope.dispatch({
+          type: "selectConversation",
+          conversation: { id: conv.id, clientId: conv.clientId, messages },
+        });
+        onRecentConversationChange?.(conv.clientId);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [client, scope, onRecentConversationChange],
+  );
 
   function handleNew() {
-    const nextChatId = generateId();
-    initialMessagesRef.current = [];
-    setSelected(null);
-    setNewChatId(nextChatId);
+    restoredRecentRef.current = true;
     setLiveMessages([]);
-    setContext([WHOLE_SCOPE_ITEM]);
-    setSyncedClientId(null);
-    lastExploreSession = {
-      baseURL: client.baseURL,
-      selected: null,
-      newChatId: nextChatId,
-      messages: [],
-      context: [WHOLE_SCOPE_ITEM],
-    };
+    void scope.dispatch({ type: "startNew", nextChatId: generateId() });
+    onRecentConversationChange?.(null);
   }
 
   const activeClientId = selected?.clientId ?? newChatId;
   const activeChatKey = selected?.id ?? newChatId;
 
   const bookmarks = useBookmarks(activeClientId);
-  const [liveMessages, setLiveMessages] = useState<UIMessage[]>(() =>
-    restored ? (restored.selected?.messages ?? restored.messages) : [],
-  );
-
-  useEffect(() => {
-    lastExploreSession = {
-      baseURL: client.baseURL,
-      selected: selected ? { ...selected, messages: liveMessages } : null,
-      newChatId,
-      messages: liveMessages,
-      context,
-    };
-  }, [client.baseURL, selected, newChatId, liveMessages, context]);
-  const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const bookmarkRows = useMemo<BookmarkRow[]>(
     () =>
       liveMessages.flatMap((msg) => {
@@ -185,7 +271,7 @@ export function ExploreScreen({
       }),
     [liveMessages, bookmarks.marks],
   );
-  const actions = useBookmarkActions(activeClientId, bookmarks.refresh);
+  const actions = useBookmarkActions(activeClientId, bookmarks.marks);
 
   /**
    * A new colour composed from the gathered turns: saved first, then handed
@@ -195,7 +281,7 @@ export function ExploreScreen({
   async function newColourFromBookmarks() {
     const ids = await actions.saveAll();
     if (!ids || ids.length === 0) return;
-    setBookmarksOpen(false);
+    void scope.dispatch({ type: "setBookmarksOpen", open: false });
     onNewColourFromBookmarks(ids);
   }
 
@@ -211,7 +297,7 @@ export function ExploreScreen({
     fragmentIds,
   }: ProjectionStart) {
     const pins = itemsToSpec(
-      context.filter(
+      (context as ContextItem[]).filter(
         (it) => it.kind !== "WholeScope" && it.kind !== "Summaries",
       ),
     );
@@ -219,7 +305,7 @@ export function ExploreScreen({
       ...pins,
       fragmentIds: [...new Set([...(pins.fragmentIds ?? []), ...fragmentIds])],
     };
-    setBookmarksOpen(false);
+    void scope.dispatch({ type: "setBookmarksOpen", open: false });
     onGraduateToProjection({
       name,
       draft: "",
@@ -241,7 +327,9 @@ export function ExploreScreen({
             </Button>
             <Button
               className="border-section-edge bg-section-wash text-section-ink hover:border-section hover:bg-section-wash hover:text-section-ink"
-              onClick={() => setBookmarksOpen(true)}
+              onClick={() =>
+                void scope.dispatch({ type: "setBookmarksOpen", open: true })
+              }
               disabled={bookmarkRows.length === 0}
             >
               <BookmarkSimpleIcon />
@@ -250,7 +338,7 @@ export function ExploreScreen({
             </Button>
             <Button
               className="border-section-edge bg-section-wash text-section-ink hover:border-section hover:bg-section-wash hover:text-section-ink"
-              onClick={() => setHistoryOpen((v) => !v)}
+              onClick={() => void scope.dispatch({ type: "toggleHistory" })}
             >
               <ClockCounterClockwiseIcon />
               History
@@ -265,20 +353,20 @@ export function ExploreScreen({
               flat
               key={activeChatKey}
               chatId={activeClientId}
-              initialMessages={selected?.messages ?? initialMessagesRef.current}
+              initialMessages={selectedMessages}
               initialPrompt={
-                selected == null &&
-                activeClientId === firstChatIdRef.current &&
-                initialMessagesRef.current.length === 0
-                  ? initialPromptRef.current
+                selected == null && activeClientId === firstChatId
+                  ? capturedInitialPrompt
                   : undefined
               }
-              context={context}
-              onContextChange={setContext}
+              context={context as ContextItem[]}
+              onContextChange={(next) =>
+                void scope.dispatch({ type: "setContext", context: next })
+              }
               entity="chat"
               meter={{ conversationId: activeClientId }}
               onMention={(item) =>
-                setContext((prev) => withContextItem(prev, item))
+                void scope.dispatch({ type: "mentionContext", item })
               }
               messageActions={({ message, pending, contentElement }) => {
                 const mark = bookmarks.marks.get(message.id);
@@ -298,7 +386,13 @@ export function ExploreScreen({
               }}
               onMessagesChange={setLiveMessages}
               onTurnComplete={() => {
-                refresh();
+                onRecentConversationChange?.(activeClientId);
+                void invalidateLiveTags([
+                  kalaidoscopeEndpointTag(
+                    client.baseURL,
+                    CHAT_CONVERSATIONS_ENDPOINT,
+                  ),
+                ]);
               }}
             />
           </PanelErrorBoundary>
@@ -311,7 +405,12 @@ export function ExploreScreen({
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    onClick={() => setHistoryOpen(false)}
+                    onClick={() =>
+                      void scope.dispatch({
+                        type: "setHistoryOpen",
+                        open: false,
+                      })
+                    }
                     aria-label="Close history"
                   >
                     <XIcon className="size-3.5" />
@@ -322,7 +421,7 @@ export function ExploreScreen({
                 conversations={conversations}
                 selectedClientId={activeClientId}
                 loading={loadingList}
-                onSelect={handleSelect}
+                onSelect={(conv) => void handleSelect(conv)}
               />
             </aside>
           )}
@@ -331,7 +430,9 @@ export function ExploreScreen({
 
       <BookmarksTray
         open={bookmarksOpen}
-        onOpenChange={setBookmarksOpen}
+        onOpenChange={(open) =>
+          void scope.dispatch({ type: "setBookmarksOpen", open })
+        }
         rows={bookmarkRows}
         onUnbookmark={(id) => void bookmarks.toggle(id, false)}
         footer={

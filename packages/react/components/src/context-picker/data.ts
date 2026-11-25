@@ -1,12 +1,21 @@
-import { useMemo } from "react";
-
-import { useCollection } from "@kalaido/hooks/use-collection";
+import { toError } from "@kalaido/client/lib/errors";
+import { kalaidoscopeCollectionTag } from "@kalaido/hooks/kalaidoscope-live";
 import { fragmentLabel } from "@kalaido/hooks/use-fragment-labels";
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { httpLiveSource, useLiveRead } from "@kalaido/state/live";
+import { err, ok } from "neverthrow";
+import { useEffect, useMemo, useState } from "react";
 import type { PickerOption } from "./item-picker";
 
 /** Below this a search matches too much to be worth sending. */
 const MIN_QUERY = 2;
+const SEARCH_DEBOUNCE_MS = 200;
+
+interface FragmentSearchRow {
+  id: string;
+  content: string;
+  type: string;
+}
 
 /**
  * Fragments matching a search, as picker options.
@@ -22,27 +31,56 @@ export function useFragmentSearch(query: string): {
 } {
   const client = useKalaidoscopeClient();
   const trimmed = query.trim();
+  const [debounced, setDebounced] = useState("");
 
-  const filter = useMemo(() => {
-    if (trimmed.length < MIN_QUERY) return undefined;
-    return client.filter("content ~ {:q}", { q: trimmed });
-  }, [trimmed, client]);
+  useEffect(() => {
+    if (trimmed.length < MIN_QUERY) {
+      setDebounced("");
+      return;
+    }
+    const timer = setTimeout(() => setDebounced(trimmed), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [trimmed]);
 
-  const { records, isLoading } = useCollection("fragment", {
-    filter,
-    fields: "id,content,type",
-    enabled: !!filter,
-  });
+  const activeQuery = trimmed.length >= MIN_QUERY ? debounced : "";
+
+  const source = useMemo(
+    () =>
+      httpLiveSource<FragmentSearchRow[]>({
+        key: activeQuery
+          ? ["pb", client.baseURL, "fragment-search", activeQuery]
+          : null,
+        tags: [kalaidoscopeCollectionTag(client.baseURL, "fragment")],
+        fetch: async () => {
+          try {
+            const page = await client.collection("fragment").getList(1, 30, {
+              filter: client.filter("content ~ {:q}", { q: activeQuery }),
+              fields: "id,content,type",
+              requestKey: null,
+            });
+            return ok(page.items as unknown as FragmentSearchRow[]);
+          } catch (e) {
+            return err(toError(e));
+          }
+        },
+      }),
+    [client, activeQuery],
+  );
+
+  const read = useLiveRead(source);
 
   const options = useMemo(
     () =>
-      records.slice(0, 30).map((r) => ({
+      (read.data ?? []).map((r) => ({
         id: r.id,
         label: fragmentLabel(r.content),
         meta: r.type,
       })),
-    [records],
+    [read.data],
   );
 
-  return { options, loading: !!filter && isLoading };
+  const loading =
+    trimmed.length >= MIN_QUERY && (debounced !== trimmed || read.isLoading);
+
+  return { options, loading };
 }

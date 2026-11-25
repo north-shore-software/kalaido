@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 import type { WindowSpec } from "@kalaido/client/kalaidoscope/chat";
 import { updateReflection } from "@kalaido/client/kalaidoscope/reflections";
+import { useExternalWrite } from "@kalaido/state/live";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { toast } from "sonner";
 import { scheduleKey } from "../schedule";
 
 /**
@@ -10,8 +11,7 @@ import { scheduleKey } from "../schedule";
  * `ready` is true is taken as the already-persisted baseline — the creation
  * spec when creating, the record's own when refining an existing one — so mounting
  * never appends a redundant version; only a later change does, debounced.
- * `onPersisted` lets the owner refresh anything derived from the schedule
- * (the window list).
+ * `onPersisted` lets the owner react once persisted.
  */
 export function usePersistSchedule({
   reflectionId,
@@ -28,7 +28,18 @@ export function usePersistSchedule({
   const baselineRef = useRef<string | null>(null);
   const forRef = useRef<string | null>(null);
   const onPersistedRef = useRef(onPersisted);
-  onPersistedRef.current = onPersisted;
+  useLayoutEffect(() => {
+    onPersistedRef.current = onPersisted;
+  });
+
+  const scheduleWrite = useExternalWrite<
+    { id: string; windowSpec: WindowSpec },
+    void
+  >({
+    execute: async ({ id, windowSpec }) =>
+      (await updateReflection(id, { windowSpec })).map(() => undefined),
+    concurrency: "allow",
+  });
 
   useEffect(() => {
     if (!ready || !reflectionId) return;
@@ -40,16 +51,20 @@ export function usePersistSchedule({
     if (baselineRef.current === key) return;
     const timer = setTimeout(() => {
       baselineRef.current = key;
-      void updateReflection(reflectionId, { windowSpec: spec }).then((res) => {
-        if (res.isErr()) {
-          toast.error("Failed to update schedule", {
-            description: res.error.message,
-          });
-          return;
-        }
-        onPersistedRef.current?.();
-      });
+      void scheduleWrite
+        .run({ id: reflectionId, windowSpec: spec })
+        .then((outcome) => {
+          if (outcome.status === "error") {
+            toast.error("Failed to update schedule", {
+              description: outcome.error.message,
+            });
+            return;
+          }
+          if (outcome.status === "success") {
+            onPersistedRef.current?.();
+          }
+        });
     }, 600);
     return () => clearTimeout(timer);
-  }, [ready, reflectionId, key, spec]);
+  }, [ready, reflectionId, key, spec, scheduleWrite]);
 }

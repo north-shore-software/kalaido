@@ -1,10 +1,5 @@
-import {
-  ArrowsClockwiseIcon,
-  SlidersHorizontalIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { toast } from "sonner";
 import { regenerateReflection } from "@kalaido/client/kalaidoscope/reflections";
+import { formatWindowRange } from "@kalaido/client/lib/datetime";
 import { MarkdownContent } from "@kalaido/components";
 import {
   DocBody,
@@ -14,7 +9,13 @@ import {
   type TimelineItem,
 } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
-import { formatWindowRange } from "@kalaido/client/lib/datetime";
+import { useExternalWrite } from "@kalaido/state/live";
+import {
+  ArrowsClockwiseIcon,
+  SlidersHorizontalIcon,
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   parseReflectionOutput,
   type SeriesWindow,
@@ -37,6 +38,8 @@ function windowState(w: SeriesWindow): string {
   return "summary";
 }
 
+type RegenArgs = { kind: "single"; window: SeriesWindow } | { kind: "all" };
+
 /**
  * A reflection read as a series: pick a window, read its current summary,
  * regenerate it under the current lens. Refining the lens itself is the
@@ -55,37 +58,52 @@ export function ReflectionSeriesPanel({
 }) {
   const { reflection, windows, loading, error } =
     useReflectionSeries(reflectionId);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [activeTarget, setActiveTarget] = useState<string | null>(null);
+
+  const regenWrite = useExternalWrite<
+    RegenArgs,
+    { readonly ids: readonly string[] }
+  >({
+    execute: (args) =>
+      args.kind === "all"
+        ? regenerateReflection(reflectionId, true, { all: true })
+        : regenerateReflection(reflectionId, true, {
+            ...(args.window.key ? { windowId: args.window.id } : {}),
+          }),
+    concurrency: "ignore",
+  });
 
   const selected =
     windows.find((w) => w.id === windowId) ??
     windows.find((w) => w.snapshot) ??
     windows[0];
 
+  const busy = regenWrite.isPending ? activeTarget : null;
+
   async function regenerate(w: SeriesWindow) {
-    if (busy) return;
-    setBusy(w.id);
-    const res = await regenerateReflection(reflectionId, true, {
-      ...(w.key ? { windowId: w.id } : {}),
-    });
-    setBusy(null);
-    if (res.isErr()) {
-      toast.error("Failed to regenerate", { description: res.error.message });
+    setActiveTarget(w.id);
+    const outcome = await regenWrite.run({ kind: "single", window: w });
+    if (outcome.status === "ignored") return;
+    setActiveTarget(null);
+    if (outcome.status === "error") {
+      toast.error("Failed to regenerate", {
+        description: outcome.error.message,
+      });
       return;
     }
     toast.success("Summary regenerated");
   }
 
   async function refreshAll() {
-    if (busy) return;
-    setBusy("all");
-    const res = await regenerateReflection(reflectionId, true, { all: true });
-    setBusy(null);
-    if (res.isErr()) {
-      toast.error("Failed to refresh", { description: res.error.message });
+    setActiveTarget("all");
+    const outcome = await regenWrite.run({ kind: "all" });
+    if (outcome.status === "ignored") return;
+    setActiveTarget(null);
+    if (outcome.status === "error") {
+      toast.error("Failed to refresh", { description: outcome.error.message });
       return;
     }
-    const n = res.value.ids.length;
+    const n = outcome.ids.length;
     toast.success(
       n === 0
         ? "Everything is up to date"

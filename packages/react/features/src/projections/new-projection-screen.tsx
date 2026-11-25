@@ -17,6 +17,7 @@ import { useRefineSession } from "@kalaido/hooks/use-refine-session";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
+import { useExternalWrite } from "@kalaido/state/live";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PlaceholderPreviewPane } from "./components/placeholder-preview-pane";
@@ -48,20 +49,38 @@ export function NewProjectionScreen({
   onApproveSuccess,
 }: NewProjectionScreenProps) {
   // Captured once: navigating away and back must not re-run the seeding.
-  const seedRef = useRef(seed);
+  const [initialSeed] = useState(() => seed);
 
-  const [context, setContext] = useState<ContextItem[]>(
-    seedRef.current?.contextSpec
-      ? specToItems(seedRef.current.contextSpec)
+  const [context, setContext] = useState<ContextItem[]>(() =>
+    initialSeed?.contextSpec
+      ? specToItems(initialSeed.contextSpec)
       : [WHOLE_SCOPE_ITEM],
   );
   const [projectionId, setProjectionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [nameInput, setNameInput] = useState("");
-  const [creating, setCreating] = useState(false);
 
   const session = useRefineSession({ target: "projection" });
   const started = projectionId != null && session.started;
+
+  const createWrite = useExternalWrite<
+    { name: string; description?: string },
+    { readonly id: string }
+  >({
+    execute: ({ name: n, description }) =>
+      createProjection(
+        n,
+        description !== undefined ? { description } : undefined,
+      ),
+    concurrency: "ignore",
+  });
+
+  const deleteWrite = useExternalWrite<string, void>({
+    execute: (id) => deleteProjection(id),
+    concurrency: "ignore",
+  });
+
+  const creating = createWrite.isPending || session.creating;
 
   const { name, adopt, rename } = useDraftName({
     target: "projection",
@@ -77,23 +96,21 @@ export function NewProjectionScreen({
   // exists for this client id.
   async function startProjection() {
     const text = input.trim();
-    if (!text || creating || session.creating) return;
-    setCreating(true);
+    if (!text || creating) return;
 
     const typedName = nameInput.trim();
     const initialName = typedName || deriveName(text, "Untitled projection");
-    const created = await createProjection(initialName);
-    if (created.isErr()) {
-      setCreating(false);
+    const created = await createWrite.run({ name: initialName });
+    if (created.status === "ignored") return;
+    if (created.status === "error") {
       toast.error("Failed to create projection", {
         description: created.error.message,
       });
       return;
     }
-    const newProjectionId = created.value.id;
+    const newProjectionId = created.id;
 
     const ok = await session.start({ parentId: newProjectionId, prompt: text });
-    setCreating(false);
     if (ok) {
       adopt(initialName, !!typedName);
       setProjectionId(newProjectionId);
@@ -109,21 +126,21 @@ export function NewProjectionScreen({
    */
   const startFromSeed = useCallback(
     async (s: ProjectionSeed) => {
-      setCreating(true);
       let newProjectionId = s.id;
       if (!newProjectionId) {
-        const created = await createProjection(s.name, {
+        const created = await createWrite.run({
+          name: s.name,
           description: s.description,
         });
-        if (created.isErr()) {
-          setCreating(false);
+        if (created.status === "ignored") return;
+        if (created.status === "error") {
           toast.error("Failed to create projection", {
             description: created.error.message,
           });
           onCancel();
           return;
         }
-        newProjectionId = created.value.id;
+        newProjectionId = created.id;
       }
 
       const prompt =
@@ -134,23 +151,21 @@ export function NewProjectionScreen({
         contextSpec: s.contextSpec,
         prompt,
       });
-      setCreating(false);
       if (ok) {
         // A seed name is a person's choice (fork/graduate) — suggestions keep off.
         adopt(s.name, true);
         setProjectionId(newProjectionId);
       }
     },
-    [session, onCancel, adopt],
+    [createWrite, session, onCancel, adopt],
   );
 
   const seedStarted = useRef(false);
   useEffect(() => {
-    const initialSeed = seedRef.current;
     if (!initialSeed || seedStarted.current) return;
     seedStarted.current = true;
     void startFromSeed(initialSeed);
-  }, [startFromSeed]);
+  }, [initialSeed, startFromSeed]);
 
   // Once the projection + refinement exist, hand off to the shared editor (chat,
   // live preview, Approve) — identical to resuming an uncommitted draft from the
@@ -160,15 +175,13 @@ export function NewProjectionScreen({
       <ProjectionDraftEditor
         session={session}
         projectionId={projectionId}
-        title={
-          name ?? (seedRef.current ? seedRef.current.name : "New Projection")
-        }
+        title={name ?? (initialSeed ? initialSeed.name : "New Projection")}
         crumb={["Projections", "New"]}
         initialContext={context}
         approveLabel="Create projection"
         onTitleCommit={rename}
         onCancel={() => {
-          if (projectionId) void deleteProjection(projectionId);
+          if (projectionId) void deleteWrite.run(projectionId);
           onCancel();
         }}
         onApproveSuccess={onApproveSuccess}
@@ -179,13 +192,10 @@ export function NewProjectionScreen({
   // A seeded projection never shows the composer — its first message is the
   // seed material, auto-sent by the editor. Hold the frame while the container
   // and session are created rather than flashing a form the user can't use.
-  if (seedRef.current) {
+  if (initialSeed) {
     return (
       <>
-        <PageHeader
-          title={seedRef.current.name}
-          crumb={["Projections", "New"]}
-        />
+        <PageHeader title={initialSeed.name} crumb={["Projections", "New"]} />
         <PageCard>
           <div className="flex flex-1 items-center justify-center">
             <p className="text-body-sm text-fg-2">Preparing the draft…</p>

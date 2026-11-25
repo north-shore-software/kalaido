@@ -554,6 +554,9 @@ importers:
       '@kalaido/primitives':
         specifier: workspace:*
         version: link:../primitives
+      '@kalaido/state':
+        specifier: workspace:*
+        version: link:../state
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

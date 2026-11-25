@@ -10,8 +10,13 @@ import {
 } from "@kalaido/client/kalaidoscope/projections";
 import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import { PageHeader, PanelErrorBoundary } from "@kalaido/components";
+import {
+  kalaidoscopeCollectionTag,
+  kalaidoscopeEndpointTag,
+} from "@kalaido/hooks/kalaidoscope-live";
 import { useContextSources } from "@kalaido/hooks/use-context-sources";
 import { useDraftName } from "@kalaido/hooks/use-draft-name";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useRefineSession } from "@kalaido/hooks/use-refine-session";
 import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
@@ -34,14 +39,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@kalaido/primitives/shadcn/dropdown-menu";
+import { useExternalWrite } from "@kalaido/state/live";
 import { DotsThreeIcon, GitForkIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ProjectionDraftEditor } from "./components/projection-draft-editor";
 import { ProjectionSideRail } from "./components/projection-side-rail";
+import { SnapshotPreview } from "./components/snapshot-preview";
 import { useProjectionSnapshot } from "./hooks/use-projection-snapshot";
 import { useResumeRefinement } from "./hooks/use-resume-refinement";
-import { SnapshotPreview } from "./components/snapshot-preview";
 import { getProjectionStatus } from "./status";
 import type { ProjectionSeed } from "./types";
 
@@ -70,11 +76,40 @@ export function ProjectionDetailScreen({
   onFork,
   onOpenDetail,
 }: ProjectionDetailScreenProps) {
+  const client = useKalaidoscopeClient();
   const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
-  const [regenerating, setRegenerating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const deleteWrite = useExternalWrite<string, void>({
+    execute: (targetId) => deleteProjection(targetId),
+    concurrency: "ignore",
+  });
+
+  const restoreWrite = useExternalWrite<string, void>({
+    execute: (targetId) => restoreProjection(targetId),
+    concurrency: "ignore",
+  });
+
+  const regenerateWrite = useExternalWrite<string, { readonly id: string }>({
+    execute: (targetId) => regenerateProjection(targetId),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
+  });
+
+  const renameWrite = useExternalWrite<
+    { targetId: string; name: string },
+    void
+  >({
+    execute: async ({ targetId, name }) =>
+      (await updateProjection(targetId, { name })).map(() => undefined),
+    concurrency: "ignore",
+  });
+
+  const regenerating = regenerateWrite.isPending;
   const pendingCandidate = snapshots.find((s) => s.status === "pending_review");
   const readOnly = !!snapshotId;
 
@@ -105,15 +140,16 @@ export function ProjectionDetailScreen({
 
   async function remove() {
     if (!id) return;
-    const res = await deleteProjection(id);
-    if (res.isErr()) {
-      if (res.error instanceof GenerationInFlightError) {
+    const outcome = await deleteWrite.run(id);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      if (outcome.error instanceof GenerationInFlightError) {
         toast.error("Can't delete while generating", {
-          description: res.error.message,
+          description: outcome.error.message,
         });
       } else {
         toast.error("Failed to delete projection", {
-          description: res.error.message,
+          description: outcome.error.message,
         });
       }
       return;
@@ -124,8 +160,8 @@ export function ProjectionDetailScreen({
       action: {
         label: "Undo",
         onClick: () =>
-          void restoreProjection(id).then((r) => {
-            if (r.isErr()) {
+          void restoreWrite.run(id).then((r) => {
+            if (r.status === "error") {
               toast.error("Failed to restore", {
                 description: r.error.message,
               });
@@ -181,24 +217,21 @@ export function ProjectionDetailScreen({
   ]);
 
   async function handleRefresh() {
-    if (!id || regenerating) return;
-    setRegenerating(true);
-    const res = await regenerateProjection(id);
-    setRegenerating(false);
-    if (res.isErr()) {
+    if (!id) return;
+    const outcome = await regenerateWrite.run(id);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
       // 409s carry a specific reason (lens still preparing, generation
       // already running) — surface the server's own message.
-      toast.error("Couldn't regenerate", { description: res.error.message });
+      toast.error("Couldn't regenerate", {
+        description: outcome.error.message,
+      });
       return;
     }
-    onReviewCandidate(id, res.value.id);
+    onReviewCandidate(id, outcome.id);
   }
 
-  const {
-    byId: statusById,
-    isLoading: rotLoading,
-    refetch: refetchRotation,
-  } = useRotationStatus();
+  const { byId: statusById, isLoading: rotLoading } = useRotationStatus();
   const info = id
     ? getProjectionStatus(statusById.get(id), !!pendingCandidate, {
         generating: generating || regenerating,
@@ -208,14 +241,6 @@ export function ProjectionDetailScreen({
 
   const newSinceCandidate =
     statusById.get(id ?? "")?.candidate?.newFragmentIds?.length ?? 0;
-
-  const snapshotCount = snapshots.length;
-  const liveSnapshotId = liveSnapshot?.id;
-  useEffect(() => {
-    if (snapshotCount >= 0 || liveSnapshotId) {
-      refetchRotation();
-    }
-  }, [snapshotCount, liveSnapshotId, refetchRotation]);
 
   const sources = useContextSources();
   const blockedNames = useMemo(() => {
@@ -308,13 +333,15 @@ export function ProjectionDetailScreen({
         onTitleCommit={
           !readOnly && id
             ? (next) =>
-                void updateProjection(id, { name: next }).then((res) => {
-                  if (res.isErr()) {
-                    toast.error("Failed to rename", {
-                      description: res.error.message,
-                    });
-                  }
-                })
+                void renameWrite
+                  .run({ targetId: id, name: next })
+                  .then((outcome) => {
+                    if (outcome.status === "error") {
+                      toast.error("Failed to rename", {
+                        description: outcome.error.message,
+                      });
+                    }
+                  })
             : undefined
         }
         actions={

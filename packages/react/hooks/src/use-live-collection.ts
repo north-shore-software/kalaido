@@ -1,29 +1,33 @@
 import type { CollectionResponses } from "@kalaido/client/kalaidoscope/types";
-import {
-  invalidateLiveTags,
-  type LiveReadResult,
-  useLiveRead,
-} from "@kalaido/state/live";
-import { useCallback, useMemo } from "react";
+import { type LiveReadResult, useLiveRead } from "@kalaido/state/live";
+import { useMemo } from "react";
 import {
   type KalaidoscopeCollectionName,
   kalaidoscopeCollectionSource,
-  kalaidoscopeCollectionTag,
 } from "#kalaidoscope-live";
-import type { CollectionQuery } from "#use-collection";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
 
-export type { CollectionQuery };
 export type CollectionName = KalaidoscopeCollectionName;
+
+/**
+ * Subset of PocketBase list params used to fetch (and cache-key) a collection.
+ * Any combination of these produces a distinct live-read cache entry.
+ */
+export interface CollectionQuery {
+  sort?: string;
+  filter?: string;
+  expand?: string;
+  fields?: string;
+  /**
+   * Pause fetching while `false`. Useful when the query depends on something
+   * that isn't ready yet (an id, a search term, …).
+   */
+  enabled?: boolean;
+}
 
 export interface UseLiveCollectionResult<R> extends LiveReadResult<R[]> {
   /** `data ?? []` — handy when you always want an array to render. */
   readonly records: R[];
-  /**
-   * @deprecated Temporary Wave 1 bridge; removed in Wave 3 once all callers
-   * drop manual `.mutate()` in favor of `useExternalWrite` tag invalidation.
-   */
-  readonly mutate: () => Promise<void>;
 }
 
 /**
@@ -50,8 +54,6 @@ export function useLiveCollectionWatching<
   query: CollectionQuery = {},
 ): UseLiveCollectionResult<R> {
   const client = useKalaidoscopeClient();
-  const baseURL = client.baseURL;
-  const watchedKey = watched.join("\0");
 
   const result = useLiveRead<R[]>(
     kalaidoscopeCollectionSource<N, R>(client, collection, query, {
@@ -61,18 +63,8 @@ export function useLiveCollectionWatching<
 
   const records = useMemo<R[]>(() => result.data ?? [], [result.data]);
 
-  const mutate = useCallback(() => {
-    const names = (
-      watchedKey ? watchedKey.split("\0") : [collection]
-    ) as KalaidoscopeCollectionName[];
-    return invalidateLiveTags(
-      names.map((name) => kalaidoscopeCollectionTag(baseURL, name)),
-    );
-  }, [baseURL, collection, watchedKey]);
-
   return {
     ...result,
     records,
-    mutate,
   };
 }

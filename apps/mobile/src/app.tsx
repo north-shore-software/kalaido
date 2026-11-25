@@ -184,10 +184,10 @@ function ExplorePage() {
   const root = useScopeContext(CloudRootScopeContext);
   const exploreScope = useScope({
     from: root,
-    state: ["stage"],
-    events: ["setStage"],
+    state: ["stage", "recentExploreConversationIds"],
+    events: ["setStage", "setRecentExploreConversationId"],
   });
-  const { stage } = useScopeState(exploreScope);
+  const { stage, recentExploreConversationIds } = useScopeState(exploreScope);
   const workspaces = useCloudWorkspacesList();
   const client =
     stage.stage === "workspace_open" ? getActiveKalaidoscopeClient() : null;
@@ -229,6 +229,16 @@ function ExplorePage() {
           <ExploreCompactScreen
             key={stage.workspaceId}
             workspaces={workspaces}
+            recentConversationId={
+              recentExploreConversationIds[stage.workspaceId] ?? null
+            }
+            onRecentConversationChange={(conversationId) => {
+              void exploreScope.dispatch({
+                type: "setRecentExploreConversationId",
+                workspaceId: stage.workspaceId,
+                conversationId,
+              });
+            }}
             onSyncWorkspaces={syncCloudWorkspaces}
             onSelectWorkspace={async (id) => {
               const result = await openCloudWorkspace(id, {

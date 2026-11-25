@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  listReflectionWindows,
-  type ReflectionWindow,
-} from "@kalaido/client/kalaidoscope/reflections";
+import type { ReflectionWindow } from "@kalaido/client/kalaidoscope/reflections";
 import type {
   ReflectionResponse,
   ReflectionSnapshotResponse,
 } from "@kalaido/client/kalaidoscope/types";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import { useMemo } from "react";
+import { useReflectionWindows } from "./use-reflection-windows";
 
 export interface ReflectionOutput {
   content?: string;
@@ -40,12 +38,10 @@ function windowKey(start?: string, end?: string): string {
 
 /**
  * A reflection as a series of windows: the reflection record, its windows
- * (from `GET /api/reflections/:id/windows`, re-fetched whenever the live
- * snapshot list changes so generation progress shows up), and each window's
- * current approved snapshot joined in by window bounds. Newest first. A
- * reflection with no windows at all (unscheduled, or legacy windowless
- * snapshots) surfaces one "All time" pseudo-window so its snapshots stay
- * reachable.
+ * (from `useReflectionWindows`), and each window's current approved snapshot
+ * joined in by window bounds. Newest first. A reflection with no windows at
+ * all (unscheduled, or legacy windowless snapshots) surfaces one "All time"
+ * pseudo-window so its snapshots stay reachable.
  */
 export function useReflectionSeries(reflectionId: string | undefined) {
   const enabled = !!reflectionId;
@@ -58,32 +54,13 @@ export function useReflectionSeries(reflectionId: string | undefined) {
     sort: "-created",
     enabled,
   });
+  const windowsQuery = useReflectionWindows(reflectionId);
+
   const reflection = reflectionsQuery.records[0] as
     | ReflectionResponse
     | undefined;
   const snapshots = snapshotsQuery.records as ReflectionSnapshotResponse[];
-
-  const [served, setServed] = useState<ReflectionWindow[]>([]);
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    if (!reflectionId) return;
-    const res = await listReflectionWindows(reflectionId);
-    if (res.isOk()) {
-      setServed(res.value.windows);
-      setLoadedFor(reflectionId);
-    }
-  }, [reflectionId]);
-
-  // Any change to the snapshot rows (a claim opening, a generation landing)
-  // can change a window's state; the schedule can change the grid.
-  const snapshotsKey = snapshots
-    .map((s) => `${s.id}:${s.status}:${s.approval_sequence_number ?? 0}`)
-    .join("|");
-  const scheduleKey = JSON.stringify(reflection?.window_spec_versions ?? null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the keys are the re-fetch triggers
-  useEffect(() => {
-    void load();
-  }, [load, snapshotsKey, scheduleKey]);
+  const served = windowsQuery.windows;
 
   const approvedByKey = useMemo(() => {
     const map = new Map<string, ReflectionSnapshotResponse>();
@@ -132,14 +109,13 @@ export function useReflectionSeries(reflectionId: string | undefined) {
 
   const loading =
     (reflectionsQuery.isLoading && !reflection) ||
-    (enabled && loadedFor !== reflectionId);
+    (enabled && windowsQuery.isLoading);
 
   return {
     reflection,
     windows,
     loading,
-    error: reflectionsQuery.error ?? snapshotsQuery.error,
-    refresh: load,
+    error: reflectionsQuery.error ?? snapshotsQuery.error ?? windowsQuery.error,
   };
 }
 

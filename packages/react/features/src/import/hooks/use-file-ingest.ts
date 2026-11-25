@@ -1,46 +1,41 @@
-import {
-  getIngest,
-  type IngestPhase,
-  type IngestStatus,
-  subscribeIngest,
-} from "@kalaido/client/kalaidoscope/ingest";
+import type { IngestPhase } from "@kalaido/client/kalaidoscope/ingest";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import { useExternalWrite } from "@kalaido/state/live";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { submitImport } from "../submit-import";
 import type { ImportRequest } from "../types";
 
 /**
- * Path B — asynchronous batch file ingest. Thin React state around the
- * `ingest`-collection helpers: uploads the selected file whole, then follows
- * the record's realtime progress. The backend reports only a final count (no
- * running total), so progress is indeterminate until `done`. Format detection
- * and the contents preview live in the Import page, not here.
+ * Path B — asynchronous batch file ingest. Uploads the selected file via
+ * `useExternalWrite` (returning `{ id }`), then follows the `ingest` record
+ * via live collection read. The backend reports only a final count (no running
+ * total), so progress is indeterminate until `done`.
  */
 export function useFileIngest() {
-  const [phase, setPhase] = useState<IngestPhase>("idle");
-  const [imported, setImported] = useState(0);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [activeIngestId, setActiveIngestId] = useState<string | null>(null);
+  const [cancelled, setCancelled] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
-  const unsubRef = useRef<(() => void) | null>(null);
+
+  const uploadWrite = useExternalWrite<
+    { req: ImportRequest; signal: AbortSignal },
+    { readonly id: string }
+  >({
+    execute: async ({ req, signal }) =>
+      (await submitImport(req, signal)).map((s) => ({ id: s.id })),
+    concurrency: "ignore",
+  });
+
+  const liveIngest = useLiveCollection("ingest", {
+    filter: activeIngestId ? `id="${activeIngestId}"` : undefined,
+    enabled: activeIngestId !== null && !cancelled,
+  });
+
+  const record = activeIngestId ? liveIngest.records[0] : undefined;
 
   const cleanup = useCallback(() => {
-    unsubRef.current?.();
-    unsubRef.current = null;
     abortRef.current?.abort();
     abortRef.current = null;
-  }, []);
-
-  const apply = useCallback((status: IngestStatus): boolean => {
-    if (status.status === "done") {
-      setImported(status.ingested);
-      setPhase("done");
-      return true;
-    }
-    if (status.status === "error") {
-      setErrorMsg(status.error || "Import failed.");
-      setPhase("error");
-      return true;
-    }
-    return false;
   }, []);
 
   const runIngest = useCallback(
@@ -48,58 +43,70 @@ export function useFileIngest() {
       cleanup();
       const controller = new AbortController();
       abortRef.current = controller;
-      setPhase("running");
-      setImported(0);
-      setErrorMsg("");
+      setCancelled(false);
+      setActiveIngestId(null);
+      setUploadError("");
 
-      const created = await submitImport(req, controller.signal);
-      if (created.isErr()) {
-        if (controller.signal.aborted) {
-          setPhase("cancelled");
-        } else {
-          setErrorMsg(created.error.message || "Import failed.");
-          setPhase("error");
-        }
-        abortRef.current = null;
-        return;
-      }
+      const outcome = await uploadWrite.run({ req, signal: controller.signal });
       abortRef.current = null;
 
-      // A tiny file may already be terminal before we attach a subscription.
-      if (apply(created.value)) return;
-
-      const sub = await subscribeIngest(created.value.id, apply);
-      if (sub.isErr()) {
-        setErrorMsg(sub.error.message || "Lost the import connection.");
-        setPhase("error");
+      if (outcome.status === "ignored") return;
+      if (outcome.status === "error") {
+        if (controller.signal.aborted) {
+          setCancelled(true);
+        } else {
+          setUploadError(outcome.error.message || "Import failed.");
+        }
         return;
       }
-      unsubRef.current = sub.value;
 
-      // Guard the create→subscribe gap: re-read once, in case the final update
-      // fired before the subscription attached. (A now-idle subscription on a
-      // finished record is harmless; it's dropped on the next run / unmount.)
-      const current = await getIngest(created.value.id);
-      if (current.isOk()) apply(current.value);
+      setActiveIngestId(outcome.id);
     },
-    [apply, cleanup],
+    [cleanup, uploadWrite],
   );
 
   const cancel = useCallback(() => {
     // Stops listening and aborts the upload if still in flight. A job already
     // accepted by the server keeps processing in the background.
     cleanup();
-    setPhase("cancelled");
+    setActiveIngestId(null);
+    setCancelled(true);
   }, [cleanup]);
 
   const reset = useCallback(() => {
     cleanup();
-    setPhase("idle");
-    setImported(0);
-    setErrorMsg("");
-  }, [cleanup]);
+    uploadWrite.reset();
+    setActiveIngestId(null);
+    setCancelled(false);
+    setUploadError("");
+  }, [cleanup, uploadWrite]);
 
   useEffect(() => cleanup, [cleanup]);
+
+  let phase: IngestPhase = "idle";
+  let imported = 0;
+  let errorMsg = uploadError;
+
+  if (cancelled) {
+    phase = "cancelled";
+  } else if (uploadWrite.isPending) {
+    phase = "running";
+  } else if (uploadError) {
+    phase = "error";
+  } else if (activeIngestId) {
+    if (record?.status === "done") {
+      phase = "done";
+      imported = record.ingested;
+    } else if (record?.status === "error") {
+      phase = "error";
+      errorMsg = record.error || "Import failed.";
+    } else if (liveIngest.status === "error") {
+      phase = "error";
+      errorMsg = liveIngest.error?.message || "Lost the import connection.";
+    } else {
+      phase = "running";
+    }
+  }
 
   return {
     phase,
