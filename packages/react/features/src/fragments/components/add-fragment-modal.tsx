@@ -1,5 +1,5 @@
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { useLatestRef } from "@kalaido/primitives/hooks/use-latest-ref";
+import { useSyncRef } from "@kalaido/hooks/use-sync-ref";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
@@ -109,7 +109,8 @@ function AddFragmentModalBody({
   const { phase, errorMsg, runIngest, reset: resetNote } = useNoteIngest();
   const [text, setText] = useState("");
   const saving = phase === "running";
-  const onCloseRef = useLatestRef(onClose);
+  const onCloseRef = useRef(onClose);
+  useSyncRef(onCloseRef, onClose);
 
   const {
     submitting: importSubmitting,

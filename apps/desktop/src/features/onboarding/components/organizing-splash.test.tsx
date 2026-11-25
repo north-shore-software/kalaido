@@ -29,6 +29,13 @@ function createCanvasStub(): CanvasRenderingContext2D {
   } as unknown as CanvasRenderingContext2D;
 }
 
+class Path2DStub {
+  rect() {}
+  moveTo() {}
+  lineTo() {}
+  closePath() {}
+}
+
 describe("OrganizingSplash", () => {
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
   let rafQueue: Array<(time: number) => void> = [];
@@ -37,6 +44,7 @@ describe("OrganizingSplash", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    vi.stubGlobal("Path2D", Path2DStub);
     rafQueue = [];
     nextRafId = 1;
     HTMLCanvasElement.prototype.getContext = vi.fn(() =>
@@ -51,6 +59,7 @@ describe("OrganizingSplash", () => {
 
   afterEach(() => {
     HTMLCanvasElement.prototype.getContext = originalGetContext;
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -80,6 +89,7 @@ describe("OrganizingSplash", () => {
 
     act(() => {
       vi.advanceTimersByTime(9000);
+      flushRaf();
     });
     expect(
       screen.getByText("converging fragments…").parentElement?.style.opacity,
@@ -87,6 +97,7 @@ describe("OrganizingSplash", () => {
 
     act(() => {
       vi.advanceTimersByTime(650);
+      flushRaf();
     });
     expect(screen.queryByText("rotating the lens…")).not.toBeNull();
     expect(

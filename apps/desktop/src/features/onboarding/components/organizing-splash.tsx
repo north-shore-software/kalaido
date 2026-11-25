@@ -1,4 +1,4 @@
-import { useLatestRef } from "@kalaido/primitives/hooks/use-latest-ref";
+import { useSyncRef } from "@kalaido/hooks/use-sync-ref";
 import { ArrowRightIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
@@ -780,12 +780,17 @@ export function OrganizingSplash({
   onSnapshotReady,
 }: OrganizingSplashProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [phraseIdx, setPhraseIdx] = useState(0);
-  const [phraseFading, setPhraseFading] = useState(false);
+  const [phraseState, setPhraseState] = useState({ idx: 0, fading: false });
   const [endPhase, setEndPhase] = useState<EndPhase>("none");
   const [percent, setPercent] = useState(0);
 
-  const propsRef = useLatestRef({
+  const propsRef = useRef({
+    speed,
+    progress,
+    onEnded,
+    onSnapshotReady,
+  });
+  useSyncRef(propsRef, {
     speed,
     progress,
     onEnded,
@@ -798,12 +803,12 @@ export function OrganizingSplash({
     ? endPhase === "ready" || endPhase === "faded"
       ? "snapshot ready"
       : "finalizing snapshot…"
-    : PHRASES[phraseIdx];
+    : PHRASES[phraseState.idx];
   const displayedOpacity = inEndSequence
     ? endPhase === "faded"
       ? 0
       : 1
-    : phraseFading
+    : phraseState.fading
       ? 0
       : 1;
 
@@ -812,23 +817,6 @@ export function OrganizingSplash({
       endAtRef.current = performance.now();
     }
   }, [ending]);
-
-  useEffect(() => {
-    if (inEndSequence) return;
-    const statusTimer = setInterval(() => {
-      setPhraseFading(true);
-    }, 9000);
-    return () => clearInterval(statusTimer);
-  }, [inEndSequence]);
-
-  useEffect(() => {
-    if (!phraseFading || inEndSequence) return;
-    const swapTimer = setTimeout(() => {
-      setPhraseIdx((i) => (i + 1) % PHRASES.length);
-      setPhraseFading(false);
-    }, 650);
-    return () => clearTimeout(swapTimer);
-  }, [phraseFading, inEndSequence]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -843,6 +831,8 @@ export function OrganizingSplash({
       last: now0,
       ft: 0,
       lastPercent: 0,
+      lastPhraseIdx: 0,
+      lastPhraseFading: false,
       endFinalizingFired: false,
       snapshotReadyFired: false,
       endedFired: false,
@@ -900,6 +890,17 @@ export function OrganizingSplash({
       const endAt = endAtRef.current;
       if (endAt === null) {
         b = smooth((t - 1.0) / 2.2);
+        const step = Math.floor(t / 9.0);
+        const nextFading = step > 0 && t - step * 9.0 < 0.65;
+        const nextIdx = (nextFading ? step - 1 : step) % PHRASES.length;
+        if (
+          nextIdx !== st.lastPhraseIdx ||
+          nextFading !== st.lastPhraseFading
+        ) {
+          st.lastPhraseIdx = nextIdx;
+          st.lastPhraseFading = nextFading;
+          setPhraseState({ idx: nextIdx, fading: nextFading });
+        }
       } else {
         if (!st.endFinalizingFired) {
           st.endFinalizingFired = true;
@@ -1091,7 +1092,7 @@ export function OrganizingSplash({
       cancelAnimationFrame(rafId);
       window.removeEventListener("resize", handleResize);
     };
-  }, [propsRef]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-background">

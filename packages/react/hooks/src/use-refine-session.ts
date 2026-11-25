@@ -21,10 +21,11 @@ import {
   useScopeState,
 } from "@kalaido/state/scope";
 import { generateId, type UIMessage } from "ai";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { type KalaidoChatController, useKalaidoChat } from "#use-kalaido-chat";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
+import { useSyncRef } from "#use-sync-ref";
 
 export interface RefineSystemNotice {
   type: string;
@@ -252,9 +253,7 @@ export function useRefineSession({
   const identity = resolveRefineIdentity(target, control, resumed);
 
   const identityRef = useRef(identity);
-  useLayoutEffect(() => {
-    identityRef.current = identity;
-  });
+  useSyncRef(identityRef, identity);
 
   const chat = useKalaidoChat({
     chatId: identity.started ? identity.clientId : idleChatId,

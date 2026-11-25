@@ -28,6 +28,7 @@ import {
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useKalaidoscopeClient } from "#use-kalaidoscope-client";
+import { useSyncRef } from "#use-sync-ref";
 
 export interface UseKalaidoChatOptions {
   /** AI SDK chat id. Changing `chatId` resets the session to `initialMessages`. */
@@ -145,6 +146,22 @@ function buildSpecDiffParts(
   return { parts, nextSpec, nextWindow };
 }
 
+interface KalaidoChatLatest {
+  context: ContextItem[] | undefined;
+  timeWindow: TimeWindow | undefined;
+  onTurnComplete: ((messages: UIMessage[]) => void) | undefined;
+  quotaHit: boolean;
+  messages: UIMessage[];
+  isLoading: boolean;
+  sendMessage: (message?: { text: string }) => void;
+  appendSpecChanges: (overrides?: SendMessageOverrides) => void;
+  createChatInstance: (
+    nextId: string | undefined,
+    nextMessages: UIMessage[] | undefined,
+    nextApi: string | undefined,
+  ) => Chat<UIMessage>;
+}
+
 /**
  * Caller-owned chat controller wrapping AI SDK `Chat` + `useChat`, Kalaido's
  * transport, quota/telemetry handling, and diffed `context_spec` / `window`
@@ -165,22 +182,10 @@ export function useKalaidoChat({
 }: UseKalaidoChatOptions): KalaidoChatController {
   const client = useKalaidoscopeClient();
 
-  const contextRef = useRef(context);
-  const timeWindowRef = useRef(timeWindow);
-  const onTurnCompleteRef = useRef(onTurnComplete);
-  const quotaHitRef = useRef(false);
-
   const lastSentSpecRef = useRef<string | null>(null);
   const lastSentWindowRef = useRef<string | null>(null);
   const seededForIdRef = useRef<string | undefined | null>(null);
   const pendingWindowResendRef = useRef<TimeWindow | null>(null);
-
-  const sendMessageRef = useRef<((message?: { text: string }) => void) | null>(
-    null,
-  );
-  const appendSpecChangesRef = useRef<
-    ((overrides?: SendMessageOverrides) => void) | null
-  >(null);
 
   function createChatInstance(
     nextId: string | undefined,
@@ -195,15 +200,15 @@ export function useKalaidoChat({
       messages: nextMessages,
       transport,
       onFinish: ({ messages: finishedMessages }) => {
-        onTurnCompleteRef.current?.(finishedMessages);
+        latestRef.current.onTurnComplete?.(finishedMessages);
         const queuedWindow = pendingWindowResendRef.current;
         if (!queuedWindow) return;
         pendingWindowResendRef.current = null;
-        if (quotaHitRef.current) return;
+        if (latestRef.current.quotaHit) return;
         if (timeWindowKey(queuedWindow) === lastSentWindowRef.current) return;
         if (!finishedMessages.some((m) => m.role === "assistant")) return;
-        appendSpecChangesRef.current?.({ timeWindow: queuedWindow });
-        sendMessageRef.current?.();
+        latestRef.current.appendSpecChanges({ timeWindow: queuedWindow });
+        latestRef.current.sendMessage();
       },
       onError: (err) => {
         if (isQuotaError(err)) {
@@ -241,20 +246,17 @@ export function useKalaidoChat({
   });
 
   const isLoading = status === "submitted" || status === "streaming";
-  const messagesRef = useRef(messages);
-  const isLoadingRef = useRef(isLoading);
-  const createChatInstanceRef = useRef(createChatInstance);
 
   const appendSpecChanges = useCallback(
     (overrides?: SendMessageOverrides) => {
       const effectiveContext =
         overrides && "context" in overrides
           ? overrides.context
-          : contextRef.current;
+          : latestRef.current.context;
       const effectiveWindow =
         overrides && "timeWindow" in overrides
           ? overrides.timeWindow
-          : timeWindowRef.current;
+          : latestRef.current.timeWindow;
 
       const { parts, nextSpec, nextWindow } = buildSpecDiffParts(
         effectiveContext,
@@ -274,16 +276,27 @@ export function useKalaidoChat({
     [setMessages],
   );
 
-  useLayoutEffect(() => {
-    contextRef.current = context;
-    timeWindowRef.current = timeWindow;
-    onTurnCompleteRef.current = onTurnComplete;
-    quotaHitRef.current = quotaHit;
-    messagesRef.current = messages;
-    isLoadingRef.current = isLoading;
-    sendMessageRef.current = sendMessage;
-    appendSpecChangesRef.current = appendSpecChanges;
-    createChatInstanceRef.current = createChatInstance;
+  const latestRef = useRef<KalaidoChatLatest>({
+    context,
+    timeWindow,
+    onTurnComplete,
+    quotaHit,
+    messages,
+    isLoading,
+    sendMessage,
+    appendSpecChanges,
+    createChatInstance,
+  });
+  useSyncRef(latestRef, {
+    context,
+    timeWindow,
+    onTurnComplete,
+    quotaHit,
+    messages,
+    isLoading,
+    sendMessage,
+    appendSpecChanges,
+    createChatInstance,
   });
 
   useLayoutEffect(() => {
@@ -298,7 +311,12 @@ export function useKalaidoChat({
 
   const sendUserMessage = useCallback(
     (text: string, overrides?: SendMessageOverrides) => {
-      if (!text.trim() || isLoadingRef.current || quotaHitRef.current) return;
+      if (
+        !text.trim() ||
+        latestRef.current.isLoading ||
+        latestRef.current.quotaHit
+      )
+        return;
       appendSpecChanges(overrides);
       void sendMessage({ text });
     },
@@ -314,7 +332,7 @@ export function useKalaidoChat({
       context: nextContext,
       timeWindow: nextWindow,
     }: OpenAndSendOptions) => {
-      const nextChat = createChatInstanceRef.current(
+      const nextChat = latestRef.current.createChatInstance(
         nextChatId,
         nextInitialMessages,
         nextApi,
@@ -349,14 +367,15 @@ export function useKalaidoChat({
 
   const applyTimeWindow = useCallback(
     (nextWindow: TimeWindow) => {
-      timeWindowRef.current = nextWindow;
-      if (quotaHitRef.current) return;
+      latestRef.current.timeWindow = nextWindow;
+      if (latestRef.current.quotaHit) return;
       if (timeWindowKey(nextWindow) === lastSentWindowRef.current) return;
-      if (isLoadingRef.current) {
+      if (latestRef.current.isLoading) {
         pendingWindowResendRef.current = nextWindow;
         return;
       }
-      if (!messagesRef.current.some((m) => m.role === "assistant")) return;
+      if (!latestRef.current.messages.some((m) => m.role === "assistant"))
+        return;
       appendSpecChanges({ timeWindow: nextWindow });
       void sendMessage();
     },
