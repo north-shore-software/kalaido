@@ -45,11 +45,9 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 	var conv *core.Record
 	var dbMsgs []api.UIMessage
 	if req.ID != "" {
-		if c, err := FindOrCreateConversation(ctx, app, req.ID); err == nil {
+		if c, err := FindConversation(app, req.ID); err == nil {
 			conv = c
 			dbMsgs, _ = chat.LoadMessages(ctx, app, conv)
-		} else {
-			logger().Error("explore persist: find or create conversation failed", "conversation_id", req.ID, "error", err)
 		}
 	}
 
@@ -57,15 +55,6 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 
 	// Phase 1: Resolve ContextSpec to PinnedIDs
 	chat.ResolveContextSpecs(ctx, app, dbMsgs, newMsgs)
-
-	// Persist new messages
-	if conv != nil {
-		for _, m := range newMsgs {
-			if _, err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
-				logger().Error("explore persist message failed", "message_id", m.ID, "error", err)
-			}
-		}
-	}
 
 	allMsgs := append(dbMsgs, newMsgs...)
 
@@ -97,6 +86,40 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 			text += ExploreTooLargeHint
 		}
 		return &PromptTooLargeError{Err: err, Text: text}
+	}
+
+	// Persist the conversation and incoming messages only after validation,
+	// model resolution, and prompt budget checks pass. For a brand-new
+	// conversation, create the row and its initial messages in one transaction
+	// so a message persist failure cannot leave an orphaned conversation row.
+	if req.ID != "" {
+		if conv == nil {
+			var created *core.Record
+			err := app.RunInTransaction(func(tx core.App) error {
+				c, err := FindOrCreateConversation(ctx, tx, req.ID)
+				if err != nil {
+					return fmt.Errorf("find or create conversation: %w", err)
+				}
+				for _, m := range newMsgs {
+					if _, err := chat.PersistMessage(ctx, tx, c, m, ""); err != nil {
+						return fmt.Errorf("persist message %s: %w", m.ID, err)
+					}
+				}
+				created = c
+				return nil
+			})
+			if err != nil {
+				logger().Error("explore persist: create conversation and messages failed", "conversation_id", req.ID, "error", err)
+			} else {
+				conv = created
+			}
+		} else {
+			for _, m := range newMsgs {
+				if _, err := chat.PersistMessage(ctx, app, conv, m, ""); err != nil {
+					logger().Error("explore persist message failed", "message_id", m.ID, "error", err)
+				}
+			}
+		}
 	}
 
 	textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())

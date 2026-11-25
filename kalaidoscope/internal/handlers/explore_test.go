@@ -225,4 +225,69 @@ func TestExploreRefusesOversizedPrompt(t *testing.T) {
 	if len(script.toolCounts) != 0 {
 		t.Errorf("model was called %d times despite the guard", len(script.toolCounts))
 	}
+	// Rejected oversized first turns must not leave orphaned chat_conversation rows.
+	for _, id := range []string{"conv-big-full", "conv-big-summaries"} {
+		if _, err := explore.FindConversation(app, id); err == nil {
+			t.Errorf("oversized first turn %q left an orphaned chat_conversation row", id)
+		}
+	}
+}
+
+// Empty requests and pre-stream validation/model failures must not leave an
+// orphaned chat_conversation row, while a system-only turn that hydrates a
+// non-empty context delta still proceeds and persists its assistant opening.
+func TestExplorePersistenceDeferredUntilValid(t *testing.T) {
+	app := testutil.NewApp(t)
+	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "BODY"})
+	script := &exploreScript{readID: frag.Id}
+	script.install(t)
+
+	sendRaw := func(convID string, msgs []api.UIMessage) (string, error) {
+		body, _ := json.Marshal(api.ChatRequest{ID: convID, Messages: msgs})
+		rec := httptest.NewRecorder()
+		e := &core.RequestEvent{App: app}
+		e.Request = httptest.NewRequest("POST", "/api/explore", strings.NewReader(string(body)))
+		e.Request.Header.Set("Content-Type", "application/json")
+		e.Response = rec
+		err := HandleExplore(app)(e)
+		return rec.Body.String(), err
+	}
+
+	// 1. Empty messages -> 400 and no conversation created.
+	_, err := sendRaw("conv-empty", nil)
+	var apiErr *router.ApiError
+	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != 400 {
+		t.Fatalf("empty messages: err = %v, want 400", err)
+	}
+	if _, err := explore.FindConversation(app, "conv-empty"); err == nil {
+		t.Errorf("empty messages created an orphaned chat_conversation row")
+	}
+
+	// 2. System-only message with no resolvable delta -> 400 and no conversation created.
+	emptySpec, _ := json.Marshal(api.ContextSpec{})
+	_, err = sendRaw("conv-noop-sys", []api.UIMessage{
+		{ID: "s-empty", Role: "system", Parts: []api.UIMessagePart{{Type: "context_spec", Data: emptySpec}}},
+	})
+	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != 400 {
+		t.Fatalf("noop system message: err = %v, want 400", err)
+	}
+	if _, err := explore.FindConversation(app, "conv-noop-sys"); err == nil {
+		t.Errorf("noop system message created an orphaned chat_conversation row")
+	}
+
+	// 3. System-only message with a non-empty context delta -> streams and persists.
+	fullSpec, _ := json.Marshal(api.ContextSpec{WholeScope: api.WholeScopeFull})
+	body, err := sendRaw("conv-sys-open", []api.UIMessage{
+		{ID: "s-open", Role: "system", Parts: []api.UIMessagePart{{Type: "context_spec", Data: fullSpec}}},
+	})
+	if err != nil {
+		t.Fatalf("system-opened turn failed: %v", err)
+	}
+	if !strings.Contains(body, "THE ANSWER") {
+		t.Errorf("system-opened stream missing answer:\n%s", body)
+	}
+	msgs := persistedExplore(t, app, "conv-sys-open")
+	if len(msgs) != 2 || msgs[0].Role != "system" || msgs[1].Role != "assistant" {
+		t.Errorf("system-opened persisted messages = %+v, want [system, assistant]", msgs)
+	}
 }

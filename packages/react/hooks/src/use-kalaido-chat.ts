@@ -33,7 +33,7 @@ import { useSyncRef } from "#use-sync-ref";
 export interface UseKalaidoChatOptions {
   /** AI SDK chat id. Changing `chatId` resets the session to `initialMessages`. */
   chatId?: string;
-  /** Custom chat endpoint path (defaults to `/api/chat`). */
+  /** Chat endpoint path. When omitted (and no custom transport is passed), sends fail closed until configured. */
   api?: string;
   /** Optional custom transport (primarily for tests). */
   transport?: ChatTransport<UIMessage>;
@@ -92,6 +92,12 @@ export interface KalaidoChatController {
   confirmContext: (spec: ContextSpec) => void;
   cancelContext: () => void;
 }
+
+const UNCONFIGURED_CHAT_TRANSPORT: ChatTransport<UIMessage> = {
+  sendMessages: () =>
+    Promise.reject(new Error("Chat endpoint is not configured")),
+  reconnectToStream: () => Promise.resolve(null),
+};
 
 function makeSystemMessage(
   parts: Record<string, unknown>[],
@@ -194,7 +200,9 @@ export function useKalaidoChat({
   ): Chat<UIMessage> {
     const transport =
       transportProp ??
-      createKalaidoChatTransport({ baseURL: client.baseURL, api: nextApi });
+      (nextApi?.trim()
+        ? createKalaidoChatTransport({ baseURL: client.baseURL, api: nextApi })
+        : UNCONFIGURED_CHAT_TRANSPORT);
     return new Chat<UIMessage>({
       id: nextId,
       messages: nextMessages,
@@ -230,13 +238,15 @@ export function useKalaidoChat({
   }
 
   const [prevChatId, setPrevChatId] = useState(chatId);
+  const [prevApi, setPrevApi] = useState(api);
   const [quotaHit, setQuotaHit] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat<UIMessage>>(() =>
     createChatInstance(chatId, initialMessages, api),
   );
 
-  if (chatId !== prevChatId) {
+  if (chatId !== prevChatId || api !== prevApi) {
     setPrevChatId(chatId);
+    setPrevApi(api);
     setQuotaHit(false);
     setActiveChat(createChatInstance(chatId, initialMessages, api));
   }
@@ -344,6 +354,7 @@ export function useKalaidoChat({
       pendingWindowResendRef.current = null;
 
       setPrevChatId(nextChatId);
+      setPrevApi(nextApi);
       setQuotaHit(false);
       setActiveChat(nextChat);
 

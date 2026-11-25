@@ -674,4 +674,23 @@ var Canonical = []TableDef{
 			WHERE f.deleted_at = ''
 		`,
 	},
+
+	{
+		Name: "view_chat_conversation",
+		Type: "view",
+		ViewQuery: `
+			SELECT
+				cc.id as id,
+				cc.external_conversation_id as external_conversation_id,
+				cc.generate_with_model as generate_with_model,
+				cc.created as created,
+				(SELECT cm.content
+				 FROM chat_message cm
+				 WHERE cm.chat_conversation_id = cc.id
+				   AND COALESCE(json_extract(cm.content, '$.role'), '') != 'system'
+				 ORDER BY cm.created ASC, cm.id ASC
+				 LIMIT 1) as first_message_content
+			FROM chat_conversation cc
+		`,
+	},
 }
