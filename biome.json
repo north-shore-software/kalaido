@@ -176,6 +176,34 @@
       }
     },
     {
+      "includes": ["packages/react/state/src/pocketbase/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*."
+                },
+                "patterns": [
+                  {
+                    "group": ["@kalaido/*", "@kalaido/**"],
+                    "message": "@kalaido/state must remain free of @kalaido/* dependencies."
+                  },
+                  {
+                    "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                    "message": "Shared packages must not import @tauri-apps/* directly."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["apps/web/**"],
       "linter": {
         "rules": {

@@ -191,7 +191,7 @@ export function ProjectionDetailScreen({
       toast.error("Couldn't regenerate", { description: res.error.message });
       return;
     }
-    onReviewCandidate(id, res.value.snapshotId);
+    onReviewCandidate(id, res.value.id);
   }
 
   const {

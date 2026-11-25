@@ -198,7 +198,7 @@ export function useRefineSession({
       setInitialMessages(history.length ? history : undefined);
       setMessages(history);
       setFirstPrompt(prompt ?? null);
-      setRefinementId(res.value.refinementId);
+      setRefinementId(res.value.id);
       return true;
     },
     [target, creating],
@@ -232,7 +232,7 @@ export function useRefineSession({
         toast.error("Failed to commit", { description: res.error.message });
         return false;
       }
-      onCommitted?.(res.value.snapshotId);
+      onCommitted?.(res.value.id);
       return true;
     },
     [target, refinementId, committing, onCommitted],

@@ -162,7 +162,7 @@ export function ReflectionRefineScreen({
       });
       return;
     }
-    const newReflectionId = created.value.reflectionId;
+    const newReflectionId = created.value.id;
 
     const ok = await session.start({ parentId: newReflectionId, prompt: text });
     setCreating(false);

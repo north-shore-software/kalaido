@@ -34,7 +34,11 @@ async function wrapResult<T>(p: Promise<T>): Promise<Result<T, Error>> {
 
 export function createTauriHost(options: CreateTauriHostOptions): HostAdapter {
   let storePromise: Promise<Store> | null = null;
-  const getStore = (): Promise<Store> => (storePromise ??= load(STORE_FILE));
+  const getStore = (): Promise<Store> =>
+    (storePromise ??= load(STORE_FILE).catch((e) => {
+      storePromise = null;
+      throw e;
+    }));
 
   const settings: SettingsStore = {
     get: (key) => wrapResult(getStore().then((s) => s.get(key))),

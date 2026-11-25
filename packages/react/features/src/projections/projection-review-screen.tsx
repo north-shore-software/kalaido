@@ -296,7 +296,7 @@ function ProjectionReviewScreenInner({
       return;
     }
     await mutate();
-    goToCandidate(res.value.snapshotId);
+    goToCandidate(res.value.id);
   }
 
   async function handleDiscardAndRefresh() {
@@ -310,7 +310,7 @@ function ProjectionReviewScreenInner({
       return;
     }
     await mutate();
-    goToCandidate(res.value.snapshotId);
+    goToCandidate(res.value.id);
   }
 
   async function handleApproveAndRefresh() {
@@ -332,11 +332,11 @@ function ProjectionReviewScreenInner({
     const resSnaps = (await mutate()) as
       | ProjectionSnapshotWithEdits[]
       | undefined;
-    const target = resSnaps?.find((s) => s.id === res.value.snapshotId);
+    const target = resSnaps?.find((s) => s.id === res.value.id);
     let isPending = target?.status === "pending_review";
     if (!target) {
       const snapRes = await withActiveClient((c) =>
-        c.collection("projection_snapshot").getOne(res.value.snapshotId),
+        c.collection("projection_snapshot").getOne(res.value.id),
       );
       if (snapRes.isOk()) {
         isPending = snapRes.value.status === "pending_review";
@@ -345,7 +345,7 @@ function ProjectionReviewScreenInner({
     setFoldingIn(false);
     if (isPending) {
       toast.info("Candidate updated with new context");
-      goToCandidate(res.value.snapshotId);
+      goToCandidate(res.value.id);
     } else {
       toast.success("Approved and up to date");
       onApproveSuccess(id);
@@ -404,11 +404,11 @@ function ProjectionReviewScreenInner({
       const resSnaps = (await mutate()) as
         | ProjectionSnapshotWithEdits[]
         | undefined;
-      const target = resSnaps?.find((s) => s.id === res.value.snapshotId);
+      const target = resSnaps?.find((s) => s.id === res.value.id);
       let isPending = target?.status === "pending_review";
       if (!target) {
         const snapRes = await withActiveClient((c) =>
-          c.collection("projection_snapshot").getOne(res.value.snapshotId),
+          c.collection("projection_snapshot").getOne(res.value.id),
         );
         if (snapRes.isOk()) {
           isPending = snapRes.value.status === "pending_review";
@@ -420,7 +420,7 @@ function ProjectionReviewScreenInner({
             "New context landed after this candidate was generated, so a fresh one is ready to review.",
         });
         setAdvancing(false);
-        onViewReview(id, res.value.snapshotId, { wave: true, replace: true });
+        onViewReview(id, res.value.id, { wave: true, replace: true });
         return;
       }
     }

@@ -85,7 +85,7 @@ export function ReflectionSeriesPanel({
       toast.error("Failed to refresh", { description: res.error.message });
       return;
     }
-    const n = res.value.snapshotIds.length;
+    const n = res.value.ids.length;
     toast.success(
       n === 0
         ? "Everything is up to date"

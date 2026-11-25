@@ -90,7 +90,7 @@ export function NewProjectionScreen({
       });
       return;
     }
-    const newProjectionId = created.value.projectionId;
+    const newProjectionId = created.value.id;
 
     const ok = await session.start({ parentId: newProjectionId, prompt: text });
     setCreating(false);
@@ -123,7 +123,7 @@ export function NewProjectionScreen({
           onCancel();
           return;
         }
-        newProjectionId = created.value.projectionId;
+        newProjectionId = created.value.id;
       }
 
       const prompt =

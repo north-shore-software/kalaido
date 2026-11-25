@@ -100,7 +100,7 @@ export function ColoursScreen({ seed }: ColoursScreenProps) {
     }
     await colours.mutate();
     setComposing(false);
-    setSelectedId(res.value.colourId);
+    setSelectedId(res.value.id);
   }
 
   return (

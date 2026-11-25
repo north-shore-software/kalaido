@@ -28,11 +28,11 @@ export interface SnapshotEdit {
 }
 
 export interface CreateProjectionResult {
-  projectionId: string;
+  readonly id: string;
 }
 
 export interface RegenerateProjectionResult {
-  snapshotId: string;
+  readonly id: string;
 }
 
 /**
@@ -48,14 +48,16 @@ export async function createProjection(
     description?: string;
   } = {},
 ): Promise<Result<CreateProjectionResult, Error>> {
-  return withActiveClient((client) =>
-    client.send<CreateProjectionResult>("/api/projections", {
-      method: "POST",
-      body: opts.description
-        ? { name, description: opts.description }
-        : { name },
-    }),
-  );
+  return (
+    await withActiveClient((client) =>
+      client.send<{ projectionId: string }>("/api/projections", {
+        method: "POST",
+        body: opts.description
+          ? { name, description: opts.description }
+          : { name },
+      }),
+    )
+  ).map((r) => ({ id: r.projectionId }));
 }
 
 /**
@@ -72,23 +74,25 @@ export async function regenerateProjection(
     foldIn?: boolean;
   },
 ): Promise<Result<RegenerateProjectionResult, Error>> {
-  return withActiveClient((client) =>
-    client.send<RegenerateProjectionResult>(
-      `/api/projections/${projectionId}/candidates`,
-      // requestKey: null opts out of the SDK's auto-cancellation — without it
-      // a second generate call aborts the first client-side while the server
-      // keeps running both, surfacing as a phantom "Failed to refresh".
-      {
-        method: "POST",
-        body: {
-          preview: !autoApprove,
-          discardEngaged: opts?.discardEngaged,
-          foldIn: opts?.foldIn,
+  return (
+    await withActiveClient((client) =>
+      client.send<{ snapshotId: string }>(
+        `/api/projections/${projectionId}/candidates`,
+        // requestKey: null opts out of the SDK's auto-cancellation — without it
+        // a second generate call aborts the first client-side while the server
+        // keeps running both, surfacing as a phantom "Failed to refresh".
+        {
+          method: "POST",
+          body: {
+            preview: !autoApprove,
+            discardEngaged: opts?.discardEngaged,
+            foldIn: opts?.foldIn,
+          },
+          requestKey: null,
         },
-        requestKey: null,
-      },
-    ),
-  );
+      ),
+    )
+  ).map((r) => ({ id: r.snapshotId }));
 }
 
 /**
