@@ -1,0 +1,38 @@
+{
+  "name": "@kalaido/state",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./scope": "./src/scope/index.ts",
+    "./live": "./src/live/index.ts",
+    "./pocketbase": "./src/pocketbase/index.ts"
+  },
+  "imports": {
+    "#scope": "./src/scope/index.ts",
+    "#live": "./src/live/index.ts",
+    "#pocketbase": "./src/pocketbase/index.ts",
+    "#*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "neverthrow": "^8.2.0",
+    "react": "^19.1.0",
+    "swr": "^2.4.1",
+    "valtio": "^2.3.2"
+  },
+  "peerDependencies": {
+    "pocketbase": "^0.28.1"
+  },
+  "peerDependenciesMeta": {
+    "pocketbase": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "pocketbase": "^0.28.1"
+  }
+}

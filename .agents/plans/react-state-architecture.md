@@ -247,15 +247,14 @@ The target architecture enforces a strict separation into **five explicit state 
 
 ## Part 3: Spec — External Live Reads & Paired Writes (Locked)
 
-### 3.1 Package Placement (`@kalaido/hooks`)
-All primitives live in `packages/react/hooks/src/`, keeping `packages/lib/client` pure TypeScript (zero React, zero SWR):
-- `live-registry.ts` — active SWR key ↔ `LiveTag` registry + workspace/cloud cache teardown
-- `pb-subscription-hub.ts` — shared, ref-counted PocketBase SSE subscription hub
-- `use-live-read.ts` — `LiveSource<T>`, `LiveReadResult<T>`, `useLiveRead`
-- `live-sources.ts` — the 4 `LiveSource` adapter factories
-- `use-external-write.ts` — `WriteReturn`, `ExternalWriteDef`, `WriteOutcome`, `useExternalWrite`
+### 3.1 Package Placement (`@kalaido/state` + `@kalaido/hooks`)
+Generic primitives live in **`packages/react/state`** (`@kalaido/state` — zero `@kalaido/*` dependencies, reusable in other projects):
+- `@kalaido/state` / `@kalaido/state/live`: `types.ts`, `registry.ts`, `use-live-read.ts`, `sources.ts` (`httpLiveSource`, `atomLiveSource`), `use-external-write.ts`
+- `@kalaido/state/pocketbase` (optional peer dep on `pocketbase`): `subscription-hub.ts`, `sources.ts` (`pbCollectionSource`, `pbEndpointSource`, `clearPocketBaseLiveCache`)
 
-Non-live `useCollection` is **removed/replaced** once `useLiveCollection` uses ref-counted subscriptions — every PocketBase read is live by default.
+Kalaido-typed wrappers (`kalaidoscopeCollectionSource`, `kalaidoscopeEndpointSource`, `clearWorkspaceLiveCache`, `clearCloudLiveCache`) live in `packages/react/hooks/src/kalaidoscope-live.ts`, keeping `packages/lib/client` pure TypeScript (zero React, zero SWR).
+
+Non-live `useCollection` is **removed/replaced** once `useLiveCollection` uses the ref-counted hub — every PocketBase read is live by default.
 
 ### 3.2 `LiveReadResult<T>` & `LiveSource<T>`
 No manual `refresh()` escape hatch is exposed to callers — liveness is owned strictly by the source adapter and paired writes.
@@ -382,8 +381,8 @@ export type PersistentAppSetting = {
 
 `HostAdapter.settings` (`kalaido-settings.json` on Desktop/Mobile via `@tauri-apps/plugin-store`; `localStorage["kalaido-settings"]` on Web) becomes the single client-local persistence store across all packages and apps.
 
-### 4.2 Persistence Extension on `createScope` / `useScope` (`@kalaido/hooks`)
-`packages/react/hooks/src/use-scope.ts` remains storage-agnostic by accepting an optional `persist` config on `OwnScopeOptions` and `ExtendScopeOptions`, paired with a `hostSettingsPersistence()` adapter factory in `packages/react/hooks/src/scope-persistence.ts`.
+### 4.2 Persistence Extension on `createScope` / `useScope` (`@kalaido/state/scope` + `@kalaido/hooks`)
+`packages/react/state/src/scope/use-scope.ts` remains storage-agnostic by accepting an optional `persist` config on `OwnScopeOptions` and `ExtendScopeOptions` (with explicit `hydrate()` and `flush()`), paired with Kalaido's `hostSettingsPersistence()` adapter factory in `packages/react/hooks/src/scope-persistence.ts`.
 
 ```ts
 export type HydrationStatus = "pending" | "ready" | "error";

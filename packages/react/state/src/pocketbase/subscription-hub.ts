@@ -1,9 +1,4 @@
-import type {
-  CollectionResponses,
-  TypedPocketBase,
-} from "@kalaido/client/kalaidoscope/types";
-
-export type LiveCollectionName = keyof CollectionResponses;
+import type PocketBase from "pocketbase";
 
 interface HubEntry {
   readonly listeners: Set<() => void>;
@@ -19,13 +14,13 @@ interface HubEntry {
  * listener unsubscribes, the channel is closed cleanly (including when unmount
  * races ahead of the async `subscribe` promise resolving).
  */
-const entriesByClient = new WeakMap<TypedPocketBase, Map<string, HubEntry>>();
+const entriesByClient = new WeakMap<PocketBase, Map<string, HubEntry>>();
 
-function channelKey(collection: LiveCollectionName, filter?: string): string {
+function channelKey(collection: string, filter?: string): string {
   return `${collection}\0${filter ?? ""}`;
 }
 
-function getClientMap(client: TypedPocketBase): Map<string, HubEntry> {
+function getClientMap(client: PocketBase): Map<string, HubEntry> {
   let map = entriesByClient.get(client);
   if (!map) {
     map = new Map();
@@ -53,8 +48,8 @@ function teardownEntry(
 }
 
 export function subscribePbCollection(
-  client: TypedPocketBase,
-  collection: LiveCollectionName,
+  client: PocketBase,
+  collection: string,
   listener: () => void,
   filter?: string,
 ): () => void {
@@ -95,7 +90,6 @@ export function subscribePbCollection(
             `pbSubscriptionHub(${collection}): subscribe failed`,
             err,
           );
-          // Drop the failed entry so a subsequent subscriber can retry cleanly.
           if (map.get(key) === created) {
             map.delete(key);
           }
@@ -117,7 +111,7 @@ export function subscribePbCollection(
 }
 
 /** Tear down every active SSE channel for a client (e.g. on workspace switch). */
-export function disposeClientSubscriptions(client: TypedPocketBase): void {
+export function disposeClientSubscriptions(client: PocketBase): void {
   const map = entriesByClient.get(client);
   if (!map) return;
   for (const [key, entry] of Array.from(map.entries())) {
@@ -127,6 +121,6 @@ export function disposeClientSubscriptions(client: TypedPocketBase): void {
 }
 
 /** Test-only helper returning the number of active channels on a client. */
-export function _pbHubChannelCount(client: TypedPocketBase): number {
+export function _pbHubChannelCount(client: PocketBase): number {
   return entriesByClient.get(client)?.size ?? 0;
 }

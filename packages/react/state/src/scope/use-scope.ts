@@ -9,7 +9,7 @@ import {
   type PersistenceController,
   type ScopePersistenceAdapter,
   type ScopePersistOptions,
-} from "#scope-persistence";
+} from "./persistence";
 
 export type { HydrationStatus, ScopePersistenceAdapter, ScopePersistOptions };
 

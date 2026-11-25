@@ -1,5 +1,5 @@
-import { toError } from "@kalaido/client/lib/errors";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toError } from "#errors";
 import { invalidateLiveTags } from "./registry";
 import type {
   ExternalWriteDef,

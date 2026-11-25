@@ -1,4 +1,4 @@
-import { mutate as globalMutate, unstable_serialize } from "swr";
+import { mutate as globalMutate } from "swr";
 import type { LiveSubscribeCallbacks, LiveTag } from "./types";
 
 export interface RegisterLiveBindingInput<T> {
@@ -204,9 +204,13 @@ export async function invalidateLiveTags(
   await Promise.all(tasks);
 }
 
-async function clearMatchingKeys(
+/**
+ * Evict cached live reads matching `matches` from every active SWR cache
+ * (and optionally matching serialized keys in the default global SWR cache).
+ */
+export async function clearLiveCache(
   matches: (rawKey: readonly unknown[]) => boolean,
-  matchesSerialized: (serializedKey: string) => boolean,
+  matchesSerialized?: (serializedKey: string) => boolean,
 ): Promise<void> {
   const tasks: Promise<unknown>[] = [];
 
@@ -221,12 +225,13 @@ async function clearMatchingKeys(
     }
   }
 
-  // Also evict unmounted entries from the default global SWR cache.
   tasks.push(
     globalMutate(
       (k) => {
         if (Array.isArray(k)) return matches(k);
-        if (typeof k === "string") return matchesSerialized(k);
+        if (typeof k === "string" && matchesSerialized) {
+          return matchesSerialized(k);
+        }
         return false;
       },
       undefined,
@@ -235,23 +240,6 @@ async function clearMatchingKeys(
   );
 
   await Promise.all(tasks);
-}
-
-/** Evict cached live reads scoped to a PocketBase workspace `baseURL`. */
-export function clearWorkspaceLiveCache(baseURL: string): Promise<void> {
-  const serializedPrefix = unstable_serialize(["pb", baseURL]);
-  return clearMatchingKeys(
-    (k) => k[0] === "pb" && k[1] === baseURL,
-    (s) => s.includes(baseURL) && s.startsWith(serializedPrefix.slice(0, 6)),
-  );
-}
-
-/** Evict cached live reads scoped to cloud account state (sign-out). */
-export function clearCloudLiveCache(): Promise<void> {
-  return clearMatchingKeys(
-    (k) => k[0] === "cloud",
-    (s) => s.includes('"cloud"'),
-  );
 }
 
 /** Test-only helper to inspect registered key and tag counts. */

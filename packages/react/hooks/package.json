@@ -5,12 +5,10 @@
   "type": "module",
   "exports": {
     "./host": "./src/host.tsx",
-    "./live": "./src/live/index.ts",
     "./*": "./src/*.ts"
   },
   "imports": {
     "#host": "./src/host.tsx",
-    "#live": "./src/live/index.ts",
     "#*": "./src/*.ts"
   },
   "scripts": {
@@ -19,6 +17,7 @@
   "dependencies": {
     "@kalaido/client": "workspace:*",
     "@kalaido/platform": "workspace:*",
+    "@kalaido/state": "workspace:*",
     "ai": "^6.0.182",
     "better-auth": "^1.6.11",
     "neverthrow": "^8.2.0",
