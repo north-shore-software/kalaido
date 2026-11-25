@@ -86,16 +86,16 @@ For `usePipelineProgress()` (`apps/desktop/src/features/onboarding/hooks/use-pip
 
 | ID | Decision | Feasible Options | Cross-Plan Coupling | Selected |
 |---|---|---|---|---|
-| **D1.1** | Latest-value ref mechanism & placement | Option A (`@kalaido/hooks/use-latest-ref`), Option B (`@kalaido/primitives/hooks/use-latest-ref`), Option C (Inline `useRef` + `useLayoutEffect`) | `doctor-03` (`ChatPanel` `appendSpecChanges` / `timeWindow` effect deps), `doctor-02` (`AddFragmentModal` if adopted wider) | _Pending_ |
-| **D1.2** | One-shot mutable baselines in `ChatPanel` (`lastSentSpecRef`, `lastSentWindowRef`) | Option A (`useState(() => ...)` seed + `useRef`), Option B (Lazy getter outside render), Option C (Null-guarded `useLayoutEffect` seed) | `doctor-03` (`ChatPanel` `appendSpecChanges` `useCallback` & `useChat` ownership), `doctor-06` (clears `ChatPanel` `no-high-complexity-react-function`) | _Pending_ |
-| **D1.3** | Monotonic `highWater` clamping in `usePipelineProgress` | Option A (Render-phase `useState` latch), Option B (`useState` + `Math.max` + `useEffect` latch), Option C (Stateless hook + rAF clamp in `OrganizingSplash`) | None for Options A/B; Option C couples with **D1.4**, `doctor-02`, and `doctor-06` on `organizing-splash.tsx` | _Pending_ |
-| **D1.4** | `OrganizingSplash` render-phase `stateRef` writes & eager `generateChips()` init | Option A (Fix in Cat 1: split prop ref + `endAtRef` + effect-local loop state), Option B (Fix in Cat 1: single `stateRef` + `useLayoutEffect` + lazy `chips: null`), Option C (Defer to Cat 2 / Cat 6) | `doctor-02` (`organizing-splash.tsx:806-850, 1075`), `doctor-06` (`organizing-splash.tsx:770` `runSplashLoop` `.ts` extraction) | _Pending_ |
+| **D1.1** | Latest-value ref mechanism & placement | Option A (`@kalaido/hooks/use-latest-ref`), Option B (`@kalaido/primitives/hooks/use-latest-ref`), Option C (Inline `useRef` + `useLayoutEffect`) | `doctor-03` (`ChatPanel` `appendSpecChanges` / `timeWindow` effect deps), `doctor-02` (`AddFragmentModal` if adopted wider) | **Option B** |
+| **D1.2** | One-shot mutable baselines in `ChatPanel` (`lastSentSpecRef`, `lastSentWindowRef`) | Option A (`useState(() => ...)` seed + `useRef`), Option B (Lazy getter outside render), Option C (Null-guarded `useLayoutEffect` seed) | `doctor-03` (`ChatPanel` `appendSpecChanges` `useCallback` & `useChat` ownership), `doctor-06` (clears `ChatPanel` `no-high-complexity-react-function`) | **Option C** |
+| **D1.3** | Monotonic `highWater` clamping in `usePipelineProgress` | Option A (Render-phase `useState` latch), Option B (`useState` + `Math.max` + `useEffect` latch), Option C (Stateless hook + rAF clamp in `OrganizingSplash`) | None for Options A/B; Option C couples with **D1.4**, `doctor-02`, and `doctor-06` on `organizing-splash.tsx` | **Option A** |
+| **D1.4** | `OrganizingSplash` render-phase `stateRef` writes & eager `generateChips()` init | Option A (Fix in Cat 1: split prop ref + `endAtRef` + effect-local loop state), Option B (Fix in Cat 1: single `stateRef` + `useLayoutEffect` + lazy `chips: null`), Option C (Defer to Cat 2 / Cat 6) | `doctor-02` (`organizing-splash.tsx:806-850, 1075`), `doctor-06` (`organizing-splash.tsx:770` `runSplashLoop` `.ts` extraction) | **Option A** |
 
 ---
 
 ### D1.1 — Latest-Value Ref Mechanism & Placement
 
-**Decision:** _Pending_
+**Decision:** **Option B** — Subpath export `@kalaido/primitives/hooks/use-latest-ref`
 
 **Files & Callers Verified:**
 - Category 1 consumers: `packages/react/components/src/chat-panel.tsx:191-196, 214-217` (4 refs) and `apps/desktop/src/features/onboarding/components/organizing-splash.tsx:801-804` (4 prop fields on `stateRef`, if D1.4 fixes in Category 1).
@@ -147,7 +147,7 @@ For `usePipelineProgress()` (`apps/desktop/src/features/onboarding/hooks/use-pip
 
 ### D1.2 — One-Shot Mutable Baselines in `ChatPanel` (`lastSentSpecRef`, `lastSentWindowRef`)
 
-**Decision:** _Pending_
+**Decision:** **Option C** — Null-guarded `useLayoutEffect` seeding before `useEffect` runs
 
 **Files & Callers Verified:**
 - `packages/react/components/src/chat-panel.tsx:202-207` (`lastSentSpecRef`), `:218-223` (`lastSentWindowRef`), `:300` (`lastSentWindowRef.current` read inside `timeWindow` `useEffect` **before** `appendSpecChanges()`), `:319-334` (`appendSpecChanges`), `:395` (`handleConfirmContext`).
@@ -193,7 +193,7 @@ For `usePipelineProgress()` (`apps/desktop/src/features/onboarding/hooks/use-pip
 
 ### D1.3 — Monotonic `highWater` Clamping in `usePipelineProgress`
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Render-phase `useState` monotonic latch (zero `useEffect`)
 
 **Files & Callers Verified:**
 - `apps/desktop/src/features/onboarding/hooks/use-pipeline-progress.ts:13-23` (hook definition).
@@ -243,7 +243,7 @@ For `usePipelineProgress()` (`apps/desktop/src/features/onboarding/hooks/use-pip
 
 ### D1.4 — `OrganizingSplash` Render-Phase `stateRef` Writes & Eager `generateChips()` Init
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Fix in Category 1 by splitting latest-prop ref + `endAtRef` from mount-effect loop state
 
 **Files & Callers Verified:**
 - `apps/desktop/src/features/onboarding/components/organizing-splash.tsx:580-641` (`generateChips()` invokes `Math.random()` 45 times to build 5 `Chip` configs), `:784-799` (`useRef({ speed, ending, progress, onEnded, onSnapshotReady, ..., t0: performance.now(), last: performance.now(), ..., chips: generateChips() })` — runs on every render of `OrganizingSplash`, and `ending` at `:786` is unread dead state), `:801-804` (`stateRef.current.{speed,progress,onEnded,onSnapshotReady} = ...` — confirmed via repo-wide regex to be the **only** nested `ref.current.<prop> = ...` render-phase writes in the codebase).
