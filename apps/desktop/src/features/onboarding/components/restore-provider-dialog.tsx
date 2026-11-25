@@ -8,6 +8,7 @@ import type {
   LlmRole,
   WorkspaceLlmConfig,
 } from "@kalaido/client/kalaidoscope/llm-config";
+import { toError } from "@kalaido/client/lib/errors";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,19 +60,25 @@ export function RestoreProviderDialog({
     setBusy(true);
     setError(null);
 
-    const validated = await validateWorkspaceLlmConfig(config);
-    setBusy(false);
-
-    if (validated.isErr()) {
-      setError(validated.error.message);
-      return;
+    let valid = false;
+    try {
+      const validated = await validateWorkspaceLlmConfig(config);
+      if (validated.isErr()) {
+        setError(validated.error.message);
+      } else if (!validated.value.ok) {
+        setError(validationMessage(validated.value));
+      } else {
+        valid = true;
+      }
+    } catch (e) {
+      setError(toError(e).message);
+    } finally {
+      setBusy(false);
     }
-    if (!validated.value.ok) {
-      setError(validationMessage(validated.value));
-      return;
-    }
 
-    onConfirm(config);
+    if (valid) {
+      onConfirm(config);
+    }
   }
 
   return (

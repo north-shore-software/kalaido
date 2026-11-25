@@ -197,10 +197,7 @@ export function WorkspaceBackupsView({
   );
 }
 
-export function sanitizeExportName(
-  displayName: string,
-  fallbackId: string,
-): string {
+function sanitizeExportName(displayName: string, fallbackId: string): string {
   const sanitized = displayName
     // biome-ignore lint/suspicious/noControlCharactersInRegex: sanitize control characters for filesystem safety
     .replace(/[/\\:*?"<>|\x00-\x1f\x7f-\x9f]+/g, "-")

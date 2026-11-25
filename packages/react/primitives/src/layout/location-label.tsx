@@ -1,6 +1,6 @@
 import { cn } from "#lib/css-utils";
 
-export function truncatePath(path: string, maxSegments = 3): string {
+function truncatePath(path: string, maxSegments = 3): string {
   const sep = path.includes("/") ? "/" : "\\";
   const parts = path.split(sep).filter(Boolean);
   if (parts.length <= maxSegments) return path;

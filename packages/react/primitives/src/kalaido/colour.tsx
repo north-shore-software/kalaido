@@ -13,7 +13,7 @@ const CONTENT = [
   "bg-content-8",
 ] as const;
 
-export function contentColour(c: number): string {
+function contentColour(c: number): string {
   return CONTENT[((c % CONTENT.length) + CONTENT.length) % CONTENT.length];
 }
 

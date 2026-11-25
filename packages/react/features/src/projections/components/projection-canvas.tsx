@@ -38,10 +38,12 @@ export interface ProjectionCanvasProps {
   className?: string;
 }
 
+const EMPTY_EDITS: SnapshotEdit[] = [];
+
 export function ProjectionCanvas({
   content,
   draftContent,
-  edits = [],
+  edits = EMPTY_EDITS,
   pending = false,
   onEditStatusChange,
   onHandEdit,
@@ -57,6 +59,7 @@ export function ProjectionCanvas({
     index: number;
     text: string;
   } | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string>();
 
@@ -86,13 +89,24 @@ export function ProjectionCanvas({
     return map;
   }, [edits]);
 
+  function handleOpenEdit(index: number, text: string) {
+    setSelectedBlock({ index, text });
+    setEditError(undefined);
+    setEditOpen(true);
+  }
+
+  function handleCloseEdit() {
+    setEditOpen(false);
+    setEditError(undefined);
+  }
+
   async function handleApplyEdit(newText: string) {
     if (!selectedBlock || !onHandEdit) return;
     setSavingEdit(true);
     setEditError(undefined);
     try {
       await onHandEdit(selectedBlock.index, newText);
-      setSelectedBlock(null);
+      setEditOpen(false);
     } catch (err) {
       setEditError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -160,9 +174,7 @@ export function ProjectionCanvas({
                       size="sm"
                       disabled={busy}
                       className="h-6 gap-1 px-1.5 text-xs"
-                      onClick={() =>
-                        setSelectedBlock({ index: idx, text: block.text })
-                      }
+                      onClick={() => handleOpenEdit(idx, block.text)}
                     >
                       <PencilSimpleIcon className="size-3" />
                       Edit
@@ -189,11 +201,11 @@ export function ProjectionCanvas({
 
       {selectedBlock && (
         <EditCandidateModal
-          open={!!selectedBlock}
+          open={editOpen}
           oldText={selectedBlock.text}
           saving={savingEdit}
           error={editError}
-          onClose={() => setSelectedBlock(null)}
+          onClose={handleCloseEdit}
           onSubmit={handleApplyEdit}
         />
       )}

@@ -879,6 +879,37 @@ export interface ChatMessagesProps {
   actionsVisibleFor?: (message: UIMessage) => boolean;
 }
 
+function lastSettledIndices(messages: UIMessage[]): {
+  regenerate: number;
+  context: number;
+} {
+  let regenerate = -1;
+  let context = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const parts = messages[i].parts;
+    if (!parts) continue;
+    for (const part of parts) {
+      const type = (part as { type?: string }).type;
+      if (
+        regenerate === -1 &&
+        (type === REGENERATE_CONFIRM_PART_TYPE ||
+          type === REGENERATE_CANCEL_PART_TYPE)
+      ) {
+        regenerate = i;
+      }
+      if (
+        context === -1 &&
+        (type === CONTEXT_CONFIRM_PART_TYPE ||
+          type === CONTEXT_CANCEL_PART_TYPE)
+      ) {
+        context = i;
+      }
+    }
+    if (regenerate !== -1 && context !== -1) break;
+  }
+  return { regenerate, context };
+}
+
 export function ChatMessages({
   messages,
   greeting = "Hello! How can I help you today?",
@@ -894,6 +925,7 @@ export function ChatMessages({
   actionsVisibleFor,
 }: ChatMessagesProps) {
   const contentElements = useRef(new Map<string, HTMLElement>());
+  const settledAfter = useMemo(() => lastSettledIndices(messages), [messages]);
   // System messages carry no chat text. Those with a `context_spec` or
   // `window` part mark where the context / target window changed and render
   // as dividers at that position; the rest (`pinned_ids`) stay unrendered.
@@ -994,22 +1026,8 @@ export function ChatMessages({
         )?.data;
 
         // A card is settled once a later message carries the user's answer.
-        const settledBy = (...types: string[]) =>
-          messages
-            .slice(index + 1)
-            .some((m) =>
-              m.parts?.some((p) =>
-                types.includes((p as { type?: string }).type ?? ""),
-              ),
-            );
-        const isSettled = settledBy(
-          REGENERATE_CONFIRM_PART_TYPE,
-          REGENERATE_CANCEL_PART_TYPE,
-        );
-        const contextSettled = settledBy(
-          CONTEXT_CONFIRM_PART_TYPE,
-          CONTEXT_CANCEL_PART_TYPE,
-        );
+        const isSettled = settledAfter.regenerate > index;
+        const contextSettled = settledAfter.context > index;
 
         const cards = (
           <>

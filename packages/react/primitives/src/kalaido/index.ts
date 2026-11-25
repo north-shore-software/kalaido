@@ -1,7 +1,7 @@
 export { Bar, DocBody, Lines } from "./bars";
 export { Mark } from "./brand";
 export { Chip } from "./chip";
-export { ColourSwatch, contentColour } from "./colour";
+export { ColourSwatch } from "./colour";
 export { ComposerSendButton } from "./composer-send-button";
 export {
   DecisionCard,

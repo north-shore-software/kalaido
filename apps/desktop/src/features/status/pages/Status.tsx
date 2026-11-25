@@ -34,7 +34,7 @@ import {
   PageHeader,
   PageLayout,
 } from "@/components/layout/page-layout";
-import { queueHeldLabels } from "@/components/layout/utility-bar";
+import { queueHeldLabels } from "@/components/layout/queue-labels";
 import { defineRoute } from "@/routes/route-kit";
 import { DesktopScopeContext } from "@/state/app-state";
 import { useEventLog } from "../hooks/use-event-log";
@@ -47,6 +47,16 @@ interface QueueTask {
   started: string;
   tokens?: number;
   tokens_per_second?: number;
+}
+
+function keyRunningTasks(tasks: readonly QueueTask[]) {
+  const counts = new Map<string, number>();
+  return tasks.map((task) => {
+    const base = `${task.role}\0${task.priority}\0${task.model}\0${task.started}`;
+    const occurrence = counts.get(base) ?? 0;
+    counts.set(base, occurrence + 1);
+    return { key: `${base}#${occurrence}`, task };
+  });
 }
 
 export default function StatusPage() {
@@ -332,10 +342,9 @@ export default function StatusPage() {
                     Running Tasks
                   </span>
                   <div className="flex flex-col gap-1.5">
-                    {runningTasks.map((t, idx) => (
+                    {keyRunningTasks(runningTasks).map(({ key, task: t }) => (
                       <div
-                        // biome-ignore lint/suspicious/noArrayIndexKey: rows are a pure derivation of the queue status document
-                        key={`${t.role}-${t.started}-${idx}`}
+                        key={key}
                         className="flex items-center justify-between border border-line bg-surface-2 px-3 py-2 font-mono text-mono-sm"
                       >
                         <div className="flex items-center gap-2 truncate">

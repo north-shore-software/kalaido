@@ -29,14 +29,16 @@ export function formatDayGroup(date: string | Date): string {
   });
 }
 
+const shortDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 /** Compact absolute date + time, e.g. "Jun 2, 2:05 PM". */
 export function formatShortDateTime(date: string | Date): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(date));
+  return shortDateTimeFormatter.format(new Date(date));
 }
 
 // Duration conversion. Schedules store durations in seconds; the UI works in

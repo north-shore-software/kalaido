@@ -1,4 +1,5 @@
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
+import { toError } from "@kalaido/client/lib/errors";
 import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import {
   CLOUD_WORKSPACES_TAG,
@@ -62,9 +63,14 @@ export default function CloudWorkspaces() {
   async function handleOpen(id: string) {
     setOpeningId(id);
     setOpenError(null);
-    const result = await switchLocalKalaidoscope(id, { surfaceError: false });
-    if (result.isErr()) setOpenError(result.error.message);
-    setOpeningId(null);
+    try {
+      const result = await switchLocalKalaidoscope(id, { surfaceError: false });
+      if (result.isErr()) setOpenError(result.error.message);
+    } catch (e) {
+      setOpenError(toError(e).message);
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   const workspaces = activeKalaidoscopes(live.data ?? cachedCloudKalaidoscopes);

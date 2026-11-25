@@ -19,7 +19,9 @@ import { useEffect, useState } from "react";
 import type { SidecarStatus } from "@/api/app/local-scopes";
 import { useAppNavigate } from "@/routes/use-app-navigate";
 import { DesktopScopeContext } from "@/state/app-state.ts";
-import { phaseLabel, SidecarStatusDot } from "./sidecar-status-dot";
+import { queueHeldLabels } from "./queue-labels";
+import { phaseLabel } from "./sidecar-status";
+import { SidecarStatusDot } from "./sidecar-status-dot";
 import { utilityBarTransitions } from "./utility-bar.transitions";
 
 /**
@@ -54,13 +56,6 @@ type QueueTask = {
   started: string;
   tokens?: number;
   tokens_per_second?: number;
-};
-
-export const queueHeldLabels: Record<string, string> = {
-  backoff: "provider back-off",
-  idle_blocked: "waiting for quiet",
-  idle_quiet: "waiting for quiet",
-  rate_spacing: "pacing",
 };
 
 const queueRoleLabels: Record<string, string> = {

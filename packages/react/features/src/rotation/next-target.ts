@@ -44,10 +44,11 @@ export async function findNextTarget({
   const plan = await getRotation();
   if (plan.isErr()) return err(plan.error);
 
+  const skipSet = new Set(skip);
   const next = (plan.value.statuses ?? []).find(
     (s) =>
       isActionable(s) &&
-      !skip.includes(s.id) &&
+      !skipSet.has(s.id) &&
       (!projectionsOnly || s.type === "projection"),
   );
   if (!next) return ok(null);
