@@ -98,18 +98,18 @@ Keep non-page `.tsx` files exporting React components (and TypeScript types) onl
 
 | ID | Decision | Feasible Options | Cross-Plan Coupling | Selected |
 |---|---|---|---|---|
-| **D5.1** | Async busy-flag & unexpected rejection handling (`cloud-workspace-picker-screen.tsx` & `restore-provider-dialog.tsx`) | Option A (`try / catch / finally` into UI error state), Option B (`try / finally` only) | None | _Pending_ |
-| **D5.2** | Concurrent preview chunk fetching in `listConversations` (`chat.ts:449`) | Option A (Unbounded `Promise.all` with `requestKey: null`), Option B (Bounded worker pool `CONCURRENCY = 4` with `requestKey: null`) | None | _Pending_ |
-| **D5.3** | Module-scope `Intl.DateTimeFormat` hoisting scope (`datetime.ts`) | Option A (Hoist `shortDateTimeFormatter` only), Option B (Hoist both `shortDateTimeFormatter` and `formatWindowRange`'s 2 static formatters) | None | _Pending_ |
-| **D5.4** | `ChatMessages` settlement lookup strategy (`chat-messages.tsx:1002`) | Option A (`Set` inside `settledBy` + card-presence guard), Option B (`useMemo` single reverse pass `lastSettledIndices`) | `doctor-06` Tier 2 (`chat-messages.tsx:510` `EditNoticeCard`) | _Pending_ |
-| **D5.5** | Non-index keys in `MapScreen` & `StatusPage` (`map-screen.tsx:178` & `Status.tsx:338`) | Option A (Occurrence-disambiguated composite keys in both files), Option B (Natural `from\|kind\|to` key in `MapScreen` + occurrence-disambiguated key in `StatusPage`) | `doctor-06` Part A & Tier 1 (`Status.tsx`), Tier 2 (`map-screen.tsx`), plus **D5.6** (`Status.tsx` import) | _Pending_ |
-| **D5.6** | Resolving the 6 non-page `only-export-components` modules (7 warnings) | Option A (Extract `.ts` modules for the 2 externally used symbols; unexport the 5 zero-caller symbols), Option B (Extract `.ts` sibling/lib modules for all pure helpers; unexport or extract `routeElements`) | `doctor-06` Part A (`only-export-components` rule config for `pages/*.tsx`) & Tier 1 (`Status.tsx`) | _Pending_ |
+| **D5.1** | Async busy-flag & unexpected rejection handling (`cloud-workspace-picker-screen.tsx` & `restore-provider-dialog.tsx`) | Option A (`try / catch / finally` into UI error state), Option B (`try / finally` only) | None | **Option A** |
+| **D5.2** | Concurrent preview chunk fetching in `listConversations` (`chat.ts:449`) | Option A (Unbounded `Promise.all` with `requestKey: null`), Option B (Bounded worker pool `CONCURRENCY = 4` with `requestKey: null`) | None | **Option A** |
+| **D5.3** | Module-scope `Intl.DateTimeFormat` hoisting scope (`datetime.ts`) | Option A (Hoist `shortDateTimeFormatter` only), Option B (Hoist both `shortDateTimeFormatter` and `formatWindowRange`'s 2 static formatters) | None | **Option A** |
+| **D5.4** | `ChatMessages` settlement lookup strategy (`chat-messages.tsx:1002`) | Option A (`Set` inside `settledBy` + card-presence guard), Option B (`useMemo` single reverse pass `lastSettledIndices`) | `doctor-06` Tier 2 (`chat-messages.tsx:510` `EditNoticeCard`) | **Option B** |
+| **D5.5** | Non-index keys in `MapScreen` & `StatusPage` (`map-screen.tsx:178` & `Status.tsx:338`) | Option A (Occurrence-disambiguated composite keys in both files), Option B (Natural `from\|kind\|to` key in `MapScreen` + occurrence-disambiguated key in `StatusPage`) | `doctor-06` Part A & Tier 1 (`Status.tsx`), Tier 2 (`map-screen.tsx`), plus **D5.6** (`Status.tsx` import) | **Option B** |
+| **D5.6** | Resolving the 6 non-page `only-export-components` modules (7 warnings) | Option A (Extract `.ts` modules for the 2 externally used symbols; unexport the 5 zero-caller symbols), Option B (Extract `.ts` sibling/lib modules for all pure helpers; unexport or extract `routeElements`) | `doctor-06` Part A (`only-export-components` rule config for `pages/*.tsx`) & Tier 1 (`Status.tsx`) | **Option A** |
 
 ---
 
 ### D5.1 — Async Busy-Flag & Unexpected Rejection Handling (`cloud-workspace-picker-screen.tsx` & `restore-provider-dialog.tsx`)
 
-**Decision:** _Pending_
+**Decision:** **Option A** — `try / catch / finally` Surfacing Unexpected Rejections in Existing Error State
 
 **Files & Callers Verified:**
 - `packages/react/features/src/auth/cloud-workspace-picker-screen.tsx:35-57`:
@@ -149,7 +149,7 @@ Keep non-page `.tsx` files exporting React components (and TypeScript types) onl
 
 ### D5.2 — Concurrent Preview Chunk Fetching in `listConversations` (`chat.ts:449`)
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Unbounded `Promise.all` Across 30-ID Chunks (Preserving `requestKey: null`)
 
 **Files & Callers Verified:**
 - `packages/lib/client/src/kalaidoscope/chat.ts:424-476`:
@@ -189,7 +189,7 @@ Keep non-page `.tsx` files exporting React components (and TypeScript types) onl
 
 ### D5.3 — Module-Scope `Intl.DateTimeFormat` Hoisting Scope (`datetime.ts`)
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Hoist Only `shortDateTimeFormatter` at Module Scope (Minimal Diff)
 
 **Files & Callers Verified:**
 - `packages/lib/client/src/lib/datetime.ts`:
@@ -223,7 +223,7 @@ Keep non-page `.tsx` files exporting React components (and TypeScript types) onl
 
 ### D5.4 — `ChatMessages` Settlement Lookup Strategy (`chat-messages.tsx:1002`)
 
-**Decision:** _Pending_
+**Decision:** **Option B** — `useMemo` Single Reverse Pass (`lastSettledIndices(messages)`)
 
 **Files & Callers Verified:**
 - `packages/react/components/src/chat-messages.tsx:984-1035`:
@@ -255,7 +255,7 @@ Keep non-page `.tsx` files exporting React components (and TypeScript types) onl
 
 ### D5.5 — Non-Index Keys in `MapScreen` & `StatusPage` (`map-screen.tsx:178` & `Status.tsx:338`)
 
-**Decision:** _Pending_
+**Decision:** **Option B** — Natural `from|kind|to` Key in `MapScreen` + Occurrence-Disambiguated Key in `StatusPage`
 
 **Files & Callers Verified:**
 - `packages/react/features/src/map/map-screen.tsx:175-190`:
@@ -298,7 +298,7 @@ Keep non-page `.tsx` files exporting React components (and TypeScript types) onl
 
 ### D5.6 — Resolving the 6 Non-Page `only-export-components` Modules (7 Warnings)
 
-**Decision:** _Pending_
+**Decision:** **Option A** — Extract `.ts` Siblings Only for Externally Imported Symbols; Unexport Zero-Caller Symbols
 
 **Files & Callers Verified:**
 1. `packages/react/primitives/src/kalaido/colour.tsx:16` (`contentColour`): **0 external callers** across `apps/`, `packages/`, and tests; re-exported in `packages/react/primitives/src/kalaido/index.ts:4`. Note `packages/react/primitives/package.json` maps `"./kalaido/*": "./src/kalaido/*.tsx"` (`.tsx` only!) whereas `"./lib/*": "./src/lib/*.ts"` and `"#lib/*": "./src/lib/*.ts"` map `.ts` files automatically without touching `package.json`.
