@@ -239,8 +239,120 @@ The target architecture enforces a strict separation into **five explicit state 
 
 ### 2.8 Next Steps (To Design & Phase)
 
-1. **Concrete primitive API specs** in `packages/react/hooks` & `packages/lib/platform`:
-   - Persisted `createScope` / `useScope` extension (persisted key declaration, hydration lifecycle, write-through coalescing).
-   - `LiveSource<T>` + `useLiveRead` + shared subscription ref-counter + typed wrappers (`useLiveCollection`, `useLiveEndpoint`, `useCloudSession`, `useCloudWorkspaces`).
-   - Paired async write hook (`useExternalWrite` / `useCommand`) with status, `create` ID return, and tag invalidation.
-2. **Phased migration plan** across `@kalaido/platform`, `@kalaido/client`, `@kalaido/hooks`, `@kalaido/primitives`, `@kalaido/components`, `@kalaido/features`, `apps/mobile`, `apps/web`, and `apps/desktop`.
+1. ~~**Piece 1 — External live reads & paired writes**~~ (locked in Part 3 below).
+2. **Piece 2 — Persisted `createScope` / `useScope` extension** (persisted key declaration, hydration gate, write-through coalescing, `HostAdapter.settings` unification including `theme` and `cloudSessionToken`).
+3. **Phased migration plan** across `@kalaido/platform`, `@kalaido/client`, `@kalaido/hooks`, `@kalaido/primitives`, `@kalaido/components`, `@kalaido/features`, `apps/mobile`, `apps/web`, and `apps/desktop`.
+
+---
+
+## Part 3: Spec — External Live Reads & Paired Writes (Locked)
+
+### 3.1 Package Placement (`@kalaido/hooks`)
+All primitives live in `packages/react/hooks/src/`, keeping `packages/lib/client` pure TypeScript (zero React, zero SWR):
+- `live-registry.ts` — active SWR key ↔ `LiveTag` registry + workspace/cloud cache teardown
+- `pb-subscription-hub.ts` — shared, ref-counted PocketBase SSE subscription hub
+- `use-live-read.ts` — `LiveSource<T>`, `LiveReadResult<T>`, `useLiveRead`
+- `live-sources.ts` — the 4 `LiveSource` adapter factories
+- `use-external-write.ts` — `WriteReturn`, `ExternalWriteDef`, `WriteOutcome`, `useExternalWrite`
+
+Non-live `useCollection` is **removed/replaced** once `useLiveCollection` uses ref-counted subscriptions — every PocketBase read is live by default.
+
+### 3.2 `LiveReadResult<T>` & `LiveSource<T>`
+No manual `refresh()` escape hatch is exposed to callers — liveness is owned strictly by the source adapter and paired writes.
+
+```ts
+export type LiveReadStatus = "loading" | "ready" | "error";
+
+export interface LiveReadResult<T> {
+  readonly data: T | undefined;
+  readonly status: LiveReadStatus;
+  readonly isLoading: boolean;     // true only on first fetch before any data exists
+  readonly isValidating: boolean;  // true during any in-flight fetch/revalidation
+  readonly error: Error | null;
+}
+
+export type LiveTag = string; // e.g. "cloud:workspaces", "cloud:session", `pb:${baseURL}:backups`
+
+export interface LiveSource<T> {
+  /** Stable serializable SWR key. `null` disables fetching and subscriptions. */
+  readonly key: readonly unknown[] | null;
+  /** Tags invalidated automatically by paired external writes. */
+  readonly tags?: readonly LiveTag[];
+  /** Fetches the authoritative value from the external store. */
+  readonly fetch: () => Promise<Result<T, Error>>;
+  /**
+   * Optional push channel.
+   * - `invalidate()`: triggers coalesced SWR revalidation (PocketBase SSE).
+   * - `setData(v)`: pushes a value directly into the SWR cache (Better Auth atom).
+   */
+  readonly subscribe?: (callbacks: {
+    invalidate: () => void;
+    setData: (value: T) => void;
+  }) => () => void;
+  /** Coalesce bursty `invalidate()` events into one revalidation (ms). */
+  readonly coalesceMs?: number;
+  /**
+   * Optional offline cache (for the documented cloud-workspaces exception only):
+   * hydrates cached data when offline and reconciles/writes on successful fetch.
+   */
+  readonly offlineCache?: {
+    read: () => Promise<T | undefined>;
+    reconcile: (cached: T | undefined, fresh: T) => T;
+    write: (value: T) => Promise<void>;
+  };
+  readonly revalidateOnFocus?: boolean;
+  readonly revalidateOnReconnect?: boolean;
+}
+```
+
+### 3.3 Shared Core Internals
+- **`pbSubscriptionHub`:** Ref-counted by `(client.baseURL, collection, filter ?? "")`. Multiple mounted consumers share one SSE channel; unsubscribing the last listener closes it. `disposeClientSubscriptions(client)` cleans up on workspace switch/close.
+- **`liveReadRegistry`:** Maps active `LiveTag`s to mounted SWR keys (ref-counted per serialized key). `invalidateLiveTags(tags)` triggers and awaits SWR `mutate(key)` for every registered key carrying a matching tag. Also exposes `clearWorkspaceLiveCache(baseURL)` and `clearCloudLiveCache()`.
+
+### 3.4 The Four `LiveSource` Adapters
+
+| Adapter | Backing Store | Live Mechanism | Examples |
+|---|---|---|---|
+| `pbCollectionSource` | PocketBase collections & SQL views | `pbSubscriptionHub` on `[collection]` or `watch` collections (50ms coalesce) | `useLiveCollection`, `useLiveCollectionWatching` (adds `records: data ?? []`) — covers all collections including `colour`, `colour_fragment`, `fragment`, `ingest` |
+| `pbEndpointSource` | PocketBase computed HTTP endpoints | `pbSubscriptionHub` on `watch` collections + tag invalidation | `useOrganizeStatus` (`/api/status`, 300ms), `useRotationStatus` (`/api/reconcile`), `useReflectionWindows`, `useWorkspaceLlmConfig`, `useConversations` |
+| `httpLiveSource` | Non-push HTTP / REST endpoints | Paired-write tag invalidation + mount/focus/reconnect (+ optional `offlineCache`) | `useWorkspaceBackups`, `useWorkspaceUsage`, `useWorkspaceQuota`, `useCloudWorkspaces` *(with `offlineCache`)* |
+| `atomLiveSource` | Push/atom external stores | Atom listener → `setData(v)` + tag invalidation | `useCloudSession` (Better Auth session atom) |
+
+### 3.5 Paired External Write Hook (`useExternalWrite`)
+
+```ts
+/** Writes return void (update/delete/action) or opaque ID(s) on create. Never entity data. */
+export type WriteReturn =
+  | void
+  | { readonly id: string }
+  | { readonly ids: readonly string[] };
+
+export type WriteStatus = "idle" | "pending" | "success" | "error";
+
+export type WriteOutcome<TOut extends WriteReturn> =
+  | ({ readonly status: "success" } & (TOut extends void ? Record<never, never> : TOut))
+  | { readonly status: "ignored" }
+  | { readonly status: "error"; readonly error: Error };
+
+export interface ExternalWriteDef<TArgs = void, TOut extends WriteReturn = void> {
+  readonly execute: (args: TArgs) => Promise<Result<TOut, Error>>;
+  /** Tags invalidated (and awaited) after `execute` succeeds. */
+  readonly invalidates?: readonly LiveTag[] | ((args: TArgs) => readonly LiveTag[]);
+  /** Default `"ignore"`: drops overlapping calls while pending and resolves `{ status: "ignored" }`. */
+  readonly concurrency?: "ignore" | "allow";
+}
+
+export interface ExternalWriteHandle<TArgs, TOut extends WriteReturn> {
+  readonly run: (
+    ...args: TArgs extends void ? [] : [args: TArgs]
+  ) => Promise<WriteOutcome<TOut>>;
+  readonly status: WriteStatus;
+  readonly isPending: boolean;
+  readonly error: Error | null;
+  readonly reset: () => void;
+}
+```
+
+- **Default concurrency (`"ignore"`):** If `run()` is called while already pending, it returns `{ status: "ignored" }` immediately without firing a duplicate request or clobbering the active status. Callers needing parallel independent writes on one handle (e.g. toggling multiple rows rapidly) can explicitly set `concurrency: "allow"`.
+- **Error handling:** `run()` never throws; callers inspect `res.status === "error"` (or `handle.error`) and decide whether to toast or render inline.
+- **Invalidation:** When `execute` returns `ok`, `run()` awaits `invalidateLiveTags(tags)` before resolving `{ status: "success", ... }`, ensuring paired non-push live reads (and opted-in push reads) have caught up before the caller clears local pending/optimistic UI.
