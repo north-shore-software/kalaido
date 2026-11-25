@@ -1,4 +1,5 @@
 import type { FragmentResponse } from "@kalaido/client/kalaidoscope/types";
+import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
 import {
   Chip,
   EmptyState,
@@ -7,33 +8,35 @@ import {
   Mono,
 } from "@kalaido/primitives/kalaido";
 import { Textarea } from "@kalaido/primitives/shadcn/textarea";
-import { fragmentTypeLabel } from "@kalaido/client/lib/labels";
+import { useMemo, useState } from "react";
 import { preview, shortTime } from "../fragments";
 import { TYPE_FILTERS, type TypeFilter } from "../hooks/use-colour-preview";
 
-/** State owned by the page via `useColourPreview`. */
+/** Conditionally mounted per composer session; owns client-side type chip narrowing. */
 export function ColourComposerPane({
   name,
   prompt,
-  typeFilter,
   previewing,
-  previewFragments,
+  matches,
   onName,
   onPrompt,
-  onTypeFilter,
   seededCount = 0,
 }: {
   name: string;
   prompt: string;
-  typeFilter: TypeFilter;
   previewing: boolean;
-  previewFragments: FragmentResponse[];
+  matches: FragmentResponse[];
   onName: (v: string) => void;
   onPrompt: (v: string) => void;
-  onTypeFilter: (v: TypeFilter) => void;
   /** Fragments this colour starts from — pinned as positive examples on create. */
   seededCount?: number;
 }) {
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const previewFragments = useMemo(() => {
+    if (typeFilter === "all") return matches;
+    return matches.filter((f) => f.type === typeFilter);
+  }, [matches, typeFilter]);
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-8 py-6">
       <div className="flex flex-col gap-2">
@@ -70,7 +73,7 @@ export function ColourComposerPane({
             <Chip
               key={t}
               active={t === typeFilter}
-              onClick={() => onTypeFilter(t)}
+              onClick={() => setTypeFilter(t)}
             >
               {t === "all" ? "All" : fragmentTypeLabel(t)}
             </Chip>

@@ -1,6 +1,6 @@
 import { useLatestRef } from "@kalaido/primitives/hooks/use-latest-ref";
 import { ArrowRightIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface OrganizingSplashProps {
   speed?: number;
@@ -768,6 +768,8 @@ function drawHexagonLoadingBar(
   ctx.restore();
 }
 
+type EndPhase = "none" | "finalizing" | "ready" | "faded";
+
 export function OrganizingSplash({
   speed = 1,
   showStatus = true,
@@ -778,8 +780,9 @@ export function OrganizingSplash({
   onSnapshotReady,
 }: OrganizingSplashProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [status, setStatus] = useState(PHRASES[0]);
-  const [statusOpacity, setStatusOpacity] = useState(1);
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const [phraseFading, setPhraseFading] = useState(false);
+  const [endPhase, setEndPhase] = useState<EndPhase>("none");
   const [percent, setPercent] = useState(0);
 
   const propsRef = useLatestRef({
@@ -790,19 +793,42 @@ export function OrganizingSplash({
   });
   const endAtRef = useRef<number | null>(null);
 
-  const triggerEnd = useCallback(() => {
-    if (endAtRef.current === null) {
-      endAtRef.current = performance.now();
-      setStatus("finalizing snapshot…");
-      setStatusOpacity(1);
-    }
-  }, []);
+  const inEndSequence = ending || endPhase !== "none";
+  const displayedStatus = inEndSequence
+    ? endPhase === "ready" || endPhase === "faded"
+      ? "snapshot ready"
+      : "finalizing snapshot…"
+    : PHRASES[phraseIdx];
+  const displayedOpacity = inEndSequence
+    ? endPhase === "faded"
+      ? 0
+      : 1
+    : phraseFading
+      ? 0
+      : 1;
 
   useEffect(() => {
     if (ending && endAtRef.current === null) {
-      triggerEnd();
+      endAtRef.current = performance.now();
     }
-  }, [ending, triggerEnd]);
+  }, [ending]);
+
+  useEffect(() => {
+    if (inEndSequence) return;
+    const statusTimer = setInterval(() => {
+      setPhraseFading(true);
+    }, 9000);
+    return () => clearInterval(statusTimer);
+  }, [inEndSequence]);
+
+  useEffect(() => {
+    if (!phraseFading || inEndSequence) return;
+    const swapTimer = setTimeout(() => {
+      setPhraseIdx((i) => (i + 1) % PHRASES.length);
+      setPhraseFading(false);
+    }, 650);
+    return () => clearTimeout(swapTimer);
+  }, [phraseFading, inEndSequence]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -816,8 +842,8 @@ export function OrganizingSplash({
       t0: now0,
       last: now0,
       ft: 0,
-      pi: 0,
       lastPercent: 0,
+      endFinalizingFired: false,
       snapshotReadyFired: false,
       endedFired: false,
       chips: generateChips(),
@@ -835,18 +861,6 @@ export function OrganizingSplash({
 
     window.addEventListener("resize", handleResize);
     handleResize();
-
-    let swapTimer: ReturnType<typeof setTimeout> | undefined;
-    const statusTimer = setInterval(() => {
-      if (endAtRef.current !== null) return;
-      setStatusOpacity(0);
-      swapTimer = setTimeout(() => {
-        if (endAtRef.current !== null) return;
-        st.pi = (st.pi + 1) % PHRASES.length;
-        setStatus(PHRASES[st.pi]);
-        setStatusOpacity(1);
-      }, 650);
-    }, 9000);
 
     let rafId: number;
 
@@ -887,19 +901,23 @@ export function OrganizingSplash({
       if (endAt === null) {
         b = smooth((t - 1.0) / 2.2);
       } else {
+        if (!st.endFinalizingFired) {
+          st.endFinalizingFired = true;
+          setEndPhase("finalizing");
+        }
         const te = (now - endAt) / 1000;
         b = 1 - smooth((te - 0.4) / 2.2);
         g = 1 - smooth((te - 3.8) / 1.2);
 
         if (te > 3.0 && !st.snapshotReadyFired) {
           st.snapshotReadyFired = true;
-          setStatus("snapshot ready");
+          setEndPhase("ready");
           props.onSnapshotReady?.();
         }
 
         if (te > 5.2 && !st.endedFired) {
           st.endedFired = true;
-          setStatusOpacity(0);
+          setEndPhase("faded");
           props.onEnded?.();
         }
       }
@@ -1071,8 +1089,6 @@ export function OrganizingSplash({
 
     return () => {
       cancelAnimationFrame(rafId);
-      clearInterval(statusTimer);
-      clearTimeout(swapTimer);
       window.removeEventListener("resize", handleResize);
     };
   }, [propsRef]);
@@ -1100,9 +1116,9 @@ export function OrganizingSplash({
           </div>
           <div
             className="text-[13px] tracking-[0.08em] text-white transition-opacity duration-600 ease-[cubic-bezier(0.2,0.7,0.2,1)]"
-            style={{ opacity: statusOpacity }}
+            style={{ opacity: displayedOpacity }}
           >
-            <span key={status}>{status}</span>
+            <span key={displayedStatus}>{displayedStatus}</span>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { previewColourStream } from "@kalaido/client/kalaidoscope/colours";
 import type { FragmentResponse } from "@kalaido/client/kalaidoscope/types";
@@ -9,9 +9,9 @@ export type TypeFilter = (typeof TYPE_FILTERS)[number];
 /** Debounced live preview of the fragments matching a draft colour's prompt.
  *
  *  `matches` holds every streamed match for the current prompt regardless of
- *  type; the type chip narrows them client-side (`fragments`) rather than
- *  re-running the LLM evaluation — the backend matches on the prompt only and
- *  ignores type. */
+ *  type; type-chip narrowing happens client-side inside `ColourComposerPane`
+ *  rather than re-running the LLM evaluation — the backend matches on the
+ *  prompt only and ignores type. */
 /** The no-seed default, one identity, so it never re-runs the preview effect. */
 const NO_EXAMPLES: readonly string[] = [];
 
@@ -24,14 +24,9 @@ export function useColourPreview(
    */
   positiveExamples: readonly string[] = NO_EXAMPLES,
 ) {
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [matches, setMatches] = useState<FragmentResponse[]>([]);
   const [previewing, setPreviewing] = useState(false);
 
-  // Debounced live preview while defining the prompt. Deliberately not keyed
-  // on `typeFilter`: type narrowing is a client-side view of the same match
-  // set, so changing the chip must not wipe results or trigger a fresh
-  // evaluation.
   useEffect(() => {
     if (!enabled) return;
     const text = prompt.trim();
@@ -74,14 +69,5 @@ export function useColourPreview(
     };
   }, [prompt, enabled, positiveExamples]);
 
-  useEffect(() => {
-    if (!enabled) setTypeFilter("all");
-  }, [enabled]);
-
-  const fragments = useMemo(() => {
-    if (typeFilter === "all") return matches;
-    return matches.filter((f) => f.type === typeFilter);
-  }, [matches, typeFilter]);
-
-  return { matches, fragments, previewing, typeFilter, setTypeFilter };
+  return { matches, previewing };
 }

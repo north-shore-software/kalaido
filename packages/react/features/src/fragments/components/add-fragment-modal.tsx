@@ -1,4 +1,5 @@
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import { useLatestRef } from "@kalaido/primitives/hooks/use-latest-ref";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
@@ -14,7 +15,13 @@ import {
   PlusCircleIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   type ImportAdapter,
   ImportColourField,
@@ -49,16 +56,60 @@ export function AddFragmentModal({
   onClose,
   importAdapter,
 }: AddFragmentModalProps) {
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [sessionKey, setSessionKey] = useState(0);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setSessionKey((k) => k + 1);
+    }
+  }
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const busyRef = useRef(false);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && !busyRef.current) onClose();
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        initialFocus={textareaRef}
+        className="flex w-full flex-col gap-4 border-line border-t-2 border-t-cyan bg-popover p-6 sm:w-[560px] sm:max-w-[560px]"
+      >
+        <AddFragmentModalBody
+          key={sessionKey}
+          onClose={onClose}
+          importAdapter={importAdapter}
+          textareaRef={textareaRef}
+          busyRef={busyRef}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface AddFragmentModalBodyProps {
+  onClose: () => void;
+  importAdapter: ImportAdapter;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  busyRef: RefObject<boolean>;
+}
+
+function AddFragmentModalBody({
+  onClose,
+  importAdapter,
+  textareaRef,
+  busyRef,
+}: AddFragmentModalBodyProps) {
   const [tab, setTab] = useState<FragmentTab>("write");
   const { phase, errorMsg, runIngest, reset: resetNote } = useNoteIngest();
   const [text, setText] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saving = phase === "running";
-
-  const onCloseRef = useRef(onClose);
-  useLayoutEffect(() => {
-    onCloseRef.current = onClose;
-  });
+  const onCloseRef = useLatestRef(onClose);
 
   const {
     submitting: importSubmitting,
@@ -76,20 +127,19 @@ export function AddFragmentModal({
     fields: "id,name,swatch",
   });
 
-  const wasOpenRef = useRef(false);
+  const busy = saving || importSubmitting;
+  useLayoutEffect(() => {
+    busyRef.current = busy;
+    return () => {
+      busyRef.current = false;
+    };
+  }, [busy, busyRef]);
+
   useEffect(() => {
-    if (open && !wasOpenRef.current) {
-      setText("");
-      resetNote();
-      picker.clear();
-      setColour({ kind: "none" });
-      clearImportError();
-      if (tab === "write") {
-        setTimeout(() => textareaRef.current?.focus(), 0);
-      }
-    }
-    wasOpenRef.current = open;
-  }, [open, resetNote, picker.clear, clearImportError, tab]);
+    if (tab !== "write") return;
+    const id = requestAnimationFrame(() => textareaRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [tab, textareaRef]);
 
   useEffect(() => {
     if (phase === "done") {
@@ -116,182 +166,170 @@ export function AddFragmentModal({
   }
 
   function handleClose() {
-    if (saving || importSubmitting) return;
+    if (busy) return;
     onClose();
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent
-        showCloseButton={false}
-        className="flex w-full flex-col gap-4 border-line border-t-2 border-t-cyan bg-popover p-6 sm:w-[560px] sm:max-w-[560px]"
-      >
-        <DialogHeader className="shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-none border border-cyan-edge bg-cyan-wash text-cyan">
-              <PlusCircleIcon weight="fill" className="size-5" />
-            </div>
-            <DialogTitle className="text-card-title font-bold text-fg-1">
-              New Fragment
-            </DialogTitle>
+    <>
+      <DialogHeader className="shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-none border border-cyan-edge bg-cyan-wash text-cyan">
+            <PlusCircleIcon weight="fill" className="size-5" />
           </div>
-        </DialogHeader>
+          <DialogTitle className="text-card-title font-bold text-fg-1">
+            New Fragment
+          </DialogTitle>
+        </div>
+      </DialogHeader>
 
-        <div className="flex w-full min-w-0 flex-col gap-4">
-          <div className="grid w-full shrink-0 grid-cols-2 rounded-none border border-line bg-surface-2 p-1">
-            <button
-              type="button"
-              onClick={() => {
-                setTab("write");
-                setTimeout(() => textareaRef.current?.focus(), 0);
-              }}
-              aria-pressed={tab === "write"}
-              className={tabClass(tab === "write")}
-            >
-              Start writing
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("import")}
-              aria-pressed={tab === "import"}
-              className={tabClass(tab === "import")}
-            >
-              Import file
-            </button>
-          </div>
-
-          <div className="h-[260px] w-full min-w-0">
-            {tab === "write" ? (
-              <div className="flex h-full w-full min-w-0 flex-col gap-2">
-                <div className="flex flex-1 flex-col rounded-none border border-line bg-surface-1 p-3 transition-colors focus-within:border-cyan">
-                  <Textarea
-                    ref={textareaRef}
-                    value={text}
-                    onChange={(e) => {
-                      setText(e.target.value);
-                      if (phase === "error") resetNote();
-                    }}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Paste or type your content… (Enter to save, Shift+Enter for newline)"
-                    className="h-full min-h-0 w-full resize-none border-none p-0 text-body focus-visible:ring-0"
-                  />
-                </div>
-                {phase === "error" && errorMsg && (
-                  <p className="text-sm text-destructive break-words">
-                    {errorMsg}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="flex h-full w-full min-w-0 flex-col gap-3 overflow-y-auto pr-1">
-                {!picker.path ? (
-                  <button
-                    type="button"
-                    onClick={() => void picker.chooseFile()}
-                    disabled={importSubmitting}
-                    className="group flex flex-1 flex-col items-center justify-center gap-3 rounded-none border border-dashed border-line-strong bg-surface-1 p-6 text-center transition-colors hover:border-cyan hover:bg-cyan-wash/20 cursor-pointer"
-                  >
-                    <div className="flex size-12 items-center justify-center rounded-none border border-line bg-surface-2 text-fg-3 transition-colors group-hover:border-cyan group-hover:text-cyan">
-                      <UploadSimpleIcon className="size-6" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-row font-semibold text-fg-1 transition-colors group-hover:text-cyan">
-                        Choose a file to import
-                      </span>
-                      <span className="text-meta text-fg-4">
-                        {SUPPORTED_EXTENSIONS_HINT}
-                      </span>
-                    </div>
-                  </button>
-                ) : (
-                  <div className="flex w-full min-w-0 flex-col gap-3">
-                    <div className="flex w-full min-w-0 items-center justify-between gap-3 rounded-none border border-cyan-edge bg-cyan-veil p-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-none border border-cyan-edge bg-surface-1 text-cyan">
-                        <FileTextIcon className="size-5" />
-                      </div>
-                      <div className="min-w-0 flex-1 overflow-hidden">
-                        <div
-                          className="truncate text-body-sm font-semibold text-fg-1"
-                          title={picker.path}
-                        >
-                          {picker.file?.filename ??
-                            picker.path.split(/[\\/]/).pop()}
-                        </div>
-                        <div
-                          className="truncate font-mono text-meta text-fg-4"
-                          title={picker.path}
-                        >
-                          {picker.path}
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void picker.chooseFile()}
-                        disabled={importSubmitting}
-                        className="shrink-0 text-fg-3 hover:text-fg-1"
-                      >
-                        Change
-                      </Button>
-                    </div>
-                    <ImportPreview
-                      entries={picker.entries}
-                      scanning={picker.scanning}
-                    />
-                  </div>
-                )}
-                {picker.pickError && (
-                  <p className="text-sm text-destructive break-words">
-                    {picker.pickError}
-                  </p>
-                )}
-                <ImportColourField
-                  colours={colours.records}
-                  value={colour}
-                  onChange={setColour}
-                  disabled={importSubmitting}
-                />
-                {importError && (
-                  <p className="text-sm text-destructive break-words">
-                    {importError}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+      <div className="flex w-full min-w-0 flex-col gap-4">
+        <div className="grid w-full shrink-0 grid-cols-2 rounded-none border border-line bg-surface-2 p-1">
+          <button
+            type="button"
+            onClick={() => setTab("write")}
+            aria-pressed={tab === "write"}
+            className={tabClass(tab === "write")}
+          >
+            Start writing
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("import")}
+            aria-pressed={tab === "import"}
+            className={tabClass(tab === "import")}
+          >
+            Import file
+          </button>
         </div>
 
-        <DialogFooter className="mt-2 flex shrink-0 items-center justify-between border-t border-line pt-3 sm:justify-between">
-          <Button
-            variant="ghost"
-            onClick={handleClose}
-            disabled={saving || importSubmitting}
-          >
-            Cancel
-          </Button>
+        <div className="h-[260px] w-full min-w-0">
           {tab === "write" ? (
-            <Button
-              onClick={save}
-              disabled={!text.trim() || saving}
-              className="border-transparent bg-cyan font-bold text-cyan-foreground hover:opacity-85"
-            >
-              {saving ? "Saving…" : "Save"}
-            </Button>
+            <div className="flex h-full w-full min-w-0 flex-col gap-2">
+              <div className="flex flex-1 flex-col rounded-none border border-line bg-surface-1 p-3 transition-colors focus-within:border-cyan">
+                <Textarea
+                  ref={textareaRef}
+                  value={text}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    if (phase === "error") resetNote();
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Paste or type your content… (Enter to save, Shift+Enter for newline)"
+                  className="h-full min-h-0 w-full resize-none border-none p-0 text-body focus-visible:ring-0"
+                />
+              </div>
+              {phase === "error" && errorMsg && (
+                <p className="text-sm text-destructive break-words">
+                  {errorMsg}
+                </p>
+              )}
+            </div>
           ) : (
-            <Button
-              onClick={handleImport}
-              disabled={
-                !picker.file || importSubmitting || !isImportColourReady(colour)
-              }
-              className="border-transparent bg-cyan font-bold text-cyan-foreground hover:opacity-85"
-            >
-              <UploadSimpleIcon className="size-4" />
-              {importSubmitting ? "Uploading…" : "Import"}
-            </Button>
+            <div className="flex h-full w-full min-w-0 flex-col gap-3 overflow-y-auto pr-1">
+              {!picker.path ? (
+                <button
+                  type="button"
+                  onClick={() => void picker.chooseFile()}
+                  disabled={importSubmitting}
+                  className="group flex flex-1 flex-col items-center justify-center gap-3 rounded-none border border-dashed border-line-strong bg-surface-1 p-6 text-center transition-colors hover:border-cyan hover:bg-cyan-wash/20 cursor-pointer"
+                >
+                  <div className="flex size-12 items-center justify-center rounded-none border border-line bg-surface-2 text-fg-3 transition-colors group-hover:border-cyan group-hover:text-cyan">
+                    <UploadSimpleIcon className="size-6" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-row font-semibold text-fg-1 transition-colors group-hover:text-cyan">
+                      Choose a file to import
+                    </span>
+                    <span className="text-meta text-fg-4">
+                      {SUPPORTED_EXTENSIONS_HINT}
+                    </span>
+                  </div>
+                </button>
+              ) : (
+                <div className="flex w-full min-w-0 flex-col gap-3">
+                  <div className="flex w-full min-w-0 items-center justify-between gap-3 rounded-none border border-cyan-edge bg-cyan-veil p-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-none border border-cyan-edge bg-surface-1 text-cyan">
+                      <FileTextIcon className="size-5" />
+                    </div>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <div
+                        className="truncate text-body-sm font-semibold text-fg-1"
+                        title={picker.path}
+                      >
+                        {picker.file?.filename ??
+                          picker.path.split(/[\\/]/).pop()}
+                      </div>
+                      <div
+                        className="truncate font-mono text-meta text-fg-4"
+                        title={picker.path}
+                      >
+                        {picker.path}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void picker.chooseFile()}
+                      disabled={importSubmitting}
+                      className="shrink-0 text-fg-3 hover:text-fg-1"
+                    >
+                      Change
+                    </Button>
+                  </div>
+                  <ImportPreview
+                    entries={picker.entries}
+                    scanning={picker.scanning}
+                  />
+                </div>
+              )}
+              {picker.pickError && (
+                <p className="text-sm text-destructive break-words">
+                  {picker.pickError}
+                </p>
+              )}
+              <ImportColourField
+                colours={colours.records}
+                value={colour}
+                onChange={setColour}
+                disabled={importSubmitting}
+              />
+              {importError && (
+                <p className="text-sm text-destructive break-words">
+                  {importError}
+                </p>
+              )}
+            </div>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+
+      <DialogFooter className="mt-2 flex shrink-0 items-center justify-between border-t border-line pt-3 sm:justify-between">
+        <Button variant="ghost" onClick={handleClose} disabled={busy}>
+          Cancel
+        </Button>
+        {tab === "write" ? (
+          <Button
+            onClick={save}
+            disabled={!text.trim() || saving}
+            className="border-transparent bg-cyan font-bold text-cyan-foreground hover:opacity-85"
+          >
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        ) : (
+          <Button
+            onClick={handleImport}
+            disabled={
+              !picker.file || importSubmitting || !isImportColourReady(colour)
+            }
+            className="border-transparent bg-cyan font-bold text-cyan-foreground hover:opacity-85"
+          >
+            <UploadSimpleIcon className="size-4" />
+            {importSubmitting ? "Uploading…" : "Import"}
+          </Button>
+        )}
+      </DialogFooter>
+    </>
   );
 }
