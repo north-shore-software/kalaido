@@ -31,6 +31,10 @@ const maxExploreToolRounds = 4
 // response (one assistant message on the client). Reads persist with their
 // output so llmcontext.Flatten can replay them on later turns.
 func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, msgs []llm.Message, model, textID string, w http.ResponseWriter) error {
+	return streamSummariesTurn(ctx, app, func() *core.Record { return conv }, msgs, model, textID, w)
+}
+
+func streamSummariesTurn(ctx context.Context, app core.App, persistConv func() *core.Record, msgs []llm.Message, model, textID string, w http.ResponseWriter) error {
 	reader, err := mapreader.NewChatReader(app)
 	if err != nil {
 		return fmt.Errorf("load map for summaries explore: %w", err)
@@ -43,6 +47,7 @@ func StreamSummariesTurn(ctx context.Context, app core.App, conv *core.Record, m
 		return err
 	}
 
+	conv := persistConv()
 	sse := chat.BeginSSE(w, textID)
 	var tw *chat.TurnWriter
 	if conv != nil {

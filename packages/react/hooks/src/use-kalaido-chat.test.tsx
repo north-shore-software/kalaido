@@ -90,10 +90,13 @@ describe("useKalaidoChat", () => {
     );
   });
 
-  test("openAndSend without api falls back to the hook's current api and survives rerender", async () => {
+  test("openAndSend without api or context falls back to the hook's current options and survives rerender", async () => {
+    const context: ContextItem[] = [
+      { kind: "Fragment", id: "f1", label: "Note 1" },
+    ];
     const { result, rerender } = renderHook(
       ({ chatId }: { chatId: string }) =>
-        useKalaidoChat({ chatId, api: "/api/explore" }),
+        useKalaidoChat({ chatId, api: "/api/explore", context }),
       { wrapper, initialProps: { chatId: "chat-1" } },
     );
 
@@ -108,6 +111,17 @@ describe("useKalaidoChat", () => {
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
       "http://127.0.0.1:8090/api/explore",
     );
+    const firstInit = fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined;
+    const firstPayload = JSON.parse(String(firstInit?.body ?? "{}")) as {
+      messages?: { role: string; parts?: { type: string }[] }[];
+    };
+    expect(
+      firstPayload.messages?.some(
+        (m) =>
+          m.role === "system" &&
+          m.parts?.some((p) => p.type === "context_spec"),
+      ),
+    ).toBe(true);
     expect(toastError).not.toHaveBeenCalled();
 
     // A subsequent rerender with the same chatId/api must keep the opened chat.

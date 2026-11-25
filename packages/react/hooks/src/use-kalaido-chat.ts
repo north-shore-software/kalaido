@@ -152,6 +152,23 @@ function buildSpecDiffParts(
   return { parts, nextSpec, nextWindow };
 }
 
+function resolveSpecOverrides(
+  overrides: SendMessageOverrides | undefined,
+  latest: {
+    context: ContextItem[] | undefined;
+    timeWindow: TimeWindow | undefined;
+  },
+) {
+  return {
+    context:
+      overrides && "context" in overrides ? overrides.context : latest.context,
+    timeWindow:
+      overrides && "timeWindow" in overrides
+        ? overrides.timeWindow
+        : latest.timeWindow,
+  };
+}
+
 function chatSeedKey(
   chatId: string | undefined,
   api: string | undefined,
@@ -267,14 +284,8 @@ export function useKalaidoChat({
 
   const appendSpecChanges = useCallback(
     (overrides?: SendMessageOverrides) => {
-      const effectiveContext =
-        overrides && "context" in overrides
-          ? overrides.context
-          : latestRef.current.context;
-      const effectiveWindow =
-        overrides && "timeWindow" in overrides
-          ? overrides.timeWindow
-          : latestRef.current.timeWindow;
+      const { context: effectiveContext, timeWindow: effectiveWindow } =
+        resolveSpecOverrides(overrides, latestRef.current);
 
       const { parts, nextSpec, nextWindow } = buildSpecDiffParts(
         effectiveContext,
@@ -343,49 +354,47 @@ export function useKalaidoChat({
     [appendSpecChanges, sendMessage],
   );
 
-  const openAndSend = useCallback(
-    ({
+  const openAndSend = useCallback((options: OpenAndSendOptions) => {
+    const {
       chatId: nextChatId,
       api: nextApi,
       initialMessages: nextInitialMessages,
       prompt,
-      context: nextContext,
-      timeWindow: nextWindow,
-    }: OpenAndSendOptions) => {
-      const effectiveApi = nextApi ?? latestRef.current.api;
-      const nextChat = latestRef.current.createChatInstance(
-        nextChatId,
-        nextInitialMessages,
-        effectiveApi,
-      );
-      const baseline = seedBaselines(nextInitialMessages);
-      seededForIdRef.current = chatSeedKey(nextChatId, effectiveApi);
-      lastSentSpecRef.current = baseline.spec;
-      lastSentWindowRef.current = baseline.window;
-      pendingWindowResendRef.current = null;
+    } = options;
+    const effectiveApi = nextApi ?? latestRef.current.api;
+    const { context: effectiveContext, timeWindow: effectiveWindow } =
+      resolveSpecOverrides(options, latestRef.current);
+    const nextChat = latestRef.current.createChatInstance(
+      nextChatId,
+      nextInitialMessages,
+      effectiveApi,
+    );
+    const baseline = seedBaselines(nextInitialMessages);
+    seededForIdRef.current = chatSeedKey(nextChatId, effectiveApi);
+    lastSentSpecRef.current = baseline.spec;
+    lastSentWindowRef.current = baseline.window;
+    pendingWindowResendRef.current = null;
 
-      setPrevChatId(nextChatId);
-      setPrevApi(effectiveApi);
-      setQuotaHit(false);
-      setActiveChat(nextChat);
+    setPrevChatId(nextChatId);
+    setPrevApi(effectiveApi);
+    setQuotaHit(false);
+    setActiveChat(nextChat);
 
-      const trimmedPrompt = prompt?.trim();
-      if (trimmedPrompt) {
-        const {
-          parts,
-          nextSpec,
-          nextWindow: updatedWindow,
-        } = buildSpecDiffParts(nextContext, nextWindow, baseline);
-        lastSentSpecRef.current = nextSpec;
-        lastSentWindowRef.current = updatedWindow;
-        if (parts.length > 0) {
-          nextChat.messages = [...nextChat.messages, makeSystemMessage(parts)];
-        }
-        void nextChat.sendMessage({ text: trimmedPrompt });
+    const trimmedPrompt = prompt?.trim();
+    if (trimmedPrompt) {
+      const {
+        parts,
+        nextSpec,
+        nextWindow: updatedWindow,
+      } = buildSpecDiffParts(effectiveContext, effectiveWindow, baseline);
+      lastSentSpecRef.current = nextSpec;
+      lastSentWindowRef.current = updatedWindow;
+      if (parts.length > 0) {
+        nextChat.messages = [...nextChat.messages, makeSystemMessage(parts)];
       }
-    },
-    [],
-  );
+      void nextChat.sendMessage({ text: trimmedPrompt });
+    }
+  }, []);
 
   const applyTimeWindow = useCallback(
     (nextWindow: TimeWindow) => {

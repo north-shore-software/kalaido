@@ -92,12 +92,16 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 		return &PromptTooLargeError{Err: err, Text: text}
 	}
 
-	// Persist the conversation and incoming messages only after validation,
-	// model resolution, and prompt budget checks pass. Both new and existing
-	// conversations write inside one transaction, re-deduping against stored
-	// messages so overlapping first turns or an earlier lookup failure cannot
-	// duplicate history or leave an orphaned conversation row.
-	if req.ID != "" {
+	// Persist the conversation and incoming messages only once validation,
+	// model resolution, prompt budget, quota, and provider stream startup all
+	// succeed — so pre-stream 4xx/5xx/402 failures never leave an orphaned row.
+	// Both new and existing conversations write inside one transaction,
+	// re-deduping against stored messages so overlapping first turns or an
+	// earlier lookup failure cannot duplicate history.
+	persistIncoming := func() *core.Record {
+		if req.ID == "" {
+			return conv
+		}
 		var persisted *core.Record
 		err := app.RunInTransaction(func(tx core.App) error {
 			c := conv
@@ -122,15 +126,15 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 		})
 		if err != nil {
 			logger().Error("explore persist: save conversation and messages failed", "conversation_id", req.ID, "error", err)
-		} else {
-			conv = persisted
+			return conv
 		}
+		return persisted
 	}
 
 	textID := fmt.Sprintf("txt-%d", time.Now().UnixNano())
 
 	if summaries {
-		return StreamSummariesTurn(ctx, app, conv, hydratedMsgs, assistantModel, textID, w)
+		return streamSummariesTurn(ctx, app, persistIncoming, hydratedMsgs, assistantModel, textID, w)
 	}
 
 	comp, err := usage.Stream(ctx, app, llm.RoleChat, assistantModel, hydratedMsgs, nil)
@@ -138,6 +142,7 @@ func StreamTurn(ctx context.Context, app core.App, req api.ExploreRequest, w htt
 		return err
 	}
 
+	conv = persistIncoming()
 	turn := chat.StreamAssistantResponse(w, comp, textID, nil)
 
 	// Persist the assistant turn once the stream has fully drained.

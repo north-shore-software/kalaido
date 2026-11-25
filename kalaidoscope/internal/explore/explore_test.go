@@ -157,12 +157,33 @@ func TestViewChatConversation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// 7. Message whose text part is only newlines/tabs/spaces -> skipped in favour
+	// of the first message with non-whitespace text.
+	convWhitespace, err := FindOrCreateConversation(ctx, app, "ext-ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.PersistMessage(ctx, app, convWhitespace, api.UIMessage{
+		ID:    "w1",
+		Role:  "assistant",
+		Parts: []api.UIMessagePart{{Type: "text", Text: " \n\t\r "}},
+	}, "model-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.PersistMessage(ctx, app, convWhitespace, api.UIMessage{
+		ID:    "w2",
+		Role:  "user",
+		Parts: []api.UIMessagePart{{Type: "text", Text: "after whitespace"}},
+	}, ""); err != nil {
+		t.Fatal(err)
+	}
+
 	rows, err := app.FindAllRecords("view_chat_conversation")
 	if err != nil {
 		t.Fatalf("query view_chat_conversation: %v", err)
 	}
-	if len(rows) != 6 {
-		t.Fatalf("got %d rows, want 6", len(rows))
+	if len(rows) != 7 {
+		t.Fatalf("got %d rows, want 7", len(rows))
 	}
 
 	byExt := map[string]string{}
@@ -177,6 +198,7 @@ func TestViewChatConversation(t *testing.T) {
 		"ext-long":       strings.Repeat("x", 500),
 		"ext-sys-only":   "",
 		"ext-empty":      "",
+		"ext-ws":         "after whitespace",
 	}
 	for k, w := range want {
 		if got := byExt[k]; got != w {

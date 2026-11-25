@@ -474,7 +474,6 @@ var Canonical = []TableDef{
 			&core.RelationField{Name: "fragment_id", CollectionId: "fragment", MaxSelect: 1},
 		},
 		Indexes: []IndexDef{
-			{Name: "idx_chat_message_chat_conv", Columns: "chat_conversation_id"},
 			{Name: "idx_chat_message_chat_conv_created", Columns: "chat_conversation_id, created"},
 			{Name: "idx_chat_message_projection_refinement", Columns: "projection_refinement_id"},
 			{Name: "idx_chat_message_reflection_refinement", Columns: "reflection_refinement_id"},
@@ -701,7 +700,7 @@ var Canonical = []TableDef{
 					       SELECT 1
 					       FROM json_each(cm.content, '$.parts') p
 					       WHERE json_extract(p.value, '$.type') = 'text'
-					         AND trim(COALESCE(json_extract(p.value, '$.text'), '')) != ''
+					         AND trim(COALESCE(json_extract(p.value, '$.text'), ''), ' ' || char(9) || char(10) || char(13)) != ''
 					   )
 					 ORDER BY cm.created ASC, cm.rowid ASC
 					 LIMIT 1),

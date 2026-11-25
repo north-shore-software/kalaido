@@ -27,6 +27,7 @@ type exploreScript struct {
 	mu         sync.Mutex
 	readID     string
 	window     int
+	streamErr  error
 	toolCounts []int
 	calls      [][]llm.Message
 	read       bool
@@ -52,6 +53,9 @@ func (p exploreScriptProvider) ContextWindow() int {
 func (p exploreScriptProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
 	p.s.mu.Lock()
 	defer p.s.mu.Unlock()
+	if p.s.streamErr != nil {
+		return nil, p.s.streamErr
+	}
 	p.s.toolCounts = append(p.s.toolCounts, len(tools))
 	p.s.calls = append(p.s.calls, append([]llm.Message(nil), msgs...))
 
@@ -319,5 +323,25 @@ func TestExplorePersistenceDeferredUntilValid(t *testing.T) {
 	}
 	if userCount != 1 {
 		t.Errorf("concurrent first turns persisted race-u1 %d times, want 1 (all msgs: %+v)", userCount, raceMsgs)
+	}
+
+	// 5. Pre-stream provider failures (both full and summaries mode) must not
+	// leave an orphaned chat_conversation row.
+	script.mu.Lock()
+	script.streamErr = errors.New("provider offline")
+	script.mu.Unlock()
+	for _, tc := range []struct {
+		id   string
+		spec api.ContextSpec
+	}{
+		{"conv-fail-full", api.ContextSpec{WholeScope: api.WholeScopeFull}},
+		{"conv-fail-sum", api.ContextSpec{WholeScope: api.WholeScopeSummaries}},
+	} {
+		if _, err := runExploreTurn(t, app, tc.id, &tc.spec, "will fail"); err == nil {
+			t.Fatalf("%s: expected error when provider fails pre-stream", tc.id)
+		}
+		if _, err := explore.FindConversation(app, tc.id); err == nil {
+			t.Errorf("%s: pre-stream provider error left an orphaned chat_conversation row", tc.id)
+		}
 	}
 }
