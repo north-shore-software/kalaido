@@ -1,6 +1,17 @@
+import type { Result } from "neverthrow";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { proxy, type Snapshot, snapshot, subscribe } from "valtio";
 import { useSnapshot } from "valtio/react";
+import {
+  createPersistenceController,
+  type GenericPersistOptions,
+  type HydrationStatus,
+  type PersistenceController,
+  type ScopePersistenceAdapter,
+  type ScopePersistOptions,
+} from "#scope-persistence";
+
+export type { HydrationStatus, ScopePersistenceAdapter, ScopePersistOptions };
 
 export type ScopeEvent = { readonly type: string };
 
@@ -33,6 +44,16 @@ export interface StateHandle<
   readonly dispatch: (event: E) => Promise<void>;
 }
 
+/** A persisted state handle created inside React, with explicit hydration. */
+export interface PersistedStateHandle<
+  S extends object = Record<never, never>,
+  E extends ScopeEvent = never,
+> extends StateHandle<S, E> {
+  readonly hydrate: () => Promise<Result<void, Error>>;
+  readonly flush: () => Promise<void>;
+  readonly getHydrationStatus: () => HydrationStatus;
+}
+
 /** A root or derived scope created outside React, with explicit cleanup. */
 export interface ScopeInstance<
   S extends object = Record<never, never>,
@@ -40,6 +61,13 @@ export interface ScopeInstance<
 > extends StateHandle<S, E> {
   readonly dispose: () => void;
 }
+
+/** A persisted scope created outside React, with explicit hydration and cleanup. */
+export interface PersistedScopeInstance<
+  S extends object = Record<never, never>,
+  E extends ScopeEvent = never,
+> extends ScopeInstance<S, E>,
+    PersistedStateHandle<S, E> {}
 
 /** Context passed as the optional 3rd argument to own event handlers. */
 export interface ScopeHandlerContext<
@@ -161,10 +189,13 @@ type MergeState<A extends object, B extends object> = [keyof A] extends [never]
 export interface OwnScopeOptions<
   OwnS extends object,
   H extends AnyOwnHandlers<NoInfer<OwnS>, EmptyState, never>,
+  PKeys extends readonly (keyof OwnS & string)[] = never,
+  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 > {
   readonly from?: undefined;
   readonly initial: () => OwnS;
   readonly handlers?: H & AnyOwnHandlers<NoInfer<OwnS>, EmptyState, never>;
+  readonly persist?: P;
 }
 
 export interface NarrowScopeOptions<
@@ -177,6 +208,7 @@ export interface NarrowScopeOptions<
   readonly events?: ETypes;
   readonly initial?: undefined;
   readonly handlers?: undefined;
+  readonly persist?: undefined;
 }
 
 type NoEventCollision<H, Forbidden extends string> = [
@@ -199,6 +231,8 @@ export interface ExtendScopeOptions<
     NoInfer<PickedState<UnwrapState<From>, SKeys>>,
     NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
   > = Record<never, never>,
+  PKeys extends readonly (keyof OwnS & string)[] = never,
+  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 > {
   readonly from: From;
   readonly state?: SKeys;
@@ -210,17 +244,37 @@ export interface ExtendScopeOptions<
       NoInfer<PickedState<UnwrapState<From>, SKeys>>,
       NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
     >;
+  readonly persist?: P;
 }
+
+type ScopeReturn<S extends object, E extends ScopeEvent, P> = [P] extends [
+  undefined,
+]
+  ? ScopeInstance<S, E>
+  : PersistedScopeInstance<S, E>;
+
+type UseScopeReturn<S extends object, E extends ScopeEvent, P> = [P] extends [
+  undefined,
+]
+  ? StateHandle<S, E>
+  : PersistedStateHandle<S, E>;
 
 type InternalHandle = StateHandle<Record<string, unknown>, ScopeEvent> & {
   [SCOPE_META]?: ScopeMeta;
+  readonly hydrate?: () => Promise<Result<void, Error>>;
+  readonly flush?: () => Promise<void>;
+  readonly getHydrationStatus?: () => HydrationStatus;
 };
 
 interface InternalScope<S extends object, E extends ScopeEvent> {
   readonly handle: StateHandle<S, E>;
   readonly attach: () => () => void;
   readonly dispose: () => void;
+  readonly hydrate?: () => Promise<Result<void, Error>>;
+  readonly flush?: () => Promise<void>;
+  readonly getHydrationStatus?: () => HydrationStatus;
   setHandlers: (handlers: Record<string, GenericHandler> | undefined) => void;
+  setPersistCallbacks: (persist: GenericPersistOptions | undefined) => void;
 }
 
 type GenericHandler = (
@@ -276,6 +330,7 @@ function buildInternalScope(options: {
   ownEventNames?: readonly string[];
   initial?: () => Record<string, unknown>;
   handlers?: Record<string, GenericHandler>;
+  persist?: GenericPersistOptions;
 }): InternalScope<Record<string, unknown>, ScopeEvent> {
   const { from, stateKeys, eventTypes, initial } = options;
   let currentHandlers = options.handlers;
@@ -333,6 +388,14 @@ function buildInternalScope(options: {
   const ownProxy = ownInitial
     ? proxy<Record<string, unknown>>(ownInitial)
     : null;
+
+  const persistence: PersistenceController | null =
+    ownProxy && options.persist
+      ? createPersistenceController(
+          options.persist,
+          snapshot(ownProxy) as Record<string, unknown>,
+        )
+      : null;
 
   const syncedParentKeys = new Set<string>();
   const syncedOwnKeys = new Set<string>();
@@ -441,6 +504,8 @@ function buildInternalScope(options: {
     } finally {
       syncing = false;
     }
+
+    persistence?.onOwnSync(ownSnap);
   };
 
   // Subscribe `ownProxy` for the life of this scope (no external leak since
@@ -634,14 +699,41 @@ function buildInternalScope(options: {
   const dispose = () => {
     if (disposed) return;
     disposed = true;
+    persistence?.stop();
     detachCurrent?.();
     detachCurrent = null;
     unsubOwn?.();
   };
 
+  const hydrate =
+    persistence && ownProxy
+      ? () =>
+          persistence.hydrate(
+            (applyFn) => {
+              batchDepth += 1;
+              try {
+                applyFn(ownProxy);
+              } finally {
+                batchDepth -= 1;
+                ownDirty = false;
+                if (!disposed) {
+                  syncOwn();
+                }
+              }
+            },
+            () => disposed,
+          )
+      : undefined;
+
+  const flush = persistence ? () => persistence.flush() : undefined;
+  const getHydrationStatus = persistence
+    ? () => persistence.getStatus()
+    : undefined;
+
   const handle: InternalHandle = Object.freeze({
     state: viewProxy as Snapshot<Record<string, unknown>>,
     dispatch,
+    ...(hydrate ? { hydrate, flush, getHydrationStatus } : {}),
     [SCOPE_META]: {
       keys: allowedMetaKeys,
       events: allAllowedEvents,
@@ -652,8 +744,14 @@ function buildInternalScope(options: {
     handle,
     attach,
     dispose,
+    hydrate,
+    flush,
+    getHydrationStatus,
     setHandlers: (next) => {
       currentHandlers = next;
+    },
+    setPersistCallbacks: (next) => {
+      persistence?.updateCallbacks(next);
     },
   };
 }
@@ -678,9 +776,11 @@ export function createScope<
     never,
     never
   >,
+  const PKeys extends readonly (keyof OwnS & string)[] = never,
+  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: OwnScopeOptions<OwnS, H> & ValidHandlerEvents<H>,
-): ScopeInstance<OwnS, InferHandlerEvents<H>>;
+  options: OwnScopeOptions<OwnS, H, PKeys, P> & ValidHandlerEvents<H>,
+): ScopeReturn<OwnS, InferHandlerEvents<H>, P>;
 
 export function createScope<
   From extends AnyStateHandle,
@@ -705,13 +805,16 @@ export function createScope<
     NoInfer<PickedState<UnwrapState<From>, SKeys>>,
     NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
   > = Record<never, never>,
+  const PKeys extends readonly (keyof OwnS & string)[] = never,
+  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H> &
+  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H, PKeys, P> &
     NoEventCollision<H, ETypes[number]> &
     ValidHandlerEvents<H>,
-): ScopeInstance<
+): ScopeReturn<
   MergeState<PickedState<UnwrapState<From>, SKeys>, OwnS>,
-  PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>
+  PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>,
+  P
 >;
 
 export function createScope(options: {
@@ -720,6 +823,7 @@ export function createScope(options: {
   events?: readonly string[];
   initial?: () => Record<string, unknown>;
   handlers?: Record<string, GenericHandler>;
+  persist?: GenericPersistOptions;
 }): ScopeInstance<Record<string, unknown>, ScopeEvent> {
   const internal = buildInternalScope({
     from: options.from,
@@ -727,6 +831,7 @@ export function createScope(options: {
     eventTypes: options.events ?? [],
     initial: options.initial,
     handlers: options.handlers,
+    persist: options.persist,
   });
   internal.attach();
 
@@ -734,6 +839,13 @@ export function createScope(options: {
     state: internal.handle.state,
     dispatch: internal.handle.dispatch,
     dispose: internal.dispose,
+    ...(internal.hydrate
+      ? {
+          hydrate: internal.hydrate,
+          flush: internal.flush,
+          getHydrationStatus: internal.getHydrationStatus,
+        }
+      : {}),
     [SCOPE_META]: getScopeMeta(internal.handle as InternalHandle),
   });
 }
@@ -742,7 +854,7 @@ export function createScope(options: {
  * Create, narrow, and/or widen a Valtio-backed state scope inside a React component.
  *
  * - Returns a referentially stable {@link StateHandle} as long as `from`,
- *   `state` keys, `events` names, and owned `handlers` keys are unchanged.
+ *   `state` keys, `events` names, owned `handlers` keys, and `persist.keys` are unchanged.
  * - Updates handler closures on commit so dispatched handlers always see fresh
  *   props/state without clobbering committed closures during aborted renders.
  * - Automatically attaches and cleans up subscriptions across mounts/StrictMode.
@@ -753,9 +865,11 @@ export function useScope<
     never,
     never
   >,
+  const PKeys extends readonly (keyof OwnS & string)[] = never,
+  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: OwnScopeOptions<OwnS, H> & ValidHandlerEvents<H>,
-): StateHandle<OwnS, InferHandlerEvents<H>>;
+  options: OwnScopeOptions<OwnS, H, PKeys, P> & ValidHandlerEvents<H>,
+): UseScopeReturn<OwnS, InferHandlerEvents<H>, P>;
 
 export function useScope<
   From extends AnyStateHandle,
@@ -780,13 +894,16 @@ export function useScope<
     NoInfer<PickedState<UnwrapState<From>, SKeys>>,
     NoInfer<PickedEvents<UnwrapEvent<From>, ETypes>>
   > = Record<never, never>,
+  const PKeys extends readonly (keyof OwnS & string)[] = never,
+  P extends ScopePersistOptions<NoInfer<OwnS>, PKeys> | undefined = undefined,
 >(
-  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H> &
+  options: ExtendScopeOptions<From, SKeys, ETypes, OwnS, H, PKeys, P> &
     NoEventCollision<H, ETypes[number]> &
     ValidHandlerEvents<H>,
-): StateHandle<
+): UseScopeReturn<
   MergeState<PickedState<UnwrapState<From>, SKeys>, OwnS>,
-  PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>
+  PickedEvents<UnwrapEvent<From>, ETypes> | InferHandlerEvents<H>,
+  P
 >;
 
 export function useScope(options: {
@@ -795,11 +912,13 @@ export function useScope(options: {
   events?: readonly string[];
   initial?: () => Record<string, unknown>;
   handlers?: Record<string, GenericHandler>;
+  persist?: GenericPersistOptions;
 }): StateHandle<Record<string, unknown>, ScopeEvent> {
   const stateKeys = options.state ?? [];
   const eventTypes = options.events ?? [];
   const ownEventNames = options.handlers ? Object.keys(options.handlers) : [];
-  const sig = `${canonicalSig(stateKeys)}\n${canonicalSig(eventTypes)}\n${canonicalSig(ownEventNames)}`;
+  const persistKeys = options.persist?.keys ?? [];
+  const sig = `${canonicalSig(stateKeys)}\n${canonicalSig(eventTypes)}\n${canonicalSig(ownEventNames)}\n${canonicalSig(persistKeys)}`;
 
   const committedRef = useRef<{
     from: InternalHandle | undefined;
@@ -818,11 +937,13 @@ export function useScope(options: {
           ownEventNames,
           initial: options.initial,
           handlers: options.handlers,
+          persist: options.persist,
         });
 
   useLayoutEffect(() => {
     committedRef.current = { from: options.from, sig, internal };
     internal.setHandlers(options.handlers);
+    internal.setPersistCallbacks(options.persist);
   });
 
   useEffect(() => internal.attach(), [internal]);
