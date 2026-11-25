@@ -149,8 +149,7 @@ describe("useKalaidoChat", () => {
     };
     const hasContextSpec = payload.messages?.some(
       (m) =>
-        m.role === "system" &&
-        m.parts?.some((p) => p.type === "context_spec"),
+        m.role === "system" && m.parts?.some((p) => p.type === "context_spec"),
     );
     expect(hasContextSpec).toBe(true);
   });
