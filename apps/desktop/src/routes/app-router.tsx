@@ -4,7 +4,7 @@ import { ActiveKalaidoscopeContext } from "@kalaido/hooks/use-active-kalaidoscop
 import { KalaidoscopeClientContext } from "@kalaido/hooks/use-kalaidoscope-client";
 import { disposeClientSubscriptions } from "@kalaido/state/pocketbase";
 import { useScope, useScopeState } from "@kalaido/state/scope";
-import { useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import { RootErrorBoundary } from "@/components/error-boundary";
 import { TitleBar } from "@/components/layout/title-bar";
@@ -46,13 +46,48 @@ export function AppRouter() {
     <RootErrorBoundary>
       <TitleBar />
       <MemoryRouter>
-        <StateNavigationListener />
-        <MenuEventListener />
-        <MenuFeedbackListener />
-        <MenuUpdateListener />
-        <Routes>{routeElements(appRoutes)}</Routes>
+        <ActiveWorkspaceProvider>
+          <StateNavigationListener />
+          <MenuEventListener />
+          <MenuFeedbackListener />
+          <MenuUpdateListener />
+          <Routes>{routeElements(appRoutes)}</Routes>
+        </ActiveWorkspaceProvider>
       </MemoryRouter>
     </RootErrorBoundary>
+  );
+}
+
+export function ActiveWorkspaceProvider({ children }: { children: ReactNode }) {
+  const root = useScopeContext(DesktopScopeContext);
+  const workspaceScope = useScope({
+    from: root,
+    state: ["appStage", "localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { appStage, localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(workspaceScope);
+
+  const isOpen = appStage.stage === "kalaidoscope_open";
+  const client = isOpen ? getActiveKalaidoscopeClient() : null;
+  const activeMeta = isOpen
+    ? (allKalaidoscopes({
+        localKalaidoscopes,
+        cachedCloudKalaidoscopes,
+      }).find((k) => k.id === appStage.selectedKalaidoscopeId) ?? null)
+    : null;
+
+  useEffect(() => {
+    if (!client) return;
+    return () => {
+      disposeClientSubscriptions(client);
+      client.cancelAllRequests();
+    };
+  }, [client]);
+
+  return (
+    <ActiveKalaidoscopeContext.Provider value={activeMeta}>
+      {children}
+    </ActiveKalaidoscopeContext.Provider>
   );
 }
 
@@ -96,64 +131,28 @@ export function RouteGatekeeper({ def }: { def: RouteDef }) {
   }
 
   const Page = def.Component;
+  const page = (
+    <div data-section={section} className="contents">
+      <Page />
+    </div>
+  );
 
   if (
     def.requiredScope.includes("kalaidoscope") &&
     appStage.stage === "kalaidoscope_open"
   ) {
+    const client = getActiveKalaidoscopeClient();
+    if (!client) {
+      return <BootError />;
+    }
     return (
-      <KalaidoscopeContainer key={appStage.selectedKalaidoscopeId}>
-        <div data-section={section} className="contents">
-          <Page />
-        </div>
-      </KalaidoscopeContainer>
+      <KalaidoscopeClientContext.Provider
+        key={appStage.selectedKalaidoscopeId}
+        value={client}
+      >
+        {page}
+      </KalaidoscopeClientContext.Provider>
     );
   }
-  return (
-    <div data-section={section} className="contents">
-      <Page />
-    </div>
-  );
-}
-
-function KalaidoscopeContainer({ children }: { children: React.ReactNode }) {
-  const root = useScopeContext(DesktopScopeContext);
-  const containerScope = useScope({
-    from: root,
-    state: ["appStage", "localKalaidoscopes", "cachedCloudKalaidoscopes"],
-  });
-  const { appStage, localKalaidoscopes, cachedCloudKalaidoscopes } =
-    useScopeState(containerScope);
-
-  if (appStage.stage !== "kalaidoscope_open") {
-    throw new Error(
-      `KalaidoscopeContainer mounted in stage "${appStage.stage}" — expected "kalaidoscope_open".`,
-    );
-  }
-
-  const client = getActiveKalaidoscopeClient();
-  const activeMeta =
-    allKalaidoscopes({ localKalaidoscopes, cachedCloudKalaidoscopes }).find(
-      (k) => k.id === appStage.selectedKalaidoscopeId,
-    ) ?? null;
-
-  useEffect(() => {
-    return () => {
-      if (!client) return;
-      disposeClientSubscriptions(client);
-      client.cancelAllRequests();
-    };
-  }, [client]);
-
-  if (!client) {
-    return <BootError />;
-  }
-
-  return (
-    <KalaidoscopeClientContext.Provider value={client}>
-      <ActiveKalaidoscopeContext.Provider value={activeMeta}>
-        {children}
-      </ActiveKalaidoscopeContext.Provider>
-    </KalaidoscopeClientContext.Provider>
-  );
+  return page;
 }

@@ -1,5 +1,7 @@
+import { getActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
 import { isArchived } from "@kalaido/client/lib/active-kalaidoscopes";
 import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { KalaidoscopeClientContext } from "@kalaido/hooks/use-kalaidoscope-client";
 import { Label, StatusPill } from "@kalaido/primitives/kalaido";
 import { SectionHeader } from "@kalaido/primitives/layout/section";
 import { useScope, useScopeState } from "@kalaido/state/scope";
@@ -27,6 +29,7 @@ export function KalaidoscopesSection() {
       : null;
   const switching = appStage.stage === "kalaidoscope_loading";
   const active = kalaidoscopes.find((k) => k.id === currentKalaidoscopeId);
+  const activeClient = active ? getActiveKalaidoscopeClient() : null;
   const others = kalaidoscopes.filter(
     (k) => k.id !== currentKalaidoscopeId && !isArchived(k),
   );
@@ -40,9 +43,16 @@ export function KalaidoscopesSection() {
       />
       {active && (
         <KalaidoscopeRow kalaidoscope={active} isActive>
-          <WorkspaceAiPanel kalaidoscope={active} />
-          <WorkspaceQuotaPanel kalaidoscope={active} />
-          <WorkspaceBackupsPanel kalaidoscope={active} />
+          {activeClient && (
+            <KalaidoscopeClientContext.Provider
+              key={active.id}
+              value={activeClient}
+            >
+              <WorkspaceAiPanel kalaidoscope={active} />
+              <WorkspaceQuotaPanel kalaidoscope={active} />
+              <WorkspaceBackupsPanel kalaidoscope={active} />
+            </KalaidoscopeClientContext.Provider>
+          )}
         </KalaidoscopeRow>
       )}
       {others.length > 0 && (
