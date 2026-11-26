@@ -95,9 +95,17 @@ jobs:
         run: |
           ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses >/dev/null || true
+          yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
           bt_pkg="$("$sdkmanager" --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^build-tools;[0-9]+\.[0-9]+\.[0-9]+$/) print $1 }' | sort -V | tail -n 1)"
-          "$sdkmanager" "platform-tools" "platforms;android-37" "$bt_pkg"
+          plat_pkg="$("$sdkmanager" --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^platforms;android-37(\.[0-9]+)?$/) print $1 }' | sort -V | tail -n 1)"
+          if [[ -n "$plat_pkg" ]]; then
+            "$sdkmanager" "platform-tools" "$plat_pkg" "$bt_pkg"
+          else
+            "$sdkmanager" "platform-tools" "$bt_pkg"
+            yes | "$sdkmanager" --channel=3 --licenses >/dev/null 2>&1 || true
+            plat_pkg="$("$sdkmanager" --channel=3 --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^platforms;android-37(\.[0-9]+)?$/) print $1 }' | sort -V | tail -n 1)"
+            [[ -z "$plat_pkg" ]] || "$sdkmanager" --channel=3 "$plat_pkg"
+          fi
           if [[ -z "$(ls -A "$ANDROID_HOME/ndk" 2>/dev/null)" ]]; then
             ndk_pkg="$("$sdkmanager" --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^ndk;[0-9]+\.[0-9]+\.[0-9]+$/) print $1 }' | sort -V | tail -n 1)"
             "$sdkmanager" "$ndk_pkg"
