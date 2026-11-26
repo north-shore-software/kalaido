@@ -97,10 +97,7 @@ export function RouteGatekeeper({ def }: { def: RouteDef }) {
 
   const Page = def.Component;
 
-  if (
-    def.requiredScope.includes("kalaidoscope") &&
-    appStage.stage === "kalaidoscope_open"
-  ) {
+  if (appStage.stage === "kalaidoscope_open") {
     return (
       <KalaidoscopeContainer key={appStage.selectedKalaidoscopeId}>
         <div data-section={section} className="contents">
