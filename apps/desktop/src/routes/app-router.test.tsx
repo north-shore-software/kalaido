@@ -1,20 +1,35 @@
 import type { TypedPocketBase } from "@kalaido/client/kalaidoscope/types";
 import { setActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
 import { useActiveKalaidoscope } from "@kalaido/hooks/use-active-kalaidoscope";
-import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import {
+  KalaidoscopeClientContext,
+  useKalaidoscopeClient,
+} from "@kalaido/hooks/use-kalaidoscope-client";
 import type { KalaidoscopeMeta } from "@kalaido/platform";
+import { subscribePbCollection } from "@kalaido/state/pocketbase";
 import { createScope } from "@kalaido/state/scope";
-import { render, screen } from "@testing-library/react";
-import type { ContextType } from "react";
-import { MemoryRouter } from "react-router-dom";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { type ContextType, useContext } from "react";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  type AppEvent,
   type AppStage,
   type AppState,
   DesktopScopeContext,
 } from "@/state/app-state.ts";
-import { RouteGatekeeper } from "./app-router";
+import { ActiveWorkspaceProvider, RouteGatekeeper } from "./app-router";
 import type { RouteDef } from "./route-kit";
+
+vi.mock("@/features/boot", () => ({
+  BootError: () => <div>boot-error-fallback</div>,
+}));
 
 const WORKSPACE: KalaidoscopeMeta = {
   id: "ws-1",
@@ -41,50 +56,185 @@ function makeTestScope(appStage: AppStage) {
   };
   return createScope({
     initial: () => state,
-    handlers: {},
+    handlers: {
+      setAppStage: (s, e: Extract<AppEvent, { type: "setAppStage" }>) => {
+        s.appStage = e.stage;
+      },
+    },
   }) as unknown as NonNullable<ContextType<typeof DesktopScopeContext>>;
 }
 
-function makeMockClient(baseURL: string): TypedPocketBase {
+function makeMockClient(
+  baseURL: string,
+  onUnsubscribe?: () => void,
+): TypedPocketBase {
   return {
     baseURL,
     cancelAllRequests: vi.fn(),
+    collection: vi.fn(() => ({
+      subscribe: vi.fn(async () => () => {
+        onUnsubscribe?.();
+      }),
+    })),
   } as unknown as TypedPocketBase;
 }
 
-function OpenWorkspaceProbe() {
-  const ctxClient = useKalaidoscopeClient();
+function ScopedRouteProbe() {
+  const client = useKalaidoscopeClient();
   const active = useActiveKalaidoscope();
+  const navigate = useNavigate();
   return (
     <div>
-      <span>{ctxClient.baseURL}</span>
-      <span>{active?.displayName}</span>
+      <span>scoped-client:{client.baseURL}</span>
+      <span>scoped-active:{active?.displayName ?? "none"}</span>
+      <button type="button" onClick={() => navigate("/settings")}>
+        go-settings
+      </button>
     </div>
   );
 }
 
-function ActiveWorkspaceProbe() {
+function ScopeFreeRouteProbe() {
+  const rawClient = useContext(KalaidoscopeClientContext);
   const active = useActiveKalaidoscope();
-  return <div>{active ? active.displayName : "no-active-workspace"}</div>;
+  return (
+    <div>
+      <span>free-client:{rawClient ? rawClient.baseURL : "null"}</span>
+      <span>free-active:{active ? active.displayName : "none"}</span>
+    </div>
+  );
 }
 
-describe("RouteGatekeeper", () => {
+function GlobalChromeProbe() {
+  const active = useActiveKalaidoscope();
+  return <div>chrome-active:{active ? active.displayName : "none"}</div>;
+}
+
+const MAIN_DEF: RouteDef = {
+  id: "main",
+  path: "/main",
+  feature: "Dashboard",
+  requiredScope: ["kalaidoscope"],
+  transitions: {},
+  Component: ScopedRouteProbe,
+};
+
+const SETTINGS_DEF: RouteDef = {
+  id: "settings",
+  path: "/settings/:section?",
+  feature: "Settings",
+  requiredScope: [],
+  transitions: {},
+  Component: ScopeFreeRouteProbe,
+};
+
+describe("ActiveWorkspaceProvider and RouteGatekeeper", () => {
   afterEach(() => {
+    cleanup();
     setActiveKalaidoscopeClient(null);
   });
 
-  it("provides KalaidoscopeClientContext to scope-free routes when a kalaidoscope is open", () => {
+  it("provides client context only to kalaidoscope-scoped routes while sharing active metadata everywhere", () => {
     const client = makeMockClient(WORKSPACE.locator);
     setActiveKalaidoscopeClient(client);
 
-    const def: RouteDef = {
-      id: "settings",
-      path: "/settings/:section?",
-      feature: "Settings",
-      requiredScope: [],
-      transitions: {},
-      Component: OpenWorkspaceProbe,
-    };
+    const scope = makeTestScope({
+      stage: "kalaidoscope_open",
+      selectedKalaidoscopeId: WORKSPACE.id,
+    });
+
+    render(
+      <DesktopScopeContext.Provider value={scope}>
+        <MemoryRouter initialEntries={["/main"]}>
+          <ActiveWorkspaceProvider>
+            <GlobalChromeProbe />
+            <Routes>
+              <Route
+                path="/main"
+                element={<RouteGatekeeper def={MAIN_DEF} />}
+              />
+              <Route
+                path="/settings/:section?"
+                element={<RouteGatekeeper def={SETTINGS_DEF} />}
+              />
+            </Routes>
+          </ActiveWorkspaceProvider>
+        </MemoryRouter>
+      </DesktopScopeContext.Provider>,
+    );
+
+    expect(
+      screen.getByText(`scoped-client:${WORKSPACE.locator}`),
+    ).toBeDefined();
+    expect(
+      screen.getByText(`scoped-active:${WORKSPACE.displayName}`),
+    ).toBeDefined();
+    expect(
+      screen.getByText(`chrome-active:${WORKSPACE.displayName}`),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "go-settings" }));
+
+    expect(screen.getByText("free-client:null")).toBeDefined();
+    expect(
+      screen.getByText(`free-active:${WORKSPACE.displayName}`),
+    ).toBeDefined();
+    expect(
+      screen.getByText(`chrome-active:${WORKSPACE.displayName}`),
+    ).toBeDefined();
+  });
+
+  it("preserves active client subscriptions across route navigation and disposes when the workspace closes", async () => {
+    const unsubSpy = vi.fn();
+    const client = makeMockClient(WORKSPACE.locator, unsubSpy);
+    setActiveKalaidoscopeClient(client);
+    subscribePbCollection(client, "fragments", () => {});
+    await Promise.resolve();
+
+    const scope = makeTestScope({
+      stage: "kalaidoscope_open",
+      selectedKalaidoscopeId: WORKSPACE.id,
+    });
+
+    render(
+      <DesktopScopeContext.Provider value={scope}>
+        <MemoryRouter initialEntries={["/main"]}>
+          <ActiveWorkspaceProvider>
+            <Routes>
+              <Route
+                path="/main"
+                element={<RouteGatekeeper def={MAIN_DEF} />}
+              />
+              <Route
+                path="/settings/:section?"
+                element={<RouteGatekeeper def={SETTINGS_DEF} />}
+              />
+            </Routes>
+          </ActiveWorkspaceProvider>
+        </MemoryRouter>
+      </DesktopScopeContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "go-settings" }));
+
+    expect(client.cancelAllRequests).not.toHaveBeenCalled();
+    expect(unsubSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setActiveKalaidoscopeClient(null);
+      await scope.dispatch({
+        type: "setAppStage",
+        stage: { stage: "no_kalaidoscopes_available" },
+      });
+    });
+
+    expect(client.cancelAllRequests).toHaveBeenCalledTimes(1);
+    expect(unsubSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("free-active:none")).toBeDefined();
+  });
+
+  it("renders BootError when client is missing on kalaidoscope-scoped routes, but not on scope-free routes", () => {
+    setActiveKalaidoscopeClient(null);
 
     const scope = makeTestScope({
       stage: "kalaidoscope_open",
@@ -93,37 +243,38 @@ describe("RouteGatekeeper", () => {
 
     const { unmount } = render(
       <DesktopScopeContext.Provider value={scope}>
-        <MemoryRouter initialEntries={["/settings"]}>
-          <RouteGatekeeper def={def} />
+        <MemoryRouter initialEntries={["/main"]}>
+          <ActiveWorkspaceProvider>
+            <Routes>
+              <Route
+                path="/main"
+                element={<RouteGatekeeper def={MAIN_DEF} />}
+              />
+            </Routes>
+          </ActiveWorkspaceProvider>
         </MemoryRouter>
       </DesktopScopeContext.Provider>,
     );
 
-    expect(screen.getByText(WORKSPACE.locator)).toBeDefined();
-    expect(screen.getByText(WORKSPACE.displayName)).toBeDefined();
+    expect(screen.getByText("boot-error-fallback")).toBeDefined();
     unmount();
-  });
-
-  it("still renders scope-free routes without KalaidoscopeContainer when no kalaidoscope is open", () => {
-    const def: RouteDef = {
-      id: "settings",
-      path: "/settings/:section?",
-      feature: "Settings",
-      requiredScope: [],
-      transitions: {},
-      Component: ActiveWorkspaceProbe,
-    };
-
-    const scope = makeTestScope({ stage: "no_kalaidoscopes_available" });
 
     render(
       <DesktopScopeContext.Provider value={scope}>
         <MemoryRouter initialEntries={["/settings"]}>
-          <RouteGatekeeper def={def} />
+          <ActiveWorkspaceProvider>
+            <Routes>
+              <Route
+                path="/settings/:section?"
+                element={<RouteGatekeeper def={SETTINGS_DEF} />}
+              />
+            </Routes>
+          </ActiveWorkspaceProvider>
         </MemoryRouter>
       </DesktopScopeContext.Provider>,
     );
 
-    expect(screen.getByText("no-active-workspace")).toBeDefined();
+    expect(screen.queryByText("boot-error-fallback")).toBeNull();
+    expect(screen.getByText("free-client:null")).toBeDefined();
   });
 });
