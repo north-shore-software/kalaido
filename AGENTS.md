@@ -89,7 +89,7 @@ Hard invariants (enforced by `biome.json`, `scripts/check-boundaries.mjs`, `scri
 - **Generated PocketBase types:** `packages/lib/client/src/kalaidoscope/types.ts` is generated from `kalaidoscope/` schema via `./kalaido.sh gen:types`. Never hand-edit it; `./kalaido.sh check:schema-freshness` verifies it matches.
 - **Desktop navigation & route discipline:** Inside `apps/desktop/src/`, never import raw `react-router-dom` navigation hooks/components (`useNavigate`, `Link`, `Navigate`, `useParams`, etc.) outside `apps/desktop/src/routes/`. Use declared transitions (`useAppNavigate`, `RouteLink`, `AppRedirect`), keep `*.transitions.ts` co-located beside `pages/*.tsx`, and declare all `defineRoute(...)` entries centrally in `apps/desktop/src/routes/definitions.ts`.
 - **Design radius rule:** Zero border radius everywhere outside `packages/react/primitives/src/shadcn/` (`rounded-none`, `rounded-full`, or arbitrary `rounded-[…]` only; enforced by `check-design-classes.mjs`).
-- **Versioning:** Desktop (`Kalaido`) and mobile (`kalaido-mobile`) version independently via `./kalaido.sh bump:desktop` and `./kalaido.sh bump:mobile`.
+- **Versioning:** Desktop (`Kalaido`) and mobile (`kalaido-mobile`) share a single lockstep version bumped via `./kalaido.sh bump` (`bump:release` / `bump:dev`), while releasing selectively.
 
 ## Commands & Checks
 
@@ -102,7 +102,7 @@ Always run repo tasks through `./kalaido.sh` (it exports `VITE_BETTER_AUTH_URL` 
 - `./kalaido.sh check:go` / `./kalaido.sh test:go` / `./kalaido.sh check:schema-freshness` — Go backend checks and schema typegen freshness.
 - `./kalaido.sh check:rust` / `./kalaido.sh test:rust` — `cargo fmt --check`, `cargo clippy --workspace`, `cargo test --workspace`.
 - `./kalaido.sh dev` / `dev:web` / `dev:android` — Run desktop, web, or Android dev targets.
-- `./kalaido.sh build:app` / `build:web` / `build:android` — Build targets.
+- `./kalaido.sh build:app` / `build:web` / `build:android` / `build:android:release` — Build targets.
 
 ## Sub-Project Routing
 

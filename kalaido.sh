@@ -88,6 +88,11 @@ cmd_build_android() {
   (cd "$MOBILE" && pnpm tauri android build --apk --debug "$@")
 }
 
+cmd_build_android_release() {
+  say "tauri android build (release aarch64 apk)"
+  (cd "$MOBILE" && pnpm tauri android build --apk --target aarch64 "$@")
+}
+
 cmd_dev_web() {
   say "vite dev, web target (http://localhost:1420)"
   (cd "$WEB" && pnpm dev "$@")
@@ -120,29 +125,14 @@ edit_inplace() {
   rm -f "$tmp"
 }
 
-cmd_bump_target() {
-  local target="$1"; shift
-  local app_dir tauri_dir crate_name
-  case "$target" in
-    desktop)
-      app_dir="$DESKTOP"
-      tauri_dir="$DESKTOP_TAURI"
-      crate_name="Kalaido"
-      ;;
-    mobile)
-      app_dir="$MOBILE"
-      tauri_dir="$MOBILE_TAURI"
-      crate_name="kalaido-mobile"
-      ;;
-    *)
-      die "unknown bump target: $target (expected desktop or mobile)"
-      ;;
-  esac
-
-  local current default new f mode="${1:-}" patch
-  [[ $# -le 1 ]] || die "usage: ./kalaido.sh bump:$target [release|dev|<version>]"
-  current="$(read_version "$tauri_dir/tauri.conf.json")"
-  [[ -n "$current" ]] || die "no version in ${tauri_dir#"$ROOT"/}/tauri.conf.json"
+cmd_bump() {
+  local current mobile_current default new f mode="${1:-}" patch
+  [[ $# -le 1 ]] || die "usage: ./kalaido.sh bump [release|dev|<version>]"
+  current="$(read_version "$DESKTOP_TAURI/tauri.conf.json")"
+  [[ -n "$current" ]] || die "no version in apps/desktop/src-tauri/tauri.conf.json"
+  mobile_current="$(read_version "$MOBILE_TAURI/tauri.conf.json")"
+  [[ -n "$mobile_current" ]] || die "no version in apps/mobile/src-tauri/tauri.conf.json"
+  [[ "$current" == "$mobile_current" ]] || die "version mismatch: desktop is $current, mobile is $mobile_current"
 
   case "$mode" in
     release|--release)
@@ -158,10 +148,10 @@ cmd_bump_target() {
     "")
       if [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
         default="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((10#${BASH_REMATCH[3]} + 1))"
-        read -r -p "new $target version [$default]: " new
+        read -r -p "new version [$default]: " new
         new="${new:-$default}"
       else
-        read -r -p "new $target version (current $current): " new
+        read -r -p "new version (current $current): " new
       fi
       ;;
     *)
@@ -172,18 +162,24 @@ cmd_bump_target() {
   [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || die "not a version: $new"
   [[ "$new" != "$current" ]] || die "already at $current"
 
-  for f in "$tauri_dir/tauri.conf.json" "$app_dir/package.json"; do
+  for f in \
+    "$DESKTOP_TAURI/tauri.conf.json" \
+    "$DESKTOP/package.json" \
+    "$MOBILE_TAURI/tauri.conf.json" \
+    "$MOBILE/package.json"; do
     edit_inplace "$f" sed '1,/^  "version": /s/^\(  "version": \)"[^"]*"/\1"'"$new"'"/'
   done
-  edit_inplace "$tauri_dir/Cargo.toml" sed '1,/^version = /s/^version = "[^"]*"/version = "'"$new"'"/'
-  edit_inplace "$ROOT/Cargo.lock" awk -v pkg="$crate_name" -v v="$new" '
-    $0 == "name = \"" pkg "\"" { armed = 1 }
+  for f in "$DESKTOP_TAURI/Cargo.toml" "$MOBILE_TAURI/Cargo.toml"; do
+    edit_inplace "$f" sed '1,/^version = /s/^version = "[^"]*"/version = "'"$new"'"/'
+  done
+  edit_inplace "$ROOT/Cargo.lock" awk -v v="$new" '
+    $0 == "name = \"Kalaido\"" || $0 == "name = \"kalaido-mobile\"" { armed = 1 }
     armed && /^version = / { $0 = "version = \"" v "\""; armed = 0 }
     { print }
   '
 
-  say "$target: $current -> $new"
-  echo "updated ${tauri_dir#"$ROOT"/}/tauri.conf.json ${app_dir#"$ROOT"/}/package.json ${tauri_dir#"$ROOT"/}/Cargo.toml Cargo.lock"
+  say "version: $current -> $new"
+  echo "updated apps/desktop/{src-tauri/tauri.conf.json,package.json,src-tauri/Cargo.toml} apps/mobile/{src-tauri/tauri.conf.json,package.json,src-tauri/Cargo.toml} Cargo.lock"
 }
 
 host_target() {
@@ -534,15 +530,14 @@ usage: ./kalaido.sh <command> [args...]
   init:android                       generate apps/mobile/src-tauri/gen/android (once)
   dev:android                        tauri android dev (mobile, no sidecar)
   build:android                      debug-signed apk, sideloadable
+  build:android:release              unsigned release aarch64 apk
   dev:web                            vite dev, web target (http://localhost:1420)
   build:web                          web build (apps/web/dist)
 
   gen:types                          rebuild the schema db, regenerate types.ts
-  bump [release|dev|<ver>]           set desktop version (alias for bump:desktop)
-  bump:desktop [release|dev|<ver>]   set desktop app version
-  bump:mobile [release|dev|<ver>]    set mobile app version
-  bump:release                       increment desktop version to next release (even) revision
-  bump:dev                           increment desktop version to next dev (odd) revision
+  bump [release|dev|<ver>]           set repo app version (desktop + mobile)
+  bump:release                       increment version to next release (even) revision
+  bump:dev                           increment version to next dev (odd) revision
 
   build:sidecar [target]             build the go sidecar into apps/desktop/src-tauri/binaries
   build:app                          tauri build (desktop, rebuilds sidecar first)
@@ -580,14 +575,13 @@ case "${1:-}" in
   init:android) shift; cmd_init_android "$@" ;;
   dev:android) shift; cmd_dev_android "$@" ;;
   build:android) shift; cmd_build_android "$@" ;;
+  build:android:release) shift; cmd_build_android_release "$@" ;;
   dev:web) shift; cmd_dev_web "$@" ;;
   build:web) shift; cmd_build_web "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
-  bump) shift; cmd_bump_target desktop "$@" ;;
-  bump:desktop) shift; cmd_bump_target desktop "$@" ;;
-  bump:mobile) shift; cmd_bump_target mobile "$@" ;;
-  bump:release) shift; cmd_bump_target desktop release "$@" ;;
-  bump:dev) shift; cmd_bump_target desktop dev "$@" ;;
+  bump) shift; cmd_bump "$@" ;;
+  bump:release) shift; cmd_bump release "$@" ;;
+  bump:dev) shift; cmd_bump dev "$@" ;;
   build:sidecar) shift; cmd_build_sidecar "$@" ;;
   build:app) shift; cmd_build_app "$@" ;;
   check:ts) shift; cmd_check_ts "$@" ;;
