@@ -112,6 +112,7 @@ describe("restoreKalaidoscope", () => {
     expect(listenerRegisteredAt).toBeLessThanOrEqual(restoreBackupCalledAt);
     expect(mockSetAppStage).toHaveBeenCalledWith({
       stage: "kalaidoscope_loading",
+      loadKalaidoscopeId: localMeta.id,
     });
     expect(mockSwitchLocalKalaidoscope).toHaveBeenCalledWith(localMeta.id);
   });
@@ -186,6 +187,7 @@ describe("restoreKalaidoscope", () => {
         message: "archive has invalid signature\nYour workspace is unchanged.",
       },
       retryKalaidoscopeId: localMeta.id,
+      source: "restore",
     });
   });
 
@@ -209,6 +211,7 @@ describe("restoreKalaidoscope", () => {
         message: "The restore did not complete. Your workspace is unchanged.",
       },
       retryKalaidoscopeId: localMeta.id,
+      source: "restore",
     });
 
     vi.useRealTimers();
@@ -250,6 +253,7 @@ describe("restoreKalaidoscope", () => {
         message: "The restore did not complete. Your workspace is unchanged.",
       },
       retryKalaidoscopeId: localMeta.id,
+      source: "restore",
     });
   });
 

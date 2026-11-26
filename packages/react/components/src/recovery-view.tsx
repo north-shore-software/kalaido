@@ -1,4 +1,5 @@
 import type { StageError } from "@kalaido/client/lib/errors";
+import { sendErrorReport } from "@kalaido/client/lib/posthog";
 import { getHost } from "@kalaido/platform";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import {
@@ -11,9 +12,23 @@ import {
   CaretRightIcon,
   CheckIcon,
   CopyIcon,
+  PaperPlaneTiltIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
 import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
+
+export interface RecoveryReportContext {
+  containerId: string;
+  workspaceName?: string | null;
+  kalaidoscopeId?: string | null;
+  route: string;
+}
+
+export interface RecoverySecondaryAction {
+  label: string;
+  onClick: () => void;
+}
 
 export interface RecoveryViewProps {
   title: string;
@@ -21,9 +36,12 @@ export interface RecoveryViewProps {
   error?: StageError | null;
   onRetry?: () => void;
   retryLabel?: string;
+  allowReset?: boolean;
   resetNotice?: string;
   /** Runs before `host.settings.clear()` (e.g. detach bridges, dispose & flush root scope). */
   onBeforeClear?: () => Promise<void> | void;
+  reportContext?: RecoveryReportContext;
+  secondaryAction?: RecoverySecondaryAction;
   footer?: ReactNode;
 }
 
@@ -33,13 +51,17 @@ export function RecoveryView({
   error,
   onRetry,
   retryLabel = "Try again",
+  allowReset = true,
   resetNotice = "Clears all saved kalaidoscopes, preferences, and app state, then restarts.",
   onBeforeClear,
+  reportContext,
+  secondaryAction,
   footer,
 }: RecoveryViewProps) {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   async function handleReset() {
     setResetting(true);
@@ -80,48 +102,163 @@ export function RecoveryView({
                 {retryLabel}
               </Button>
             )}
-            {confirmingReset ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => void handleReset()}
-                  disabled={resetting}
-                >
-                  {resetting ? <Spinner /> : "Yes, reset everything"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmingReset(false)}
-                  disabled={resetting}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : (
+            {reportContext && (
+              <SendErrorReportButton
+                title={title}
+                error={error}
+                context={reportContext}
+                disabled={resetting}
+                onError={setReportError}
+              />
+            )}
+            {secondaryAction && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setConfirmingReset(true)}
+                onClick={secondaryAction.onClick}
                 disabled={resetting}
               >
-                Reset app settings
+                {secondaryAction.label}
               </Button>
+            )}
+            {allowReset && (
+              <ResetSettingsActions
+                confirming={confirmingReset}
+                resetting={resetting}
+                onRequestConfirm={() => setConfirmingReset(true)}
+                onCancelConfirm={() => setConfirmingReset(false)}
+                onConfirm={() => void handleReset()}
+              />
             )}
           </div>
 
-          {confirmingReset && !resetError && (
+          {allowReset && confirmingReset && !resetError && (
             <p className="text-meta text-muted-foreground">{resetNotice}</p>
           )}
           {resetError && (
             <p className="text-meta text-destructive">{resetError}</p>
+          )}
+          {reportError && (
+            <p className="text-meta text-destructive">{reportError}</p>
           )}
 
           {footer}
         </div>
       </div>
     </div>
+  );
+}
+
+function SendErrorReportButton({
+  title,
+  error,
+  context,
+  disabled,
+  onError,
+}: {
+  title: string;
+  error?: StageError | null;
+  context: RecoveryReportContext;
+  disabled: boolean;
+  onError: (message: string | null) => void;
+}) {
+  const [phase, setPhase] = useState<"idle" | "sending" | "sent">("idle");
+
+  async function handleSend() {
+    setPhase("sending");
+    onError(null);
+    const diagResult = await getHost().diagnostics.collect({
+      kalaidoscopeId: context.kalaidoscopeId ?? context.containerId,
+      kalaidoscopeType: "cloud",
+      route: context.route,
+    });
+    const sent = sendErrorReport(error ?? { message: title }, {
+      containerId: context.containerId,
+      workspaceName: context.workspaceName,
+      diagnostics: diagResult.unwrapOr(null),
+    });
+    if (sent.isErr()) {
+      setPhase("idle");
+      onError(sent.error.message);
+      return;
+    }
+    setPhase("sent");
+    toast.success("Error report sent", {
+      description: "Thank you — we'll look into it.",
+    });
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => void handleSend()}
+      disabled={disabled || phase !== "idle"}
+    >
+      {phase === "sending" ? (
+        <>
+          <Spinner />
+          Sending…
+        </>
+      ) : phase === "sent" ? (
+        <>
+          <CheckIcon />
+          Report sent
+        </>
+      ) : (
+        <>
+          <PaperPlaneTiltIcon />
+          Send error report
+        </>
+      )}
+    </Button>
+  );
+}
+
+function ResetSettingsActions({
+  confirming,
+  resetting,
+  onRequestConfirm,
+  onCancelConfirm,
+  onConfirm,
+}: {
+  confirming: boolean;
+  resetting: boolean;
+  onRequestConfirm: () => void;
+  onCancelConfirm: () => void;
+  onConfirm: () => void;
+}) {
+  if (confirming) {
+    return (
+      <>
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={onConfirm}
+          disabled={resetting}
+        >
+          {resetting ? <Spinner /> : "Yes, reset everything"}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onCancelConfirm}
+          disabled={resetting}
+        >
+          Cancel
+        </Button>
+      </>
+    );
+  }
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={onRequestConfirm}
+      disabled={resetting}
+    >
+      Reset app settings
+    </Button>
   );
 }
 

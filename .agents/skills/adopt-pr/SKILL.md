@@ -44,7 +44,7 @@ Use this skill when a human asks you to adopt a PR opened by an async coding age
   - **Scope**: anything the PR does that nobody asked for.
   - **Correctness**: bugs, edge cases, error handling, concurrency, data/schema impact.
   - **Conflict resolutions**: confirm each one preserved both the PR's intent and `main`'s changes.
-  - **Repo rules**: violations of `AGENTS.md` (and `app/AGENTS.md` for UI changes) — comments added, tests added unasked, unapproved architecture or product decisions.
+  - **Repo rules**: violations of `AGENTS.md` (and `packages/react/AGENTS.md` / `apps/desktop/DESIGN.md` for UI changes) — comments added, unapproved architecture or product decisions.
 - Verify behaviour by running it where possible (relevant tests or checks for the touched area). State what you could not run.
 
 ### 5. Report

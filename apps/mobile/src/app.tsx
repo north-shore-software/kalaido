@@ -1,9 +1,9 @@
 import { CloudErrorBoundary } from "@kalaido/components/cloud-error-boundary";
-import { SplashScreen } from "@kalaido/components/splash-screen";
 import {
   CloudBootErrorView,
   CloudExploreView,
   CloudSignInScreen,
+  CloudSplashView,
   CloudWorkspacePickerScreen,
 } from "@kalaido/features/auth";
 import {
@@ -25,6 +25,7 @@ import {
   type CloudStage,
   openCloudWorkspace,
   prepareCloudReset,
+  showCloudWorkspacePicker,
   signOutOfCloud,
   syncCloudWorkspaces,
 } from "./state";
@@ -38,8 +39,11 @@ function StageNavigationListener() {
 
   useEffect(() => {
     const key =
-      stage.stage === "workspace_open"
-        ? `${stage.stage}:${stage.workspaceId}`
+      stage.stage === "workspace_open" ||
+      stage.stage === "workspace_loading" ||
+      stage.stage === "workspace_load_error" ||
+      stage.stage === "workspace_load_requested"
+        ? `${stage.stage}:${stage.workspaceId ?? ""}`
         : stage.stage;
     if (handledStage.current === key) return;
     handledStage.current = key;
@@ -57,6 +61,7 @@ function StageNavigationListener() {
 function LoginPage() {
   const navigate = useNavigate();
   const handleSignedIn = useCallback(() => {
+    void showCloudWorkspacePicker();
     navigate("/workspaces", { replace: true });
   }, [navigate]);
 
@@ -89,13 +94,8 @@ function WorkspacesPage() {
       activeWorkspaceId={
         stage.stage === "workspace_open" ? stage.workspaceId : null
       }
-      initialError={
-        stage.stage === "workspace_load_error"
-          ? (stage.error?.message ?? null)
-          : null
-      }
       onSyncWorkspaces={syncCloudWorkspaces}
-      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: false })}
+      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
       onAlreadyOpen={() => navigate(-1)}
       onSignOut={signOutOfCloud}
     />
@@ -106,7 +106,7 @@ function ExplorePage() {
   return (
     <CloudExploreView
       onSyncWorkspaces={syncCloudWorkspaces}
-      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: false })}
+      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
       onSignOut={signOutOfCloud}
       onBeforeClear={prepareCloudReset}
       renderNotOpen={(to) => <Navigate to={to} replace />}
@@ -115,12 +115,18 @@ function ExplorePage() {
 }
 
 function BootErrorPage() {
-  return <CloudBootErrorView onBeforeClear={prepareCloudReset} />;
+  return (
+    <CloudBootErrorView
+      onBeforeClear={prepareCloudReset}
+      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
+      onChooseWorkspace={() => void showCloudWorkspacePicker()}
+    />
+  );
 }
 
 const CLOUD_ROUTES: readonly { path: string; Component: ComponentType }[] = [
-  { path: "/", Component: SplashScreen },
-  { path: "/splash", Component: SplashScreen },
+  { path: "/", Component: CloudSplashView },
+  { path: "/splash", Component: CloudSplashView },
   { path: "/boot-error", Component: BootErrorPage },
   { path: "/login", Component: LoginPage },
   { path: "/workspaces", Component: WorkspacesPage },

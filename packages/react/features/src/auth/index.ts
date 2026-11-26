@@ -3,6 +3,7 @@ export {
   type CloudBootErrorViewProps,
   CloudExploreView,
   type CloudExploreViewProps,
+  CloudSplashView,
 } from "./cloud-shell-views";
 export {
   CloudSignInScreen,

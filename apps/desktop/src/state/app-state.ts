@@ -32,13 +32,27 @@ export { type StageError, stageError };
 /** Where an opening workspace lands instead of the dashboard. */
 export type StageEntry = Extract<RouteId, "onboarding-import">;
 
+export type IdleStageEntry = Extract<
+  RouteId,
+  "onboarding-login" | "cloud-workspaces"
+>;
+
+export type KalaidoscopeErrorSource =
+  | "cloud_startup"
+  | "local_startup"
+  | "restore";
+
 export type AppStage =
   | {
-      stage:
-        | "bootstrap"
-        | "onboarding_interstitial"
-        | "kalaidoscope_loading"
-        | "no_kalaidoscopes_available";
+      stage: "bootstrap" | "onboarding_interstitial";
+    }
+  | {
+      stage: "no_kalaidoscopes_available";
+      entry?: IdleStageEntry;
+    }
+  | {
+      stage: "kalaidoscope_loading";
+      loadKalaidoscopeId?: string;
     }
   | {
       stage: "bootstrap_error";
@@ -48,6 +62,7 @@ export type AppStage =
       stage: "kalaidoscope_load_error";
       error?: StageError;
       retryKalaidoscopeId?: string;
+      source?: KalaidoscopeErrorSource;
     }
   | {
       stage: "kalaidoscope_open";
@@ -312,6 +327,38 @@ export const desktopScope: DesktopScopeInstance = createScope({
 let pushBridgesActive = false;
 let unsubscribeInferenceRate: (() => void) | null = null;
 let unlistenSidecarStatus: UnlistenFn | null = null;
+let clientOpenSeq = 0;
+let pendingClientController: AbortController | null = null;
+
+export function cancelPendingClientOpen(): number {
+  clientOpenSeq += 1;
+  pendingClientController?.abort();
+  pendingClientController = null;
+  return clientOpenSeq;
+}
+
+export function isCurrentClientOpen(seq: number): boolean {
+  return clientOpenSeq === seq;
+}
+
+export function registerPendingClientController(
+  seq: number,
+  controller: AbortController,
+): void {
+  if (clientOpenSeq !== seq) {
+    controller.abort();
+    return;
+  }
+  pendingClientController = controller;
+}
+
+export function clearPendingClientController(
+  controller: AbortController,
+): void {
+  if (pendingClientController === controller) {
+    pendingClientController = null;
+  }
+}
 
 export function detachDesktopPushBridges(): void {
   pushBridgesActive = false;
@@ -322,7 +369,14 @@ export function detachDesktopPushBridges(): void {
   unlistenSidecarStatus = null;
 }
 
-export async function teardownActiveClient(): Promise<void> {
+export async function teardownActiveClient({
+  cancelPending = true,
+}: {
+  cancelPending?: boolean;
+} = {}): Promise<void> {
+  if (cancelPending) {
+    cancelPendingClientOpen();
+  }
   const prev = getActiveKalaidoscopeClient();
   setActiveKalaidoscopeClient(null);
   if (!prev) return;

@@ -2,6 +2,7 @@ import type { FeedbackDiagnostics } from "@kalaido/platform";
 import { err, ok, type Result } from "neverthrow";
 import posthog from "posthog-js";
 import { getPosthogConfig } from "#config";
+import type { StageError } from "#lib/errors";
 
 export { getPosthogConfig };
 
@@ -57,6 +58,31 @@ export function sendFeedback(
     },
     { send_instantly: true },
   );
+  return ok(undefined);
+}
+
+export interface ErrorReportContext {
+  containerId: string;
+  workspaceName?: string | null;
+  diagnostics: FeedbackDiagnostics | null;
+}
+
+export function sendErrorReport(
+  error: StageError,
+  context: ErrorReportContext,
+): Result<void, Error> {
+  if (!getPosthogConfig()) {
+    return err(new Error("Error reporting isn't available in this build."));
+  }
+  const reported = new Error(error.message);
+  if (error.detail) {
+    reported.stack = error.detail;
+  }
+  posthog.captureException(reported, {
+    cloud_container_id: context.containerId,
+    workspace_name: context.workspaceName ?? null,
+    feedback_diagnostics: context.diagnostics,
+  });
   return ok(undefined);
 }
 

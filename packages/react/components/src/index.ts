@@ -57,7 +57,12 @@ export {
   PanelErrorBoundary,
   PanelErrorFallback,
 } from "./panel-error-boundary";
-export { RecoveryView, type RecoveryViewProps } from "./recovery-view";
+export {
+  type RecoveryReportContext,
+  type RecoverySecondaryAction,
+  RecoveryView,
+  type RecoveryViewProps,
+} from "./recovery-view";
 export {
   RefineChatPanel,
   type RefineChatPanelProps,
@@ -69,4 +74,4 @@ export {
   SourceList,
   type SourceListProps,
 } from "./source-list";
-export { SplashScreen } from "./splash-screen";
+export { SplashScreen, type SplashScreenProps } from "./splash-screen";

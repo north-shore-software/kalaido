@@ -63,7 +63,7 @@ export default function CloudWorkspaces() {
     setOpeningId(id);
     setOpenError(null);
     try {
-      const result = await switchLocalKalaidoscope(id, { surfaceError: false });
+      const result = await switchLocalKalaidoscope(id, { surfaceError: true });
       if (result.isErr()) setOpenError(result.error.message);
     } catch (e) {
       setOpenError(toError(e).message);

@@ -3,7 +3,10 @@ import {
   signOutCloudAuth,
 } from "@kalaido/client/cloud/auth";
 import { listCloudKalaidoscopes } from "@kalaido/client/cloud/user";
-import { createCloudClient } from "@kalaido/client/kalaidoscope/client";
+import {
+  CloudAuthRequiredError,
+  createCloudClient,
+} from "@kalaido/client/kalaidoscope/client";
 import {
   getActiveKalaidoscopeClient,
   setActiveKalaidoscopeClient,
@@ -45,9 +48,10 @@ import {
 } from "#use-cloud-workspaces";
 
 export type CloudStage =
-  | { stage: "bootstrap" | "signed_out" | "workspace_loading" }
+  | { stage: "bootstrap" | "signed_out" | "workspace_picker" }
+  | { stage: "workspace_loading"; workspaceId?: string }
   | { stage: "bootstrap_error"; error?: StageError }
-  | { stage: "workspace_load_error"; error?: StageError }
+  | { stage: "workspace_load_error"; error?: StageError; workspaceId?: string }
   | { stage: "workspace_open"; workspaceId: string }
   | { stage: "workspace_load_requested"; workspaceId: string };
 
@@ -92,6 +96,35 @@ const CLOUD_PERSIST_KEYS = [
   "lastOpenedKalaidoscopeId",
   "cachedCloudKalaidoscopes",
 ] as const;
+
+interface PendingCloudOpenTracker {
+  seq: number;
+  controller: AbortController | null;
+}
+
+const pendingCloudOpens = new WeakMap<
+  CloudRootScopeInstance,
+  PendingCloudOpenTracker
+>();
+
+function getOpenTracker(
+  scope: CloudRootScopeInstance,
+): PendingCloudOpenTracker {
+  let tracker = pendingCloudOpens.get(scope);
+  if (!tracker) {
+    tracker = { seq: 0, controller: null };
+    pendingCloudOpens.set(scope, tracker);
+  }
+  return tracker;
+}
+
+function cancelPendingCloudOpen(scope: CloudRootScopeInstance): number {
+  const tracker = getOpenTracker(scope);
+  tracker.seq += 1;
+  tracker.controller?.abort();
+  tracker.controller = null;
+  return tracker.seq;
+}
 
 export function createCloudRootScope(
   settings?: SettingsStore,
@@ -220,11 +253,25 @@ export async function syncCloudWorkspacesForScope(
   return ok(undefined);
 }
 
+export async function showCloudWorkspacePickerForScope(
+  scope: CloudRootScopeInstance,
+): Promise<void> {
+  cancelPendingCloudOpen(scope);
+  await teardownActiveCloudClient();
+  await scope.dispatch({
+    type: "setStage",
+    stage: { stage: "workspace_picker" },
+  });
+}
+
 export async function openCloudWorkspaceForScope(
   scope: CloudRootScopeInstance,
   targetId: string,
-  { surfaceError = false }: { surfaceError?: boolean } = {},
+  { surfaceError = true }: { surfaceError?: boolean } = {},
 ): Promise<Result<void, Error>> {
+  const tracker = getOpenTracker(scope);
+  const seq = cancelPendingCloudOpen(scope);
+
   const meta = scope.state.cachedCloudKalaidoscopes.find(
     (k) => k.id === targetId,
   );
@@ -238,6 +285,7 @@ export async function openCloudWorkspaceForScope(
         stage: {
           stage: "workspace_load_error",
           error: { message: error.message },
+          workspaceId: targetId,
         },
       });
     }
@@ -247,13 +295,27 @@ export async function openCloudWorkspaceForScope(
   if (surfaceError) {
     await scope.dispatch({
       type: "setStage",
-      stage: { stage: "workspace_loading" },
+      stage: { stage: "workspace_loading", workspaceId: targetId },
     });
   }
 
+  const controller = new AbortController();
+  tracker.controller = controller;
+
   try {
     await teardownActiveCloudClient();
-    const client = await createCloudClient(meta.locator);
+    if (tracker.seq !== seq || controller.signal.aborted) {
+      return err(new Error("Workspace switch superseded."));
+    }
+
+    const client = await createCloudClient(meta.locator, {
+      signal: controller.signal,
+    });
+    if (tracker.seq !== seq || controller.signal.aborted) {
+      client.cancelAllRequests();
+      return err(new Error("Workspace switch superseded."));
+    }
+
     setActiveKalaidoscopeClient(client);
     await scope.dispatch({
       type: "setStage",
@@ -265,17 +327,34 @@ export async function openCloudWorkspaceForScope(
     });
     return ok(undefined);
   } catch (e) {
+    if (tracker.seq !== seq || controller.signal.aborted) {
+      return err(toError(e));
+    }
     await teardownActiveCloudClient();
+    if (e instanceof CloudAuthRequiredError) {
+      if (surfaceError) {
+        await scope.dispatch({
+          type: "setStage",
+          stage: { stage: "signed_out" },
+        });
+      }
+      return err(e);
+    }
     if (surfaceError) {
       await scope.dispatch({
         type: "setStage",
         stage: {
           stage: "workspace_load_error",
           error: stageError(e),
+          workspaceId: targetId,
         },
       });
     }
     return err(toError(e));
+  } finally {
+    if (tracker.controller === controller) {
+      tracker.controller = null;
+    }
   }
 }
 
@@ -283,6 +362,7 @@ export async function signOutOfCloudForScope(
   scope: CloudRootScopeInstance,
   detachTokenBridge?: () => void,
 ): Promise<void> {
+  cancelPendingCloudOpen(scope);
   resetPostHog();
   await signOutCloudAuth();
   await teardownActiveCloudClient();
@@ -297,6 +377,7 @@ export async function prepareCloudScopeReset(
   scope: CloudRootScopeInstance,
   detachTokenBridge?: () => void,
 ): Promise<void> {
+  cancelPendingCloudOpen(scope);
   detachTokenBridge?.();
   await teardownActiveCloudClient();
   await clearCloudLiveCache();
@@ -311,10 +392,12 @@ export function pathForCloudStage(stage: CloudStage): string {
     case "workspace_load_requested":
       return "/splash";
     case "bootstrap_error":
+    case "workspace_load_error":
       return "/boot-error";
     case "signed_out":
-    case "workspace_load_error":
       return "/login";
+    case "workspace_picker":
+      return "/workspaces";
     case "workspace_open":
       return "/explore";
   }

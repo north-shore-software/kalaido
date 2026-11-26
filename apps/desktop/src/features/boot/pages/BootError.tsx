@@ -1,14 +1,85 @@
 import { useScopeContext } from "@kalaido/hooks/create-scope-context";
+import { useCloudSession } from "@kalaido/hooks/use-cloud-session";
+import type { KalaidoscopeMeta } from "@kalaido/platform";
 import { useScope, useScopeState } from "@kalaido/state/scope";
 import { reloadAppWindow } from "@/api/app/os-integrations.ts";
 import { switchLocalKalaidoscope } from "@/lib/local-kalaidoscope.ts";
-import { DesktopScopeContext } from "@/state/app-state.ts";
+import {
+  type AppStage,
+  allKalaidoscopes,
+  DesktopScopeContext,
+  type StageError,
+} from "@/state/app-state.ts";
+import { setAppStage } from "@/state/app-state-actions.ts";
 import { RecoveryScreen } from "../components/recovery-screen";
 
+function resolveTargetId(stage: AppStage): string | undefined {
+  if (stage.stage === "kalaidoscope_load_error") {
+    return stage.retryKalaidoscopeId;
+  }
+  if (stage.stage === "kalaidoscope_open") {
+    return stage.selectedKalaidoscopeId;
+  }
+  return undefined;
+}
+
+function CloudStartupRecovery({
+  targetId,
+  targetMeta,
+  error,
+  signedIn,
+}: {
+  targetId: string | undefined;
+  targetMeta: KalaidoscopeMeta | undefined;
+  error: StageError | undefined;
+  signedIn: boolean;
+}) {
+  return (
+    <RecoveryScreen
+      title={
+        targetMeta
+          ? `${targetMeta.displayName} couldn't start`
+          : "Cloud workspace couldn't start"
+      }
+      description="The remote cloud container for this workspace didn't start in time. Please try again later, send an error report, or choose a different workspace."
+      error={error}
+      onRetry={
+        targetId ? () => void switchLocalKalaidoscope(targetId) : undefined
+      }
+      allowReset={false}
+      reportContext={
+        targetId
+          ? {
+              containerId: targetMeta?.locator ?? targetId,
+              workspaceName: targetMeta?.displayName,
+              kalaidoscopeId: targetId,
+              route: "/boot-error",
+            }
+          : undefined
+      }
+      secondaryAction={{
+        label: "Choose a different workspace",
+        onClick: () =>
+          setAppStage({
+            stage: "no_kalaidoscopes_available",
+            ...(signedIn ? { entry: "cloud-workspaces" } : {}),
+          }),
+      }}
+      allowSwitch
+      excludeKalaidoscopeId={targetId}
+    />
+  );
+}
+
 export default function BootError() {
+  const { signedIn } = useCloudSession();
   const root = useScopeContext(DesktopScopeContext);
-  const stageScope = useScope({ from: root, state: ["appStage"] });
-  const { appStage } = useScopeState(stageScope);
+  const stageScope = useScope({
+    from: root,
+    state: ["appStage", "localKalaidoscopes", "cachedCloudKalaidoscopes"],
+  });
+  const { appStage, localKalaidoscopes, cachedCloudKalaidoscopes } =
+    useScopeState(stageScope);
 
   if (appStage.stage === "bootstrap_error") {
     return (
@@ -21,12 +92,26 @@ export default function BootError() {
     );
   }
 
-  const targetId =
-    appStage.stage === "kalaidoscope_load_error"
-      ? appStage.retryKalaidoscopeId
-      : appStage.stage === "kalaidoscope_open"
-        ? appStage.selectedKalaidoscopeId
-        : undefined;
+  const targetId = resolveTargetId(appStage);
+  const targetMeta = targetId
+    ? allKalaidoscopes({ localKalaidoscopes, cachedCloudKalaidoscopes }).find(
+        (k) => k.id === targetId,
+      )
+    : undefined;
+
+  if (
+    appStage.stage === "kalaidoscope_load_error" &&
+    appStage.source === "cloud_startup"
+  ) {
+    return (
+      <CloudStartupRecovery
+        targetId={targetId}
+        targetMeta={targetMeta}
+        error={appStage.error}
+        signedIn={signedIn}
+      />
+    );
+  }
 
   return (
     <RecoveryScreen
