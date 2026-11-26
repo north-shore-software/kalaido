@@ -1,3 +1,4 @@
+import { CloudAuthRequiredError } from "@kalaido/client/kalaidoscope/client";
 import { setActiveKalaidoscopeClient } from "@kalaido/client/lib/active-kalaidoscope-client";
 import { toError } from "@kalaido/client/lib/errors";
 import { err, ok, type Result } from "neverthrow";
@@ -9,7 +10,11 @@ import {
 import { createKalaidoscopeClient } from "@/api/app/sidecar-client";
 import {
   allKalaidoscopes,
+  cancelPendingClientOpen,
+  clearPendingClientController,
   desktopScope,
+  isCurrentClientOpen,
+  registerPendingClientController,
   type StageEntry,
   stageError,
   teardownActiveClient,
@@ -31,6 +36,8 @@ export async function switchLocalKalaidoscope(
   targetId: string,
   { surfaceError = true, entry }: SwitchOptions = {},
 ): Promise<Result<void, Error>> {
+  const seq = cancelPendingClientOpen();
+
   const meta = allKalaidoscopes(desktopScope.state).find(
     (k) => k.id === targetId,
   );
@@ -44,6 +51,7 @@ export async function switchLocalKalaidoscope(
         stage: "kalaidoscope_load_error",
         error: { message: error.message },
         retryKalaidoscopeId: targetId,
+        source: "local_startup",
       });
     }
     return err(error);
@@ -56,8 +64,14 @@ export async function switchLocalKalaidoscope(
     });
   }
 
+  const controller = new AbortController();
+  registerPendingClientController(seq, controller);
+
   try {
-    await teardownActiveClient();
+    await teardownActiveClient({ cancelPending: false });
+    if (!isCurrentClientOpen(seq) || controller.signal.aborted) {
+      return err(new Error("Workspace switch superseded."));
+    }
 
     // cloud/local_net need no sidecar — the per-scope client connects directly.
     if (meta.type === "local_file") {
@@ -67,29 +81,52 @@ export async function switchLocalKalaidoscope(
 
     // The sidecar (if any) is up by now, so creating the client is cheap and
     // `kalaidoscope_open` means "client ready".
-    setActiveKalaidoscopeClient(await createKalaidoscopeClient(meta));
+    const client = await createKalaidoscopeClient(meta, {
+      signal: controller.signal,
+    });
+    if (!isCurrentClientOpen(seq) || controller.signal.aborted) {
+      client.cancelAllRequests();
+      return err(new Error("Workspace switch superseded."));
+    }
+
+    setActiveKalaidoscopeClient(client);
 
     openKalaidoscope(targetId, entry);
     await setLastOpenedKalaidoscopeId(targetId);
 
     if (meta.type === "local_file") {
       void getLocalKalaidoscopeStatus(targetId).then((res) => {
-        if (res.isOk()) setSidecarStatus(res.value);
+        if (res.isOk() && isCurrentClientOpen(seq)) setSidecarStatus(res.value);
       });
     }
 
     return ok(undefined);
   } catch (error) {
+    if (!isCurrentClientOpen(seq) || controller.signal.aborted) {
+      return err(toError(error));
+    }
     console.error("Failed to switch kalaidoscope:", error);
-    await teardownActiveClient();
+    await teardownActiveClient({ cancelPending: false });
+    if (error instanceof CloudAuthRequiredError) {
+      if (surfaceError) {
+        setAppStage({
+          stage: "no_kalaidoscopes_available",
+          entry: "onboarding-login",
+        });
+      }
+      return err(error);
+    }
     if (surfaceError) {
       setAppStage({
         stage: "kalaidoscope_load_error",
         error: stageError(error),
         retryKalaidoscopeId: targetId,
+        source: meta.type === "cloud" ? "cloud_startup" : "local_startup",
       });
     }
     return err(toError(error));
+  } finally {
+    clearPendingClientController(controller);
   }
 }
 

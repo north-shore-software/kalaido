@@ -13,10 +13,11 @@ import {
 
 export async function createKalaidoscopeClient(
   scope: KalaidoscopeMeta,
+  options?: { signal?: AbortSignal },
 ): Promise<TypedPocketBase> {
   switch (scope.type) {
     case "cloud":
-      return createCloudClient(scope.locator);
+      return createCloudClient(scope.locator, { signal: options?.signal });
     case "local_file":
       return createSidecarClient(scope);
     case "local_net":

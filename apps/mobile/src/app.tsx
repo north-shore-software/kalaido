@@ -25,6 +25,7 @@ import {
   type CloudStage,
   openCloudWorkspace,
   prepareCloudReset,
+  showCloudWorkspacePicker,
   signOutOfCloud,
   syncCloudWorkspaces,
 } from "./state";
@@ -57,23 +58,10 @@ function StageNavigationListener() {
   return null;
 }
 
-function SplashPage() {
-  const navigate = useNavigate();
-  const handleBackToWorkspaces = useCallback(() => {
-    navigate("/workspaces", { replace: true });
-  }, [navigate]);
-
-  return (
-    <CloudSplashView
-      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
-      onBackToWorkspaces={handleBackToWorkspaces}
-    />
-  );
-}
-
 function LoginPage() {
   const navigate = useNavigate();
   const handleSignedIn = useCallback(() => {
+    void showCloudWorkspacePicker();
     navigate("/workspaces", { replace: true });
   }, [navigate]);
 
@@ -106,11 +94,6 @@ function WorkspacesPage() {
       activeWorkspaceId={
         stage.stage === "workspace_open" ? stage.workspaceId : null
       }
-      initialError={
-        stage.stage === "workspace_load_error"
-          ? (stage.error?.message ?? null)
-          : null
-      }
       onSyncWorkspaces={syncCloudWorkspaces}
       onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
       onAlreadyOpen={() => navigate(-1)}
@@ -132,12 +115,18 @@ function ExplorePage() {
 }
 
 function BootErrorPage() {
-  return <CloudBootErrorView onBeforeClear={prepareCloudReset} />;
+  return (
+    <CloudBootErrorView
+      onBeforeClear={prepareCloudReset}
+      onOpenWorkspace={(id) => openCloudWorkspace(id, { surfaceError: true })}
+      onChooseWorkspace={() => void showCloudWorkspacePicker()}
+    />
+  );
 }
 
 const CLOUD_ROUTES: readonly { path: string; Component: ComponentType }[] = [
-  { path: "/", Component: SplashPage },
-  { path: "/splash", Component: SplashPage },
+  { path: "/", Component: CloudSplashView },
+  { path: "/splash", Component: CloudSplashView },
   { path: "/boot-error", Component: BootErrorPage },
   { path: "/login", Component: LoginPage },
   { path: "/workspaces", Component: WorkspacesPage },

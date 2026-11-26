@@ -187,6 +187,7 @@ describe("restoreKalaidoscope", () => {
         message: "archive has invalid signature\nYour workspace is unchanged.",
       },
       retryKalaidoscopeId: localMeta.id,
+      source: "restore",
     });
   });
 
@@ -210,6 +211,7 @@ describe("restoreKalaidoscope", () => {
         message: "The restore did not complete. Your workspace is unchanged.",
       },
       retryKalaidoscopeId: localMeta.id,
+      source: "restore",
     });
 
     vi.useRealTimers();
@@ -251,6 +253,7 @@ describe("restoreKalaidoscope", () => {
         message: "The restore did not complete. Your workspace is unchanged.",
       },
       retryKalaidoscopeId: localMeta.id,
+      source: "restore",
     });
   });
 

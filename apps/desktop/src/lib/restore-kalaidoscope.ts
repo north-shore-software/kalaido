@@ -122,6 +122,7 @@ export async function restoreKalaidoscope(
         message: "The restore did not complete. Your workspace is unchanged.",
       },
       retryKalaidoscopeId: meta.id,
+      source: "restore",
     });
     return err(
       new Error("Timed out waiting for workspace to restart after restore"),
@@ -141,6 +142,7 @@ export async function restoreKalaidoscope(
         message: "The restore did not complete. Your workspace is unchanged.",
       },
       retryKalaidoscopeId: meta.id,
+      source: "restore",
     });
     return err(
       new Error("Timed out waiting for workspace to restart after restore"),
@@ -155,6 +157,7 @@ export async function restoreKalaidoscope(
         message: "The restore did not complete. Your workspace is unchanged.",
       },
       retryKalaidoscopeId: meta.id,
+      source: "restore",
     });
     return err(
       new Error("Timed out waiting for workspace to restart after restore"),
@@ -168,6 +171,7 @@ export async function restoreKalaidoscope(
       stage: "kalaidoscope_load_error",
       error: { message },
       retryKalaidoscopeId: meta.id,
+      source: "restore",
     });
     return err(new Error(lastRestore.error || "Backup restore failed"));
   }

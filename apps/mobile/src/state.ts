@@ -3,6 +3,7 @@ import {
   createCloudRootScope,
   openCloudWorkspaceForScope,
   prepareCloudScopeReset,
+  showCloudWorkspacePickerForScope,
   signOutOfCloudForScope,
   syncCloudWorkspacesForScope,
   wireCloudScopeTokenBridge,
@@ -29,6 +30,10 @@ export function openCloudWorkspace(
   opts?: { surfaceError?: boolean },
 ): Promise<Result<void, Error>> {
   return openCloudWorkspaceForScope(cloudScope, targetId, opts);
+}
+
+export function showCloudWorkspacePicker(): Promise<void> {
+  return showCloudWorkspacePickerForScope(cloudScope);
 }
 
 export function signOutOfCloud(): Promise<void> {

@@ -6,6 +6,15 @@ import { toError } from "#lib/errors";
 
 const JWT_EXPIRY_SKEW_S = 30;
 
+export class CloudAuthRequiredError extends Error {
+  constructor(
+    message = "Sign in to your cloud account to open this kalaidoscope.",
+  ) {
+    super(message);
+    this.name = "CloudAuthRequiredError";
+  }
+}
+
 export interface CloudSessionTokenBridge {
   /** Synchronously return the current persisted cloud session token (or null). */
   readonly get: () => string | null;
@@ -125,7 +134,7 @@ export function getCloudSessionToken(): Result<string, Error> {
   const token = readSessionToken();
   return token
     ? ok(token)
-    : err(new Error("Not signed in to a cloud account."));
+    : err(new CloudAuthRequiredError("Not signed in to a cloud account."));
 }
 
 export async function getCloudJwt(): Promise<Result<string, Error>> {
@@ -149,7 +158,11 @@ async function fetchFreshJwt(): Promise<Result<string, Error>> {
       const { status, message } = res.error;
       if (status === 401 || status === 403) {
         dropCloudSession();
-        return err(new Error("Cloud session expired. Please sign in again."));
+        return err(
+          new CloudAuthRequiredError(
+            "Cloud session expired. Please sign in again.",
+          ),
+        );
       }
       return err(
         new Error(message ?? `Cloud token request failed (${status}).`),

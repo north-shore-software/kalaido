@@ -219,7 +219,7 @@ export function stageEntryRoute(stage: AppStage): RouteId {
     case "onboarding_interstitial":
       return "onboarding-interstitial";
     case "no_kalaidoscopes_available":
-      return "onboarding-landing";
+      return stage.entry ?? "onboarding-landing";
   }
 }
 

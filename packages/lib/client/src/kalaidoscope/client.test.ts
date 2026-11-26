@@ -1,17 +1,30 @@
 import { err, ok } from "neverthrow";
 import { ClientResponseError } from "pocketbase";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { createCloudClient } from "#kalaidoscope/client";
+import {
+  CloudAuthRequiredError,
+  createCloudClient,
+} from "#kalaidoscope/client";
 
 const mockGetCloudJwt = vi.fn();
-vi.mock("#cloud/auth", () => ({
-  getCloudJwt: () => mockGetCloudJwt(),
-  getCloudRequestAuthHeaders: vi.fn(),
-}));
+const mockDropCloudSession = vi.fn();
+vi.mock("#cloud/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("#cloud/auth")>();
+  return {
+    ...actual,
+    getCloudJwt: () => mockGetCloudJwt(),
+    dropCloudSession: () => mockDropCloudSession(),
+    getCloudRequestAuthHeaders: vi.fn(),
+  };
+});
 
-vi.mock("#config", () => ({
-  getCloudPbUrl: () => "https://s.kalaido.test",
-}));
+vi.mock("#config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("#config")>();
+  return {
+    ...actual,
+    getCloudPbUrl: () => "https://s.kalaido.test",
+  };
+});
 
 const mockSend = vi.fn();
 vi.mock("pocketbase", async (importOriginal) => {
@@ -43,19 +56,26 @@ describe("createCloudClient", () => {
     mockSend.mockResolvedValueOnce({ code: 200, message: "API is healthy." });
 
     const client = await createCloudClient("ws-1", {
-      maxAttempts: 3,
-      retryDelayMs: 1,
+      timeoutMs: 100,
+      retryDelayMs: 5,
     });
 
     expect(client.baseURL).toBe("https://s.kalaido.test/ws-1");
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(mockSend).toHaveBeenCalledWith("/api/health", {
-      method: "GET",
-      requestKey: null,
-    });
+    expect(mockSend).toHaveBeenCalledWith(
+      "/api/health",
+      expect.objectContaining({
+        method: "GET",
+        requestKey: null,
+        signal: expect.any(AbortSignal),
+      }),
+    );
   });
 
-  test("retries transient errors on /api/health until container becomes ready", async () => {
+  test("retries transient /token and /api/health errors until container becomes ready", async () => {
+    mockGetCloudJwt
+      .mockResolvedValueOnce(err(new Error("Temporary auth network blip")))
+      .mockResolvedValue(ok("jwt_token"));
     mockSend
       .mockRejectedValueOnce(new Error("Container starting"))
       .mockRejectedValueOnce(
@@ -67,28 +87,35 @@ describe("createCloudClient", () => {
       .mockResolvedValueOnce({ code: 200, message: "API is healthy." });
 
     const client = await createCloudClient("ws-1", {
-      maxAttempts: 4,
-      retryDelayMs: 1,
+      timeoutMs: 500,
+      retryDelayMs: 5,
     });
 
     expect(client.baseURL).toBe("https://s.kalaido.test/ws-1");
     expect(mockSend).toHaveBeenCalledTimes(3);
   });
 
-  test("stops retrying and throws after reaching maxAttempts", async () => {
-    mockSend.mockRejectedValue(new Error("Container unavailable"));
+  test("throws a descriptive timeout error including container id when deadline expires", async () => {
+    mockSend.mockRejectedValue(
+      new ClientResponseError({
+        status: 503,
+        response: {},
+      }),
+    );
 
     await expect(
-      createCloudClient("ws-1", {
-        maxAttempts: 3,
-        retryDelayMs: 1,
+      createCloudClient("ws-timeout", {
+        timeoutMs: 20,
+        retryDelayMs: 5,
       }),
-    ).rejects.toThrow("Container unavailable");
+    ).rejects.toThrow(
+      "Timed out waiting for cloud container (ws-timeout) to start. (HTTP 503)",
+    );
 
-    expect(mockSend).toHaveBeenCalledTimes(3);
+    expect(mockSend.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
-  test("does not retry fatal 4xx errors", async () => {
+  test("does not retry fatal non-auth 4xx errors", async () => {
     mockSend.mockRejectedValue(
       new ClientResponseError({
         status: 403,
@@ -98,22 +125,64 @@ describe("createCloudClient", () => {
 
     await expect(
       createCloudClient("ws-1", {
-        maxAttempts: 3,
-        retryDelayMs: 1,
+        timeoutMs: 500,
+        retryDelayMs: 5,
       }),
     ).rejects.toThrow("forbidden");
 
     expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockDropCloudSession).not.toHaveBeenCalled();
   });
 
-  test("throws if user is not signed in to cloud account", async () => {
-    mockGetCloudJwt.mockResolvedValueOnce(err(new Error("Not signed in")));
+  test("drops session and throws CloudAuthRequiredError on 401 from /api/health", async () => {
+    mockSend.mockRejectedValue(
+      new ClientResponseError({
+        status: 401,
+        response: { message: "unauthorized" },
+      }),
+    );
 
     await expect(
-      createCloudClient("ws-1", { maxAttempts: 2, retryDelayMs: 1 }),
-    ).rejects.toThrow(
+      createCloudClient("ws-1", {
+        timeoutMs: 500,
+        retryDelayMs: 5,
+      }),
+    ).rejects.toBeInstanceOf(CloudAuthRequiredError);
+
+    expect(mockDropCloudSession).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  test("throws CloudAuthRequiredError immediately if user is not signed in", async () => {
+    mockGetCloudJwt.mockResolvedValueOnce(
+      err(new CloudAuthRequiredError("Not signed in to a cloud account.")),
+    );
+
+    const promise = createCloudClient("ws-1", {
+      timeoutMs: 500,
+      retryDelayMs: 5,
+    });
+    await expect(promise).rejects.toBeInstanceOf(CloudAuthRequiredError);
+    await expect(promise).rejects.toThrow(
       "Sign in to your cloud account to open this kalaidoscope.",
     );
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  test("aborts immediately when signal is aborted", async () => {
+    const controller = new AbortController();
+    mockSend.mockImplementation(async () => {
+      controller.abort(new Error("Switched away"));
+      throw new Error("Container starting");
+    });
+
+    await expect(
+      createCloudClient("ws-1", {
+        timeoutMs: 5_000,
+        retryDelayMs: 1_000,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("Switched away");
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,10 @@
 import { activeKalaidoscopes } from "@kalaido/client/lib/active-kalaidoscopes";
 import type { StageError } from "@kalaido/client/lib/errors";
-import { RecoveryView } from "@kalaido/components/recovery-view";
+import {
+  type RecoveryReportContext,
+  type RecoverySecondaryAction,
+  RecoveryView,
+} from "@kalaido/components/recovery-view";
 import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { useScope, useScopeState } from "@kalaido/state/scope";
 import { KalaidoscopeList } from "@/features/create-kalaidoscope/components/kalaidoscope-list";
@@ -16,6 +20,9 @@ export interface RecoveryScreenProps {
   error?: StageError | null;
   onRetry?: () => void;
   retryLabel?: string;
+  allowReset?: boolean;
+  reportContext?: RecoveryReportContext;
+  secondaryAction?: RecoverySecondaryAction;
   allowSwitch?: boolean;
   excludeKalaidoscopeId?: string;
   onSwitched?: () => void;
@@ -27,6 +34,9 @@ export function RecoveryScreen({
   error,
   onRetry,
   retryLabel = "Try again",
+  allowReset = true,
+  reportContext,
+  secondaryAction,
   allowSwitch = false,
   excludeKalaidoscopeId,
   onSwitched,
@@ -52,6 +62,9 @@ export function RecoveryScreen({
       error={error}
       onRetry={onRetry}
       retryLabel={retryLabel}
+      allowReset={allowReset}
+      reportContext={reportContext}
+      secondaryAction={secondaryAction}
       onBeforeClear={prepareDesktopReset}
       resetNotice="Clears all saved kalaidoscopes, preferences, and app state, then restarts. Kalaidoscope data directories on disk are not deleted."
       footer={

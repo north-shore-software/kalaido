@@ -4,7 +4,6 @@ export {
   CloudExploreView,
   type CloudExploreViewProps,
   CloudSplashView,
-  type CloudSplashViewProps,
 } from "./cloud-shell-views";
 export {
   CloudSignInScreen,
