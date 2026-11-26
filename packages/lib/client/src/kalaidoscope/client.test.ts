@@ -39,8 +39,8 @@ describe("createCloudClient", () => {
     mockGetCloudJwt.mockResolvedValue(ok("jwt_token"));
   });
 
-  test("awaits /api/status and resolves immediately when container is ready", async () => {
-    mockSend.mockResolvedValueOnce({ fragments: 0 });
+  test("awaits /api/health and resolves immediately when container is ready", async () => {
+    mockSend.mockResolvedValueOnce({ code: 200, message: "API is healthy." });
 
     const client = await createCloudClient("ws-1", {
       maxAttempts: 3,
@@ -49,13 +49,13 @@ describe("createCloudClient", () => {
 
     expect(client.baseURL).toBe("https://s.kalaido.test/ws-1");
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(mockSend).toHaveBeenCalledWith("/api/status", {
+    expect(mockSend).toHaveBeenCalledWith("/api/health", {
       method: "GET",
       requestKey: null,
     });
   });
 
-  test("retries transient errors on /api/status until container becomes ready", async () => {
+  test("retries transient errors on /api/health until container becomes ready", async () => {
     mockSend
       .mockRejectedValueOnce(new Error("Container starting"))
       .mockRejectedValueOnce(
@@ -64,7 +64,7 @@ describe("createCloudClient", () => {
           response: { message: "Service unavailable" },
         }),
       )
-      .mockResolvedValueOnce({ fragments: 5 });
+      .mockResolvedValueOnce({ code: 200, message: "API is healthy." });
 
     const client = await createCloudClient("ws-1", {
       maxAttempts: 4,

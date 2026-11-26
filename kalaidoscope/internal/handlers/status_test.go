@@ -48,6 +48,43 @@ func TestGetStatusReportsEveryWorker(t *testing.T) {
 	}
 }
 
+// GET /api/status counts unjudged fragments past a prompt colour's watermark
+// without failing SQL evaluation.
+func TestGetStatusCountsUnjudgedFragmentsPastWatermark(t *testing.T) {
+	app := testutil.NewApp(t)
+	f1 := testutil.NewRecord(t, app, "fragment", map[string]any{
+		"id": "frag00000000001", "type": "note", "content": "one",
+	})
+	testutil.NewRecord(t, app, "fragment", map[string]any{
+		"id": "frag00000000002", "type": "note", "content": "two",
+	})
+	testutil.NewRecord(t, app, "fragment", map[string]any{
+		"id": "frag00000000003", "type": "note", "content": "deleted",
+		"deleted_at": "2026-01-01 00:00:04.000Z",
+	})
+	testutil.NewRecord(t, app, "colour", map[string]any{
+		"name":   "Blue",
+		"swatch": 0,
+		"prompt": "about blue things",
+		"prompt_match_completed_up_to_fragment_id": f1.Id,
+	})
+
+	rec, err := callJSON(t, app, HandleGetStatus(app, testDeps(app)), http.MethodGet, "/api/status", "", nil)
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
+	}
+	var st api.KalaidoscopeStatus
+	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Colour.UnjudgedFragments != 1 {
+		t.Errorf("unjudgedFragments = %d, want 1", st.Colour.UnjudgedFragments)
+	}
+}
+
 // GET /api/reconcile is the wave's state beside every entity's freshness.
 func TestGetReconcileCombinesWaveAndStaleness(t *testing.T) {
 	app := testutil.NewApp(t)

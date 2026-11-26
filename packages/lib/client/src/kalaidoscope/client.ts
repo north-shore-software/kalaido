@@ -58,7 +58,7 @@ async function waitForCloudReady(
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      await pb.send("/api/status", { method: "GET", requestKey: null });
+      await pb.send("/api/health", { method: "GET", requestKey: null });
       return;
     } catch (e) {
       lastError = e;

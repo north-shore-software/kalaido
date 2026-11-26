@@ -232,8 +232,8 @@ func EvaluateStatus(app core.App, col *Worker) (api.ColourStatus, error) {
 
 	unjudged := 0
 	for _, c := range promptCols {
-		filter, params := pastWatermarkFilter(app, c.GetString("prompt_match_completed_up_to_fragment_id"))
-		count, err := app.CountRecords(schema.ColFragment.String(), dbx.NewExp(filter, params))
+		exp := pastWatermarkExp(app, c.GetString("prompt_match_completed_up_to_fragment_id"))
+		count, err := app.CountRecords(schema.ColFragment.String(), exp)
 		if err != nil {
 			return out, err
 		}
@@ -299,8 +299,8 @@ func pastWatermark(app core.App, watermark string) ([]*core.Record, error) {
 }
 
 // pastWatermarkFilter selects the live fragments after the watermark fragment
-// in (created, id) order — the drain's order, so a count under it is the
-// drain's remaining work.
+// in (created, id) order — the drain's order (PocketBase filter syntax for
+// FindRecordsByFilter).
 func pastWatermarkFilter(app core.App, watermark string) (string, dbx.Params) {
 	filter := schema.NotDeleted()
 	params := dbx.Params{}
@@ -313,6 +313,25 @@ func pastWatermarkFilter(app core.App, watermark string) (string, dbx.Params) {
 		}
 	}
 	return filter, params
+}
+
+// pastWatermarkExp builds the SQL predicate for CountRecords matching live
+// fragments after the watermark fragment in (created, id) order.
+func pastWatermarkExp(app core.App, watermark string) dbx.Expression {
+	notDeleted := dbx.HashExp{"deleted_at": ""}
+	if watermark != "" {
+		wm, err := app.FindRecordById(schema.ColFragment.String(), watermark)
+		if err == nil {
+			return dbx.And(
+				notDeleted,
+				dbx.NewExp("(created > {:c} OR (created = {:c} AND id > {:id}))", dbx.Params{
+					"c":  wm.GetDateTime("created"),
+					"id": wm.Id,
+				}),
+			)
+		}
+	}
+	return notDeleted
 }
 
 func linkedFragmentIDs(app core.App, colourID string, frags []*core.Record) (map[string]bool, error) {
