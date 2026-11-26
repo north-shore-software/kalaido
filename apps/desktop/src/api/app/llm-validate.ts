@@ -1,12 +1,12 @@
-import { invoke } from "@tauri-apps/api/core";
-import { ok, type Result } from "neverthrow";
-import { tauriResult } from "@/api/app/_invoke.ts";
 import {
   LLM_ROLES,
   type LlmProvider,
   type LlmRole,
   type WorkspaceLlmConfig,
 } from "@kalaido/client/kalaidoscope/llm-config";
+import { invoke } from "@tauri-apps/api/core";
+import { ok, type Result } from "neverthrow";
+import { tauriCall } from "@/api/app/_invoke.ts";
 
 export type ValidateErrorKind = "auth" | "quota" | "transient" | "other";
 
@@ -40,12 +40,15 @@ export interface ValidateKeyInput {
 export function validateKey(
   input: ValidateKeyInput,
 ): Promise<Result<ValidateResult, Error>> {
-  return tauriResult(
-    invoke<ValidateResult>("validate_llm_key", {
-      provider: input.provider,
-      apiKey: input.apiKey,
-      model: input.defaultModel,
-    }),
+  return tauriCall(
+    "validate_llm_key",
+    () =>
+      invoke<ValidateResult>("validate_llm_key", {
+        provider: input.provider,
+        apiKey: input.apiKey,
+        model: input.defaultModel,
+      }),
+    { ok: true },
   );
 }
 

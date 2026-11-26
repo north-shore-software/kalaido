@@ -73,6 +73,11 @@ cmd_dev() {
   (cd "$DESKTOP" && pnpm tauri dev "$@")
 }
 
+cmd_dev_desktop() {
+  say "vite dev, desktop target (http://localhost:1420)"
+  (cd "$DESKTOP" && pnpm dev "$@")
+}
+
 cmd_init_android() {
   say "tauri android init (mobile)"
   (cd "$MOBILE" && pnpm tauri android init "$@")
@@ -81,6 +86,11 @@ cmd_init_android() {
 cmd_dev_android() {
   say "tauri android dev (mobile)"
   (cd "$MOBILE" && pnpm tauri android dev "$@")
+}
+
+cmd_dev_mobile() {
+  say "vite dev, mobile target (http://localhost:1422)"
+  (cd "$MOBILE" && pnpm dev "$@")
 }
 
 cmd_build_android() {
@@ -94,7 +104,7 @@ cmd_build_android_release() {
 }
 
 cmd_dev_web() {
-  say "vite dev, web target (http://localhost:1420)"
+  say "vite dev, web target (http://localhost:1424)"
   (cd "$WEB" && pnpm dev "$@")
 }
 
@@ -526,12 +536,14 @@ usage() {
 usage: ./kalaido.sh <command> [args...]
 
   dev                                tauri dev (desktop, rebuilds sidecar first)
+  dev:desktop                        vite dev, desktop target (http://localhost:1420)
 
   init:android                       generate apps/mobile/src-tauri/gen/android (once)
   dev:android                        tauri android dev (mobile, no sidecar)
+  dev:mobile                         vite dev, mobile target (http://localhost:1422)
   build:android                      debug-signed apk, sideloadable
   build:android:release              unsigned release aarch64 apk
-  dev:web                            vite dev, web target (http://localhost:1420)
+  dev:web                            vite dev, web target (http://localhost:1424)
   build:web                          web build (apps/web/dist)
 
   gen:types                          rebuild the schema db, regenerate types.ts
@@ -572,8 +584,10 @@ EOF
 
 case "${1:-}" in
   dev) shift; cmd_dev "$@" ;;
+  dev:desktop) shift; cmd_dev_desktop "$@" ;;
   init:android) shift; cmd_init_android "$@" ;;
   dev:android) shift; cmd_dev_android "$@" ;;
+  dev:mobile) shift; cmd_dev_mobile "$@" ;;
   build:android) shift; cmd_build_android "$@" ;;
   build:android:release) shift; cmd_build_android_release "$@" ;;
   dev:web) shift; cmd_dev_web "$@" ;;

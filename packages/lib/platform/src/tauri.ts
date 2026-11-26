@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { writeHtml, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { load, type Store } from "@tauri-apps/plugin-store";
@@ -16,6 +17,7 @@ export interface CreateTauriHostOptions {
   collectDiagnostics?: (
     context: FeedbackContext,
   ) => Promise<Result<FeedbackDiagnostics, Error>>;
+  onUnsupportedAction?: (action: string) => void;
 }
 
 const STORE_FILE = "kalaido-settings.json";
@@ -32,7 +34,50 @@ async function wrapResult<T>(p: Promise<T>): Promise<Result<T, Error>> {
   }
 }
 
+function createDummyTauriHost(options: CreateTauriHostOptions): HostAdapter {
+  const drop = <T>(action: string, value: T): Promise<Result<T, Error>> => {
+    options.onUnsupportedAction?.(action);
+    return Promise.resolve(ok(value));
+  };
+
+  const settings: SettingsStore = {
+    get: async () => ok(undefined),
+    getAll: async () => ok({}),
+    set: (key) => drop(`settings.set(${key})`, undefined),
+    delete: (key) => drop(`settings.delete(${key})`, undefined),
+    clear: () => drop("settings.clear", undefined),
+  };
+
+  return {
+    variant: options.variant,
+    settings,
+    clipboard: {
+      writeHtml: () => drop("clipboard.writeHtml", undefined),
+    },
+    diagnostics: {
+      collect: (context) =>
+        drop("diagnostics.collect", {
+          appVersion: options.appVersion ?? "dev",
+          os: typeof navigator !== "undefined" ? navigator.platform : "unknown",
+          arch: "unknown",
+          variant: options.variant,
+          route: context.route,
+          kalaidoscopeType: context.kalaidoscopeType,
+          sidecarPhase: null,
+          sidecarLog: [],
+        }),
+    },
+    openExternalUrl: () => drop("openExternalUrl", undefined),
+    reload: () => {
+      options.onUnsupportedAction?.("reload");
+    },
+  };
+}
+
 export function createTauriHost(options: CreateTauriHostOptions): HostAdapter {
+  if (!isTauri()) {
+    return createDummyTauriHost(options);
+  }
   let storePromise: Promise<Store> | null = null;
   const getStore = (): Promise<Store> =>
     (storePromise ??= load(STORE_FILE).catch((e) => {

@@ -101,7 +101,7 @@ Always run repo tasks through `./kalaido.sh` (it exports `VITE_BETTER_AUTH_URL` 
 - `./kalaido.sh fmt:ts` — Biome format `--write`.
 - `./kalaido.sh check:go` / `./kalaido.sh test:go` / `./kalaido.sh check:schema-freshness` — Go backend checks and schema typegen freshness.
 - `./kalaido.sh check:rust` / `./kalaido.sh test:rust` — `cargo fmt --check`, `cargo clippy --workspace`, `cargo test --workspace`.
-- `./kalaido.sh dev` / `dev:web` / `dev:android` — Run desktop, web, or Android dev targets.
+- `./kalaido.sh dev` / `dev:desktop` / `dev:mobile` / `dev:web` / `dev:android` — Run desktop, mobile, web, or Android dev targets.
 - `./kalaido.sh build:app` / `build:web` / `build:android` / `build:android:release` — Build targets.
 
 ## Sub-Project Routing

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Result } from "neverthrow";
-import { tauriResult } from "@/api/app/_invoke.ts";
+import { tauriCall } from "@/api/app/_invoke.ts";
 
 export interface OllamaStatus {
   reachable: boolean;
@@ -19,5 +19,9 @@ export interface OllamaStatus {
  * itself broke.
  */
 export function checkOllamaStatus(): Promise<Result<OllamaStatus, Error>> {
-  return tauriResult(invoke<OllamaStatus>("check_ollama_status"));
+  return tauriCall(
+    "check_ollama_status",
+    () => invoke<OllamaStatus>("check_ollama_status"),
+    { reachable: false },
+  );
 }

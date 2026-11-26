@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Result } from "neverthrow";
-import { tauriResult } from "@/api/app/_invoke.ts";
+import { tauriCall } from "@/api/app/_invoke.ts";
 
 export type FileKind = "text" | "docx" | "other";
 
@@ -12,11 +12,19 @@ export interface FileEntry {
 export function classifyPath(
   path: string,
 ): Promise<Result<FileEntry[], Error>> {
-  return tauriResult(invoke<FileEntry[]>("classify_path", { path }));
+  return tauriCall(
+    "classify_path",
+    () => invoke<FileEntry[]>("classify_path", { path }),
+    [],
+  );
 }
 
 export function readLocalFileFromDisk(
   path: string,
 ): Promise<Result<ArrayBuffer, Error>> {
-  return tauriResult(invoke<ArrayBuffer>("read_file_bytes", { path }));
+  return tauriCall(
+    "read_file_bytes",
+    () => invoke<ArrayBuffer>("read_file_bytes", { path }),
+    new ArrayBuffer(0),
+  );
 }
