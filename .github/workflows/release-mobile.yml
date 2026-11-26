@@ -91,19 +91,24 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
       - name: setup android sdk and ndk
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          bt_pkg="$(sdkmanager --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^build-tools;[0-9]+\.[0-9]+\.[0-9]+$/) print $1 }' | sort -V | tail -n 1)"
-          sdkmanager "platform-tools" "platforms;android-37" "$bt_pkg"
+          ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          bt_pkg="$("$sdkmanager" --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^build-tools;[0-9]+\.[0-9]+\.[0-9]+$/) print $1 }' | sort -V | tail -n 1)"
+          "$sdkmanager" "platform-tools" "platforms;android-37" "$bt_pkg"
           if [[ -z "$(ls -A "$ANDROID_HOME/ndk" 2>/dev/null)" ]]; then
-            ndk_pkg="$(sdkmanager --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^ndk;[0-9]+\.[0-9]+\.[0-9]+$/) print $1 }' | sort -V | tail -n 1)"
-            sdkmanager "$ndk_pkg"
+            ndk_pkg="$("$sdkmanager" --list 2>/dev/null | tr '\r' '\n' | awk -F'|' '{ gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); if ($1 ~ /^ndk;[0-9]+\.[0-9]+\.[0-9]+$/) print $1 }' | sort -V | tail -n 1)"
+            "$sdkmanager" "$ndk_pkg"
           fi
           ndk_dir="$ANDROID_HOME/ndk/$(ls -1 "$ANDROID_HOME/ndk" | sort -V | tail -n 1)"
           bt_dir="$ANDROID_HOME/build-tools/$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "NDK_HOME=$ndk_dir" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           echo "$bt_dir" >> "$GITHUB_PATH"
       - uses: dtolnay/rust-toolchain@stable
         with:
