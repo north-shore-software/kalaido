@@ -2,6 +2,19 @@ name: release desktop
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy_backend_canary:
+        description: Trigger cloud backend canary deploy after tagging
+        type: boolean
+        default: false
+      migrate_d1:
+        description: Apply pending production D1 migrations before canary deploy
+        type: boolean
+        default: false
+      deploy_email:
+        description: Deploy email-ingest worker after canary deploy
+        type: boolean
+        default: false
 
 concurrency:
   group: release
@@ -61,6 +74,36 @@ jobs:
             Cargo.lock
           git commit -m "bump to $version"
           git push --atomic origin HEAD:main "$TAG"
+
+  dispatch-canary:
+    runs-on: ubuntu-latest
+    needs: bump
+    if: ${{ inputs.deploy_backend_canary }}
+    environment: release
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ vars.CLOUD_DEPLOY_REPO }}
+      - name: dispatch cloud-canary workflow
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ vars.CLOUD_DEPLOY_REPO }}
+          TAG: ${{ needs.bump.outputs.tag }}
+          MIGRATE_D1: ${{ inputs.migrate_d1 }}
+          DEPLOY_EMAIL: ${{ inputs.deploy_email }}
+        run: |
+          [ -n "$REPO" ] || { echo "CLOUD_DEPLOY_REPO variable is not set" >&2; exit 1; }
+          gh workflow run cloud-canary.yml \
+            --repo "$OWNER/$REPO" \
+            --ref main \
+            -f "target_ref=$TAG" \
+            -f "migrate_d1=$MIGRATE_D1" \
+            -f "deploy_email=$DEPLOY_EMAIL"
 
   aarch64:
     runs-on: macos-latest
