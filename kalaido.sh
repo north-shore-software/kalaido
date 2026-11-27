@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DESKTOP="$ROOT/apps/desktop"
 MOBILE="$ROOT/apps/mobile"
 WEB="$ROOT/apps/web"
+DOCS="$ROOT/docs"
 KS="$ROOT/kalaidoscope"
 DESKTOP_TAURI="$DESKTOP/src-tauri"
 MOBILE_TAURI="$MOBILE/src-tauri"
@@ -111,6 +112,16 @@ cmd_dev_web() {
 cmd_build_web() {
   say "web build (apps/web/dist)"
   (cd "$WEB" && pnpm build "$@")
+}
+
+cmd_dev_docs() {
+  say "astro dev, docs site (http://localhost:4321)"
+  (cd "$DOCS" && pnpm dev "$@")
+}
+
+cmd_build_docs() {
+  say "docs build (docs/dist)"
+  (cd "$DOCS" && pnpm build "$@")
 }
 
 cmd_gen_types() {
@@ -241,6 +252,8 @@ cmd_check_ts() {
   (cd "$ROOT" && pnpm build:mobile)
   say "web build"
   (cd "$ROOT" && pnpm build:web)
+  say "docs build"
+  (cd "$ROOT" && pnpm build:docs)
 }
 
 cmd_check_ts_typecheck_only() {
@@ -545,6 +558,8 @@ usage: ./kalaido.sh <command> [args...]
   build:android:release              release aarch64 apk (signed via keystore.properties or ANDROID_KEYSTORE_* env)
   dev:web                            vite dev, web target (http://localhost:1424)
   build:web                          web build (apps/web/dist)
+  dev:docs                           astro dev, docs site (http://localhost:4321)
+  build:docs                         docs build (docs/dist)
 
   gen:types                          rebuild the schema db, regenerate types.ts
   bump [release|dev|<ver>]           set repo app version (desktop + mobile)
@@ -554,7 +569,7 @@ usage: ./kalaido.sh <command> [args...]
   build:sidecar [target]             build the go sidecar into apps/desktop/src-tauri/binaries
   build:app                          tauri build (desktop, rebuilds sidecar first)
 
-  check:ts                           biome, nav, design, routes, typecheck, desktop/mobile/web builds
+  check:ts                           biome, nav, design, routes, typecheck, desktop/mobile/web/docs builds
   check:ts-typecheck-only            pnpm -r typecheck
   check:go                           vet, gofmt, go mod tidy
   check:rust                         cargo fmt, clippy (--workspace)
@@ -592,6 +607,8 @@ case "${1:-}" in
   build:android:release) shift; cmd_build_android_release "$@" ;;
   dev:web) shift; cmd_dev_web "$@" ;;
   build:web) shift; cmd_build_web "$@" ;;
+  dev:docs) shift; cmd_dev_docs "$@" ;;
+  build:docs) shift; cmd_build_docs "$@" ;;
   gen:types) shift; cmd_gen_types "$@" ;;
   bump) shift; cmd_bump "$@" ;;
   bump:release) shift; cmd_bump release "$@" ;;

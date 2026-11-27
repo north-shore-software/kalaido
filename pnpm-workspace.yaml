@@ -3,6 +3,7 @@ packages:
   - "packages/lib/*"
   - "packages/react/*"
   - "apps/*"
+  - "docs"
 
 overrides:
   react-inspector: 9.0.0

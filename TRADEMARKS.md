@@ -1,8 +1,17 @@
 # Kalaido trademarks and brand assets
 
 **Kalaido**, the Kalaido wordmark, the overprint K lettermark, the Kalaido letter
-fragments and kaleidoscope artwork, and the other logos and artwork in `app/src/assets/brand/` and `app/src-tauri/icons/`
-(the "Kalaido Marks") belong to **North Shore Software Ltd.** All rights reserved.
+fragments and kaleidoscope artwork, and the other Kalaido logos and artwork in this repository
+(the "Kalaido Marks") belong to **North Shore Software Ltd.** All rights reserved. They
+include the files in:
+
+- `brand/`
+- `apps/desktop/src-tauri/icons/` and `apps/mobile/src-tauri/icons/`
+- `apps/mobile/src-tauri/gen/android/app/src/main/res/mipmap-*/` (Android launcher icons)
+- `apps/mobile/public/` and `apps/web/public/` (favicons)
+- `docs/public/brand/` (docs site favicons and social image)
+
+and any copy of that artwork elsewhere in the repository.
 
 ## The code licence does not cover the marks
 
@@ -10,6 +19,9 @@ Kalaido's source code is licensed under the GNU Affero General Public License v3
 licence covers the software. It does **not** grant any right to use the Kalaido Marks.
 Those artwork files are not licensed under the AGPL. They are © 2026 North
 Shore Software Ltd., all rights reserved.
+
+The same goes for the documentation at docs.kalaido.co (source in `docs/`). Its text is
+licensed under CC BY-SA 4.0, and that licence does not cover the Kalaido Marks either.
 
 ## What you may do without asking
 
