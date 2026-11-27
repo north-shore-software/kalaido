@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
@@ -440,5 +442,272 @@ func TestProjectionCanvasChatWriteProposeUpdateAndPickerNotify(t *testing.T) {
 	}
 	if engine.HasUnresolvedEditMarkers(snap.GetString("output_draft")) {
 		t.Error("expected clean draft with zero unresolved markers after confirmed full rewrite")
+	}
+}
+
+type deferredRunner struct {
+	mu   sync.Mutex
+	jobs []func(context.Context)
+}
+
+func (r *deferredRunner) Go(fn func(context.Context)) {
+	r.mu.Lock()
+	r.jobs = append(r.jobs, fn)
+	r.mu.Unlock()
+}
+
+func (r *deferredRunner) runAll() {
+	r.mu.Lock()
+	jobs := append([]func(context.Context){}, r.jobs...)
+	r.jobs = nil
+	r.mu.Unlock()
+	for _, fn := range jobs {
+		fn(context.Background())
+	}
+}
+
+type failingProvider struct{ err error }
+
+func (failingProvider) ContextWindow() int { return 256_000 }
+func (p failingProvider) Stream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, opts llm.GenOptions) (*llm.Completion, error) {
+	return nil, p.err
+}
+
+func TestAsyncUpdateClaimDiscardExistingAndStatusRoute(t *testing.T) {
+	llm.SetActiveModelSet(llm.SetLocal)
+	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
+		return testFakeProvider{reply: "<summary>Updated paragraph 2.</summary>\n<document>P1\n\nP2 updated\n\nP3</document>"}
+	})
+	app := testutil.NewApp(t)
+	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":                 "Async Doc",
+		"status":               engine.EntityActive,
+		"current_context_spec": pbutil.JSONObject(spec),
+	})
+	testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":            proj.Id,
+		"status":                   engine.StatusApproved,
+		"approval_sequence_number": 1,
+		"output":                   "P1\n\nP2\n\nP3",
+		"context_spec":             pbutil.JSONObject(spec),
+	})
+	oldPending := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id": proj.Id,
+		"status":        engine.StatusPending,
+		"output_draft":  "Stale draft",
+	})
+
+	runner := &deferredRunner{}
+	rec, err := callJSON(t, app, HandleGenerateCandidate(app, runner), http.MethodPost,
+		"/api/projections/"+proj.Id+"/candidates",
+		`{"preview":true,"async":true,"discardExisting":true}`,
+		map[string]string{"id": proj.Id})
+	if err != nil {
+		t.Fatalf("async generate: %v", err)
+	}
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body %s", rec.Code, rec.Body.String())
+	}
+	var res api.ProjectionSnapshotResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.SnapshotID == "" {
+		t.Fatal("expected immediate claim snapshotId")
+	}
+
+	// Old pending candidate was discarded immediately on claim.
+	oldPending, _ = app.FindRecordById(schema.ColProjectionSnapshot.String(), oldPending.Id)
+	if oldPending.GetString("status") != engine.StatusDiscarded {
+		t.Errorf("old pending status = %q, want discarded", oldPending.GetString("status"))
+	}
+
+	// Status route reports "generating" before background job finishes.
+	stRec, err := callJSON(t, app, HandleGetCandidateStatus(app), http.MethodGet,
+		"/api/projections/"+proj.Id+"/candidates/"+res.SnapshotID+"/status", "",
+		map[string]string{"id": proj.Id, "rid": res.SnapshotID})
+	if err != nil {
+		t.Fatalf("status generating: %v", err)
+	}
+	var st api.ProjectionCandidateStatusResponse
+	if err := json.Unmarshal(stRec.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Status != "generating" {
+		t.Fatalf("status before run = %+v, want generating", st)
+	}
+
+	// Execute background job -> snapshot transitions to pending_review + refinement attached.
+	runner.runAll()
+
+	stRec, err = callJSON(t, app, HandleGetCandidateStatus(app), http.MethodGet,
+		"/api/projections/"+proj.Id+"/candidates/"+res.SnapshotID+"/status", "",
+		map[string]string{"id": proj.Id, "rid": res.SnapshotID})
+	if err != nil {
+		t.Fatalf("status ready: %v", err)
+	}
+	if err := json.Unmarshal(stRec.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Status != "ready" {
+		t.Fatalf("status after run = %+v, want ready", st)
+	}
+	refs, err := app.FindRecordsByFilter(schema.ColProjectionRefinement.String(),
+		"projection_snapshot_id = {:sid}", "", 0, 0, map[string]any{"sid": res.SnapshotID})
+	if err != nil || len(refs) != 1 {
+		t.Fatalf("expected 1 attached refinement, got %d (err=%v)", len(refs), err)
+	}
+	msgs, _ := chat.LoadMessages(context.Background(), app, refs[0])
+	if len(msgs) < 2 {
+		t.Fatalf("expected system context + opening assistant message, got %d", len(msgs))
+	}
+
+	// Error case: provider failure records error status and releases claim row.
+	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
+		return failingProvider{err: errors.New("provider boom")}
+	})
+	rec2, err := callJSON(t, app, HandleGenerateCandidate(app, runner), http.MethodPost,
+		"/api/projections/"+proj.Id+"/candidates",
+		`{"preview":true,"async":true,"discardExisting":true}`,
+		map[string]string{"id": proj.Id})
+	if err != nil {
+		t.Fatalf("async generate 2: %v", err)
+	}
+	var res2 api.ProjectionSnapshotResponse
+	if err := json.Unmarshal(rec2.Body.Bytes(), &res2); err != nil {
+		t.Fatal(err)
+	}
+	runner.runAll()
+
+	if _, findErr := app.FindRecordById(schema.ColProjectionSnapshot.String(), res2.SnapshotID); findErr == nil {
+		t.Fatal("expected failed claim row to be released")
+	}
+	stRec2, err := callJSON(t, app, HandleGetCandidateStatus(app), http.MethodGet,
+		"/api/projections/"+proj.Id+"/candidates/"+res2.SnapshotID+"/status", "",
+		map[string]string{"id": proj.Id, "rid": res2.SnapshotID})
+	if err != nil {
+		t.Fatalf("status error: %v", err)
+	}
+	var st2 api.ProjectionCandidateStatusResponse
+	if err := json.Unmarshal(stRec2.Body.Bytes(), &st2); err != nil {
+		t.Fatal(err)
+	}
+	if st2.Status != "error" || !strings.Contains(st2.Error, "provider boom") {
+		t.Fatalf("status after failure = %+v, want error containing provider boom", st2)
+	}
+}
+
+func TestUnifiedDraftDiscardLifecycle(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	// 1. Never-saved user-created projection with pending candidate -> hard-deleted.
+	userProj := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":   "Unsaved User Draft",
+		"status": engine.EntityActive,
+	})
+	userCand := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id": userProj.Id,
+		"status":        engine.StatusPending,
+		"output_draft":  "Draft body",
+	})
+	userRef := testutil.NewRecord(t, app, "projection_refinement", map[string]any{
+		"projection_id":            userProj.Id,
+		"projection_snapshot_id":   userCand.Id,
+		"external_conversation_id": "conv-user-cand",
+	})
+
+	rec, err := callJSON(t, app, HandleDiscardCandidate(app), http.MethodPost,
+		"/api/projections/"+userProj.Id+"/candidates/"+userCand.Id+"/discard", `{}`,
+		map[string]string{"id": userProj.Id, "rid": userCand.Id})
+	if err != nil {
+		t.Fatalf("discard never-saved user candidate: %v", err)
+	}
+	var d1 api.DiscardProjectionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &d1); err != nil {
+		t.Fatal(err)
+	}
+	if !d1.DeletedProjection || d1.RevertedToProposed {
+		t.Fatalf("discard response = %+v, want deletedProjection=true", d1)
+	}
+	if _, err := app.FindRecordById(schema.ColProjection.String(), userProj.Id); err == nil {
+		t.Fatal("expected user-created never-saved projection to be hard-deleted")
+	}
+	if _, err := app.FindRecordById(schema.ColProjectionRefinement.String(), userRef.Id); err == nil {
+		t.Fatal("expected cascaded delete of refinement row")
+	}
+
+	// 2. Discover-originated never-saved projection -> reverted to "proposed".
+	run := testutil.NewRecord(t, app, "discover_run", map[string]any{
+		"status": "done",
+		"kind":   "projections",
+	})
+	discProj := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":                       "Discovered Proposal",
+		"status":                     engine.EntityActive,
+		"created_by_discover_run_id": run.Id,
+	})
+	discCand := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id": discProj.Id,
+		"status":        engine.StatusPending,
+		"output_draft":  "Draft from proposal",
+	})
+	discUnbound := testutil.NewRecord(t, app, "projection_refinement", map[string]any{
+		"projection_id":            discProj.Id,
+		"external_conversation_id": "conv-disc-unbound",
+	})
+
+	rec, err = callJSON(t, app, HandleDiscardCandidate(app), http.MethodPost,
+		"/api/projections/"+discProj.Id+"/candidates/"+discCand.Id+"/discard", `{}`,
+		map[string]string{"id": discProj.Id, "rid": discCand.Id})
+	if err != nil {
+		t.Fatalf("discard discover candidate: %v", err)
+	}
+	var d2 api.DiscardProjectionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &d2); err != nil {
+		t.Fatal(err)
+	}
+	if d2.DeletedProjection || !d2.RevertedToProposed {
+		t.Fatalf("discard discover response = %+v, want revertedToProposed=true", d2)
+	}
+	discProj, err = app.FindRecordById(schema.ColProjection.String(), discProj.Id)
+	if err != nil {
+		t.Fatalf("discover projection should still exist: %v", err)
+	}
+	if discProj.GetString("status") != engine.EntityProposed {
+		t.Errorf("discover projection status = %q, want proposed", discProj.GetString("status"))
+	}
+	discCand, _ = app.FindRecordById(schema.ColProjectionSnapshot.String(), discCand.Id)
+	if discCand.GetString("status") != engine.StatusDiscarded {
+		t.Errorf("discover candidate status = %q, want discarded", discCand.GetString("status"))
+	}
+	if _, err := app.FindRecordById(schema.ColProjectionRefinement.String(), discUnbound.Id); err == nil {
+		t.Error("expected unbound refinement on discover projection to be deleted")
+	}
+
+	// 3. Unbound draft session (no snapshot row yet) via POST .../draft/discard.
+	unboundUser := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":   "Unbound User",
+		"status": engine.EntityActive,
+	})
+	testutil.NewRecord(t, app, "projection_refinement", map[string]any{
+		"projection_id":            unboundUser.Id,
+		"external_conversation_id": "conv-unbound-user",
+	})
+	rec, err = callJSON(t, app, HandleDiscardProjectionDraft(app), http.MethodPost,
+		"/api/projections/"+unboundUser.Id+"/draft/discard", `{}`,
+		map[string]string{"id": unboundUser.Id})
+	if err != nil {
+		t.Fatalf("discard unbound draft: %v", err)
+	}
+	var d3 api.DiscardProjectionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &d3); err != nil {
+		t.Fatal(err)
+	}
+	if !d3.DeletedProjection {
+		t.Fatalf("discard unbound user draft = %+v, want deletedProjection=true", d3)
+	}
+	if _, err := app.FindRecordById(schema.ColProjection.String(), unboundUser.Id); err == nil {
+		t.Fatal("expected unbound user projection to be hard-deleted")
 	}
 }

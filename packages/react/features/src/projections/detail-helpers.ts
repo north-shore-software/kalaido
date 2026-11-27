@@ -182,6 +182,18 @@ export function deriveFreshnessSummary(args: {
   };
 }
 
+export function shouldStartFreshWithUpdate(args: {
+  newSinceCandidate: number;
+  entropy: number;
+  staleDependenciesCount: number;
+}): boolean {
+  return (
+    args.newSinceCandidate > 0 ||
+    args.entropy > 0 ||
+    args.staleDependenciesCount > 0
+  );
+}
+
 export function deriveDetailHeaderState({
   id,
   projection,

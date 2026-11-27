@@ -5,6 +5,17 @@ type ProjectionSnapshotResponse struct {
 	RefinementID string `json:"refinementId,omitempty"`
 }
 
+type ProjectionCandidateStatusResponse struct {
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+type DiscardProjectionResponse struct {
+	SnapshotID         string `json:"snapshotId,omitempty"`
+	DeletedProjection  bool   `json:"deletedProjection,omitempty"`
+	RevertedToProposed bool   `json:"revertedToProposed,omitempty"`
+}
+
 type ProjectionLensResponse struct {
 	LensID   string `json:"lensId"`
 	Prompt   string `json:"prompt"`
@@ -28,13 +39,15 @@ type ResolveAllSnapshotEditsResponse struct {
 }
 
 type GenerateProjectionSnapshotRequest struct {
-	SourceID       string      `json:"sourceId"` // ProjectionID
-	ChatID         string      `json:"chatId"`
-	FragmentIDs    []string    `json:"fragmentIds"`
-	ColourIDs      []string    `json:"colourIds"`
-	Messages       []UIMessage `json:"messages"`
-	Preview        bool        `json:"preview"`
-	DiscardEngaged bool        `json:"discardEngaged,omitempty"`
+	SourceID        string      `json:"sourceId"` // ProjectionID
+	ChatID          string      `json:"chatId"`
+	FragmentIDs     []string    `json:"fragmentIds"`
+	ColourIDs       []string    `json:"colourIds"`
+	Messages        []UIMessage `json:"messages"`
+	Preview         bool        `json:"preview"`
+	Async           bool        `json:"async,omitempty"`
+	DiscardExisting bool        `json:"discardExisting,omitempty"`
+	DiscardEngaged  bool        `json:"discardEngaged,omitempty"`
 	// FoldIn marks an approve-then-regenerate: an unchanged result settles
 	// the approved row in place, and the refinement that was open on the
 	// approved candidate carries over to the new one.

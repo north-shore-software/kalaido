@@ -51,6 +51,10 @@ export interface UseProjectionSnapshotResult {
   liveSnapshot: ProjectionSnapshotWithEdits | undefined;
   /** A generation is running server-side (a status='generating' claim row). */
   generating: boolean;
+  /** ID of the active status='generating' claim row, if any. */
+  generatingSnapshotId: string | undefined;
+  /** True while the initial projection or snapshot query is loading. */
+  isLoading: boolean;
 }
 
 /**
@@ -95,7 +99,9 @@ export function useProjectionSnapshot(
     () => allRecords.filter((s) => s.status !== "generating"),
     [allRecords],
   );
-  const generating = allRecords.some((s) => s.status === "generating");
+  const generatingRecord = allRecords.find((s) => s.status === "generating");
+  const generating = Boolean(generatingRecord);
+  const generatingSnapshotId = generatingRecord?.id;
 
   // Snapshots are newest-first, so the first approved one is the live snapshot.
   const liveSnapshot = useMemo(
@@ -151,5 +157,7 @@ export function useProjectionSnapshot(
     snapshots,
     liveSnapshot,
     generating,
+    generatingSnapshotId,
+    isLoading: snapshotsQuery.isLoading || projectionsQuery.isLoading,
   };
 }

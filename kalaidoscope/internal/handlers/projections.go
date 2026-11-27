@@ -113,7 +113,7 @@ func HandleRestoreProjection(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
+func HandleGenerateCandidate(app core.App, runner workerutil.Runner) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 		if id == "" {
@@ -129,8 +129,22 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 			return e.NotFoundError("projection not found", err)
 		}
 
+		if req.Async {
+			claimID, err := projections.StartAnchoredUpdateAsync(app, runner, id, req.DiscardExisting)
+			if err != nil {
+				return WriteGenerateError(e, app, err, "projection")
+			}
+			return e.JSON(http.StatusAccepted, api.ProjectionSnapshotResponse{
+				SnapshotID: claimID,
+			})
+		}
+
 		genCtx := context.WithoutCancel(e.Request.Context())
-		res, err := projections.RunAnchoredUpdate(genCtx, app, id)
+		proj, claimID, err := projections.PrepareAnchoredUpdate(genCtx, app, id, req.DiscardExisting)
+		if err != nil {
+			return WriteGenerateError(e, app, err, "projection")
+		}
+		res, err := projections.ExecuteClaimedUpdate(genCtx, app, proj, claimID)
 		if err != nil {
 			return WriteGenerateError(e, app, err, "projection")
 		}
@@ -139,6 +153,25 @@ func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 			SnapshotID:   res.SnapshotID,
 			RefinementID: res.RefinementID,
 		})
+	}
+}
+
+func HandleGetCandidateStatus(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		projID := e.Request.PathValue("id")
+		snapID := e.Request.PathValue("rid")
+		if projID == "" || snapID == "" {
+			return e.BadRequestError("projection id and candidate id required", nil)
+		}
+		res, err := projections.GetCandidateUpdateStatus(app, projID, snapID)
+		if err != nil {
+			if errors.Is(err, projections.ErrNotFound) {
+				return e.NotFoundError("projection or candidate not found", err)
+			}
+			logger().Error("get candidate status failed", "id", projID, "snapshot_id", snapID, "error", err)
+			return e.InternalServerError("get candidate status failed", err)
+		}
+		return e.JSON(http.StatusOK, res)
 	}
 }
 
@@ -239,18 +272,50 @@ func HandleDiscardCandidate(app core.App) func(e *core.RequestEvent) error {
 			return herr
 		}
 		projID := e.Request.PathValue("id")
-		if err := projections.DiscardCandidate(app, projID, snapID); err != nil {
+		res, err := projections.DiscardCandidate(app, projID, snapID)
+		if err != nil {
 			switch {
 			case errors.Is(err, projections.ErrNotFound):
 				return e.NotFoundError("projection not found", err)
 			case errors.Is(err, projections.ErrEditNotPending):
 				return e.Error(http.StatusConflict, err.Error(), err)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict, "a generation is running for this projection", nil)
 			default:
 				logger().Error("discard candidate failed", "id", projID, "snapshot_id", snapID, "error", err)
 				return e.InternalServerError("discard candidate failed", err)
 			}
 		}
-		return e.JSON(http.StatusOK, api.ProjectionSnapshotResponse{SnapshotID: snapID})
+		return e.JSON(http.StatusOK, api.DiscardProjectionResponse{
+			SnapshotID:         snapID,
+			DeletedProjection:  res.DeletedProjection,
+			RevertedToProposed: res.RevertedToProposed,
+		})
+	}
+}
+
+func HandleDiscardProjectionDraft(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		projID := e.Request.PathValue("id")
+		if projID == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		res, err := projections.DiscardDraftSession(app, projID)
+		if err != nil {
+			switch {
+			case errors.Is(err, projections.ErrNotFound):
+				return e.NotFoundError("projection not found", err)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict, "a generation is running for this projection", nil)
+			default:
+				logger().Error("discard projection draft failed", "id", projID, "error", err)
+				return e.InternalServerError("discard projection draft failed", err)
+			}
+		}
+		return e.JSON(http.StatusOK, api.DiscardProjectionResponse{
+			DeletedProjection:  res.DeletedProjection,
+			RevertedToProposed: res.RevertedToProposed,
+		})
 	}
 }
 

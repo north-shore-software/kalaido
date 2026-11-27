@@ -1,5 +1,6 @@
 import {
   approveProjectionCandidate,
+  type DiscardProjectionResult,
   discardProjectionCandidate,
 } from "@kalaido/client/kalaidoscope/projections";
 import {
@@ -9,6 +10,7 @@ import {
 import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import type { RefineSession } from "@kalaido/hooks/use-refine-session";
 import { useExternalWrite } from "@kalaido/state/live";
+import { useRef } from "react";
 import { toast } from "sonner";
 
 export interface ReviewActionCallbacks {
@@ -17,12 +19,14 @@ export interface ReviewActionCallbacks {
   session: RefineSession;
   onCloseConfirmDiscard: () => void;
   onApproveSuccess: (id: string) => void;
-  onDiscardSuccess: (id: string) => void;
+  onBackToDetail: (id: string) => void;
+  onBackToList: (opts?: { replace?: boolean }) => void;
 }
 
 export function useProjectionReviewActions(callbacks: ReviewActionCallbacks) {
   const client = useKalaidoscopeClient();
   const { id, pendingId, session } = callbacks;
+  const discardResultRef = useRef<DiscardProjectionResult | null>(null);
 
   const approveWrite = useExternalWrite<
     { projectionId: string; snapshotId: string },
@@ -41,11 +45,21 @@ export function useProjectionReviewActions(callbacks: ReviewActionCallbacks) {
     { projectionId: string; snapshotId: string },
     void
   >({
-    execute: ({ projectionId, snapshotId: targetSnapshotId }) =>
-      discardProjectionCandidate(projectionId, targetSnapshotId),
+    execute: async ({ projectionId, snapshotId: targetSnapshotId }) => {
+      const res = await discardProjectionCandidate(
+        projectionId,
+        targetSnapshotId,
+      );
+      if (res.isOk()) {
+        discardResultRef.current = res.value;
+      }
+      return res.map(() => undefined);
+    },
     concurrency: "ignore",
     invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection"),
       kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeCollectionTag(client.baseURL, "projection_refinement"),
       kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
     ],
   });
@@ -75,6 +89,7 @@ export function useProjectionReviewActions(callbacks: ReviewActionCallbacks) {
 
   async function discard() {
     if (!id || !pendingId || busy) return;
+    discardResultRef.current = null;
     const outcome = await discardWrite.run({
       projectionId: id,
       snapshotId: pendingId,
@@ -87,7 +102,15 @@ export function useProjectionReviewActions(callbacks: ReviewActionCallbacks) {
       });
       return;
     }
-    callbacks.onDiscardSuccess(id);
+    const result = discardResultRef.current as DiscardProjectionResult | null;
+    const removed = Boolean(
+      result?.deletedProjection || result?.revertedToProposed,
+    );
+    if (removed) {
+      callbacks.onBackToList({ replace: true });
+    } else {
+      callbacks.onBackToDetail(id);
+    }
   }
 
   return {

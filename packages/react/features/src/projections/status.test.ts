@@ -1,5 +1,5 @@
 import type { EntityStatus } from "@kalaido/client/kalaidoscope/freshness";
-import { getProjectionStatus } from "./status";
+import { getProjectionStatus, statusLabel } from "./status";
 
 function status(partial: Partial<EntityStatus>): EntityStatus {
   return { id: "x", type: "projection", ...partial };
@@ -114,5 +114,11 @@ describe("getProjectionStatus", () => {
     );
     expect(info.status).toBe("pending");
     expect(info.candidateOutdated).toBe(false);
+  });
+});
+
+describe("statusLabel", () => {
+  test("labels pending status as draft in progress", () => {
+    expect(statusLabel("pending")).toBe("draft in progress");
   });
 });

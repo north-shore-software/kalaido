@@ -43,7 +43,7 @@ func TestGenerateCandidateReturnsConflictWhenInFlight(t *testing.T) {
 		"status":        engine.StatusGenerating,
 	})
 
-	_, err := callJSON(t, app, HandleGenerateCandidate(app), http.MethodPost,
+	_, err := callJSON(t, app, HandleGenerateCandidate(app, nil), http.MethodPost,
 		"/api/projections/"+proj.Id+"/candidates", `{"preview":true}`, map[string]string{"id": proj.Id})
 	if code := apiErrorStatus(err); code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409 conflict; err %v", code, err)
@@ -78,7 +78,7 @@ func TestGenerateCandidateSucceedsEvenWhenPriorCandidateEngaged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec, err := callJSON(t, app, HandleGenerateCandidate(app), http.MethodPost,
+	rec, err := callJSON(t, app, HandleGenerateCandidate(app, nil), http.MethodPost,
 		"/api/projections/"+proj.Id+"/candidates", `{"preview":true}`, map[string]string{"id": proj.Id})
 	if err != nil {
 		t.Fatalf("generate: %v", err)
@@ -152,7 +152,7 @@ func TestGenerateCandidateNoChangesOpensSessionWithExplanation(t *testing.T) {
 		"output":                   "Paragraph A\n\nParagraph B",
 	})
 
-	rec, err := callJSON(t, app, HandleGenerateCandidate(app), http.MethodPost,
+	rec, err := callJSON(t, app, HandleGenerateCandidate(app, nil), http.MethodPost,
 		"/api/projections/"+proj.Id+"/candidates", `{"preview":true}`, map[string]string{"id": proj.Id})
 	if err != nil {
 		t.Fatalf("generate no-changes: %v", err)
@@ -188,9 +188,9 @@ func TestGenerateCandidateNoChangesOpensSessionWithExplanation(t *testing.T) {
 	}
 }
 
-// When anchored update replaces > 60% of blocks, it holds the draft and emits
-// a data-full_rewrite_confirmation card in the opening assistant message.
-func TestGenerateCandidateAboveFullRewriteThresholdEmitsConfirmation(t *testing.T) {
+// Issue 4: when anchored update replaces > 60% of blocks, it swaps output_draft
+// wholesale without a confirmation card and explains the replacement in chat.
+func TestGenerateCandidateAboveFullRewriteThresholdSwapsWholesale(t *testing.T) {
 	llm.SetActiveModelSet(llm.SetLocal)
 	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
 		return testFakeProvider{reply: "<summary>Rewrote all sections for the new architecture.</summary>\n<document>New 1\n\nNew 2\n\nNew 3</document>"}
@@ -208,7 +208,7 @@ func TestGenerateCandidateAboveFullRewriteThresholdEmitsConfirmation(t *testing.
 		"output":                   "Old 1\n\nOld 2\n\nOld 3",
 	})
 
-	rec, err := callJSON(t, app, HandleGenerateCandidate(app), http.MethodPost,
+	rec, err := callJSON(t, app, HandleGenerateCandidate(app, nil), http.MethodPost,
 		"/api/projections/"+proj.Id+"/candidates", `{"preview":true}`, map[string]string{"id": proj.Id})
 	if err != nil {
 		t.Fatalf("generate rewrite: %v", err)
@@ -221,24 +221,33 @@ func TestGenerateCandidateAboveFullRewriteThresholdEmitsConfirmation(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.GetString("output_draft") != "Old 1\n\nOld 2\n\nOld 3" {
-		t.Errorf("output_draft should remain untouched until confirmed, got %q", snap.GetString("output_draft"))
+	if snap.GetString("output_draft") != "New 1\n\nNew 2\n\nNew 3" {
+		t.Errorf("output_draft = %q, want wholesale replaced draft", snap.GetString("output_draft"))
+	}
+	if snap.GetString("output_raw") != "New 1\n\nNew 2\n\nNew 3" {
+		t.Errorf("output_raw = %q, want wholesale replaced draft", snap.GetString("output_raw"))
+	}
+	if len(engine.LoadSnapshotEdits(snap)) != 0 {
+		t.Errorf("expected 0 edits on wholesale swap, got %d", len(engine.LoadSnapshotEdits(snap)))
 	}
 
 	refRec, _ := app.FindRecordById(schema.ColProjectionRefinement.String(), res.RefinementID)
 	msgs, _ := chat.LoadMessages(context.Background(), app, refRec)
-	foundConfirm := false
+	var assistantText string
 	for _, m := range msgs {
 		for _, p := range m.Parts {
 			if p.Type == prompts.FullRewriteConfirmationPartType {
-				var conf prompts.FullRewriteConfirmationData
-				if json.Unmarshal(p.Data, &conf) == nil && conf.ProposedContent == "New 1\n\nNew 2\n\nNew 3" {
-					foundConfirm = true
-				}
+				t.Fatalf("unexpected %s part on anchored update", prompts.FullRewriteConfirmationPartType)
+			}
+			if m.Role == "assistant" && p.Type == "text" {
+				assistantText += p.Text
 			}
 		}
 	}
-	if !foundConfirm {
-		t.Fatalf("expected full_rewrite_confirmation part with proposedContent, got %+v", msgs)
+	if !strings.Contains(assistantText, "replaced the full draft") {
+		t.Errorf("opening assistant text = %q, want explicit note about full draft replacement", assistantText)
+	}
+	if !strings.Contains(assistantText, "Rewrote all sections for the new architecture.") {
+		t.Errorf("opening assistant text = %q, want original summary preserved", assistantText)
 	}
 }

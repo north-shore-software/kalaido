@@ -1,20 +1,26 @@
 import { parseContextSpec } from "@kalaido/client/kalaidoscope/chat";
 import {
+  regenerateProjection,
   restoreProjection,
   updateProjection,
 } from "@kalaido/client/kalaidoscope/projections";
 import type { ProjectionResponse } from "@kalaido/client/kalaidoscope/types";
 import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import { PageHeader } from "@kalaido/components";
+import {
+  kalaidoscopeCollectionTag,
+  kalaidoscopeEndpointTag,
+} from "@kalaido/hooks/kalaidoscope-live";
 import { useContextSources } from "@kalaido/hooks/use-context-sources";
-import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useFreshnessStatus } from "@kalaido/hooks/use-freshness-status";
-import { EmptyState, Mono } from "@kalaido/primitives/kalaido";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
+import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
+import { ConfirmDialog, EmptyState, Mono } from "@kalaido/primitives/kalaido";
 import { PageBody } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { useExternalWrite } from "@kalaido/state/live";
 import { PlusIcon } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ProjectionRow,
@@ -26,14 +32,19 @@ import { getProjectionStatus } from "./status";
 export interface ProjectionsScreenProps {
   onNewProjection: () => void;
   onOpenProjection: (id: string) => void;
-  onReviewProjection: (id: string, snapshotId: string) => void;
+  onStartUpdate: (id: string, snapshotId: string) => void;
 }
 
 export function ProjectionsScreen({
   onNewProjection,
   onOpenProjection,
-  onReviewProjection,
+  onStartUpdate,
 }: ProjectionsScreenProps) {
+  const client = useKalaidoscopeClient();
+  const [confirmUpdateTarget, setConfirmUpdateTarget] =
+    useState<ProjectionResponse | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
   const { records: projections, isLoading } = useLiveCollection("projection", {
     filter: 'name != "" && status = "active" && deleted_at = ""',
     sort: "-updated",
@@ -43,6 +54,12 @@ export function ProjectionsScreen({
       '(status="pending_review" || status="generating") && projection_id.deleted_at = ""',
     sort: "-created",
     fields: "id,projection_id,status",
+  });
+  // Unbound refinement sessions mark a projection as "draft in progress" as
+  // soon as the authoring session begins, even before first draft text exists.
+  const unboundRefinements = useLiveCollection("projection_refinement", {
+    filter: 'projection_snapshot_id = "" && projection_id.deleted_at = ""',
+    fields: "id,projection_id",
   });
   // Soft-deleted projections, newest deletion first. Dismissed proposals are
   // deleted the same way but are not worth restoring, so only real ones show.
@@ -65,6 +82,20 @@ export function ProjectionsScreen({
     concurrency: "allow",
   });
 
+  const startUpdateWrite = useExternalWrite<
+    { id: string; discardExisting: boolean },
+    { readonly id: string }
+  >({
+    execute: ({ id, discardExisting }) =>
+      regenerateProjection(id, { async: true, discardExisting }),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeCollectionTag(client.baseURL, "projection_refinement"),
+      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
+  });
+
   async function restore(id: string) {
     const outcome = await restoreWrite.run(id);
     if (outcome.status === "error") {
@@ -81,19 +112,39 @@ export function ProjectionsScreen({
     }
   }
 
-  const candidateByProjection = useMemo(() => {
-    const map = new Map<string, { id: string }>();
-    for (const s of pending.records) {
-      if (s.status !== "pending_review") continue;
-      // records are newest-first, so the first seen per projection is latest.
-      if (!map.has(s.projection_id)) {
-        map.set(s.projection_id, { id: s.id });
-      }
+  async function runStartUpdate(id: string, discardExisting: boolean) {
+    setUpdatingId(id);
+    const outcome = await startUpdateWrite.run({ id, discardExisting });
+    setUpdatingId(null);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Couldn't update", { description: outcome.error.message });
+      return;
     }
-    return map;
-  }, [pending.records]);
+    onStartUpdate(id, outcome.id);
+  }
+
+  const draftInProgressIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of pending.records) {
+      if (s.status === "pending_review") ids.add(s.projection_id);
+    }
+    for (const r of unboundRefinements.records) {
+      if (r.projection_id) ids.add(r.projection_id);
+    }
+    return ids;
+  }, [pending.records, unboundRefinements.records]);
+
+  function handleRowUpdate(p: ProjectionResponse) {
+    if (draftInProgressIds.has(p.id)) {
+      setConfirmUpdateTarget(p);
+      return;
+    }
+    void runStartUpdate(p.id, false);
+  }
+
   // status='generating' rows are the server's in-flight claims, one per
-  // running generation — they drive the card's "generating…" badge.
+  // running generation — they drive the row's "updating…" label.
   const generatingProjections = useMemo(
     () =>
       new Set(
@@ -136,14 +187,15 @@ export function ProjectionsScreen({
   );
 
   function renderRow(p: ProjectionResponse) {
-    const candidate = candidateByProjection.get(p.id);
+    const hasDraftInProgress = draftInProgressIds.has(p.id);
     return (
       <ProjectionRow
         key={p.id}
         p={p}
         generatedAt={generatedAtByProjection.get(p.id)}
-        candidateId={candidate?.id}
-        status={getProjectionStatus(statusById.get(p.id), !!candidate, {
+        hasDraftInProgress={hasDraftInProgress}
+        updating={updatingId === p.id && startUpdateWrite.isPending}
+        status={getProjectionStatus(statusById.get(p.id), hasDraftInProgress, {
           generating: generatingProjections.has(p.id),
         })}
         sources={resolveSources(
@@ -151,7 +203,7 @@ export function ProjectionsScreen({
           contextSources,
         )}
         onOpen={onOpenProjection}
-        onReview={onReviewProjection}
+        onUpdate={handleRowUpdate}
         onTogglePin={() => void togglePin(p)}
       />
     );
@@ -214,6 +266,25 @@ export function ProjectionsScreen({
           </details>
         )}
       </PageBody>
+      <ConfirmDialog
+        open={confirmUpdateTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmUpdateTarget(null);
+        }}
+        title="Discard existing draft and start fresh?"
+        description="Your current in-progress draft will be discarded and a fresh update will start from your latest sources."
+        confirmLabel={
+          startUpdateWrite.isPending ? "Starting…" : "Discard & update"
+        }
+        variant="destructive"
+        busy={startUpdateWrite.isPending}
+        onConfirm={() => {
+          if (!confirmUpdateTarget) return;
+          const targetId = confirmUpdateTarget.id;
+          setConfirmUpdateTarget(null);
+          void runStartUpdate(targetId, true);
+        }}
+      />
     </>
   );
 }

@@ -15,6 +15,10 @@ export interface ProjectionSideRailProps {
   generatedAt?: string;
   /** Set only while a pending candidate exists; navigates to its review. */
   onReviewCandidate?: () => void;
+  /** Discard an open draft and immediately launch a fresh update/revision. */
+  onDiscardAndStartFresh?: () => void;
+  /** True when starting fresh should run an anchored Update rather than Revise. */
+  startFreshIsUpdate?: boolean;
   /** In-scope fragments the pending candidate's resolved context misses. */
   newSinceCandidate?: number;
   /** Display names for `info.staleDependencies`, in the same order. */
@@ -34,6 +38,8 @@ export function ProjectionSideRail({
   info,
   generatedAt,
   onReviewCandidate,
+  onDiscardAndStartFresh,
+  startFreshIsUpdate = false,
   newSinceCandidate = 0,
   staleDependencyNames,
   regenerating,
@@ -65,6 +71,8 @@ export function ProjectionSideRail({
           info={info}
           generatedAt={generatedAt}
           onReviewCandidate={onReviewCandidate}
+          onDiscardAndStartFresh={onDiscardAndStartFresh}
+          startFreshIsUpdate={startFreshIsUpdate}
           newSinceCandidate={newSinceCandidate}
           staleDependencyNames={staleDependencyNames}
           regenerating={regenerating}

@@ -1,6 +1,8 @@
 import { formatShortDateTime } from "@kalaido/client/lib/datetime";
+import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { ArrowsClockwiseIcon, ClockIcon } from "@phosphor-icons/react";
+import { useState } from "react";
 import type { ProjectionStatusInfo } from "../status";
 
 export interface ProjectionFreshnessCardProps {
@@ -8,6 +10,8 @@ export interface ProjectionFreshnessCardProps {
   info: ProjectionStatusInfo | undefined;
   generatedAt?: string;
   onReviewCandidate?: () => void;
+  onDiscardAndStartFresh?: () => void;
+  startFreshIsUpdate?: boolean;
   newSinceCandidate: number;
   staleDependencyNames?: string[];
   regenerating: boolean;
@@ -53,22 +57,65 @@ function describeIdleFreshness({
 function PendingCandidateCard({
   newSinceCandidate,
   onReviewCandidate,
+  onDiscardAndStartFresh,
+  startFreshIsUpdate,
+  busy,
 }: {
   newSinceCandidate: number;
   onReviewCandidate: () => void;
+  onDiscardAndStartFresh?: () => void;
+  startFreshIsUpdate: boolean;
+  busy: boolean;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const arrivalSuffix =
     newSinceCandidate > 0
       ? ` ${newSinceCandidate} new fragment${newSinceCandidate > 1 ? "s" : ""} arrived since it opened.`
       : "";
+  const freshLabel = startFreshIsUpdate
+    ? "Discard & update"
+    : "Discard & start fresh";
   return (
     <div className="rounded-none border border-line p-3.5">
       <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
         {`An in-progress draft is open.${arrivalSuffix}`}
       </p>
-      <Button size="sm" className="w-full" onClick={onReviewCandidate}>
-        Resume draft
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button
+          size="sm"
+          className="w-full"
+          disabled={busy}
+          onClick={onReviewCandidate}
+        >
+          Resume draft
+        </Button>
+        {onDiscardAndStartFresh && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            disabled={busy}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {busy ? "Starting…" : freshLabel}
+          </Button>
+        )}
+      </div>
+      {onDiscardAndStartFresh && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Discard existing draft and start fresh?"
+          description="Your current in-progress draft will be discarded and a fresh session will start from your latest saved version."
+          confirmLabel={busy ? "Starting…" : freshLabel}
+          variant="destructive"
+          busy={busy}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            onDiscardAndStartFresh();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -78,6 +125,8 @@ export function ProjectionFreshnessCard({
   info,
   generatedAt,
   onReviewCandidate,
+  onDiscardAndStartFresh,
+  startFreshIsUpdate = false,
   newSinceCandidate,
   staleDependencyNames,
   regenerating,
@@ -106,6 +155,9 @@ export function ProjectionFreshnessCard({
       <PendingCandidateCard
         newSinceCandidate={newSinceCandidate}
         onReviewCandidate={onReviewCandidate}
+        onDiscardAndStartFresh={onDiscardAndStartFresh}
+        startFreshIsUpdate={startFreshIsUpdate}
+        busy={regenerating || revising}
       />
     );
   }

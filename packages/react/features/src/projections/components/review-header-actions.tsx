@@ -5,6 +5,7 @@ import { EditsStatusPill } from "./edits-status-pill";
 
 export interface ReviewHeaderActionsProps {
   pendingEmpty: boolean;
+  hasPending: boolean;
   edits: SnapshotEdit[];
   proposedEditsCount: number;
   resolvingAll: boolean;
@@ -24,6 +25,7 @@ export interface ReviewHeaderActionsProps {
 
 export function ReviewHeaderActions({
   pendingEmpty,
+  hasPending,
   edits,
   proposedEditsCount,
   resolvingAll,
@@ -79,7 +81,7 @@ export function ReviewHeaderActions({
       <Button
         variant="ghost"
         size="sm"
-        disabled={busy}
+        disabled={busy || !hasPending}
         onClick={onRequestDiscard}
       >
         <TrashIcon />

@@ -21,6 +21,7 @@ import {
   deriveHistoricalSnapshot,
   resolveUpstreamNames,
   shouldRedirectToPendingReview,
+  shouldStartFreshWithUpdate,
 } from "./detail-helpers";
 import { useProjectionDetailActions } from "./hooks/use-projection-detail-actions";
 import { useProjectionRefinement } from "./hooks/use-projection-refinement";
@@ -58,14 +59,17 @@ export function ProjectionDetailScreen({
   const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDiscardDraft, setConfirmDiscardDraft] = useState(false);
   const [briefOpen, setBriefOpen] = useState(false);
 
   const {
     regenerating,
     revising,
+    discardingDraft,
     remove,
     handleRefresh,
     handleRevise,
+    handleDiscardDraft,
     handleRename,
   } = useProjectionDetailActions({ id, onBackToList, onReviewCandidate });
 
@@ -168,14 +172,16 @@ export function ProjectionDetailScreen({
 
   if (resumed) {
     return (
-      <ProjectionDraftEditor
+      <ResumedDraftView
         session={authoringSession}
         projectionId={id}
         title={header.draftTitle}
-        crumb={["Projections", header.draftTitle, "Draft"]}
         initialContext={authoringRefineContext}
+        confirmDiscard={confirmDiscardDraft}
+        discarding={discardingDraft}
+        onConfirmDiscardChange={setConfirmDiscardDraft}
         onTitleCommit={draftName.rename}
-        onCancel={() => onBackToList()}
+        onDiscard={() => void handleDiscardDraft()}
         onApproveSuccess={onOpenDetail}
       />
     );
@@ -183,6 +189,17 @@ export function ProjectionDetailScreen({
 
   const handleReviewPending = header.pendingCandidateId
     ? () => onReviewCandidate(id, header.pendingCandidateId as string)
+    : undefined;
+  const startFreshIsUpdate = shouldStartFreshWithUpdate({
+    newSinceCandidate: freshness.newSinceCandidate,
+    entropy: info.entropy,
+    staleDependenciesCount: info.staleDependencies.length,
+  });
+  const handleDiscardAndStartFresh = header.pendingCandidateId
+    ? () =>
+        void (startFreshIsUpdate
+          ? handleRefresh({ discardExisting: true })
+          : handleRevise())
     : undefined;
 
   return (
@@ -246,6 +263,8 @@ export function ProjectionDetailScreen({
             generatedAt={header.generatedAt}
             staleDependencyNames={staleDependencyNames}
             onReviewCandidate={handleReviewPending}
+            onDiscardAndStartFresh={handleDiscardAndStartFresh}
+            startFreshIsUpdate={startFreshIsUpdate}
             newSinceCandidate={freshness.newSinceCandidate}
             regenerating={regenerating}
             revising={revising}
@@ -256,6 +275,58 @@ export function ProjectionDetailScreen({
           />
         </div>
       </PageCard>
+    </>
+  );
+}
+
+function ResumedDraftView({
+  session,
+  projectionId,
+  title,
+  initialContext,
+  confirmDiscard,
+  discarding,
+  onConfirmDiscardChange,
+  onTitleCommit,
+  onDiscard,
+  onApproveSuccess,
+}: {
+  session: ReturnType<typeof useProjectionRefinement>["session"];
+  projectionId: string;
+  title: string;
+  initialContext: ReturnType<typeof useProjectionRefinement>["context"];
+  confirmDiscard: boolean;
+  discarding: boolean;
+  onConfirmDiscardChange: (open: boolean) => void;
+  onTitleCommit: (next: string) => void;
+  onDiscard: () => void;
+  onApproveSuccess: (id: string) => void;
+}) {
+  return (
+    <>
+      <ProjectionDraftEditor
+        session={session}
+        projectionId={projectionId}
+        title={title}
+        crumb={["Projections", title, "Draft"]}
+        initialContext={initialContext}
+        onTitleCommit={onTitleCommit}
+        onCancel={() => onConfirmDiscardChange(true)}
+        onApproveSuccess={onApproveSuccess}
+      />
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={onConfirmDiscardChange}
+        title="Discard this unsaved projection?"
+        description="This projection hasn't been saved yet. Discarding will remove it."
+        confirmLabel={discarding ? "Discarding…" : "Discard"}
+        variant="destructive"
+        busy={discarding}
+        onConfirm={() => {
+          onConfirmDiscardChange(false);
+          onDiscard();
+        }}
+      />
     </>
   );
 }

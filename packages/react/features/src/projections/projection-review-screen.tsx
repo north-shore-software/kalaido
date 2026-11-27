@@ -29,6 +29,7 @@ import { useCandidateTriage } from "./hooks/use-candidate-triage";
 import { useProjectionRefinement } from "./hooks/use-projection-refinement";
 import { useProjectionReviewActions } from "./hooks/use-projection-review-actions";
 import { useProjectionSnapshot } from "./hooks/use-projection-snapshot";
+import { useUpdateCandidateStatus } from "./hooks/use-update-candidate-status";
 import { deriveReviewViewState } from "./outdated-reason";
 
 interface ReviewWorkflowState {
@@ -52,6 +53,7 @@ export interface ProjectionReviewScreenProps {
   renderCandidateRedirect?: (id: string, snapshotId: string) => ReactNode;
   onApproveSuccess: (id: string) => void;
   onBackToDetail: (id: string) => void;
+  onBackToList: (opts?: { replace?: boolean }) => void;
 }
 
 const REVIEW_HANDLERS: ScopeHandlers<ReviewWorkflowState, ReviewWorkflowEvent> =
@@ -79,9 +81,11 @@ export function ProjectionReviewScreen(props: ProjectionReviewScreenProps) {
 function ProjectionReviewScreenInner({
   id,
   snapshotId,
+  onViewReview,
   renderCandidateRedirect,
   onApproveSuccess,
   onBackToDetail,
+  onBackToList,
 }: ProjectionReviewScreenProps) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
@@ -94,10 +98,30 @@ function ProjectionReviewScreenInner({
   });
 
   const { context, refineInput } = useScopeState(scope);
-  const { projection, snapshots, liveSnapshot } = useProjectionSnapshot(id);
+  const {
+    projection,
+    snapshots,
+    liveSnapshot,
+    generatingSnapshotId,
+    isLoading,
+  } = useProjectionSnapshot(id);
 
   const pending = snapshots.find((s) => s.status === "pending_review");
   const pendingId = pending?.id;
+  const isGeneratingClaim = generatingSnapshotId === snapshotId;
+  const hasSnapshotRecord = snapshots.some((s) => s.id === snapshotId);
+  const isNeverSaved = !liveSnapshot;
+
+  const { isGenerating, updateError, retrying, retryUpdate } =
+    useUpdateCandidateStatus({
+      id,
+      snapshotId,
+      isLoading,
+      hasPending: Boolean(pending),
+      isGeneratingClaim,
+      hasSnapshotRecord,
+      onViewReview,
+    });
 
   const { byId: statusById } = useFreshnessStatus();
   const candStatus = id ? statusById.get(id)?.candidate : undefined;
@@ -147,8 +171,13 @@ function ProjectionReviewScreenInner({
     session,
     onCloseConfirmDiscard: () => setConfirmDiscard(false),
     onApproveSuccess,
-    onDiscardSuccess: onBackToDetail,
+    onBackToDetail,
+    onBackToList,
   });
+
+  const handleLeaveDraft = isNeverSaved
+    ? () => onBackToList()
+    : () => onBackToDetail(id);
 
   async function startRefine() {
     const text = refineInput.trim();
@@ -162,11 +191,18 @@ function ProjectionReviewScreenInner({
   }
 
   const title = projection?.name || "Projection";
+  const busy = actions.busy || isGenerating;
   const view = deriveReviewViewState({
     pendingId,
+    snapshotId,
+    isGeneratingClaim,
+    hasRedirect: Boolean(renderCandidateRedirect),
+    isNeverSaved,
+    discarding: actions.discarding,
+    newSinceCandidate,
     previewLength: session.preview.length,
     activeDraft: triage.activeDraft,
-    busy: actions.busy,
+    busy,
     sessionPhase: session.phase,
     hasUnresolvedEdits: triage.hasUnresolvedEdits,
     title,
@@ -175,7 +211,7 @@ function ProjectionReviewScreenInner({
     ? parseProjectionOutput(liveSnapshot.output).content
     : undefined;
 
-  if (pendingId && pendingId !== snapshotId && renderCandidateRedirect) {
+  if (view.shouldRedirectToPending && pendingId && renderCandidateRedirect) {
     return renderCandidateRedirect(id, pendingId);
   }
 
@@ -187,6 +223,7 @@ function ProjectionReviewScreenInner({
         actions={
           <ReviewHeaderActions
             pendingEmpty={view.pendingEmpty}
+            hasPending={Boolean(pending)}
             edits={triage.edits}
             proposedEditsCount={triage.proposedEditsCount}
             resolvingAll={triage.resolvingAll}
@@ -198,31 +235,31 @@ function ProjectionReviewScreenInner({
             onRejectAll={() => void triage.handleResolveAll("rejected")}
             approveBlocked={view.approveBlocked}
             saving={actions.saving}
-            busy={actions.busy}
-            onBackToDetail={() => onBackToDetail(id)}
+            busy={busy}
+            onBackToDetail={handleLeaveDraft}
             onRequestDiscard={() => setConfirmDiscard(true)}
             onApprove={() => void actions.save()}
           />
         }
       />
       <PageCard>
-        {newSinceCandidate > 0 && (
+        {view.newSinceBanner && (
           <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface-2 px-4 py-2 text-body-sm text-fg-3">
             <InfoIcon className="size-4 shrink-0 text-fg-4" />
-            <span>
-              {newSinceCandidate} new{" "}
-              {newSinceCandidate === 1 ? "fragment" : "fragments"} arrived since
-              this draft opened — save when ready, then update to include{" "}
-              {newSinceCandidate === 1 ? "it" : "them"}.
-            </span>
+            <span>{view.newSinceBanner}</span>
           </div>
         )}
         <div className="flex min-h-0 flex-1">
           <ReviewCanvasColumn
-            hasPending={!!pending}
+            hasPending={Boolean(pending)}
+            isGenerating={isGenerating}
+            updateError={updateError}
+            retrying={retrying}
+            onRetryUpdate={() => void retryUpdate()}
+            onBackToProjection={handleLeaveDraft}
             currentContent={currentContent}
             triage={triage}
-            busy={actions.busy}
+            busy={busy}
             snapshotId={snapshotId}
           />
           <ReviewRefineColumn
@@ -230,7 +267,8 @@ function ProjectionReviewScreenInner({
             session={session}
             context={context as ContextItem[]}
             refineInput={refineInput}
-            hasPending={!!pending}
+            hasPending={Boolean(pending)}
+            isGenerating={isGenerating}
             highlightedEditId={triage.highlightedEditId}
             edits={triage.edits}
             onUndoEdit={triage.handleUndoEdit}
@@ -250,9 +288,9 @@ function ProjectionReviewScreenInner({
       <ConfirmDialog
         open={confirmDiscard}
         onOpenChange={setConfirmDiscard}
-        title="Discard this draft?"
-        description="Your saved snapshot will stay unchanged, and this draft session will close permanently."
-        confirmLabel={actions.discarding ? "Discarding…" : "Discard"}
+        title={view.discardTitle}
+        description={view.discardDescription}
+        confirmLabel={view.discardConfirmLabel}
         variant="destructive"
         busy={actions.busy}
         onConfirm={() => void actions.discard()}

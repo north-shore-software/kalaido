@@ -12,7 +12,7 @@ export default function Projections() {
         onOpenProjection={(id) =>
           go(projectionsTransitions.openProjection, { params: { id } })
         }
-        onReviewProjection={(id, snapshotId) =>
+        onStartUpdate={(id, snapshotId) =>
           go(projectionsTransitions.reviewProjection, {
             params: { id, snapshotId },
           })

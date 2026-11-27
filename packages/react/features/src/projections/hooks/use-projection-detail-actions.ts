@@ -1,5 +1,6 @@
 import {
   deleteProjection,
+  discardProjectionDraft,
   GenerationInFlightError,
   regenerateProjection,
   restoreProjection,
@@ -47,10 +48,25 @@ export function useProjectionDetailActions({
     execute: (targetId) => restoreProjection(targetId),
     concurrency: "ignore",
   });
-  const regenerateWrite = useExternalWrite<string, { readonly id: string }>({
-    execute: (targetId) => regenerateProjection(targetId),
+  const regenerateWrite = useExternalWrite<
+    { targetId: string; discardExisting?: boolean },
+    { readonly id: string }
+  >({
+    execute: ({ targetId, discardExisting }) =>
+      regenerateProjection(targetId, { async: true, discardExisting }),
     concurrency: "ignore",
     invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeCollectionTag(client.baseURL, "projection_refinement"),
+      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
+  });
+  const discardDraftWrite = useExternalWrite<string, void>({
+    execute: async (targetId) =>
+      (await discardProjectionDraft(targetId)).map(() => undefined),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection"),
       kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
       kalaidoscopeCollectionTag(client.baseURL, "projection_refinement"),
       kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
@@ -98,9 +114,12 @@ export function useProjectionDetailActions({
     });
   }
 
-  async function handleRefresh() {
+  async function handleRefresh(opts?: { discardExisting?: boolean }) {
     if (!id) return;
-    const outcome = await regenerateWrite.run(id);
+    const outcome = await regenerateWrite.run({
+      targetId: id,
+      discardExisting: opts?.discardExisting,
+    });
     if (outcome.status === "ignored") return;
     if (outcome.status === "error") {
       toast.error("Couldn't update", {
@@ -109,6 +128,19 @@ export function useProjectionDetailActions({
       return;
     }
     onReviewCandidate(id, outcome.id);
+  }
+
+  async function handleDiscardDraft() {
+    if (!id) return;
+    const outcome = await discardDraftWrite.run(id);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Failed to discard draft", {
+        description: outcome.error.message,
+      });
+      return;
+    }
+    onBackToList({ replace: true });
   }
 
   async function handleRevise() {
@@ -135,9 +167,11 @@ export function useProjectionDetailActions({
   return {
     regenerating: regenerateWrite.isPending,
     revising: reviseWrite.isPending,
+    discardingDraft: discardDraftWrite.isPending,
     remove,
     handleRefresh,
     handleRevise,
+    handleDiscardDraft,
     handleRename,
   };
 }

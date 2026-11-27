@@ -1,16 +1,16 @@
-import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
+import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import type { ProjectionResponse } from "@kalaido/client/kalaidoscope/types";
 import { SourceList } from "@kalaido/components";
-import { Mono, Pill, PinToggle } from "@kalaido/primitives/kalaido";
+import { Mono, PinToggle } from "@kalaido/primitives/kalaido";
+import { cn } from "@kalaido/primitives/lib/css-utils";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
 import type { SourceItem } from "../sources";
 import type { ProjectionStatusInfo } from "../status";
-import { cn } from "@kalaido/primitives/lib/css-utils";
-import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 
 /** Shared by the header and every row so the columns line up. */
 const COLUMNS =
-  "grid grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_4rem] items-center gap-4 px-4";
+  "grid grid-cols-[minmax(0,1.8fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_2.5rem] items-center gap-4 px-4";
 
 export function ProjectionTableHeader() {
   return (
@@ -36,28 +36,29 @@ export interface ProjectionRowProps {
   /** When the live output was generated; absent if it never has been. */
   generatedAt?: string;
   status: ProjectionStatusInfo;
-  /** Set while a pending candidate exists; the row offers to open it. */
-  candidateId?: string;
+  /** True whenever an interactive draft session or pending draft is open. */
+  hasDraftInProgress: boolean;
+  updating?: boolean;
   sources: SourceItem[];
   onOpen: (id: string) => void;
-  onReview: (id: string, candidateId: string) => void;
+  onUpdate: (p: ProjectionResponse) => void;
   onTogglePin: (p: ProjectionResponse) => void;
 }
 
-/** One projection in the list: name, how old its output is, what it reads
- *  from. Age is information only — nothing here asks to be refreshed. */
+/** One projection in the list: name, temporal/draft status with direct update,
+ *  and what sources it reads from. */
 export function ProjectionRow({
   p,
   generatedAt,
   status,
-  candidateId,
+  hasDraftInProgress,
+  updating = false,
   sources,
   onOpen,
-  onReview,
+  onUpdate,
   onTogglePin,
 }: ProjectionRowProps) {
   const pinned = Boolean(p.pinned);
-  const hasCandidate = Boolean(candidateId) && status.status === "pending";
   return (
     <div
       title={p.description || undefined}
@@ -76,21 +77,18 @@ export function ProjectionRow({
         <span className="truncate text-row font-medium text-fg-1">
           {p.name || "Untitled projection"}
         </span>
-        {hasCandidate && <Pill>candidate</Pill>}
       </button>
-      <GeneratedCell status={status} generatedAt={generatedAt} />
+      <GeneratedCell
+        status={status}
+        generatedAt={generatedAt}
+        hasDraftInProgress={hasDraftInProgress}
+        updating={updating}
+        onUpdate={() => onUpdate(p)}
+      />
       <span className="min-w-0 overflow-hidden">
         <SourceList sources={sources} className="flex-nowrap" />
       </span>
       <span className="relative z-10 pointer-events-none flex items-center justify-end gap-1 [&_button]:pointer-events-auto">
-        {hasCandidate && candidateId && (
-          <RowAction
-            label="Review candidate"
-            onClick={() => onReview(p.id, candidateId)}
-          >
-            <ArrowsClockwiseIcon className="size-3.5" />
-          </RowAction>
-        )}
         <span
           className={cn(
             "transition-opacity",
@@ -108,33 +106,57 @@ export function ProjectionRow({
 function GeneratedCell({
   status,
   generatedAt,
+  hasDraftInProgress,
+  updating,
+  onUpdate,
 }: {
   status: ProjectionStatusInfo;
   generatedAt?: string;
+  hasDraftInProgress: boolean;
+  updating: boolean;
+  onUpdate: () => void;
 }) {
   if (status.status === "generating")
-    return <Mono className="truncate text-mono-sm text-fg-3">generating…</Mono>;
+    return <Mono className="truncate text-mono-sm text-fg-3">updating…</Mono>;
   if (status.status === "preparing")
     return (
       <Mono className="truncate text-mono-sm text-fg-3">preparing lens…</Mono>
     );
   return (
-    <Mono className="truncate text-mono-sm text-fg-3">
-      {generatedAt ? formatShortDateTime(generatedAt) : "not generated yet"}
-      {status.entropy > 0 && (
-        <span className="text-fg-4"> · {status.entropy} new since</span>
+    <span className="relative z-10 pointer-events-none flex min-w-0 items-center gap-1.5 [&_button]:pointer-events-auto">
+      <Mono className="min-w-0 truncate text-mono-sm text-fg-3">
+        {generatedAt ? formatShortDateTime(generatedAt) : "not generated yet"}
+        {hasDraftInProgress && (
+          <span className="text-section-ink"> · draft in progress</span>
+        )}
+        {status.entropy > 0 && (
+          <span className="text-fg-4"> · {status.entropy} new since</span>
+        )}
+      </Mono>
+      {generatedAt && (
+        <RowAction
+          label="Update projection"
+          disabled={updating}
+          onClick={onUpdate}
+        >
+          <ArrowsClockwiseIcon
+            className={cn("size-3.5", updating && "animate-spin")}
+          />
+        </RowAction>
       )}
-    </Mono>
+    </span>
   );
 }
 
 /** An icon action inside the row. */
 function RowAction({
   label,
+  disabled = false,
   onClick,
   children,
 }: {
   label: string;
+  disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -143,7 +165,8 @@ function RowAction({
       type="button"
       aria-label={label}
       title={label}
-      className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-none text-section-ink outline-none transition-colors hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring/50"
+      disabled={disabled}
+      className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-none text-section-ink outline-none transition-colors hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
       onClick={onClick}
     >
       {children}

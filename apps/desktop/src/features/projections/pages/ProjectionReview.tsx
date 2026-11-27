@@ -47,6 +47,9 @@ export default function ProjectionReview() {
             params: { id: projId },
           })
         }
+        onBackToList={(opts) =>
+          go(projectionReviewTransitions.backToList, opts)
+        }
       />
     </PageLayout>
   );

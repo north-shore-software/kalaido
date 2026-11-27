@@ -2,7 +2,7 @@ import { specToItems } from "@kalaido/client/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
 import {
   createProjection,
-  deleteProjection,
+  discardProjectionDraft,
 } from "@kalaido/client/kalaidoscope/projections";
 import { withContextItem } from "@kalaido/client/lib/mentions";
 import { deriveName } from "@kalaido/client/lib/naming";
@@ -12,8 +12,14 @@ import {
   PageHeader,
   RefineComposer,
 } from "@kalaido/components";
+import {
+  kalaidoscopeCollectionTag,
+  kalaidoscopeEndpointTag,
+} from "@kalaido/hooks/kalaidoscope-live";
 import { useDraftName } from "@kalaido/hooks/use-draft-name";
+import { useKalaidoscopeClient } from "@kalaido/hooks/use-kalaidoscope-client";
 import { useRefineSession } from "@kalaido/hooks/use-refine-session";
+import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Input } from "@kalaido/primitives/shadcn/input";
@@ -56,7 +62,9 @@ export function NewProjectionScreen({
       ? specToItems(initialSeed.contextSpec)
       : [WHOLE_SCOPE_ITEM],
   );
+  const client = useKalaidoscopeClient();
   const [projectionId, setProjectionId] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [input, setInput] = useState("");
   const [nameInput, setNameInput] = useState("");
 
@@ -75,9 +83,16 @@ export function NewProjectionScreen({
     concurrency: "ignore",
   });
 
-  const deleteWrite = useExternalWrite<string, void>({
-    execute: (id) => deleteProjection(id),
+  const discardWrite = useExternalWrite<string, void>({
+    execute: async (id) =>
+      (await discardProjectionDraft(id)).map(() => undefined),
     concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection"),
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeCollectionTag(client.baseURL, "projection_refinement"),
+      kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
   });
 
   const creating = createWrite.isPending || session.creating;
@@ -171,25 +186,48 @@ export function NewProjectionScreen({
     void startFromSeed(initialSeed);
   }, [initialSeed, startFromSeed]);
 
+  async function handleConfirmDiscard() {
+    if (!projectionId) return;
+    const outcome = await discardWrite.run(projectionId);
+    setConfirmDiscard(false);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Failed to discard projection", {
+        description: outcome.error.message,
+      });
+      return;
+    }
+    onCancel();
+  }
+
   // Once the projection + refinement exist, hand off to the shared editor (chat,
   // live preview, Approve) — identical to resuming an uncommitted draft from the
   // projection detail page.
   if (started && projectionId) {
     return (
-      <ProjectionDraftEditor
-        session={session}
-        projectionId={projectionId}
-        title={name ?? (initialSeed ? initialSeed.name : "New Projection")}
-        crumb={["Projections", "New"]}
-        initialContext={context}
-        approveLabel="Create projection"
-        onTitleCommit={rename}
-        onCancel={() => {
-          if (projectionId) void deleteWrite.run(projectionId);
-          onCancel();
-        }}
-        onApproveSuccess={onApproveSuccess}
-      />
+      <>
+        <ProjectionDraftEditor
+          session={session}
+          projectionId={projectionId}
+          title={name ?? (initialSeed ? initialSeed.name : "New Projection")}
+          crumb={["Projections", "New"]}
+          initialContext={context}
+          approveLabel="Create projection"
+          onTitleCommit={rename}
+          onCancel={() => setConfirmDiscard(true)}
+          onApproveSuccess={onApproveSuccess}
+        />
+        <ConfirmDialog
+          open={confirmDiscard}
+          onOpenChange={setConfirmDiscard}
+          title="Discard this unsaved projection?"
+          description="This projection hasn't been saved yet. Discarding will remove it."
+          confirmLabel={discardWrite.isPending ? "Discarding…" : "Discard"}
+          variant="destructive"
+          busy={discardWrite.isPending}
+          onConfirm={() => void handleConfirmDiscard()}
+        />
+      </>
     );
   }
 

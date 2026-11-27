@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -30,7 +30,107 @@ var (
 	ErrNoApprovedSnapshot = errors.New("projection has no saved snapshot to revise")
 )
 
-const briefAwaitTimeout = 15 * time.Second
+const (
+	briefAwaitTimeout           = 15 * time.Second
+	updateStatusTrackerStoreKey = "kalaido.projections.update_status_tracker"
+	updateErrorRetention        = 30 * time.Minute
+)
+
+var updateStatusInitMu sync.Mutex
+
+type updateErrorEntry struct {
+	projectionID string
+	message      string
+	recordedAt   time.Time
+}
+
+type updateStatusTracker struct {
+	mu     sync.Mutex
+	errors map[string]updateErrorEntry
+}
+
+func updateStatusTrackerFor(app core.App) *updateStatusTracker {
+	if app == nil {
+		return &updateStatusTracker{errors: make(map[string]updateErrorEntry)}
+	}
+	if v := app.Store().Get(updateStatusTrackerStoreKey); v != nil {
+		if t, ok := v.(*updateStatusTracker); ok {
+			return t
+		}
+	}
+	updateStatusInitMu.Lock()
+	defer updateStatusInitMu.Unlock()
+	if v := app.Store().Get(updateStatusTrackerStoreKey); v != nil {
+		if t, ok := v.(*updateStatusTracker); ok {
+			return t
+		}
+	}
+	t := &updateStatusTracker{errors: make(map[string]updateErrorEntry)}
+	app.Store().Set(updateStatusTrackerStoreKey, t)
+	return t
+}
+
+func recordUpdateError(app core.App, projectionID, claimID string, err error) {
+	if err == nil || claimID == "" {
+		return
+	}
+	t := updateStatusTrackerFor(app)
+	now := time.Now()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for k, v := range t.errors {
+		if now.Sub(v.recordedAt) > updateErrorRetention {
+			delete(t.errors, k)
+		}
+	}
+	t.errors[claimID] = updateErrorEntry{
+		projectionID: projectionID,
+		message:      err.Error(),
+		recordedAt:   now,
+	}
+}
+
+func lookupUpdateError(app core.App, projectionID, claimID string) (string, bool) {
+	t := updateStatusTrackerFor(app)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	entry, ok := t.errors[claimID]
+	if !ok || entry.projectionID != projectionID {
+		return "", false
+	}
+	return entry.message, true
+}
+
+// GetCandidateUpdateStatus reports the live status of an async Update claim:
+// "generating", "ready", or "error" (with a recorded human-readable message).
+func GetCandidateUpdateStatus(app core.App, projectionID, claimID string) (api.ProjectionCandidateStatusResponse, error) {
+	if rec, err := app.FindRecordById(schema.ColProjectionSnapshot.String(), claimID); err == nil {
+		if rec.GetString("projection_id") != projectionID {
+			return api.ProjectionCandidateStatusResponse{}, ErrNotFound
+		}
+		switch rec.GetString("status") {
+		case engine.StatusGenerating:
+			return api.ProjectionCandidateStatusResponse{Status: "generating"}, nil
+		case engine.StatusPending, engine.StatusApproved:
+			return api.ProjectionCandidateStatusResponse{Status: "ready"}, nil
+		default:
+			if msg, ok := lookupUpdateError(app, projectionID, claimID); ok {
+				return api.ProjectionCandidateStatusResponse{Status: "error", Error: msg}, nil
+			}
+			return api.ProjectionCandidateStatusResponse{Status: "error", Error: "This draft was discarded."}, nil
+		}
+	}
+	if msg, ok := lookupUpdateError(app, projectionID, claimID); ok {
+		return api.ProjectionCandidateStatusResponse{Status: "error", Error: msg}, nil
+	}
+	if _, err := FindLive(app, projectionID); err != nil {
+		return api.ProjectionCandidateStatusResponse{}, ErrNotFound
+	}
+	return api.ProjectionCandidateStatusResponse{
+		Status: "error",
+		Error:  "Update failed or was cancelled.",
+	}, nil
+}
 
 // UpdateResult is returned by RunAnchoredUpdate and StartReviseSession.
 type UpdateResult struct {
@@ -38,24 +138,83 @@ type UpdateResult struct {
 	RefinementID string
 }
 
-// RunAnchoredUpdate performs a single-call anchored cross-session Update for a
-// projection: integrates newly arrived fragments or updated upstream snapshots
-// into the current approved snapshot (guided by the living editorial brief, if
-// any), always producing a pending_review candidate and a fresh attached
-// projection_refinement session with an opening assistant summary message.
-func RunAnchoredUpdate(ctx context.Context, app core.App, projectionID string) (UpdateResult, error) {
+// DiscardResult describes the side effect of discarding a projection draft.
+type DiscardResult struct {
+	DeletedProjection  bool
+	RevertedToProposed bool
+}
+
+// PrepareAnchoredUpdate synchronously validates that projectionID can be
+// updated, takes the per-projection generation claim, and (when discardExisting
+// is true) discards any prior pending_review candidate(s).
+func PrepareAnchoredUpdate(ctx context.Context, app core.App, projectionID string, discardExisting bool) (*core.Record, string, error) {
 	strat := Strategy{}
+
+	proj, err := FindLive(app, projectionID)
+	if err != nil {
+		return nil, "", fmt.Errorf("projection not found: %s: %w", projectionID, err)
+	}
+
+	_, lensPrompt := engine.ReadActiveLens(app, strat, proj)
+
+	var hasApproved bool
+	approvedFilter, approvedParams := engine.ApprovedSnapshotFilter(strat, proj.Id, nil)
+	if recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), approvedFilter, "-approval_sequence_number", 1, 0, approvedParams); err == nil && len(recs) > 0 {
+		hasApproved = strings.TrimSpace(recs[0].GetString("output")) != ""
+	}
+
+	// Only refuse with ErrLensNotReady when there is neither a saved snapshot
+	// nor a standing editorial brief (nor a brief currently distilling).
+	if !hasApproved && strings.TrimSpace(lensPrompt) == "" && !IsBriefUpdating(app, proj.Id) {
+		return nil, "", fmt.Errorf("projection %s: %w", proj.Id, engine.ErrLensNotReady)
+	}
+
+	if _, err := llm.ResolveRoleFor(llm.RoleSnapshot, proj.GetString("generate_with_model")); err != nil {
+		return nil, "", err
+	}
+
+	claimID, err := engine.ClaimGeneration(app, strat, proj.Id, nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if discardExisting {
+		if err := app.RunInTransaction(func(tx core.App) error {
+			return engine.DiscardOtherPending(tx, strat, proj.Id, nil, claimID)
+		}); err != nil {
+			engine.ReleaseClaim(app, strat, claimID)
+			return nil, "", fmt.Errorf("discard existing candidate: %w", err)
+		}
+	}
+
+	return proj, claimID, nil
+}
+
+// ExecuteClaimedUpdate runs the anchored cross-session update against an
+// already-claimed generating snapshot row. On error, it records the failure in
+// the in-memory status tracker before releasing the claim row.
+func ExecuteClaimedUpdate(ctx context.Context, app core.App, proj *core.Record, claimID string) (res UpdateResult, err error) {
+	strat := Strategy{}
+	completed := false
+	defer func() {
+		if !completed {
+			if err != nil {
+				recordUpdateError(app, proj.Id, claimID, err)
+			}
+			engine.ReleaseClaim(app, strat, claimID)
+		}
+	}()
 
 	// Wait briefly if a Save-time brief distillation is still finishing so the
 	// update gets the freshest brief when available; fall back gracefully if
 	// the timeout expires or distillation failed.
 	awaitCtx, cancel := context.WithTimeout(ctx, briefAwaitTimeout)
-	AwaitBriefDistillation(awaitCtx, app, projectionID)
+	AwaitBriefDistillation(awaitCtx, app, proj.Id)
 	cancel()
 
-	proj, err := FindLive(app, projectionID)
-	if err != nil {
-		return UpdateResult{}, fmt.Errorf("projection not found: %s: %w", projectionID, err)
+	// Reload projection in case brief distillation updated current_lens_id.
+	if freshProj, ferr := FindLive(app, proj.Id); ferr == nil {
+		proj = freshProj
 	}
 
 	lensID, lensPrompt := engine.ReadActiveLens(app, strat, proj)
@@ -66,13 +225,11 @@ func RunAnchoredUpdate(ctx context.Context, app core.App, projectionID string) (
 	var prevOutput string
 	var prevPinned llmcontext.PinnedIDs
 	approvedFilter, approvedParams := engine.ApprovedSnapshotFilter(strat, proj.Id, nil)
-	if recs, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), approvedFilter, "-approval_sequence_number", 1, 0, approvedParams); err == nil && len(recs) > 0 {
+	if recs, ferr := app.FindRecordsByFilter(strat.SnapshotCollectionName(), approvedFilter, "-approval_sequence_number", 1, 0, approvedParams); ferr == nil && len(recs) > 0 {
 		prevOutput = strings.TrimSpace(recs[0].GetString("output"))
 		_ = recs[0].UnmarshalJSONField("resolved_context", &prevPinned)
 	}
 
-	// Only refuse with ErrLensNotReady when there is neither a saved snapshot
-	// nor a standing editorial brief to work from.
 	if prevOutput == "" && strings.TrimSpace(lensPrompt) == "" {
 		return UpdateResult{}, fmt.Errorf("projection %s: %w", proj.Id, engine.ErrLensNotReady)
 	}
@@ -81,17 +238,6 @@ func RunAnchoredUpdate(ctx context.Context, app core.App, projectionID string) (
 	if err != nil {
 		return UpdateResult{}, err
 	}
-
-	claimID, err := engine.ClaimGeneration(app, strat, proj.Id, nil)
-	if err != nil {
-		return UpdateResult{}, err
-	}
-	completed := false
-	defer func() {
-		if !completed {
-			engine.ReleaseClaim(app, strat, claimID)
-		}
-	}()
 
 	currentPinned, err := llmcontext.ResolveSpecToIDs(ctx, app, spec, nil)
 	if err != nil {
@@ -143,7 +289,7 @@ func RunAnchoredUpdate(ctx context.Context, app core.App, projectionID string) (
 	var outputDraft string
 	var outputRaw string
 	var edits []api.SnapshotEdit
-	var fullRewriteConfirm *prompts.FullRewriteConfirmationData
+	wholesaleReplaced := false
 
 	switch {
 	case prevOutput == "":
@@ -161,21 +307,31 @@ func RunAnchoredUpdate(ctx context.Context, app core.App, projectionID string) (
 			summary = "I reviewed the new sources and found no changes needed for the current document."
 		}
 	case engine.ExceedsFullRewriteThreshold(prevOutput, updatedDoc):
-		// Above full-rewrite threshold: hold the proposed body and ask for
-		// confirmation in the opening assistant message rather than emitting a
-		// noisy wall-to-wall diff.
-		ratio := engine.ChangedBlockRatio(prevOutput, updatedDoc)
-		outputDraft = prevOutput
+		// Above full-rewrite threshold on an explicit Update: swap the draft
+		// wholesale without diff markers or a confirmation card, and explain
+		// the full replacement clearly in the opening chat message.
+		wholesaleReplaced = true
+		outputDraft = updatedDoc
 		outputRaw = updatedDoc
 		edits = []api.SnapshotEdit{}
-		fullRewriteConfirm = &prompts.FullRewriteConfirmationData{
-			Reason:          summary,
-			ChangedPercent:  int(math.Round(ratio * 100)),
-			ProposedContent: updatedDoc,
+		note := "Because the new sources changed most of the document, I replaced the full draft rather than showing line-by-line diffs."
+		if trimmed := strings.TrimSpace(summary); trimmed != "" {
+			summary = note + "\n\n" + trimmed
+		} else {
+			summary = note
 		}
 	default:
 		outputRaw = updatedDoc
 		outputDraft, edits = engine.DiffAndMarkBlocks(prevOutput, updatedDoc, api.EditTypeRegeneration)
+	}
+
+	// Persist the attached refinement session before promoting the claim to
+	// pending_review so SSE subscribers see both the draft and opening message
+	// together. If CompleteClaimedSnapshot fails, ReleaseClaim cascades it away.
+	refID, refErr := createAttachedUpdateSession(ctx, app, proj.Id, claimID, spec, currentPinned, summary, model)
+	if refErr != nil {
+		logger().Warn("failed to attach refinement session after update",
+			"projection_id", proj.Id, "snapshot_id", claimID, "error", refErr)
 	}
 
 	if err := engine.CompleteClaimedSnapshot(ctx, app, strat, claimID, engine.SnapshotSpec{
@@ -194,21 +350,43 @@ func RunAnchoredUpdate(ctx context.Context, app core.App, projectionID string) (
 	}
 	completed = true
 
-	// Always attach a fresh projection_refinement session with the opening
-	// assistant summary message so the user lands directly in the unified
-	// interactive session.
-	refID, err := createAttachedUpdateSession(ctx, app, proj.Id, claimID, spec, currentPinned, summary, fullRewriteConfirm, model)
-	if err != nil {
-		logger().Warn("failed to attach refinement session after update",
-			"projection_id", proj.Id, "snapshot_id", claimID, "error", err)
-	}
-
 	logger().Info("completed anchored projection update",
 		"projection_id", proj.Id, "snapshot_id", claimID, "refinement_id", refID,
-		"edits", len(edits), "full_rewrite_confirm", fullRewriteConfirm != nil,
+		"edits", len(edits), "wholesale_replaced", wholesaleReplaced,
 		"duration", time.Since(started).Round(time.Millisecond))
 
 	return UpdateResult{SnapshotID: claimID, RefinementID: refID}, nil
+}
+
+// RunAnchoredUpdate performs a synchronous single-call anchored cross-session
+// Update for a projection.
+func RunAnchoredUpdate(ctx context.Context, app core.App, projectionID string) (UpdateResult, error) {
+	proj, claimID, err := PrepareAnchoredUpdate(ctx, app, projectionID, false)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	return ExecuteClaimedUpdate(ctx, app, proj, claimID)
+}
+
+// StartAnchoredUpdateAsync synchronously claims the generation row and launches
+// ExecuteClaimedUpdate in the background on runner, returning claimID immediately.
+func StartAnchoredUpdateAsync(app core.App, runner workerutil.Runner, projectionID string, discardExisting bool) (string, error) {
+	proj, claimID, err := PrepareAnchoredUpdate(context.Background(), app, projectionID, discardExisting)
+	if err != nil {
+		return "", err
+	}
+	run := func(ctx context.Context) {
+		if _, err := ExecuteClaimedUpdate(ctx, app, proj, claimID); err != nil {
+			logger().Warn("async anchored projection update failed",
+				"projection_id", proj.Id, "claim_id", claimID, "error", err)
+		}
+	}
+	if runner != nil {
+		runner.Go(run)
+	} else {
+		go run(context.Background())
+	}
+	return claimID, nil
 }
 
 func existingOnlyPinned(all, added llmcontext.PinnedIDs) llmcontext.PinnedIDs {
@@ -241,7 +419,6 @@ func createAttachedUpdateSession(
 	spec api.ContextSpec,
 	pinned llmcontext.PinnedIDs,
 	summary string,
-	fullRewriteConfirm *prompts.FullRewriteConfirmationData,
 	model string,
 ) (string, error) {
 	var refID string
@@ -278,13 +455,6 @@ func createAttachedUpdateSession(
 			assistantParts = append(assistantParts, api.UIMessagePart{
 				Type: "text",
 				Text: strings.TrimSpace(summary),
-			})
-		}
-		if fullRewriteConfirm != nil {
-			confData, _ := json.Marshal(fullRewriteConfirm)
-			assistantParts = append(assistantParts, api.UIMessagePart{
-				Type: prompts.FullRewriteConfirmationPartType,
-				Data: confData,
 			})
 		}
 		if len(assistantParts) > 0 {
@@ -396,17 +566,101 @@ func StartReviseSession(ctx context.Context, app core.App, projectionID, clientI
 	return res, err
 }
 
-// DiscardCandidate marks a pending_review candidate snapshot as discarded,
-// closing its draft session cleanly without touching the live approved snapshot.
-func DiscardCandidate(app core.App, projectionID, candidateID string) error {
-	return app.RunInTransaction(func(tx core.App) error {
-		_, src, err := loadPendingCandidate(tx, projectionID, candidateID, "discard")
+// discardDraftInTx implements the unified draft discard rules inside a
+// transaction once the projection has been loaded:
+//   - If the projection has >=1 approved snapshot: mark pending_review
+//     candidate(s) discarded and delete any stray unbound refinements, leaving
+//     the live approved snapshot untouched.
+//   - If the projection has 0 approved snapshots (never saved):
+//   - Discover-originated (created_by_discover_run_id != ""): mark pending
+//     candidates discarded, delete unbound refinements, and revert status to
+//     "proposed".
+//   - User-created: hard-delete the projection record (cascading its draft
+//     snapshots, refinements, and chat messages) so no zombie row lingers in
+//     the list or Recently deleted.
+func discardDraftInTx(tx core.App, proj *core.Record) (DiscardResult, error) {
+	strat := Strategy{}
+	approvedFilter, approvedParams := engine.ApprovedSnapshotFilter(strat, proj.Id, nil)
+	approved, err := tx.FindRecordsByFilter(strat.SnapshotCollectionName(), approvedFilter, "", 1, 0, approvedParams)
+	if err != nil {
+		return DiscardResult{}, err
+	}
+
+	if len(approved) == 0 && proj.GetString("created_by_discover_run_id") == "" {
+		inFlight, err := engine.HasLiveClaim(tx, strat, proj.Id)
+		if err != nil {
+			return DiscardResult{}, err
+		}
+		if inFlight {
+			return DiscardResult{}, engine.ErrGenerationInFlight
+		}
+		if err := engine.ScrubContextSpecs(tx, proj.Id, strat.ScrubSpec); err != nil {
+			return DiscardResult{}, err
+		}
+		if err := tx.Delete(proj); err != nil {
+			return DiscardResult{}, err
+		}
+		return DiscardResult{DeletedProjection: true}, nil
+	}
+
+	if err := engine.DiscardOtherPending(tx, strat, proj.Id, nil, ""); err != nil {
+		return DiscardResult{}, err
+	}
+	unboundRefs, err := tx.FindRecordsByFilter(
+		schema.ColProjectionRefinement.String(),
+		"projection_id = {:pid} && projection_snapshot_id = ''",
+		"", 0, 0,
+		dbx.Params{"pid": proj.Id},
+	)
+	if err != nil {
+		return DiscardResult{}, err
+	}
+	for _, r := range unboundRefs {
+		if err := tx.Delete(r); err != nil {
+			return DiscardResult{}, err
+		}
+	}
+
+	if len(approved) == 0 {
+		proj.Set("status", engine.EntityProposed)
+		if err := tx.Save(proj); err != nil {
+			return DiscardResult{}, err
+		}
+		return DiscardResult{RevertedToProposed: true}, nil
+	}
+	return DiscardResult{}, nil
+}
+
+// DiscardCandidate discards a pending_review candidate snapshot. If the
+// projection has never been saved (0 approved snapshots), it either reverts
+// Discover-originated projections back to "proposed" or hard-deletes
+// user-created projections so no hollow projection remains.
+func DiscardCandidate(app core.App, projectionID, candidateID string) (DiscardResult, error) {
+	var res DiscardResult
+	err := app.RunInTransaction(func(tx core.App) error {
+		proj, _, err := loadPendingCandidate(tx, projectionID, candidateID, "discard")
 		if err != nil {
 			return err
 		}
-		src.Set("status", engine.StatusDiscarded)
-		return tx.Save(src)
+		res, err = discardDraftInTx(tx, proj)
+		return err
 	})
+	return res, err
+}
+
+// DiscardDraftSession discards an open draft session on projectionID even when
+// no projection_snapshot row exists yet (e.g., an unbound authoring session).
+func DiscardDraftSession(app core.App, projectionID string) (DiscardResult, error) {
+	var res DiscardResult
+	err := app.RunInTransaction(func(tx core.App) error {
+		proj, err := FindLive(tx, projectionID)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrNotFound, err)
+		}
+		res, err = discardDraftInTx(tx, proj)
+		return err
+	})
+	return res, err
 }
 
 // SaveCandidate performs the unified synchronous Save for a projection draft:

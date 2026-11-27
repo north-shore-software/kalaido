@@ -36,6 +36,17 @@ export interface RegenerateProjectionResult {
   readonly refinementId?: string;
 }
 
+export interface ProjectionCandidateStatus {
+  readonly status: "generating" | "ready" | "error";
+  readonly error?: string;
+}
+
+export interface DiscardProjectionResult {
+  readonly snapshotId?: string;
+  readonly deletedProjection?: boolean;
+  readonly revertedToProposed?: boolean;
+}
+
 export interface ProjectionLens {
   readonly lensId: string;
   readonly prompt: string;
@@ -68,9 +79,12 @@ export async function createProjection(
 /**
  * Run a 1-call anchored cross-session update on a saved projection, always
  * opening a pending draft and attached interactive session.
+ * When `opts.async` is true, returns the claimed `snapshotId` immediately while
+ * generation runs in the background.
  */
 export async function regenerateProjection(
   projectionId: string,
+  opts?: { async?: boolean; discardExisting?: boolean },
 ): Promise<Result<RegenerateProjectionResult, Error>> {
   return (
     await withActiveClient((client) =>
@@ -81,12 +95,29 @@ export async function regenerateProjection(
         // keeps running both, surfacing as a phantom "Failed to refresh".
         {
           method: "POST",
-          body: { preview: true },
+          body: {
+            preview: true,
+            ...(opts?.async ? { async: true } : {}),
+            ...(opts?.discardExisting ? { discardExisting: true } : {}),
+          },
           requestKey: null,
         },
       ),
     )
   ).map((r) => ({ id: r.snapshotId, refinementId: r.refinementId }));
+}
+
+/** Check the live status of an async Update candidate claim. */
+export async function getProjectionCandidateStatus(
+  projectionId: string,
+  snapshotId: string,
+): Promise<Result<ProjectionCandidateStatus, Error>> {
+  return withActiveClient((client) =>
+    client.send<ProjectionCandidateStatus>(
+      `/api/projections/${projectionId}/candidates/${snapshotId}/status`,
+      { method: "GET", requestKey: null },
+    ),
+  );
 }
 
 /**
@@ -139,17 +170,36 @@ export async function updateProjectionLens(
   );
 }
 
-/** Discard a pending projection draft without altering the saved snapshot. */
+/**
+ * Discard a pending projection draft. On a never-saved projection, either
+ * hard-deletes a user-created projection or reverts a Discover proposal back to
+ * `proposed`.
+ */
 export async function discardProjectionCandidate(
   projectionId: string,
   snapshotId: string,
-): Promise<Result<void, Error>> {
-  return withActiveClient(async (client) => {
-    await client.send(
+): Promise<Result<DiscardProjectionResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<DiscardProjectionResult>(
       `/api/projections/${projectionId}/candidates/${snapshotId}/discard`,
       { method: "POST", body: {}, requestKey: null },
-    );
-  });
+    ),
+  );
+}
+
+/**
+ * Discard an open projection draft session even before any snapshot row exists
+ * (e.g. an unbound authoring session on a never-saved projection).
+ */
+export async function discardProjectionDraft(
+  projectionId: string,
+): Promise<Result<DiscardProjectionResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<DiscardProjectionResult>(
+      `/api/projections/${projectionId}/draft/discard`,
+      { method: "POST", body: {}, requestKey: null },
+    ),
+  );
 }
 
 /** Bulk-resolve every proposed edit hunk on a pending candidate. */
