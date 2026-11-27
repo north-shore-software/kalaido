@@ -46,8 +46,7 @@ func (s Strategy) SnapshotWindowFilter(win *api.Window) (string, dbx.Params) {
 		"we": end.String(),
 	}
 }
-func (s Strategy) InheritsCandidateTrigger() bool { return false }
-func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, trigger string, refinementID string) (string, error) {
+func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
 	return "", nil
 }
 func (s Strategy) ScrubSpec(spec *api.ContextSpec, id string) {

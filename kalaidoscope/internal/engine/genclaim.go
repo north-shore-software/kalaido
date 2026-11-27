@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -36,67 +35,7 @@ var (
 	// ErrNotApprovable: the candidate must not become the plan of record
 	// (empty output, still generating, or already superseded).
 	ErrNotApprovable = errors.New("candidate cannot be approved")
-	// ErrGenerationAbandoned: the generation being awaited ended without
-	// output — its claim row was released (failure) or nothing was running.
-	ErrGenerationAbandoned = errors.New("generation ended without output")
 )
-
-// awaitPollInterval is the fallback pace at which AwaitGeneration re-reads a
-// claim row it has not been told about. The generating goroutine in this
-// process wakes waiters the moment it settles the claim (claimHub), so the
-// poll only matters for a claim settled some other way. A variable so tests
-// can shorten it.
-var awaitPollInterval = 500 * time.Millisecond
-
-// AwaitGeneration joins a generation another caller (typically the wave) is
-// running for the target: it waits for the live claim row to be filled and
-// returns the resulting snapshot id. The row is the same durable state the
-// UI reads; the in-process hub only says when to look. Returns
-// ErrGenerationAbandoned when there is no live claim or it is released
-// unfilled, and ctx's error when the wait is cancelled; a superseded row
-// (discarded while awaited) reads as abandoned too.
-func AwaitGeneration(ctx context.Context, app core.App, strat Strategy, parentID string, window *api.Window) (string, error) {
-	filter, params := statusSnapshotFilter(strat, parentID, window, StatusGenerating)
-	live, err := app.FindRecordsByFilter(strat.SnapshotCollectionName(), filter, "-created", 1, 0, params)
-	if err != nil {
-		return "", err
-	}
-	if len(live) == 0 {
-		return "", ErrGenerationAbandoned
-	}
-	claimID := live[0].Id
-	settled := claims.subscribe(claimID)
-	defer claims.unsubscribe(claimID, settled)
-	ticker := time.NewTicker(awaitPollInterval)
-	defer ticker.Stop()
-	for {
-		// Read first: a claim settled between the lookup above and the
-		// subscribe has no waiter to wake, and must not cost a poll interval.
-		rec, err := app.FindRecordById(strat.SnapshotCollectionName(), claimID)
-		if err != nil {
-			// Released: the generation failed, or a settle-in-place found
-			// nothing to publish.
-			return "", ErrGenerationAbandoned
-		}
-		switch rec.GetString("status") {
-		case StatusGenerating:
-		case StatusDiscarded:
-			return "", ErrGenerationAbandoned
-		default:
-			return rec.Id, nil
-		}
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-settled:
-			// A closed channel is always ready; disable the case so a row
-			// that still reads as generating falls back to the poll rather
-			// than spinning.
-			settled = nil
-		case <-ticker.C:
-		}
-	}
-}
 
 // A claim older than this belongs to a run that crashed or hung; a new
 // generation takes it over instead of blocking forever.
@@ -158,7 +97,6 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 		logger().Error("generation claim release failed", "claim_id", claimID, "error", err)
 		return
 	}
-	claims.settle(claimID)
 }
 
 // discardOtherPending supersedes every other pending candidate for the same
@@ -196,31 +134,4 @@ func SweepGenerationClaims(app core.App) {
 			}
 		}
 	}
-}
-
-// GenerateOrJoin generates a snapshot for the target, or, when one is already
-// generating, waits for that run and returns its snapshot. A run that ends
-// without output (its claim was abandoned) is retried once from scratch.
-// Generation runs under ctx; the wait is bounded by joinCtx as well, so a
-// caller can give up on someone else's run (a request whose client left)
-// without cutting off its own.
-func GenerateOrJoin(ctx, joinCtx context.Context, app core.App, strat Strategy, id, status string, w *api.Window) (string, error) {
-	snapID, err := GenerateSnapshot(ctx, app, id, status, strat, w)
-	if !errors.Is(err, ErrGenerationInFlight) {
-		return snapID, err
-	}
-	snapID, err = JoinGeneration(joinCtx, app, strat, id, w)
-	if errors.Is(err, ErrGenerationAbandoned) {
-		return GenerateSnapshot(ctx, app, id, status, strat, w)
-	}
-	return snapID, err
-}
-
-// JoinGeneration waits for the generation already running for the target and
-// returns its snapshot. Interactive callers pay at most the claim TTL.
-func JoinGeneration(ctx context.Context, app core.App, strat Strategy, id string, w *api.Window) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, GenerationClaimTTL)
-	defer cancel()
-	logger().Warn("already generating; joining", "target_type", strat.TargetType(), "id", id)
-	return AwaitGeneration(ctx, app, strat, id, w)
 }

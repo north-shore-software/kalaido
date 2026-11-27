@@ -1,19 +1,11 @@
 package api
 
 type KalaidoscopeStatus struct {
-	Fragments int             `json:"fragments"`
-	Imports   ImportsStatus   `json:"imports"`
-	Map       MapStatus       `json:"map"`
-	Discover  DiscoverStatus  `json:"discover"`
-	Policy    StatusPolicy    `json:"policy"`
-	Reconcile ReconcileStatus `json:"reconcile"`
-	Colour    ColourStatus    `json:"colour"`
-}
-
-// StatusPolicy is how the background work is configured to run: Wave is
-// whether reconcile waves start on their own (KALAIDO_AUTO_WAVE).
-type StatusPolicy struct {
-	Wave bool `json:"wave"`
+	Fragments int            `json:"fragments"`
+	Imports   ImportsStatus  `json:"imports"`
+	Map       MapStatus      `json:"map"`
+	Discover  DiscoverStatus `json:"discover"`
+	Colour    ColourStatus   `json:"colour"`
 }
 
 type ColourStatus struct {

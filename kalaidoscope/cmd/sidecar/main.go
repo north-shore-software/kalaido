@@ -44,7 +44,6 @@ func main() {
 	scopeID := filepath.Base(dataDir)
 
 	a := server.NewWithSchemaWithOptions(pocketbase.Config{HideStartBanner: true}, schema.Options{}, server.Options{
-		AutoWave:               env.AutoWave,
 		HandEditCreateFragment: env.HandEditCreateFragment,
 		Backups: backup.Options{
 			ScopeID: scopeID,

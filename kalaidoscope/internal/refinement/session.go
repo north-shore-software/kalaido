@@ -311,7 +311,7 @@ func CreateReflectionRefinement(app core.App, clientID, targetID string, reqWind
 }
 
 // Commit installs the refinement's latest drafted lens as the plan of record.
-func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedParentID string, runner workerutil.Runner, enqueueWave func()) (string, error) {
+func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedParentID string, runner workerutil.Runner) (string, error) {
 	lens, output, pinned, spec, _, err := ExtractDraftedLensAndSpec(app, refRec)
 	if err != nil {
 		return "", err
@@ -346,10 +346,6 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 	if err != nil {
 		logger().Error("refinement commit failed", "error", err)
 		return "", err
-	}
-
-	if enqueueWave != nil {
-		enqueueWave()
 	}
 
 	if _, isReflection := strat.(reflections.Strategy); isReflection {

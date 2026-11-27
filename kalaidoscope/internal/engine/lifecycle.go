@@ -39,11 +39,6 @@ type SnapshotSpec struct {
 
 	Model string
 
-	// Non-empty marks a snapshot as part of a speculative chain (see
-	// llmcontext.TriggerGenerateAll). Left empty, AppendSnapshot falls back
-	// to the origin marked on ctx, so wave generations need no plumbing.
-	GenerationTrigger string
-
 	// Set on refinement commits.
 	CreatedFromRefinementID string
 }
@@ -54,7 +49,7 @@ func AppendSnapshot(ctx context.Context, app core.App, strat Strategy, s Snapsho
 		return "", err
 	}
 	snap := core.NewRecord(sCol)
-	applySnapshotSpec(ctx, snap, strat, s)
+	applySnapshotSpec(snap, strat, s)
 	if err := app.Save(snap); err != nil {
 		return "", err
 	}
@@ -64,7 +59,7 @@ func AppendSnapshot(ctx context.Context, app core.App, strat Strategy, s Snapsho
 // applySnapshotSpec stamps a SnapshotSpec onto a record — a fresh one
 // (AppendSnapshot) or the generation claim row being filled in place
 // (completeClaimedSnapshot).
-func applySnapshotSpec(ctx context.Context, snap *core.Record, strat Strategy, s SnapshotSpec) {
+func applySnapshotSpec(snap *core.Record, strat Strategy, s SnapshotSpec) {
 	snap.Set(strat.ForeignKeyCol(), s.SourceID)
 	snap.Set("lens_id", s.LensID)
 	snap.Set("output", s.Output)
@@ -87,11 +82,6 @@ func applySnapshotSpec(ctx context.Context, snap *core.Record, strat Strategy, s
 	snap.Set("status", status)
 	snap.Set("generated_by_model", s.Model)
 	snap.Set("created_from_refinement_id", s.CreatedFromRefinementID)
-	trigger := s.GenerationTrigger
-	if trigger == "" {
-		trigger = llmcontext.GenerationTriggerFromContext(ctx)
-	}
-	snap.Set("generation_trigger", trigger)
 	snap.Set("generated_at", types.NowDateTime())
 }
 
@@ -105,22 +95,17 @@ func LoadSnapshotEdits(rec *core.Record) []api.SnapshotEdit {
 // output, in the same transaction discarding any pending siblings so at most
 // one reviewable candidate exists per target (and window).
 func completeClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, claimID string, s SnapshotSpec) error {
-	err := app.RunInTransaction(func(tx core.App) error {
+	return app.RunInTransaction(func(tx core.App) error {
 		snap, err := tx.FindRecordById(strat.SnapshotCollectionName(), claimID)
 		if err != nil {
 			return err
 		}
-		applySnapshotSpec(ctx, snap, strat, s)
+		applySnapshotSpec(snap, strat, s)
 		if err := tx.Save(snap); err != nil {
 			return err
 		}
 		return discardOtherPending(tx, strat, s.SourceID, s.Window, snap.Id)
 	})
-	if err == nil {
-		// After the commit, so a woken waiter reads the filled row.
-		claims.settle(claimID)
-	}
-	return err
 }
 
 func ApproveSnapshot(ctx context.Context, app core.App, strat Strategy, snapshotID string) error {
@@ -222,22 +207,8 @@ func nextApprovalSequence(app core.App, strat Strategy, snap *core.Record) (int,
 // returned snapshot id is therefore empty for reflections.
 func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentID, sourceSnapshotID string, lensPrompt, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
 	var newSnapID string
-	var generationTrigger string
 
 	err := app.RunInTransaction(func(tx core.App) error {
-		if sourceSnapshotID != "" && strat.InheritsCandidateTrigger() {
-			if sourceSnap, err := tx.FindRecordById(strat.SnapshotCollectionName(), sourceSnapshotID); err == nil {
-				// Only a still-pending chain candidate carries its mark forward: the
-				// user is mid click-through and edited instead of approving as-is.
-				// A refinement of an already-approved snapshot is an ordinary edit,
-				// even if that snapshot was chain-generated once — it must not start
-				// background work on its own.
-				if sourceSnap.GetString("status") == StatusPending {
-					generationTrigger = sourceSnap.GetString("generation_trigger")
-				}
-			}
-		}
-
 		// The parent is required now: the commit re-points its lens.
 		parentRec, err := FindLive(tx, strat, parentID)
 		if err != nil {
@@ -290,7 +261,7 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 			}
 		}
 
-		snapID, err := strat.CommitRefinementSnapshot(ctx, tx, parentRec, lensRec, output, pinned, spec, generationTrigger, refinementID)
+		snapID, err := strat.CommitRefinementSnapshot(ctx, tx, parentRec, lensRec, output, pinned, spec, refinementID)
 		if err != nil {
 			return err
 		}
@@ -305,12 +276,6 @@ func CommitRefinement(ctx context.Context, app core.App, strat Strategy, parentI
 		return "", err
 	}
 
-	// The commit has just moved the entity on: a projection published a new
-	// approved snapshot that its dependents have not consumed, a reflection
-	// installed a lens its windows were not generated under. The committing
-	// handler asks the reconcile worker for a wave so the downstream subtree
-	// (or the windows) regenerates; the wave's dedup guard leaves untouched
-	// branches alone.
 	return newSnapID, nil
 }
 

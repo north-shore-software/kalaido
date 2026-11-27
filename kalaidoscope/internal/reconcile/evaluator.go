@@ -35,43 +35,19 @@ func (e *Evaluator) EvaluateAll(ctx stdctx.Context) ([]api.EntityStatus, error) 
 		return nil, err
 	}
 
-	nodes := make(map[string]*node)
+	results := make([]api.EntityStatus, 0, len(projections)+len(reflections))
 	for _, rec := range projections {
-		nodes[rec.Id] = e.buildNode(rec, "projection")
-	}
-	for _, rec := range reflections {
-		nodes[rec.Id] = e.buildNode(rec, "reflection")
-	}
-
-	// Calculate edges
-	for _, n := range nodes {
-		for _, depID := range n.spec.SourceProjectionIDs {
-			if dep, ok := nodes[depID]; ok {
-				n.deps = append(n.deps, dep)
-				dep.dependents = append(dep.dependents, n)
-			}
-		}
-		for _, depID := range n.spec.SourceReflectionIDs {
-			if dep, ok := nodes[depID]; ok {
-				n.deps = append(n.deps, dep)
-				dep.dependents = append(dep.dependents, n)
-			}
-		}
-	}
-
-	// Topological sort
-	sorted, err := topoSort(nodes)
-	if err != nil {
-		return nil, err // Cycle detected
-	}
-
-	var results []api.EntityStatus
-	for _, n := range sorted {
-		status, err := e.evaluateNode(ctx, n, nodes)
+		status, err := e.evaluateNode(ctx, e.buildNode(rec, "projection"))
 		if err != nil {
 			return nil, err
 		}
-		n.status = status
+		results = append(results, status)
+	}
+	for _, rec := range reflections {
+		status, err := e.evaluateNode(ctx, e.buildNode(rec, "reflection"))
+		if err != nil {
+			return nil, err
+		}
 		results = append(results, status)
 	}
 
@@ -82,9 +58,6 @@ type node struct {
 	record     *core.Record
 	entityType string
 	spec       api.ContextSpec
-	deps       []*node
-	dependents []*node
-	status     api.EntityStatus
 }
 
 func (e *Evaluator) buildNode(rec *core.Record, entityType string) *node {
@@ -167,41 +140,7 @@ func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, statu
 	return true, status
 }
 
-func topoSort(nodes map[string]*node) ([]*node, error) {
-	var sorted []*node
-	visited := make(map[string]bool)
-	temp := make(map[string]bool)
-
-	var visit func(n *node) error
-	visit = func(n *node) error {
-		if temp[n.record.Id] {
-			return nil // Cycle detected
-		}
-		if !visited[n.record.Id] {
-			temp[n.record.Id] = true
-			for _, dep := range n.deps {
-				if err := visit(dep); err != nil {
-					return err
-				}
-			}
-			temp[n.record.Id] = false
-			visited[n.record.Id] = true
-			sorted = append(sorted, n)
-		}
-		return nil
-	}
-
-	for _, n := range nodes {
-		if !visited[n.record.Id] {
-			if err := visit(n); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return sorted, nil
-}
-
-func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[string]*node) (api.EntityStatus, error) {
+func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus, error) {
 	status := api.EntityStatus{
 		ID:   n.record.Id,
 		Type: n.entityType,
@@ -301,42 +240,11 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 		}
 	}
 
-	// Recursive check: a dependency that is not itself up to date blocks us.
-	// Regenerating against it would consume output that is about to be
-	// superseded, so this is reported separately from the diff above — the two
-	// look alike here but mean opposite things to a caller deciding what to do
-	// next. Topological order guarantees dep.status is already evaluated.
-	blockedBy := make(map[string]bool)
-	for _, dep := range n.deps {
-		if dep.status.UpToDateSnapshotID == "" {
-			// Check if dep has any snapshots. If it has no snapshots, it's a draft, and we ignore it.
-			depSnapCol := "projection_snapshot"
-			depFK := "projection_id"
-			if dep.entityType == "reflection" {
-				depSnapCol = "reflection_snapshot"
-				depFK = "reflection_id"
-			}
-			c, _ := e.app.FindRecordsByFilter(depSnapCol, depFK+" = {:id} && status = 'approved'", "-approval_sequence_number", 1, 0, dbx.Params{"id": dep.record.Id})
-			if len(c) > 0 {
-				blockedBy[dep.record.Id] = true
-			}
-		}
-	}
-
-	// A dep can be both: it published something we haven't consumed *and* has
-	// moved on again since. Blocked wins — there is nothing useful to do yet —
-	// so it is reported once, as the stronger of the two.
 	for depID := range staleDeps {
-		if !blockedBy[depID] {
-			status.StaleDependencies = append(status.StaleDependencies, depID)
-		}
-	}
-	for depID := range blockedBy {
-		status.BlockedBy = append(status.BlockedBy, depID)
+		status.StaleDependencies = append(status.StaleDependencies, depID)
 	}
 	// Map iteration is unordered; sort so the response is stable across calls.
 	sort.Strings(status.StaleDependencies)
-	sort.Strings(status.BlockedBy)
 
 	// A reflection that reaches here has only windowless snapshots (an
 	// unscheduled one, or one scheduled after the fact): it may still owe
@@ -345,23 +253,33 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node, allNodes map[strin
 		status.PendingWindows = reflections.PendingWindows(e.app, n.record, e.now)
 	}
 
-	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 &&
-		len(status.BlockedBy) == 0 && len(status.PendingWindows) == 0 {
+	if len(status.NewFragmentIDs) == 0 && len(status.StaleDependencies) == 0 && len(status.PendingWindows) == 0 {
 		status.UpToDateSnapshotID = liveSnapID
 	}
 
 	return status, nil
 }
 
-// EvaluateEntity evaluates the reconcile status for a single entity by ID.
+// EvaluateEntity evaluates the reconcile status for a single live active
+// projection or reflection by ID.
 func EvaluateEntity(ctx stdctx.Context, app core.App, id string) (api.EntityStatus, error) {
-	statuses, err := NewEvaluator(app, time.Now()).EvaluateAll(ctx)
-	if err != nil {
-		return api.EntityStatus{}, err
-	}
-	for _, s := range statuses {
-		if s.ID == id {
-			return s, nil
+	e := NewEvaluator(app, time.Now())
+	filter := "id = {:id} && status = 'active' && " + engine.LiveFilter
+	params := dbx.Params{"id": id}
+
+	for _, target := range []struct {
+		col        string
+		entityType string
+	}{
+		{schema.ColProjection.String(), "projection"},
+		{schema.ColReflection.String(), "reflection"},
+	} {
+		recs, err := app.FindRecordsByFilter(target.col, filter, "", 1, 0, params)
+		if err != nil {
+			return api.EntityStatus{}, err
+		}
+		if len(recs) > 0 {
+			return e.evaluateNode(ctx, e.buildNode(recs[0], target.entityType))
 		}
 	}
 	return api.EntityStatus{}, nil

@@ -8,7 +8,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/status"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
@@ -18,12 +17,10 @@ func TestEvaluateEmptyWorkspace(t *testing.T) {
 
 	maps := mapping.NewWorker(app)
 	disc := discover.NewWorker(app, maps)
-	rec := reconcile.NewWorker(app, reconcile.Options{})
 
 	w := status.Workers{
-		Mapping:   maps,
-		Discover:  disc,
-		Reconcile: rec,
+		Mapping:  maps,
+		Discover: disc,
 	}
 
 	st, err := status.Evaluate(context.Background(), app, time.Now(), w)
@@ -43,9 +40,6 @@ func TestEvaluateEmptyWorkspace(t *testing.T) {
 	if st.Discover.State != api.DiscoverStateNeverRun {
 		t.Errorf("Discover.State = %s, want %s", st.Discover.State, api.DiscoverStateNeverRun)
 	}
-	if st.Reconcile.Running {
-		t.Errorf("Reconcile.Running = true, want false")
-	}
 }
 
 func TestEvaluateWithFragments(t *testing.T) {
@@ -58,12 +52,10 @@ func TestEvaluateWithFragments(t *testing.T) {
 
 	maps := mapping.NewWorker(app)
 	disc := discover.NewWorker(app, maps)
-	rec := reconcile.NewWorker(app, reconcile.Options{})
 
 	w := status.Workers{
-		Mapping:   maps,
-		Discover:  disc,
-		Reconcile: rec,
+		Mapping:  maps,
+		Discover: disc,
 	}
 
 	st, err := status.Evaluate(context.Background(), app, time.Now(), w)

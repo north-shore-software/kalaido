@@ -10,8 +10,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 )
 
-// HandleGetReconcile serves entity staleness and in-flight wave state under GET /api/reconcile.
-func HandleGetReconcile(app core.App, waves *reconcile.Worker) func(e *core.RequestEvent) error {
+// HandleGetReconcile serves entity staleness under GET /api/reconcile.
+func HandleGetReconcile(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		evaluator := reconcile.NewEvaluator(app, time.Now())
 		statuses, err := evaluator.EvaluateAll(e.Request.Context())
@@ -20,27 +20,8 @@ func HandleGetReconcile(app core.App, waves *reconcile.Worker) func(e *core.Requ
 			return e.InternalServerError("failed to evaluate staleness", err)
 		}
 
-		var st api.ReconcileStatus
-		if waves != nil {
-			st = waves.EvaluateStatus()
-		}
-
 		return e.JSON(http.StatusOK, api.ReconcilePlanResponse{
-			ReconcileStatus: st,
-			Statuses:        statuses,
+			Statuses: statuses,
 		})
-	}
-}
-
-// HandleReconcile is the reconcile ritual's Start: it begins a speculative
-// wave over the stale set and returns immediately. Candidates land through
-// the ordinary realtime channel, and the wave's state (running, last error,
-// last completion) is reported by GET /api/reconcile and GET /api/status.
-func HandleReconcile(waves *reconcile.Worker) func(e *core.RequestEvent) error {
-	return func(e *core.RequestEvent) error {
-		if waves != nil {
-			waves.StartWave()
-		}
-		return e.NoContent(http.StatusAccepted)
 	}
 }

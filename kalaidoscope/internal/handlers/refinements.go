@@ -9,6 +9,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -68,15 +69,15 @@ func HandleCreateReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 	}
 }
 
-func HandleCommitProjectionRefinement(app core.App, deps Deps) func(e *core.RequestEvent) error {
-	return handleCommitRefinementGeneric(app, deps, schema.ColProjectionRefinement.String())
+func HandleCommitProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
+	return handleCommitRefinementGeneric(app, nil, schema.ColProjectionRefinement.String())
 }
 
 func HandleCommitReflectionRefinement(app core.App, deps Deps) func(e *core.RequestEvent) error {
-	return handleCommitRefinementGeneric(app, deps, schema.ColReflectionRefinement.String())
+	return handleCommitRefinementGeneric(app, deps.Runner, schema.ColReflectionRefinement.String())
 }
 
-func handleCommitRefinementGeneric(app core.App, deps Deps, refinementColName string) func(e *core.RequestEvent) error {
+func handleCommitRefinementGeneric(app core.App, runner workerutil.Runner, refinementColName string) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		rid := e.Request.PathValue("rid")
 		if rid == "" {
@@ -89,7 +90,7 @@ func handleCommitRefinementGeneric(app core.App, deps Deps, refinementColName st
 		}
 
 		ctx := context.WithoutCancel(e.Request.Context())
-		newSnapID, err := refinement.Commit(ctx, app, refRec, e.Request.PathValue("id"), deps.Runner, deps.Reconcile.EnqueueWave)
+		newSnapID, err := refinement.Commit(ctx, app, refRec, e.Request.PathValue("id"), runner)
 		if err != nil {
 			switch {
 			case errors.Is(err, refinement.ErrNoDraftedLens):

@@ -106,7 +106,7 @@ func TestCommitUsesCandidateDraftWhenChatHasNoPreviewOutput(t *testing.T) {
 		t.Fatalf("PersistMessage: %v", err)
 	}
 
-	snapID, err := refinement.Commit(context.Background(), app, refRec, proj.Id, nil, nil)
+	snapID, err := refinement.Commit(context.Background(), app, refRec, proj.Id, nil)
 	if err != nil {
 		t.Fatalf("Commit failed: %v", err)
 	}

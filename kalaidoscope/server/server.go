@@ -38,9 +38,6 @@ func BackupEngine(app core.App) *backup.Engine {
 
 // Options tune the server's own components; the zero value is the default.
 type Options struct {
-	// AutoWave controls the reconcile worker's automatic triggers
-	// (KALAIDO_AUTO_WAVE). Default off, only the dashboard's Start runs a wave.
-	AutoWave bool
 	// HandEditCreateFragment controls whether manual edits to a projection draft
 	// create an edit fragment (KALAIDO_HAND_EDIT_CREATE_FRAGMENT). Default false.
 	HandEditCreateFragment bool
@@ -93,7 +90,7 @@ func NewWithSchemaWithOptions(config pocketbase.Config, schemaOpts schema.Option
 
 	registerWriteEcho(app)
 
-	rt := newRuntime(app, opts, backupsEng)
+	rt := newRuntime(app, backupsEng)
 	if opts.Backups.Lifecycle.Drain == nil {
 		backupsEng.SetDrain(rt.stop)
 	}
@@ -136,10 +133,6 @@ func RegisterTriggers(app core.App, rt *runtime) {
 		rt.workers.Colour.Signal()
 		if e.Record.GetString("ingested_via") != "import" {
 			rt.workers.Mapping.SignalAnnotate()
-			// A fragment written from the app (a note, a hand edit, a saved
-			// bookmark) is in scope the moment it lands. Imports signal once,
-			// when the whole batch is in (ingest.processIngestRecord).
-			rt.workers.Reconcile.EnqueueWave()
 		}
 		return e.Next()
 	})
@@ -155,7 +148,7 @@ func RegisterTriggers(app core.App, rt *runtime) {
 	})
 
 	ingest.RegisterHooks(app, ingest.Deps{
-		Mapping: rt.workers.Mapping, Reconcile: rt.workers.Reconcile, Discover: rt.workers.Discover, Runner: rt.runner,
+		Mapping: rt.workers.Mapping, Discover: rt.workers.Discover, Runner: rt.runner,
 	})
 	config.RegisterHooks(app)
 }
@@ -192,8 +185,7 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.PATCH("/api/fragments/{id}", handlers.HandleRenameFragment(app))
 		se.Router.POST("/api/map", handlers.HandleMapKick(deps.Mapping))
 		se.Router.POST("/api/discover", handlers.HandleDiscoverKick(deps.Discover))
-		se.Router.GET("/api/reconcile", handlers.HandleGetReconcile(app, deps.Reconcile))
-		se.Router.POST("/api/reconcile", handlers.HandleReconcile(deps.Reconcile))
+		se.Router.GET("/api/reconcile", handlers.HandleGetReconcile(app))
 
 		se.Router.GET("/api/llm/preflight", handlers.HandleModelPreflight(app))
 		se.Router.POST("/api/llm/validate", handlers.HandleValidateProvider(app))
@@ -211,22 +203,23 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 		se.Router.PATCH("/api/projections/{id}", handlers.HandleUpdateProjection(app))
 		se.Router.DELETE("/api/projections/{id}", handlers.HandleDeleteProjection(app))
 		se.Router.POST("/api/projections/{id}/restore", handlers.HandleRestoreProjection(app))
-		se.Router.POST("/api/projections/{id}/candidates", handlers.HandleGenerateCandidate(app, deps))
-		se.Router.POST("/api/projections/{id}/snapshots", handlers.HandleGenerateCandidate(app, deps))
-		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app, deps))
+		se.Router.POST("/api/projections/{id}/candidates", handlers.HandleGenerateCandidate(app))
+		se.Router.POST("/api/projections/{id}/snapshots", handlers.HandleGenerateCandidate(app))
+		se.Router.POST("/api/projections/{id}/candidates/{rid}/approve", handlers.HandleApproveCandidate(app))
 		se.Router.POST("/api/projections/{id}/candidates/{rid}/edit", handlers.HandleEditCandidate(app))
 		se.Router.PATCH("/api/projections/{id}/candidates/{rid}/edits/{eid}", handlers.HandleUpdateSnapshotEditStatus(app))
 		se.Router.POST("/api/projections/{id}/refinements", handlers.HandleCreateProjectionRefinement(app))
 		se.Router.POST("/api/projections/{id}/refinements/{rid}/chat", handlers.HandleProjectionRefinementChat(app))
-		se.Router.POST("/api/projections/{id}/refinements/{rid}/commit", handlers.HandleCommitProjectionRefinement(app, deps))
+		se.Router.POST("/api/projections/{id}/refinements/{rid}/commit", handlers.HandleCommitProjectionRefinement(app))
 
 		// Reflections
 		se.Router.POST("/api/reflections", handlers.HandleCreateReflection(app))
+		se.Router.POST("/api/reflections/generate-pending", handlers.HandleGeneratePendingReflections(app))
 		se.Router.PATCH("/api/reflections/{id}", handlers.HandleUpdateReflection(app))
 		se.Router.DELETE("/api/reflections/{id}", handlers.HandleDeleteReflection(app))
 		se.Router.POST("/api/reflections/{id}/restore", handlers.HandleRestoreReflection(app))
-		se.Router.POST("/api/reflections/{id}/snapshots", handlers.HandleGenerateReflectionSnapshot(app, deps))
-		se.Router.POST("/api/reflections/{id}/generate-snapshot", handlers.HandleGenerateReflectionSnapshot(app, deps))
+		se.Router.POST("/api/reflections/{id}/snapshots", handlers.HandleGenerateReflectionSnapshot(app))
+		se.Router.POST("/api/reflections/{id}/generate-snapshot", handlers.HandleGenerateReflectionSnapshot(app))
 		se.Router.GET("/api/reflections/{id}/windows", handlers.HandleListReflectionWindows(app))
 		se.Router.POST("/api/reflections/{id}/backfill", handlers.HandleBackfillReflection(app, deps.Runner))
 		se.Router.POST("/api/reflections/{id}/refinements", handlers.HandleCreateReflectionRefinement(app))

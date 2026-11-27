@@ -13,15 +13,12 @@ import (
 func TestNewManagerAndLifecycle(t *testing.T) {
 	app := testutil.NewApp(t)
 
-	mgr := New(app, Options{AutoWave: false})
+	mgr := New(app)
 	if mgr.Colour == nil {
 		t.Fatal("expected Colour worker to be initialized")
 	}
 	if mgr.Mapping == nil {
 		t.Fatal("expected Mapping worker to be initialized")
-	}
-	if mgr.Reconcile == nil {
-		t.Fatal("expected Reconcile worker to be initialized")
 	}
 	if mgr.Discover == nil {
 		t.Fatal("expected Discover worker to be initialized")

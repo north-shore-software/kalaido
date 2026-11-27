@@ -14,7 +14,7 @@ import (
 // discards background work that would otherwise outlive the test's app.
 func testDeps(app core.App) Deps {
 	return Deps{
-		Manager: workers.New(app, workers.Options{}),
+		Manager: workers.New(app),
 		Runner:  workerutil.DiscardRunner{},
 		Backups: backup.New(app, backup.NewLocalStore(app.DataDir), backup.Options{Origin: "local"}),
 	}

@@ -42,7 +42,6 @@ type Worker struct {
 	app      core.App
 	logger   *slog.Logger
 	signal   workerutil.Signal
-	drained  []func()
 	settled  *settledMark
 	draining atomic.Bool
 
@@ -93,12 +92,6 @@ func (w *Worker) Signal() {
 	w.signal.Notify()
 }
 
-// OnDrained registers fn to run after any drain that wrote links. Register
-// before Run; the slice is not guarded.
-func (w *Worker) OnDrained(fn func()) {
-	w.drained = append(w.drained, fn)
-}
-
 // Run drains on every signal until ctx is cancelled, then returns ctx.Err().
 // A drain in progress finishes its current colour page first.
 func (w *Worker) Run(ctx context.Context) error {
@@ -111,7 +104,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		w.stateMu.Unlock()
 
 		w.draining.Store(true)
-		wrote, err := w.drain(ctx)
+		_, err := w.drain(ctx)
 		w.draining.Store(false)
 
 		w.stateMu.Lock()
@@ -129,11 +122,6 @@ func (w *Worker) Run(ctx context.Context) error {
 
 		if err != nil && !errors.Is(err, context.Canceled) {
 			w.logger.Error("drain failed", "error", err)
-		}
-		if wrote > 0 {
-			for _, fn := range w.drained {
-				fn()
-			}
 		}
 	}
 }

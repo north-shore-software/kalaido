@@ -13,7 +13,7 @@ func TestParseEnvDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env.ModelSet != "" || env.AutoWave || env.LLMTrace || env.UserPassword != "" || env.HandEditCreateFragment {
+	if env.ModelSet != "" || env.LLMTrace || env.UserPassword != "" || env.HandEditCreateFragment {
 		t.Errorf("empty environment produced non-zero settings: %+v", env)
 	}
 	if env.LogLevel != slog.LevelInfo {
@@ -26,7 +26,6 @@ func TestParseEnvValues(t *testing.T) {
 	vars := map[string]string{
 		"KALAIDO_MODEL_SET":                 "cloud",
 		"KALAIDO_USER_PASSWORD":             "pw",
-		"KALAIDO_AUTO_WAVE":                 "1",
 		"KALAIDO_LLM_TRACE":                 "1",
 		"KALAIDO_HAND_EDIT_CREATE_FRAGMENT": "1",
 		"KALAIDO_LOG_LEVEL":                 "DEBUG",
@@ -38,7 +37,7 @@ func TestParseEnvValues(t *testing.T) {
 	if env.ModelSet != llm.SetCloud || env.ModelSetRaw != "cloud" {
 		t.Errorf("ModelSet = %q (raw %q), want cloud", env.ModelSet, env.ModelSetRaw)
 	}
-	if env.UserPassword != "pw" || !env.AutoWave || !env.LLMTrace || !env.HandEditCreateFragment {
+	if env.UserPassword != "pw" || !env.LLMTrace || !env.HandEditCreateFragment {
 		t.Errorf("settings not read: %+v", env)
 	}
 	if env.LogLevel != slog.LevelDebug {

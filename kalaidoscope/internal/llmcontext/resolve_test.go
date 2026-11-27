@@ -271,3 +271,34 @@ func TestDiffPinnedIDsIsScopeOnly(t *testing.T) {
 		t.Errorf("added = %+v, want nothing", added)
 	}
 }
+
+func TestResolveUpstreamSnapshotsApprovedOnly(t *testing.T) {
+	app := testutil.NewApp(t)
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{"name": "up"})
+	approved1 := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":            proj.Id,
+		"status":                   "approved",
+		"approval_sequence_number": 1,
+		"output":                   "v1",
+	})
+	approved2 := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":            proj.Id,
+		"status":                   "approved",
+		"approval_sequence_number": 2,
+		"output":                   "v2",
+	})
+	testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id": proj.Id,
+		"status":        "pending_review",
+		"output_draft":  "v3 candidate",
+	})
+	_ = approved1
+
+	got, err := llmcontext.ResolveSpecToIDs(context.Background(), app, api.ContextSpec{
+		SourceProjectionIDs: []string{proj.Id},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIDs(t, got.SnapshotIDs, []string{approved2.Id})
+}

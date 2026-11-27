@@ -117,10 +117,6 @@ func TestApprovingACandidateGeneratedAgainstOldContext(t *testing.T) {
 		t.Errorf("staleDependencies = %v, want [%s] — it still has to consume the newer output",
 			got.StaleDependencies, upstream.Id)
 	}
-	// Nothing is pending upstream any more, so this is work that can be done now.
-	if len(got.BlockedBy) != 0 {
-		t.Errorf("blockedBy = %v, want empty", got.BlockedBy)
-	}
 }
 
 // The same freeze applies to fragments, with no dependency graph involved: a
@@ -164,10 +160,11 @@ func TestApprovingACandidateAfterAFragmentLands(t *testing.T) {
 	}
 }
 
-// A downstream projection distinguishes two situations that used to be merged
-// into StaleDependencies: its upstream has published something new (stale —
-// regenerate now) versus its upstream is not itself up to date (blocked — wait).
-func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
+// StaleDependencies is a direct 1-hop check against upstream approved
+// snapshots: an upstream whose own fragments drifted does not block downstream;
+// downstream only reports staleDependencies once upstream approves a newer
+// snapshot.
+func TestEvaluateAllReportsOneHopStaleDependencies(t *testing.T) {
 	app := testutil.NewApp(t)
 
 	upstream := testutil.NewRecord(t, app, "projection", map[string]any{
@@ -199,40 +196,33 @@ func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
 		}
 	})
 
-	// A new fragment makes upstream stale. Downstream is now blocked: upstream
-	// has not published anything new yet, so there is nothing to regenerate
-	// against.
+	// A new fragment makes upstream stale, but upstream has not published a new
+	// approved snapshot yet, so downstream is still up to date against up1.
 	f2 := addFragment(t, app, "second")
 
-	t.Run("upstream stale: downstream is blocked, not stale", func(t *testing.T) {
+	t.Run("upstream stale without new approval: downstream stays unblocked and up to date", func(t *testing.T) {
 		got := evaluate(t, app)
-		// Upstream has new fragments.
 		up := got[upstream.Id]
 		if len(up.NewFragmentIDs) != 1 || up.NewFragmentIDs[0] != f2.Id {
 			t.Errorf("upstream newFragmentIds = %v, want [%s]", up.NewFragmentIDs, f2.Id)
 		}
 
-		// Downstream is blocked by upstream, because upstream is not fresh.
 		down := got[downstream.Id]
-		if len(down.BlockedBy) != 1 || down.BlockedBy[0] != upstream.Id {
-			t.Errorf("downstream blockedBy = %v, want [%s]", down.BlockedBy, upstream.Id)
-		}
 		if len(down.StaleDependencies) != 0 {
 			t.Errorf("downstream staleDependencies = %v, want empty", down.StaleDependencies)
 		}
-		if down.UpToDateSnapshotID != "" {
-			t.Error("blocked downstream must not report as up to date")
+		if down.UpToDateSnapshotID == "" {
+			t.Errorf("downstream should remain up to date against upstream's latest approved snapshot, got %+v", down)
 		}
 	})
 
-	// Approving upstream unblocks downstream: it is now merely out of date with
-	// respect to upstream's new output, which it can consume by regenerating.
-	// This is the case that used to keep reading as "blocked upstream".
+	// Once upstream approves a newer snapshot, downstream reports it as a 1-hop
+	// stale dependency.
 	approveSnapshot(t, app, upstream.Id, 2, llmcontext.PinnedIDs{
 		FragmentIDs: []string{f1.Id, f2.Id},
 	})
 
-	t.Run("upstream approved: downstream is stale, not blocked", func(t *testing.T) {
+	t.Run("upstream approved: downstream reports staleDependencies", func(t *testing.T) {
 		got := evaluate(t, app)
 
 		if up := got[upstream.Id]; up.UpToDateSnapshotID == "" {
@@ -243,10 +233,51 @@ func TestEvaluateAllSeparatesStaleFromBlocked(t *testing.T) {
 		if len(down.StaleDependencies) != 1 || down.StaleDependencies[0] != upstream.Id {
 			t.Errorf("downstream staleDependencies = %v, want [%s]", down.StaleDependencies, upstream.Id)
 		}
-		if len(down.BlockedBy) != 0 {
-			t.Errorf("downstream blockedBy = %v, want empty", down.BlockedBy)
+		if down.UpToDateSnapshotID != "" {
+			t.Errorf("stale downstream must not report upToDateSnapshotId, got %+v", down)
 		}
 	})
+}
+
+func TestEvaluateEntityLoadsTargetOnly(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	f1 := addFragment(t, app, "first")
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":                 "active",
+		"status":               engine.EntityActive,
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
+	})
+	approveSnapshot(t, app, proj.Id, 1, llmcontext.PinnedIDs{FragmentIDs: []string{f1.Id}})
+	f2 := addFragment(t, app, "second")
+
+	proposed := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":   "proposed",
+		"status": engine.EntityProposed,
+	})
+	deleted := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":       "deleted",
+		"status":     engine.EntityActive,
+		"deleted_at": types.NowDateTime(),
+	})
+
+	got, err := reconcile.EvaluateEntity(context.Background(), app, proj.Id)
+	if err != nil {
+		t.Fatalf("EvaluateEntity active: %v", err)
+	}
+	if got.ID != proj.Id || got.Type != "projection" || len(got.NewFragmentIDs) != 1 || got.NewFragmentIDs[0] != f2.Id {
+		t.Errorf("active EvaluateEntity = %+v, want projection %s with new fragment %s", got, proj.Id, f2.Id)
+	}
+
+	for _, id := range []string{proposed.Id, deleted.Id, "nonexistent"} {
+		zero, err := reconcile.EvaluateEntity(context.Background(), app, id)
+		if err != nil {
+			t.Fatalf("EvaluateEntity(%q): %v", id, err)
+		}
+		if zero.ID != "" || zero.Type != "" {
+			t.Errorf("EvaluateEntity(%q) = %+v, want zero status", id, zero)
+		}
+	}
 }
 
 // A spec that pins fragments explicitly is a *static* set — unlike a colour or

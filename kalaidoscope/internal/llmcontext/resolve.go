@@ -51,11 +51,11 @@ func ResolveSpecToIDs(ctx stdctx.Context, app core.App, spec api.ContextSpec, wi
 		pinned.ExpandedIDs = append([]string(nil), pinnedFrags...)
 	}
 
-	if snapIDs := resolveProjectionSnapshots(ctx, app, spec); len(snapIDs) > 0 {
+	if snapIDs := resolveProjectionSnapshots(app, spec); len(snapIDs) > 0 {
 		pinned.SnapshotIDs = append(pinned.SnapshotIDs, snapIDs...)
 	}
 
-	if snapIDs := resolveReflectionSnapshots(ctx, app, spec); len(snapIDs) > 0 {
+	if snapIDs := resolveReflectionSnapshots(app, spec); len(snapIDs) > 0 {
 		pinned.SnapshotIDs = append(pinned.SnapshotIDs, snapIDs...)
 	}
 
@@ -111,23 +111,13 @@ func resolvePinnedFragments(ctx stdctx.Context, app core.App, spec api.ContextSp
 	return ids, nil
 }
 
-// snapshotFilterAndSort decides which upstream snapshot an entity reference
-// resolves to. Ordinarily that is the latest *approved* snapshot — the only
-// output the upstream has actually published. Inside a speculative chain wave
-// (WithChainOrigin) it is the upstream's newest snapshot regardless of status:
-// the wave bets that pending candidates will be approved as-is, and because
-// approval promotes the record in place (same ID), a downstream snapshot that
-// consumed a candidate becomes consistent the moment that candidate lands.
-func snapshotFilterAndSort(ctx stdctx.Context, entityFilter string) (filter, sort string) {
-	if GenerationTriggerFromContext(ctx) != "" {
-		// "Regardless of status" still excludes rows that are not output:
-		// in-flight generation claims and superseded candidates.
-		return entityFilter + " && status != 'generating' && status != 'discarded'", "-created"
-	}
+// snapshotFilterAndSort selects an upstream entity's latest approved snapshot —
+// the only output the upstream has published.
+func snapshotFilterAndSort(entityFilter string) (filter, sort string) {
 	return entityFilter + " && status = 'approved'", "-approval_sequence_number"
 }
 
-func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.ContextSpec) []string {
+func resolveProjectionSnapshots(app core.App, spec api.ContextSpec) []string {
 	var ids []string
 	if len(spec.SourceProjectionIDs) == 0 {
 		return ids
@@ -140,7 +130,7 @@ func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		params[key] = pid
 	}
 	// A soft-deleted upstream contributes nothing until restored.
-	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+") && projection_id.deleted_at = ''")
+	filter, sort := snapshotFilterAndSort("(" + strings.Join(ors, " || ") + ") && projection_id.deleted_at = ''")
 	if recs, err := app.FindRecordsByFilter(schema.ColProjectionSnapshot.String(), filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {
@@ -154,7 +144,7 @@ func resolveProjectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 	return ids
 }
 
-func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.ContextSpec) []string {
+func resolveReflectionSnapshots(app core.App, spec api.ContextSpec) []string {
 	var ids []string
 	if len(spec.SourceReflectionIDs) == 0 {
 		return ids
@@ -166,7 +156,7 @@ func resolveReflectionSnapshots(ctx stdctx.Context, app core.App, spec api.Conte
 		ors = append(ors, "reflection_id = {:"+key+"}")
 		params[key] = rid
 	}
-	filter, sort := snapshotFilterAndSort(ctx, "("+strings.Join(ors, " || ")+") && reflection_id.deleted_at = ''")
+	filter, sort := snapshotFilterAndSort("(" + strings.Join(ors, " || ") + ") && reflection_id.deleted_at = ''")
 	if recs, err := app.FindRecordsByFilter(schema.ColReflectionSnapshot.String(), filter, sort, 0, 0, params); err == nil {
 		seen := make(map[string]bool)
 		for _, r := range recs {

@@ -12,17 +12,15 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/sourcedata"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // Workers bundles the live workers required to derive in-flight workspace status.
 type Workers struct {
-	Colour    *colour.Worker
-	Mapping   *mapping.Worker
-	Reconcile *reconcile.Worker
-	Discover  *discover.Worker
+	Colour   *colour.Worker
+	Mapping  *mapping.Worker
+	Discover *discover.Worker
 }
 
 // Evaluate derives the full Kaleidoscope system status under GET /api/status.
@@ -68,11 +66,6 @@ func Evaluate(ctx context.Context, app core.App, now time.Time, w Workers) (api.
 		return st, err
 	}
 	st.Colour = colourStatus
-
-	if w.Reconcile != nil {
-		st.Reconcile = w.Reconcile.EvaluateStatus()
-		st.Policy.Wave = w.Reconcile.WaveEnabled()
-	}
 
 	return st, nil
 }

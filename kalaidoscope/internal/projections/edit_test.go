@@ -65,7 +65,6 @@ func editFixture(t *testing.T, app core.App) (*core.Record, *core.Record) {
 		"context_spec":       pbutil.JSONObject(spec),
 		"resolved_context":   pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: ids}),
 		"generated_by_model": model,
-		"generation_trigger": llmcontext.TriggerGenerateAll,
 	})
 	return proj, src
 }
@@ -246,8 +245,16 @@ func TestApplyEditCreatesFragmentWhenEnabled(t *testing.T) {
 		t.Errorf("resolved FragmentIDs = %v, want the original note plus the edit", pinned.FragmentIDs)
 	}
 
-	if !engine.SnapshotIsCurrent(context.Background(), app, projections.Strategy{}, proj) {
-		t.Error("edited candidate should read as current: it carries the new fragment the scope now resolves to")
+	var projSpec api.ContextSpec
+	if err := proj.UnmarshalJSONField("current_context_spec", &projSpec); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := llmcontext.ResolveSpecToIDs(context.Background(), app, projSpec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current, reason := engine.SnapshotCurrency(proj, edited, resolved); !current {
+		t.Errorf("edited candidate should read as current (%s): it carries the new fragment the scope now resolves to", reason)
 	}
 }
 

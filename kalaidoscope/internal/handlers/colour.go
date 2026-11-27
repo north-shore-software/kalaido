@@ -89,8 +89,6 @@ func HandleCreateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 		if colourRec.GetString("prompt") != "" {
 			deps.Colour.Signal()
 		}
-		// Seeded members are in scope for any lens that names this colour.
-		deps.Reconcile.EnqueueWave()
 
 		return e.JSON(http.StatusOK, api.CreateColourResponse{ColourID: colourRec.Id})
 	}
@@ -122,7 +120,6 @@ func HandleUpdateColour(app core.App, deps Deps) func(e *core.RequestEvent) erro
 			if err := deps.Colour.Rematch(updatedRec.Id); err != nil {
 				return e.InternalServerError("failed to restart matching", err)
 			}
-			deps.Reconcile.EnqueueWave()
 		}
 
 		return e.JSON(http.StatusOK, api.UpdateColourResponse{
@@ -144,7 +141,6 @@ func HandleRematchColour(app core.App, deps Deps) func(e *core.RequestEvent) err
 		if err := deps.Colour.Rematch(colourRec.Id); err != nil {
 			return e.InternalServerError("failed to restart matching", err)
 		}
-		deps.Reconcile.EnqueueWave()
 		return e.NoContent(http.StatusAccepted)
 	}
 }
