@@ -41,6 +41,14 @@ type ToolPartData struct {
 type ChatRequest struct {
 	ID       string      `json:"id"`
 	Messages []UIMessage `json:"messages"`
+	// Optional staged reflection context carried on reflection refinement chat
+	// turns so the assistant sees the active sample window, latest preview,
+	// staged lens, and staged context without writing window system messages
+	// into the chat transcript.
+	Window        *Window      `json:"window,omitempty"`
+	LatestPreview string       `json:"latestPreview,omitempty"`
+	LensPrompt    string       `json:"lensPrompt,omitempty"`
+	ContextSpec   *ContextSpec `json:"contextSpec,omitempty"`
 }
 
 type RefinementChatRequest = ChatRequest

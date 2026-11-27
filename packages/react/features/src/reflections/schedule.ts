@@ -6,8 +6,8 @@ import {
 // Reflection schedule UI options for the refine screen (creating and the
 // existing case alike). Frequency = how often it regenerates;
 // lookback = the data window each run summarizes. A reflection's schedule lives
-// on `window_spec_versions`, an append-only list: it is set at creation and
-// updated by PATCHing the reflection (see `usePersistSchedule`).
+// on `window_spec_versions`, an append-only list: staged in the tuning screen
+// and persisted atomically on Save.
 export const FREQ = ["Hourly", "Daily", "Weekly", "Monthly"] as const;
 export const FREQ_DAYS = [1 / 24, 1, 7, 30];
 export const WIN = ["1h", "24h", "7 days", "30 days", "7 months"] as const;

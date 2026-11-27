@@ -12,12 +12,10 @@ import {
   FULL_REWRITE_CONFIRMATION_PART_TYPE,
   type FullRewriteConfirmation,
   messageContextSpec,
-  messageWindow,
   REGENERATE_CANCEL_PART_TYPE,
   REGENERATE_CONFIRM_PART_TYPE,
   REGENERATE_CONFIRMATION_PART_TYPE,
   specToItems,
-  type TimeWindow,
 } from "@kalaido/client/kalaidoscope/chat";
 import type { SnapshotEdit } from "@kalaido/client/kalaidoscope/projections";
 import { formatWindowRange } from "@kalaido/client/lib/datetime";
@@ -393,32 +391,6 @@ function ContextConfirmationCard({
   );
 }
 
-/**
- * Marks where a reflection refinement's target window was set or moved. The
- * first one states the window; later ones show it changing.
- */
-function WindowDivider({
-  window: win,
-  isFirst,
-}: {
-  window: TimeWindow;
-  isFirst: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 py-0.5">
-      <div className="h-px flex-1 bg-line" />
-      <div className="flex max-w-[80%] flex-wrap items-center justify-center gap-x-2 gap-y-0.5 font-mono text-mono-sm text-fg-4">
-        <span className="font-bold uppercase text-fg-5">Window</span>
-        <span className="whitespace-nowrap">
-          {isFirst ? "" : "→ "}
-          {formatWindowRange(win.start, win.end)}
-        </span>
-      </div>
-      <div className="h-px flex-1 bg-line" />
-    </div>
-  );
-}
-
 // The server-written notice naming which accepted edits a regeneration
 // superseded (and which still stand); rendered as a plain notice row.
 function supersededNoticeFor(msg: UIMessage): string | null {
@@ -779,12 +751,11 @@ export function ChatMessages({
 }: ChatMessagesProps) {
   const contentElements = useRef(new Map<string, HTMLElement>());
   const settledAfter = useMemo(() => lastSettledIndices(messages), [messages]);
-  // System messages carry no chat text. Those with a `context_spec` or
-  // `window` part mark where the context / target window changed and render
-  // as dividers at that position; the rest (`pinned_ids`) stay unrendered.
+  // System messages carry no chat text. Those with a `context_spec` part mark
+  // where the context changed and render as dividers at that position; the
+  // rest (`pinned_ids`, legacy `window`) stay unrendered.
   const chatMessageCount = messages.filter((m) => m.role !== "system").length;
   let prevSpec: ContextSpec | null = null;
-  let prevWindow: TimeWindow | null = null;
   // While a turn is in flight, everything from the user message that started
   // it onward has no row on the server yet.
   let inFlightFrom = -1;
@@ -809,19 +780,13 @@ export function ChatMessages({
       {messages.map((msg, index) => {
         if (msg.role === "system") {
           const spec = messageContextSpec(msg);
-          const win = messageWindow(msg);
           const editNotice = editNoticeFor(msg);
           const supersededNotice = supersededNoticeFor(msg);
-          if (!spec && !win && !editNotice && !supersededNotice) return null;
+          if (!spec && !editNotice && !supersededNotice) return null;
           const before = prevSpec;
           if (spec) prevSpec = spec;
-          const windowBefore = prevWindow;
-          if (win) prevWindow = win;
           return (
             <Fragment key={msg.id}>
-              {win && (
-                <WindowDivider window={win} isFirst={windowBefore === null} />
-              )}
               {spec && <ContextSpecDivider spec={spec} prevSpec={before} />}
               {editNotice && (
                 <EditNoticeCard

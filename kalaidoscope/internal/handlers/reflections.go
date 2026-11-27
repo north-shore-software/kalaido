@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -12,8 +13,10 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // HandleBackfillReflection materializes the grid windows between `from` and
@@ -354,5 +357,167 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 		}
 
 		return e.JSON(http.StatusOK, api.ReflectionSnapshotResponse{SnapshotIDs: snapIDs})
+	}
+}
+
+// HandlePreviewReflectionWindows enumerates candidate sample windows and
+// matching fragment counts for a staged schedule + context without mutating
+// any reflection record or invoking an LLM.
+func HandlePreviewReflectionWindows(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		var req api.PreviewReflectionWindowsRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		res, err := reflections.PreviewWindows(
+			e.Request.Context(),
+			app,
+			req.ReflectionID,
+			req.WindowSpec,
+			req.ContextSpec,
+			time.Now(),
+		)
+		if err != nil {
+			if errors.Is(err, reflections.ErrInvalidWindowSpec) {
+				return e.BadRequestError(err.Error(), err)
+			}
+			logger().Error("preview reflection windows failed", "error", err)
+			return e.InternalServerError("preview reflection windows failed", err)
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandlePreviewReflection executes a staged standing lens strictly in isolation
+// against one sample window's fragments (zero chat history, zero database
+// mutations).
+func HandlePreviewReflection(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		var req api.PreviewReflectionRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		res, err := reflections.RunStagedPreview(e.Request.Context(), app, req)
+		if err != nil {
+			switch {
+			case errors.Is(err, reflections.ErrEmptyLensPrompt), errors.Is(err, reflections.ErrInvalidPreviewWindow):
+				return e.BadRequestError(err.Error(), err)
+			default:
+				return WriteGenerateError(e, app, err, "reflection")
+			}
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandleSaveReflection atomically saves staged schedule, context sources,
+// standing lens, and optional name in a single transaction, then kicks
+// RunPendingWindows. Works with or without an open refinement chat session.
+func HandleSaveReflection(app core.App, deps Deps) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		var req api.SaveReflectionRequest
+		if e.Request != nil && e.Request.Body != nil && e.Request.ContentLength != 0 {
+			if err := e.BindBody(&req); err != nil && !errors.Is(err, io.EOF) {
+				return e.BadRequestError("invalid request body", err)
+			}
+		}
+
+		ctx := context.WithoutCancel(e.Request.Context())
+		if req.RefinementID != "" {
+			refRec, err := app.FindRecordById(schema.ColReflectionRefinement.String(), req.RefinementID)
+			if err != nil {
+				return e.NotFoundError("refinement not found", err)
+			}
+			lensID, err := refinement.CommitReflection(ctx, app, refRec, id, req, deps.Runner)
+			if err != nil {
+				return writeSaveReflectionError(e, err)
+			}
+			return e.JSON(http.StatusOK, api.SaveReflectionResponse{
+				ID:     id,
+				LensID: lensID,
+			})
+		}
+
+		rec, err := reflections.FindLive(app, id)
+		if err != nil {
+			return e.NotFoundError("reflection not found", err)
+		}
+		lensPrompt := ""
+		if req.LensPrompt != nil && strings.TrimSpace(*req.LensPrompt) != "" {
+			lensPrompt = strings.TrimSpace(*req.LensPrompt)
+		} else {
+			_, existingPrompt := engine.ReadActiveLens(app, reflections.Strategy{}, rec)
+			lensPrompt = strings.TrimSpace(existingPrompt)
+		}
+		lensID, err := reflections.SaveTuning(app, id, reflections.SaveTuningParams{
+			WindowSpec:  req.WindowSpec,
+			ContextSpec: req.ContextSpec,
+			LensPrompt:  lensPrompt,
+			Name:        req.Name,
+		})
+		if err != nil {
+			return writeSaveReflectionError(e, err)
+		}
+		if deps.Runner != nil {
+			reflections.RunPendingWindows(deps.Runner, app, id)
+		}
+		return e.JSON(http.StatusOK, api.SaveReflectionResponse{
+			ID:     id,
+			LensID: lensID,
+		})
+	}
+}
+
+func writeSaveReflectionError(e *core.RequestEvent, err error) error {
+	switch {
+	case errors.Is(err, reflections.ErrNotFound):
+		return e.NotFoundError("reflection not found", err)
+	case errors.Is(err, reflections.ErrInvalidWindowSpec),
+		errors.Is(err, reflections.ErrEmptyLensPrompt),
+		errors.Is(err, refinement.ErrNoDraftedLens),
+		errors.Is(err, refinement.ErrMissingParentID),
+		errors.Is(err, refinement.ErrParentMismatch):
+		return e.BadRequestError(err.Error(), nil)
+	case errors.Is(err, refinement.ErrNoPreviewOutput):
+		return e.Error(http.StatusConflict, err.Error(), nil)
+	default:
+		logger().Error("save reflection failed", "error", err)
+		return e.InternalServerError("save reflection failed", err)
+	}
+}
+
+// HandleDiscardReflectionDraft cleans up a never-saved reflection
+// (current_lens_id == ""): hard-deletes user-created drafts or reverts
+// Discover proposals to status="proposed". Refuses established reflections
+// with 409 Conflict.
+func HandleDiscardReflectionDraft(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		res, err := reflections.DiscardDraft(app, id)
+		if err != nil {
+			switch {
+			case errors.Is(err, reflections.ErrNotFound):
+				return e.NotFoundError("reflection not found", err)
+			case errors.Is(err, reflections.ErrAlreadySaved):
+				return e.Error(http.StatusConflict, err.Error(), nil)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict, "a generation is running for this reflection", nil)
+			default:
+				logger().Error("discard reflection draft failed", "id", id, "error", err)
+				return e.InternalServerError("discard reflection draft failed", err)
+			}
+		}
+		return e.JSON(http.StatusOK, api.DiscardReflectionDraftResponse{
+			ID:                 id,
+			DeletedReflection:  res.DeletedReflection,
+			RevertedToProposed: res.RevertedToProposed,
+		})
 	}
 }

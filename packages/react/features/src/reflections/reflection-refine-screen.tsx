@@ -1,29 +1,10 @@
-import { parseActiveWindow } from "@kalaido/client/kalaidoscope/chat";
 import { type ContextItem, PageHeader } from "@kalaido/components";
-import { useDraftName } from "@kalaido/hooks/use-draft-name";
-import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { useRefineSession } from "@kalaido/hooks/use-refine-session";
+import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
-import { useScope, useScopeState } from "@kalaido/state/scope";
-import { useEffect, useRef, useState } from "react";
 import { LivePreviewPane } from "./components/live-preview-pane";
-import { RefineConfigPanel } from "./components/refine-config-panel";
-import { ReflectionLensDialog } from "./components/reflection-lens-dialog";
 import { ReflectionRefineMiddlePane } from "./components/reflection-refine-middle-pane";
-import { SchedulePill } from "./components/schedule-controls";
-import { StandingLensCard } from "./components/standing-lens-card";
-import { WindowSelect } from "./components/window-select";
-import { usePersistSchedule } from "./hooks/use-persist-schedule";
-import { useReflectionRefineActions } from "./hooks/use-reflection-refine-actions";
-import {
-  createInitialReflectionRefineState,
-  deriveExistingReflectionSeed,
-  deriveRefineHeaderCopy,
-  deriveRefineWindowSpec,
-  REFLECTION_REFINE_HANDLERS,
-} from "./refine-state";
-import { CADENCE_WIN, CADENCES } from "./schedule";
+import { useReflectionTuning } from "./hooks/use-reflection-tuning";
 import type { ReflectionSeed } from "./types";
 
 export interface ReflectionRefineScreenProps {
@@ -31,216 +12,161 @@ export interface ReflectionRefineScreenProps {
   seed?: ReflectionSeed;
   onCancel: (id?: string) => void;
   onCommitSuccess: (id: string) => void;
+  onDiscardSuccess?: () => void;
 }
 
 /**
- * The one screen where a reflection's lens is written: creating a reflection
- * (`/reflections/new`) and refining an existing one (`/reflections/:id/refine`)
- * are the same activity.
+ * 2-tab (`Lens` | `Schedule & Sources`) reflection tuning workspace beside one
+ * persistent Preview pane. Stages Schedule, Sources, and Standing Lens locally
+ * until atomic Save. Resumes unfinished drafts for never-saved reflections;
+ * starts a fresh tuning session for established reflections.
  */
 export function ReflectionRefineScreen({
   id,
   seed,
   onCancel,
   onCommitSuccess,
+  onDiscardSuccess,
 }: ReflectionRefineScreenProps) {
-  const isNew = !id;
-  const [capturedSeed] = useState(() => seed);
-  const [lensDialogOpen, setLensDialogOpen] = useState(false);
-  const [directLensOverride, setDirectLensOverride] = useState<string | null>(
-    null,
-  );
-
-  const existingQuery = useLiveCollection("reflection", {
-    filter: id ? `id="${id}"` : undefined,
-    enabled: !isNew,
-  });
-  const existing = existingQuery.records[0];
-
-  const scope = useScope({
-    initial: () => createInitialReflectionRefineState(id),
-    handlers: REFLECTION_REFINE_HANDLERS,
-  });
-  const state = useScopeState(scope);
-
-  const session = useRefineSession({ target: "reflection" });
-  const { name, adopt, rename } = useDraftName({
-    target: "reflection",
-    entityId: state.reflectionId,
-    suggestedName: session.suggestedName,
-  });
-
-  const seededFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (isNew || !existing || seededFor.current === existing.id) return;
-    seededFor.current = existing.id;
-    const derived = deriveExistingReflectionSeed(existing, capturedSeed);
-    void scope.dispatch({
-      type: "seedExisting",
-      cadence: derived.cadence,
-      fromDate: derived.fromDate,
-      endDate: derived.endDate,
-      paused: derived.paused,
-      context: derived.context,
-    });
-    void session.start({ parentId: existing.id, prompt: derived.prompt });
-  }, [isNew, existing, capturedSeed, session.start, scope]);
-
-  const started = state.reflectionId != null && session.started;
-  const canCommit = started && session.previewReady && !session.committing;
-  const windowSpec = deriveRefineWindowSpec({
-    cadence: state.cadence,
-    fromDate: state.fromDate,
-    endDate: state.endDate,
-    paused: state.paused,
+  const {
     isNew,
+    isEstablished,
+    started,
+    scope,
+    state,
+    session,
+    previewWindows,
+    activeWindow,
+    effectiveLensPrompt,
+    setDirectLens,
+    displayPreview,
+    previewStale,
+    busy,
+    canSave,
+    canPreview,
+    lensDirty,
+    scheduleDirty,
+    headerCopy,
+    discardConfirmOpen,
+    setDiscardConfirmOpen,
+    handleSecondaryAction,
+    actions,
+  } = useReflectionTuning({
+    id,
+    seed,
+    onCancel,
+    onCommitSuccess,
+    onDiscardSuccess,
   });
-  usePersistSchedule({
-    reflectionId: state.reflectionId,
-    spec: windowSpec,
-    ready: state.chipsSeeded && state.reflectionId != null,
-  });
-
-  const activeWindow =
-    state.windowOverride ?? parseActiveWindow(session.messages) ?? undefined;
-
-  const { creating, startReflection, finish, commitTitle } =
-    useReflectionRefineActions({
-      isNew,
-      reflectionId: state.reflectionId,
-      session,
-      windowSpec,
-      input: state.input,
-      nameInput: state.nameInput,
-      context: state.context as ContextItem[],
-      canCommit,
-      adopt,
-      rename,
-      onReflectionCreated: (nextId) =>
-        void scope.dispatch({ type: "setReflectionId", id: nextId }),
-      onCommitSuccess,
-    });
-
-  const headerCopy = deriveRefineHeaderCopy({
-    isNew,
-    name,
-    existingName: existing?.name,
-    committing: session.committing,
-  });
-  const displayLens = directLensOverride ?? session.latestLens;
 
   return (
     <>
       <PageHeader
         title={headerCopy.title}
         crumb={headerCopy.crumb}
-        onTitleCommit={started ? commitTitle : undefined}
+        onTitleCommit={started ? actions.commitTitle : undefined}
         actions={
           <>
-            <Button variant="ghost" onClick={() => onCancel(id)}>
-              Cancel
+            <Button
+              variant="ghost"
+              disabled={actions.saving || actions.discarding}
+              onClick={handleSecondaryAction}
+            >
+              {isEstablished ? "Cancel" : "Discard"}
             </Button>
             <Button
               variant="commit"
-              disabled={!canCommit}
-              onClick={() => void finish()}
+              disabled={!canSave}
+              onClick={() => void actions.save()}
             >
-              {headerCopy.doneLabel}
+              {headerCopy.saveLabel}
             </Button>
           </>
         }
       />
       <PageCard>
         <div className="flex min-h-0 flex-1">
-          <div className="flex w-[322px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-line p-4">
-            <RefineConfigPanel
-              cadence={state.cadence}
-              onCadenceChange={(next) =>
-                void scope.dispatch({ type: "setCadence", cadence: next })
-              }
-              fromDate={state.fromDate}
-              onFromDateChange={(next) =>
-                void scope.dispatch({ type: "setFromDate", fromDate: next })
-              }
-              fromDisabled={!isNew || started}
-              fromNote={headerCopy.fromNote}
-              endDate={state.endDate}
-              onEndDateChange={(next) =>
-                void scope.dispatch({ type: "setEndDate", endDate: next })
-              }
-              paused={state.paused}
-              onPausedChange={(next) =>
-                void scope.dispatch({ type: "setPaused", paused: next })
-              }
-            />
-            <SchedulePill
-              freq={state.paused ? "Paused" : CADENCES[state.cadence]}
-              win={`${CADENCE_WIN[state.cadence]} · auto-approved`}
-            />
-            <StandingLensCard
-              lensPrompt={displayLens}
-              canEdit={state.reflectionId != null}
-              onEdit={() => setLensDialogOpen(true)}
-            />
-          </div>
-
           <ReflectionRefineMiddlePane
+            activeTab={state.activeTab}
+            onTabChange={(tab) =>
+              void scope.dispatch({ type: "setActiveTab", tab })
+            }
+            lensDirty={lensDirty}
+            scheduleDirty={scheduleDirty}
             started={started}
             isNew={isNew}
+            isEstablished={isEstablished}
+            fromNote={headerCopy.fromNote}
             session={session}
+            lensPrompt={effectiveLensPrompt}
+            onLensPromptChange={setDirectLens}
+            cadence={state.cadence}
+            onCadenceChange={(cadence) =>
+              void scope.dispatch({ type: "setCadence", cadence })
+            }
+            fromDate={state.fromDate}
+            onFromDateChange={(fromDate) =>
+              void scope.dispatch({ type: "setFromDate", fromDate })
+            }
+            endDate={state.endDate}
+            onEndDateChange={(endDate) =>
+              void scope.dispatch({ type: "setEndDate", endDate })
+            }
+            paused={state.paused}
+            onPausedChange={(paused) =>
+              void scope.dispatch({ type: "setPaused", paused })
+            }
             context={state.context as ContextItem[]}
             activeWindow={activeWindow}
             input={state.input}
             nameInput={state.nameInput}
-            creating={creating}
-            onInputChange={(next) =>
-              void scope.dispatch({ type: "setInput", input: next })
+            creating={actions.creating}
+            busy={busy}
+            onInputChange={(input) =>
+              void scope.dispatch({ type: "setInput", input })
             }
-            onNameInputChange={(next) =>
-              void scope.dispatch({ type: "setNameInput", nameInput: next })
+            onNameInputChange={(nameInput) =>
+              void scope.dispatch({ type: "setNameInput", nameInput })
             }
-            onContextChange={(next) =>
-              void scope.dispatch({ type: "setContext", context: next })
+            onContextChange={(context) =>
+              void scope.dispatch({ type: "setContext", context })
             }
             onMention={(item) =>
               void scope.dispatch({ type: "mentionContext", item })
             }
-            onStartReflection={() => void startReflection()}
+            onStartReflection={() => void actions.startReflection()}
           />
 
           <LivePreviewPane
-            started={started}
-            preview={session.preview}
+            preview={displayPreview}
             phase={session.phase}
-            header={
-              started && state.reflectionId ? (
-                <WindowSelect
-                  compact
-                  reflectionId={state.reflectionId}
-                  active={activeWindow}
-                  onChange={(win) => {
-                    void scope.dispatch({
-                      type: "setWindowOverride",
-                      window: win,
-                    });
-                    session.chat.applyTimeWindow(win);
-                  }}
-                />
-              ) : undefined
+            previewWindows={previewWindows.windows}
+            activeWindow={activeWindow}
+            onSelectWindow={(win) =>
+              void scope.dispatch({
+                type: "setSelectedWindowKey",
+                key: win.key,
+              })
             }
+            previewStale={previewStale}
+            previewLoading={actions.previewLoading}
+            windowsLoading={previewWindows.loading}
+            canPreview={canPreview}
+            onRunPreview={() => void actions.runManualPreview()}
           />
         </div>
       </PageCard>
 
-      {state.reflectionId && (
-        <ReflectionLensDialog
-          open={lensDialogOpen}
-          onOpenChange={setLensDialogOpen}
-          reflectionId={state.reflectionId}
-          fallbackPrompt={session.latestLens}
-          onSaved={(savedPrompt) => setDirectLensOverride(savedPrompt)}
-        />
-      )}
+      <ConfirmDialog
+        open={discardConfirmOpen}
+        onOpenChange={setDiscardConfirmOpen}
+        title="Discard reflection draft?"
+        description="This reflection has never been saved. Discarding will permanently remove this unfinished draft and its conversation."
+        confirmLabel={actions.discarding ? "Discarding…" : "Discard draft"}
+        variant="destructive"
+        busy={actions.discarding}
+        onConfirm={() => void actions.discardDraft()}
+      />
     </>
   );
 }

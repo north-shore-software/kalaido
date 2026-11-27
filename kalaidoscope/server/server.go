@@ -221,10 +221,14 @@ func RegisterRoutes(app core.App, deps handlers.Deps) {
 
 		// Reflections
 		se.Router.POST("/api/reflections", handlers.HandleCreateReflection(app))
+		se.Router.POST("/api/reflections/preview-windows", handlers.HandlePreviewReflectionWindows(app))
+		se.Router.POST("/api/reflections/preview", handlers.HandlePreviewReflection(app))
 		se.Router.POST("/api/reflections/generate-pending", handlers.HandleGeneratePendingReflections(app))
 		se.Router.PATCH("/api/reflections/{id}", handlers.HandleUpdateReflection(app))
 		se.Router.DELETE("/api/reflections/{id}", handlers.HandleDeleteReflection(app))
 		se.Router.POST("/api/reflections/{id}/restore", handlers.HandleRestoreReflection(app))
+		se.Router.POST("/api/reflections/{id}/save", handlers.HandleSaveReflection(app, deps))
+		se.Router.POST("/api/reflections/{id}/draft/discard", handlers.HandleDiscardReflectionDraft(app))
 		se.Router.GET("/api/reflections/{id}/lens", handlers.HandleGetReflectionLens(app))
 		se.Router.PUT("/api/reflections/{id}/lens", handlers.HandleUpdateReflectionLens(app))
 		se.Router.POST("/api/reflections/{id}/snapshots", handlers.HandleGenerateReflectionSnapshot(app))

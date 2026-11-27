@@ -12,6 +12,7 @@ export interface RefineChatPanelProps {
   onMention?: (item: ContextItem) => void;
   onContextChange?: (items: ContextItem[]) => void;
   notifyOnContextChange?: boolean;
+  hideContextBar?: boolean;
   entity?: EntityKind;
   timeWindow?: TimeWindow;
   title?: ReactNode;
@@ -38,6 +39,7 @@ export const RefineChatPanel = forwardRef<
     onMention,
     onContextChange,
     notifyOnContextChange,
+    hideContextBar,
     entity,
     title,
     placeholder,
@@ -66,6 +68,7 @@ export const RefineChatPanel = forwardRef<
         onMention={onMention}
         onContextChange={onContextChange}
         notifyOnContextChange={notifyOnContextChange}
+        hideContextBar={hideContextBar}
         entity={entity}
         timeWindow={timeWindow}
         highlightedEditId={highlightedEditId}

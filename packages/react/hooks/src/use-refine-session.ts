@@ -209,14 +209,29 @@ export interface RefineSession {
   commit: (parentId: string) => Promise<boolean>;
 }
 
+export interface ReflectionPreviewChatContext {
+  readonly activeWindow?: TimeWindow;
+  readonly latestPreview?: string;
+  readonly lensPrompt?: string;
+  readonly contextSpec?: ContextSpec;
+}
+
 export function useRefineSession({
   target,
   resumed,
+  reflectionPreviewContext,
   onCommitted,
 }: {
   target: "projection" | "reflection";
   /** Declarative resumed refinement seed (takes effect until `start()` runs). */
   resumed?: ResumedRefinementSeed | null;
+  /**
+   * Optional staged reflection preview context forwarded on reflection chat
+   * requests so the assistant sees the active sample window, latest preview,
+   * staged lens, and staged sources without adding window system messages to
+   * the chat transcript.
+   */
+  reflectionPreviewContext?: ReflectionPreviewChatContext;
   onCommitted?: (snapshotId: string) => void;
 }): RefineSession {
   const client = useKalaidoscopeClient();
@@ -258,10 +273,31 @@ export function useRefineSession({
   const identityRef = useRef(identity);
   useSyncRef(identityRef, identity);
 
+  const previewContextRef = useRef(reflectionPreviewContext);
+  useSyncRef(previewContextRef, reflectionPreviewContext);
+
+  const getRequestBody = useCallback(() => {
+    const ctx = previewContextRef.current;
+    if (!ctx) return undefined;
+    const body: Record<string, unknown> = {};
+    if (ctx.activeWindow) {
+      body.window = {
+        id: ctx.activeWindow.id,
+        start: ctx.activeWindow.start,
+        end: ctx.activeWindow.end,
+      };
+    }
+    if (ctx.latestPreview?.trim()) body.latestPreview = ctx.latestPreview;
+    if (ctx.lensPrompt?.trim()) body.lensPrompt = ctx.lensPrompt;
+    if (ctx.contextSpec) body.contextSpec = ctx.contextSpec;
+    return Object.keys(body).length > 0 ? body : undefined;
+  }, []);
+
   const chat = useKalaidoChat({
     chatId: identity.started ? identity.clientId : idleChatId,
     api: identity.api,
     initialMessages: identity.started ? identity.initialMessages : undefined,
+    getRequestBody: target === "reflection" ? getRequestBody : undefined,
   });
 
   const createWrite = useExternalWrite<

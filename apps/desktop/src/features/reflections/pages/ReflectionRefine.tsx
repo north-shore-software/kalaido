@@ -27,6 +27,9 @@ export default function ReflectionRefine() {
             params: { id: reflId },
           })
         }
+        onDiscardSuccess={() =>
+          go(reflectionRefineTransitions.cancel, { params: {} })
+        }
       />
     </PageLayout>
   );

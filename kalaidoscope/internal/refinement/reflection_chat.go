@@ -72,7 +72,10 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		return nil
 	}
 
-	_, currentLens := LatestReflectionLens(allMsgs)
+	currentLens := strings.TrimSpace(req.LensPrompt)
+	if currentLens == "" {
+		_, currentLens = LatestReflectionLens(allMsgs)
+	}
 	if currentLens == "" && parent != nil {
 		_, currentLens = engine.ReadActiveLens(app, reflections.Strategy{}, parent)
 		currentLens = strings.TrimSpace(currentLens)
@@ -80,7 +83,29 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 	hasLens := currentLens != ""
 
 	pinned, spec, activeWin := llmcontext.LatestPinnedAndSpec(allMsgs)
-	latestPreview := LatestPreviewOutput(allMsgs)
+	needsReResolve := false
+	if req.Window != nil && req.Window.Start != "" && req.Window.End != "" {
+		wCopy := *req.Window
+		activeWin = &wCopy
+		needsReResolve = true
+	} else if activeWin == nil && parent != nil {
+		activeWin = reflections.DefaultRefinementWindow(parent, time.Now())
+		needsReResolve = true
+	}
+	if req.ContextSpec != nil {
+		spec = reflections.StripUpstreamSources(*req.ContextSpec)
+		needsReResolve = true
+	}
+	if needsReResolve {
+		if resolved, rerr := llmcontext.ResolveSpecToIDs(ctx, app, reflections.StripUpstreamSources(spec), activeWin); rerr == nil {
+			pinned = resolved
+		}
+	}
+
+	latestPreview := strings.TrimSpace(req.LatestPreview)
+	if latestPreview == "" {
+		latestPreview = LatestPreviewOutput(allMsgs)
+	}
 
 	hydratedMsgs := chat.HydrateDeltaHistory(ctx, app, allMsgs)
 	sysPrompt := prompts.ReflectionChatSystemPrompt(hasLens, isUnnamed, currentLens, latestPreview, activeWin)

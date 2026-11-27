@@ -59,6 +59,12 @@ export interface ChatPanelProps {
    * `context_spec` to the assistant so it responds conversationally.
    */
   notifyOnContextChange?: boolean;
+  /**
+   * Hide the built-in {@link ContextBar} above the composer while still
+   * keeping `context`, `onContextChange` (for confirmation cards), and
+   * `onMention` wired (e.g. when sources live in an adjacent tab).
+   */
+  hideContextBar?: boolean;
   /** Restricts the bar's pin search (a reflection can only pin fragments). */
   entity?: EntityKind;
   /**
@@ -105,6 +111,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
       onMention,
       onContextChange,
       notifyOnContextChange = false,
+      hideContextBar = false,
       entity,
       timeWindow,
       title,
@@ -213,7 +220,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
           {trailing}
         </div>
 
-        {context !== undefined && onContextChange && (
+        {!hideContextBar && context !== undefined && onContextChange && (
           <div inert={disabled}>
             <ContextBar
               items={context}

@@ -29,6 +29,8 @@ var (
 	ErrEmptyOutput = errors.New("output cannot be empty")
 	// ErrNoApprovedSnapshot is returned when attempting to edit a window with no approved snapshot.
 	ErrNoApprovedSnapshot = errors.New("window has no approved snapshot")
+	// ErrAlreadySaved rejects discarding a reflection that already has a saved lens.
+	ErrAlreadySaved = errors.New("reflection already has a saved lens and cannot be discarded as a draft")
 )
 
 // Strategy implements engine.Strategy for reflections.
@@ -225,4 +227,173 @@ func Restore(app core.App, id string) (*core.Record, error) {
 		return nil, err
 	}
 	return rec, nil
+}
+
+// SaveTuningParams carries the staged edits to persist atomically on Save.
+type SaveTuningParams struct {
+	RefinementID string
+	WindowSpec   *api.WindowSpec
+	ContextSpec  *api.ContextSpec
+	LensPrompt   string
+	Name         *string
+}
+
+func windowSpecsEqual(a, b api.WindowSpec) bool {
+	return a.Mode == b.Mode &&
+		a.StartTime == b.StartTime &&
+		a.EndTime == b.EndTime &&
+		a.Period == b.Period &&
+		a.Duration == b.Duration &&
+		a.Paused == b.Paused
+}
+
+// SaveTuning atomically persists staged schedule, context sources, standing
+// lens, and optional name in a single transaction, setting status = active.
+//
+// For never-saved reflections (current_lens_id == ""), replacing v1 cleanly
+// ensures startTime edits made before first Save govern the initial grid.
+// For established reflections, a modified WindowSpec appends a new version
+// effective from now (leaving prior windows intact).
+func SaveTuning(app core.App, reflectionID string, params SaveTuningParams) (string, error) {
+	trimmedPrompt := strings.TrimSpace(params.LensPrompt)
+	if trimmedPrompt == "" {
+		return "", ErrEmptyLensPrompt
+	}
+
+	var lensID string
+	err := app.RunInTransaction(func(tx core.App) error {
+		rec, err := FindLive(tx, reflectionID)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrNotFound, err)
+		}
+
+		now := time.Now()
+		isNeverSaved := rec.GetString("current_lens_id") == ""
+
+		if params.WindowSpec != nil {
+			spec := *params.WindowSpec
+			versions := LoadWindowSpecVersions(rec)
+			cur, hasCur := GoverningVersion(versions, now)
+			if spec.StartTime == "" && hasCur {
+				spec.StartTime = cur.Spec.StartTime
+			}
+			if err := spec.Validate(); err != nil {
+				return fmt.Errorf("%w: %w", ErrInvalidWindowSpec, err)
+			}
+			if isNeverSaved {
+				effective := now
+				if st := parseRFC3339(spec.StartTime); !st.IsZero() && st.Before(effective) {
+					effective = st
+				}
+				rec.Set("window_spec_versions", pbutil.JSONObject(AppendWindowSpecVersion(nil, spec, effective)))
+			} else if !hasCur || !windowSpecsEqual(cur.Spec, spec) {
+				versions = AppendWindowSpecVersion(versions, spec, now)
+				rec.Set("window_spec_versions", pbutil.JSONObject(versions))
+			}
+		}
+
+		if params.ContextSpec != nil {
+			clean := StripUpstreamSources(*params.ContextSpec)
+			rec.Set("current_context_spec", pbutil.JSONObject(clean))
+		}
+
+		existingLensID, existingPrompt := engine.ReadActiveLens(tx, Strategy{}, rec)
+		if existingLensID == "" || strings.TrimSpace(existingPrompt) != trimmedPrompt {
+			lensCol, err := tx.FindCollectionByNameOrId(schema.ColLens.String())
+			if err != nil {
+				return err
+			}
+			lensRec := core.NewRecord(lensCol)
+			if existingLensID != "" {
+				lensRec.Set("parent_lens_id", existingLensID)
+			}
+			lensRec.Set("prompt", trimmedPrompt)
+			if params.RefinementID != "" {
+				lensRec.Set(Strategy{}.RefinementForeignKeyCol(), params.RefinementID)
+			}
+			if err := tx.Save(lensRec); err != nil {
+				return err
+			}
+			rec.Set("current_lens_id", lensRec.Id)
+			lensID = lensRec.Id
+		} else {
+			lensID = existingLensID
+		}
+
+		if params.Name != nil && strings.TrimSpace(*params.Name) != "" {
+			rec.Set("name", strings.TrimSpace(*params.Name))
+		}
+
+		rec.Set("status", engine.EntityActive)
+		return tx.Save(rec)
+	})
+	if err != nil {
+		return "", err
+	}
+	return lensID, nil
+}
+
+// DiscardResult describes the side effect of discarding a never-saved
+// reflection draft.
+type DiscardResult struct {
+	DeletedReflection  bool
+	RevertedToProposed bool
+}
+
+// DiscardDraft cleans up a never-saved reflection (current_lens_id == "").
+// Established reflections (with a saved lens) are refused with ErrAlreadySaved.
+// Never-saved Discover proposals revert to status="proposed" (deleting open
+// refinements); never-saved user-created reflections are hard-deleted so no
+// broken lensless reflection remains.
+func DiscardDraft(app core.App, reflectionID string) (DiscardResult, error) {
+	var res DiscardResult
+	err := app.RunInTransaction(func(tx core.App) error {
+		rec, err := FindLive(tx, reflectionID)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrNotFound, err)
+		}
+		if rec.GetString("current_lens_id") != "" {
+			return ErrAlreadySaved
+		}
+		inFlight, err := engine.HasLiveClaim(tx, Strategy{}, rec.Id)
+		if err != nil {
+			return err
+		}
+		if inFlight {
+			return engine.ErrGenerationInFlight
+		}
+
+		if rec.GetString("created_by_discover_run_id") != "" {
+			refs, err := tx.FindRecordsByFilter(
+				schema.ColReflectionRefinement.String(),
+				"reflection_id = {:rid}",
+				"", 0, 0,
+				dbx.Params{"rid": rec.Id},
+			)
+			if err != nil {
+				return err
+			}
+			for _, r := range refs {
+				if err := tx.Delete(r); err != nil {
+					return err
+				}
+			}
+			rec.Set("status", engine.EntityProposed)
+			if err := tx.Save(rec); err != nil {
+				return err
+			}
+			res = DiscardResult{RevertedToProposed: true}
+			return nil
+		}
+
+		if err := engine.ScrubContextSpecs(tx, rec.Id, Strategy{}.ScrubSpec); err != nil {
+			return err
+		}
+		if err := tx.Delete(rec); err != nil {
+			return err
+		}
+		res = DiscardResult{DeletedReflection: true}
+		return nil
+	})
+	return res, err
 }

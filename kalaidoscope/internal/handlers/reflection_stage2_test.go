@@ -601,3 +601,296 @@ func (p reflectionChatScriptProvider) Stream(ctx context.Context, msgs []llm.Mes
 	close(ch)
 	return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
 }
+
+func TestStagedPreviewWindowsAndPreviewEndpoints(t *testing.T) {
+	llm.SetActiveModelSet(llm.SetLocal)
+	var mu sync.Mutex
+	llmCalls := 0
+	var lastPrompt string
+	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
+		return countingFakeProvider{
+			onCall: func() {
+				mu.Lock()
+				llmCalls++
+				mu.Unlock()
+			},
+			reply: "STAGED PREVIEW OUTPUT",
+		}
+	})
+
+	app := testutil.NewApp(t)
+	day := 24 * time.Hour
+	start := time.Now().Add(-35 * day).UTC().Truncate(time.Second)
+	dt := func(tm time.Time) types.DateTime { d, _ := types.ParseDateTime(tm); return d }
+
+	// Seed fragments across the last 35 days: 2 in the newest week, 1 older (20d ago).
+	testutil.NewRecord(t, app, "fragment", map[string]any{
+		"type": "note", "content": "Recent note 1", "occurred_at": dt(start.Add(30 * day)),
+	})
+	testutil.NewRecord(t, app, "fragment", map[string]any{
+		"type": "note", "content": "Recent note 2", "occurred_at": dt(start.Add(31 * day)),
+	})
+	testutil.NewRecord(t, app, "fragment", map[string]any{
+		"type": "note", "content": "Older month note", "occurred_at": dt(start.Add(12 * day)),
+	})
+
+	// Weekly schedule preview-windows -> multiple weekly windows, 0 LLM calls.
+	weeklyBody := `{"windowSpec":{"startTime":"` + start.Format(time.RFC3339) + `","period":"168h","duration":"168h"},"contextSpec":{"wholeScope":"full"}}`
+	rec, err := callJSON(t, app, HandlePreviewReflectionWindows(app), http.MethodPost, "/api/reflections/preview-windows", weeklyBody, nil)
+	if err != nil {
+		t.Fatalf("preview-windows weekly: %v", err)
+	}
+	var weeklyRes api.PreviewReflectionWindowsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &weeklyRes); err != nil {
+		t.Fatal(err)
+	}
+	if len(weeklyRes.Windows) < 4 || weeklyRes.DefaultWindowID == "" {
+		t.Fatalf("weekly preview windows = %+v, want >=4 with defaultWindowId", weeklyRes)
+	}
+
+	// Switch to monthly (720h) -> 1 completed monthly window with all 3 fragments!
+	monthlyBody := `{"windowSpec":{"startTime":"` + start.Format(time.RFC3339) + `","period":"720h","duration":"720h"},"contextSpec":{"wholeScope":"full"}}`
+	rec, err = callJSON(t, app, HandlePreviewReflectionWindows(app), http.MethodPost, "/api/reflections/preview-windows", monthlyBody, nil)
+	if err != nil {
+		t.Fatalf("preview-windows monthly: %v", err)
+	}
+	var monthlyRes api.PreviewReflectionWindowsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &monthlyRes); err != nil {
+		t.Fatal(err)
+	}
+	if len(monthlyRes.Windows) != 1 {
+		t.Fatalf("monthly preview windows = %d, want 1", len(monthlyRes.Windows))
+	}
+	if monthlyRes.Windows[0].FragmentCount < 1 {
+		t.Fatalf("monthly fragmentCount = %d, want >= 1", monthlyRes.Windows[0].FragmentCount)
+	}
+
+	// Bounded endTime caps windows.
+	end := start.Add(15 * day)
+	boundedBody := `{"windowSpec":{"startTime":"` + start.Format(time.RFC3339) + `","endTime":"` + end.Format(time.RFC3339) + `","period":"168h","duration":"168h"},"contextSpec":{"wholeScope":"full"}}`
+	rec, err = callJSON(t, app, HandlePreviewReflectionWindows(app), http.MethodPost, "/api/reflections/preview-windows", boundedBody, nil)
+	if err != nil {
+		t.Fatalf("preview-windows bounded: %v", err)
+	}
+	var boundedRes api.PreviewReflectionWindowsResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &boundedRes)
+	if len(boundedRes.Windows) != 2 {
+		t.Fatalf("bounded preview windows = %d, want 2", len(boundedRes.Windows))
+	}
+	// Week 1 ([start, start+7d)) has 0 fragments; week 2 ([start+7d, start+14d)) has 1 fragment.
+	if boundedRes.Windows[0].FragmentCount != 0 || boundedRes.Windows[1].FragmentCount != 1 {
+		t.Fatalf("bounded counts = [%d, %d], want [0, 1]", boundedRes.Windows[0].FragmentCount, boundedRes.Windows[1].FragmentCount)
+	}
+
+	mu.Lock()
+	callsBeforePreview := llmCalls
+	mu.Unlock()
+	if callsBeforePreview != 0 {
+		t.Fatalf("preview-windows made %d LLM calls, want 0", callsBeforePreview)
+	}
+
+	// POST /api/reflections/preview on empty window -> skips LLM, returns EmptyWindowOutput.
+	emptyWinBytes, _ := json.Marshal(boundedRes.Windows[0].Window)
+	emptyPreviewBody := `{"lensPrompt":"Summarize notes.","contextSpec":{"wholeScope":"full"},"window":` + string(emptyWinBytes) + `}`
+	rec, err = callJSON(t, app, HandlePreviewReflection(app), http.MethodPost, "/api/reflections/preview", emptyPreviewBody, nil)
+	if err != nil {
+		t.Fatalf("preview empty window: %v", err)
+	}
+	var emptyPrev api.PreviewReflectionResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &emptyPrev)
+	if !emptyPrev.Empty || emptyPrev.Output != reflections.EmptyWindowOutput || emptyPrev.FragmentCount != 0 {
+		t.Fatalf("empty preview = %+v", emptyPrev)
+	}
+	mu.Lock()
+	callsAfterEmpty := llmCalls
+	mu.Unlock()
+	if callsAfterEmpty != 0 {
+		t.Fatalf("empty preview made %d LLM calls, want 0", callsAfterEmpty)
+	}
+
+	// POST /api/reflections/preview on populated window -> 1 isolated LLM call, no DB mutations.
+	_ = lastPrompt
+	popWinBytes, _ := json.Marshal(boundedRes.Windows[1].Window)
+	popPreviewBody := `{"lensPrompt":"Summarize notes.","contextSpec":{"wholeScope":"full"},"window":` + string(popWinBytes) + `}`
+	rec, err = callJSON(t, app, HandlePreviewReflection(app), http.MethodPost, "/api/reflections/preview", popPreviewBody, nil)
+	if err != nil {
+		t.Fatalf("preview populated window: %v", err)
+	}
+	var popPrev api.PreviewReflectionResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &popPrev)
+	if popPrev.Empty || popPrev.Output != "STAGED PREVIEW OUTPUT" || popPrev.FragmentCount != 1 {
+		t.Fatalf("populated preview = %+v", popPrev)
+	}
+	mu.Lock()
+	callsAfterPop := llmCalls
+	mu.Unlock()
+	if callsAfterPop != 1 {
+		t.Fatalf("populated preview made %d LLM calls, want 1", callsAfterPop)
+	}
+}
+
+func TestAtomicSaveReflectionTuningAndCancelLeavesUntouched(t *testing.T) {
+	app := testutil.NewApp(t)
+	day := 24 * time.Hour
+	start := time.Now().Add(-20 * day).UTC().Truncate(time.Second)
+
+	// Create an established reflection with v1 weekly schedule and v1 lens.
+	refl, err := reflections.Create(app, reflections.CreateParams{
+		Name:       "Weekly Log",
+		WindowSpec: &api.WindowSpec{StartTime: start.Format(time.RFC3339), Period: "168h", Duration: "168h"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1Lens, err := reflections.UpdateLens(app, refl.Id, "Original weekly lens")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Schedule-only + direct-lens-only save WITHOUT opening a chat refinement session.
+	saveBody := `{"windowSpec":{"period":"720h","duration":"720h","paused":true},"contextSpec":{"wholeScope":"full"},"lensPrompt":"Revised monthly lens","name":"Monthly Log"}`
+	rec, err := callJSON(t, app, HandleSaveReflection(app, testDeps(app)), http.MethodPost, "/api/reflections/"+refl.Id+"/save", saveBody, map[string]string{"id": refl.Id})
+	if err != nil {
+		t.Fatalf("atomic save: %v", err)
+	}
+	var saveRes api.SaveReflectionResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &saveRes)
+	if saveRes.ID != refl.Id || saveRes.LensID == "" || saveRes.LensID == v1Lens.LensID {
+		t.Fatalf("saveRes = %+v, want new lensId distinct from %q", saveRes, v1Lens.LensID)
+	}
+
+	updated, err := app.FindRecordById(schema.ColReflection.String(), refl.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("name") != "Monthly Log" {
+		t.Errorf("name = %q, want Monthly Log", updated.GetString("name"))
+	}
+	_, gotPrompt := engine.ReadActiveLens(app, reflections.Strategy{}, updated)
+	if gotPrompt != "Revised monthly lens" {
+		t.Errorf("lens = %q, want Revised monthly lens", gotPrompt)
+	}
+	versions := reflections.LoadWindowSpecVersions(updated)
+	if len(versions) != 2 || versions[1].Spec.Period != "720h" || !versions[1].Spec.Paused {
+		t.Errorf("window_spec_versions = %+v, want 2 versions with monthly paused v2", versions)
+	}
+
+	// Saving again with schedule-only change (identical lens) must NOT create a duplicate lens row.
+	schedOnlyBody := `{"windowSpec":{"period":"24h","duration":"24h"}}`
+	rec, err = callJSON(t, app, HandleSaveReflection(app, testDeps(app)), http.MethodPost, "/api/reflections/"+refl.Id+"/save", schedOnlyBody, map[string]string{"id": refl.Id})
+	if err != nil {
+		t.Fatalf("schedule-only save: %v", err)
+	}
+	var schedRes api.SaveReflectionResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &schedRes)
+	if schedRes.LensID != saveRes.LensID {
+		t.Errorf("schedule-only save created new lens %q, want reused %q", schedRes.LensID, saveRes.LensID)
+	}
+
+	// Never-saved reflection: commit with staged schedule replaces v1 cleanly (keeps 1 version with new startTime).
+	draft, err := reflections.Create(app, reflections.CreateParams{
+		Name:       "Fresh Draft",
+		WindowSpec: &api.WindowSpec{StartTime: start.Format(time.RFC3339), Period: "168h", Duration: "168h"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, refRec := openRefinement(t, app, draft.Id, `{"clientId":"draft-commit-staged"}`)
+	newStart := time.Now().Add(-30 * day).UTC().Truncate(time.Second)
+	commitBody := `{"windowSpec":{"startTime":"` + newStart.Format(time.RFC3339) + `","period":"720h","duration":"720h"},"contextSpec":{"wholeScope":"full"},"lensPrompt":"First saved standing lens"}`
+	rec, err = callJSON(t, app, HandleCommitReflectionRefinement(app, testDeps(app)), http.MethodPost,
+		"/api/reflections/"+draft.Id+"/refinements/"+refRec.Id+"/commit", commitBody,
+		map[string]string{"id": draft.Id, "rid": refRec.Id})
+	if err != nil {
+		t.Fatalf("commit with staged overrides: %v", err)
+	}
+	savedDraft, _ := app.FindRecordById(schema.ColReflection.String(), draft.Id)
+	draftVersions := reflections.LoadWindowSpecVersions(savedDraft)
+	if len(draftVersions) != 1 || draftVersions[0].Spec.Period != "720h" || draftVersions[0].Spec.StartTime != newStart.Format(time.RFC3339) {
+		t.Fatalf("never-saved commit versions = %+v, want single replaced v1 with newStart+monthly", draftVersions)
+	}
+}
+
+func TestDiscardReflectionDraftLifecycle(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	// 1. User-created never-saved reflection -> hard-deleted (cascading refinements).
+	userDraft, err := reflections.Create(app, reflections.CreateParams{
+		Name:       "Unsaved User Reflection",
+		WindowSpec: &api.WindowSpec{Period: "168h", Duration: "168h"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, refRec := openRefinement(t, app, userDraft.Id, `{"clientId":"discard-user-1"}`)
+
+	rec, err := callJSON(t, app, HandleDiscardReflectionDraft(app), http.MethodPost,
+		"/api/reflections/"+userDraft.Id+"/draft/discard", "", map[string]string{"id": userDraft.Id})
+	if err != nil {
+		t.Fatalf("discard user draft: %v", err)
+	}
+	var userRes api.DiscardReflectionDraftResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &userRes)
+	if !userRes.DeletedReflection || userRes.RevertedToProposed {
+		t.Fatalf("user discard res = %+v, want deletedReflection=true", userRes)
+	}
+	if _, err := app.FindRecordById(schema.ColReflection.String(), userDraft.Id); err == nil {
+		t.Error("user-created draft reflection still exists after discard")
+	}
+	if _, err := app.FindRecordById(schema.ColReflectionRefinement.String(), refRec.Id); err == nil {
+		t.Error("refinement record still exists after reflection hard delete")
+	}
+
+	// 2. Discover-originated never-saved reflection -> deletes refinements and reverts to status="proposed".
+	discoverRun := testutil.NewRecord(t, app, "discover_run", map[string]any{
+		"status": "done",
+		"kind":   "reflections",
+	})
+	discDraft := testutil.NewRecord(t, app, "reflection", map[string]any{
+		"name":                       "Proposed Weekly",
+		"status":                     engine.EntityActive,
+		"created_by_discover_run_id": discoverRun.Id,
+		"window_spec_versions":       pbutil.JSONObject(reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, time.Now())),
+	})
+	_, discRef := openRefinement(t, app, discDraft.Id, `{"clientId":"discard-disc-1"}`)
+
+	rec, err = callJSON(t, app, HandleDiscardReflectionDraft(app), http.MethodPost,
+		"/api/reflections/"+discDraft.Id+"/draft/discard", "", map[string]string{"id": discDraft.Id})
+	if err != nil {
+		t.Fatalf("discard discover draft: %v", err)
+	}
+	var discRes api.DiscardReflectionDraftResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &discRes)
+	if !discRes.RevertedToProposed || discRes.DeletedReflection {
+		t.Fatalf("discover discard res = %+v, want revertedToProposed=true", discRes)
+	}
+	reloaded, err := app.FindRecordById(schema.ColReflection.String(), discDraft.Id)
+	if err != nil {
+		t.Fatalf("discover reflection disappeared: %v", err)
+	}
+	if reloaded.GetString("status") != engine.EntityProposed {
+		t.Errorf("discover status = %q, want proposed", reloaded.GetString("status"))
+	}
+	if _, err := app.FindRecordById(schema.ColReflectionRefinement.String(), discRef.Id); err == nil {
+		t.Error("discover draft refinement still exists after revert")
+	}
+
+	// 3. Established reflection (with current_lens_id) -> refused with 409 Conflict.
+	saved, err := reflections.Create(app, reflections.CreateParams{
+		Name:       "Established Reflection",
+		WindowSpec: &api.WindowSpec{Period: "168h", Duration: "168h"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reflections.UpdateLens(app, saved.Id, "Standing lens"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := callJSON(t, app, HandleDiscardReflectionDraft(app), http.MethodPost,
+		"/api/reflections/"+saved.Id+"/draft/discard", "", map[string]string{"id": saved.Id}); err == nil {
+		t.Fatal("expected 409 error when discarding established reflection")
+	}
+	if _, err := app.FindRecordById(schema.ColReflection.String(), saved.Id); err != nil {
+		t.Fatalf("established reflection was deleted: %v", err)
+	}
+}

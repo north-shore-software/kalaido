@@ -51,6 +51,12 @@ export interface UseKalaidoChatOptions {
    * managing `window` parts.
    */
   timeWindow?: TimeWindow;
+  /**
+   * Optional callback supplying extra top-level JSON body fields merged into
+   * every outgoing chat request (e.g. staged reflection preview context)
+   * without appending system messages to the transcript.
+   */
+  getRequestBody?: () => Record<string, unknown> | undefined;
   /** Fired when an assistant turn finishes, receiving the completed transcript. */
   onTurnComplete?: (messages: UIMessage[]) => void;
 }
@@ -189,6 +195,7 @@ interface KalaidoChatLatest {
   api: string | undefined;
   context: ContextItem[] | undefined;
   timeWindow: TimeWindow | undefined;
+  getRequestBody: (() => Record<string, unknown> | undefined) | undefined;
   onTurnComplete: ((messages: UIMessage[]) => void) | undefined;
   quotaHit: boolean;
   messages: UIMessage[];
@@ -218,6 +225,7 @@ export function useKalaidoChat({
   initialMessages,
   context,
   timeWindow,
+  getRequestBody,
   onTurnComplete,
 }: UseKalaidoChatOptions): KalaidoChatController {
   const client = useKalaidoscopeClient();
@@ -235,7 +243,25 @@ export function useKalaidoChat({
     const transport =
       transportProp ??
       (nextApi?.trim()
-        ? createKalaidoChatTransport({ baseURL: client.baseURL, api: nextApi })
+        ? createKalaidoChatTransport({
+            baseURL: client.baseURL,
+            api: nextApi,
+            prepareSendMessagesRequest: ({
+              id,
+              messages: outMessages,
+              body,
+            }) => {
+              const extra = latestRef.current.getRequestBody?.();
+              return {
+                body: {
+                  ...body,
+                  ...(extra ?? {}),
+                  id,
+                  messages: outMessages,
+                },
+              };
+            },
+          })
         : UNCONFIGURED_CHAT_TRANSPORT);
     return new Chat<UIMessage>({
       id: nextId,
@@ -318,6 +344,7 @@ export function useKalaidoChat({
     api,
     context,
     timeWindow,
+    getRequestBody,
     onTurnComplete,
     quotaHit,
     messages,
@@ -330,6 +357,7 @@ export function useKalaidoChat({
     api,
     context,
     timeWindow,
+    getRequestBody,
     onTurnComplete,
     quotaHit,
     messages,

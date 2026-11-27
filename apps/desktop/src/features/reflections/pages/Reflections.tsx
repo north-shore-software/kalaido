@@ -26,6 +26,9 @@ export default function Reflections() {
         onRefine={(reflId) =>
           go(reflectionsTransitions.refine, { params: { id: reflId } })
         }
+        onDiscarded={() =>
+          go(reflectionsTransitions.clearSelection, { params: {} })
+        }
       />
     </PageLayout>
   );

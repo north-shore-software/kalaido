@@ -26,6 +26,67 @@ type EditReflectionWindowResponse struct {
 	SnapshotID string `json:"snapshotId"`
 }
 
+// PreviewReflectionWindowsRequest enumerates sample windows and matching
+// fragment counts for a staged schedule + context without mutating any record.
+type PreviewReflectionWindowsRequest struct {
+	ReflectionID string      `json:"reflectionId,omitempty"`
+	WindowSpec   WindowSpec  `json:"windowSpec"`
+	ContextSpec  ContextSpec `json:"contextSpec"`
+}
+
+// PreviewWindowInfo is one candidate sample window for the reflection preview
+// picker, including the count of matching fragments inside its bounds.
+type PreviewWindowInfo struct {
+	Window
+	Key           string `json:"key"`
+	FragmentCount int    `json:"fragmentCount"`
+}
+
+type PreviewReflectionWindowsResponse struct {
+	Windows         []PreviewWindowInfo `json:"windows"`
+	DefaultWindowID string              `json:"defaultWindowId,omitempty"`
+}
+
+// PreviewReflectionRequest executes a staged standing lens strictly in
+// isolation against one sample window's fragments (zero chat history, zero
+// database mutations).
+type PreviewReflectionRequest struct {
+	ReflectionID      string      `json:"reflectionId,omitempty"`
+	LensPrompt        string      `json:"lensPrompt"`
+	ContextSpec       ContextSpec `json:"contextSpec"`
+	Window            Window      `json:"window"`
+	GenerateWithModel string      `json:"generateWithModel,omitempty"`
+}
+
+type PreviewReflectionResponse struct {
+	Output        string `json:"output"`
+	Empty         bool   `json:"empty"`
+	FragmentCount int    `json:"fragmentCount"`
+}
+
+// SaveReflectionRequest atomically persists staged reflection tuning edits
+// (schedule, context sources, standing lens, and optional name) on Save or
+// refinement commit.
+type SaveReflectionRequest struct {
+	RefinementID string       `json:"refinementId,omitempty"`
+	WindowSpec   *WindowSpec  `json:"windowSpec,omitempty"`
+	ContextSpec  *ContextSpec `json:"contextSpec,omitempty"`
+	LensPrompt   *string      `json:"lensPrompt,omitempty"`
+	Name         *string      `json:"name,omitempty"`
+}
+
+type SaveReflectionResponse struct {
+	ID         string `json:"id"`
+	LensID     string `json:"lensId"`
+	SnapshotID string `json:"snapshotId,omitempty"`
+}
+
+type DiscardReflectionDraftResponse struct {
+	ID                 string `json:"id"`
+	DeletedReflection  bool   `json:"deletedReflection,omitempty"`
+	RevertedToProposed bool   `json:"revertedToProposed,omitempty"`
+}
+
 type GenerateReflectionSnapshotRequest struct {
 	SourceID    string      `json:"sourceId"` // ReflectionID
 	ChatID      string      `json:"chatId"`

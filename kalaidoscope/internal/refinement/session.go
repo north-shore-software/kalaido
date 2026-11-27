@@ -539,3 +539,94 @@ func MaterializeCandidateIfNew(ctx context.Context, app core.App, refRec *core.R
 	}
 	return newSnapID, nil
 }
+
+// CommitReflection atomically installs a reflection refinement session's staged
+// schedule, context sources, standing lens, and optional name in one
+// transaction, then kicks RunPendingWindows.
+//
+// Explicit staged overrides on req take precedence over transcript values so
+// users can adjust Schedule, Sources, or direct Lens text alongside (or without)
+// chat turns. When req carries no overrides, legacy preview-required guards are
+// preserved for transcript-only commits.
+func CommitReflection(
+	ctx context.Context,
+	app core.App,
+	refRec *core.Record,
+	expectedParentID string,
+	req api.SaveReflectionRequest,
+	runner workerutil.Runner,
+) (string, error) {
+	strat := reflections.Strategy{}
+	parent := parentID(app, refRec, strat)
+	if parent == "" {
+		return "", ErrMissingParentID
+	}
+	if expectedParentID != "" && expectedParentID != parent {
+		return "", ErrParentMismatch
+	}
+
+	msgs, err := chat.LoadMessages(ctx, app, refRec)
+	if err != nil {
+		return "", err
+	}
+	txLens, txOutput, _, txSpec, _, err := ExtractDraftedLensAndSpec(app, refRec)
+	if err != nil {
+		return "", err
+	}
+	hasTxContextSpec := false
+	for _, m := range msgs {
+		if m.Role != "system" {
+			continue
+		}
+		for _, p := range m.Parts {
+			if p.Type == "context_spec" {
+				hasTxContextSpec = true
+			}
+		}
+	}
+
+	hasStagedOverrides := req.WindowSpec != nil || req.ContextSpec != nil || req.LensPrompt != nil || req.Name != nil
+
+	var lensPrompt string
+	if req.LensPrompt != nil && strings.TrimSpace(*req.LensPrompt) != "" {
+		lensPrompt = strings.TrimSpace(*req.LensPrompt)
+	} else if txLens != "" {
+		lensPrompt = txLens
+	} else if parentRec, perr := reflections.FindLive(app, parent); perr == nil {
+		_, existingPrompt := engine.ReadActiveLens(app, strat, parentRec)
+		lensPrompt = strings.TrimSpace(existingPrompt)
+	}
+	if lensPrompt == "" {
+		return "", ErrNoDraftedLens
+	}
+
+	if !hasStagedOverrides && txOutput == "" {
+		return "", ErrNoPreviewOutput
+	}
+
+	var ctxSpec *api.ContextSpec
+	if req.ContextSpec != nil {
+		ctxSpec = req.ContextSpec
+	} else if hasTxContextSpec {
+		specCopy := txSpec
+		ctxSpec = &specCopy
+	}
+
+	lensID, err := reflections.SaveTuning(app, parent, reflections.SaveTuningParams{
+		RefinementID: refRec.Id,
+		WindowSpec:   req.WindowSpec,
+		ContextSpec:  ctxSpec,
+		LensPrompt:   lensPrompt,
+		Name:         req.Name,
+	})
+	if err != nil {
+		logger().Error("reflection refinement commit failed", "error", err)
+		return "", err
+	}
+
+	logger().Info("refinement installed a new lens", "target_type", strat.TargetType(), "reflection_id", parent, "refinement_id", refRec.Id, "lens_id", lensID)
+	if runner != nil {
+		reflections.RunPendingWindows(runner, app, parent)
+	}
+	return lensID, nil
+}

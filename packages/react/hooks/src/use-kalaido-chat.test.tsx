@@ -227,4 +227,45 @@ describe("useKalaidoChat", () => {
     );
     expect(secondBody).toContain("data-full_rewrite_cancel");
   });
+
+  test("getRequestBody merges reflection preview context without appending window system messages", async () => {
+    const { result } = renderHook(
+      () =>
+        useKalaidoChat({
+          chatId: "refl-chat",
+          api: "/api/reflections/r1/refinements/ref1/chat",
+          getRequestBody: () => ({
+            window: {
+              id: "w1",
+              start: "2026-10-01T00:00:00Z",
+              end: "2026-10-08T00:00:00Z",
+            },
+            latestPreview: "Sample output",
+            lensPrompt: "Summarize themes",
+          }),
+        }),
+      { wrapper },
+    );
+
+    act(() => {
+      result.current.sendUserMessage("Make it shorter");
+    });
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    const init = fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined;
+    const payload = JSON.parse(String(init?.body ?? "{}")) as {
+      window?: { id?: string; start: string; end: string };
+      latestPreview?: string;
+      lensPrompt?: string;
+      messages?: { role: string; parts?: { type: string }[] }[];
+    };
+    expect(payload.window?.id).toBe("w1");
+    expect(payload.latestPreview).toBe("Sample output");
+    expect(payload.lensPrompt).toBe("Summarize themes");
+    expect(
+      payload.messages?.some((m) => m.parts?.some((p) => p.type === "window")),
+    ).toBe(false);
+  });
 });
