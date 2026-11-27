@@ -1,6 +1,6 @@
 [package]
 name = "kalaido-mobile"
-version = "0.0.27"
+version = "0.0.28"
 description = "Kalaido"
 authors = ["North Shore Software Ltd. <kalaido@northshoresoftware.ca>"]
 edition = "2024"
