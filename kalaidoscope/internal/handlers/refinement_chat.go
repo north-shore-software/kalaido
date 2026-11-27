@@ -22,7 +22,7 @@ func HandleProjectionRefinementChat(app core.App) func(e *core.RequestEvent) err
 // HandleReflectionRefinementChat drafts one chat turn for a reflection
 // refinement under POST /api/reflections/{id}/refinements/{rid}/chat.
 func HandleReflectionRefinementChat(app core.App) func(e *core.RequestEvent) error {
-	return handleRefinementChatWith(app, schema.ColReflectionRefinement, "reflection", HandleChatForRefinement)
+	return handleRefinementChatWith(app, schema.ColReflectionRefinement, "reflection", HandleReflectionChatForRefinement)
 }
 
 // handleRefinementChatWith resolves {rid} in refinementCol, checks it belongs to
@@ -65,6 +65,14 @@ func handleRefinementChatWith(
 func HandleProjectionChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		return mapRefinementStreamError(e, app, refinement.StreamProjectionTurn(e.Request.Context(), app, req, refRec, e.Response))
+	}
+}
+
+// HandleReflectionChatForRefinement executes one 1-step standing-lens authoring
+// chat turn for a resolved reflection refinement record.
+func HandleReflectionChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		return mapRefinementStreamError(e, app, refinement.StreamReflectionTurn(e.Request.Context(), app, req, refRec, e.Response))
 	}
 }
 

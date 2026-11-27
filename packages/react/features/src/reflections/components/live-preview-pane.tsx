@@ -1,7 +1,8 @@
 import type { RefinePhase } from "@kalaido/client/kalaidoscope/refinements";
+import { REFLECTION_EMPTY_WINDOW_OUTPUT } from "@kalaido/client/kalaidoscope/reflections";
 import { MarkdownContent } from "@kalaido/components";
 import { useAutoScroll } from "@kalaido/hooks/use-auto-scroll";
-import { Pill } from "@kalaido/primitives/kalaido";
+import { EmptyState, Pill } from "@kalaido/primitives/kalaido";
 import { PaneHeader } from "@kalaido/primitives/layout/page-primitives";
 import { cn } from "@kalaido/primitives/lib/css-utils";
 import type { ReactNode } from "react";
@@ -49,6 +50,7 @@ export function LivePreviewPane({
   });
 
   const hasPreview = preview.length > 0;
+  const isEmptyWindow = preview.trim() === REFLECTION_EMPTY_WINDOW_OUTPUT;
 
   return (
     <div className={cn("flex min-w-0 flex-[1.1] flex-col", className)}>
@@ -69,9 +71,21 @@ export function LivePreviewPane({
         className="flex-1 overflow-y-auto p-5"
       >
         {started && hasPreview ? (
-          <div className="text-body leading-relaxed text-fg-1">
-            <MarkdownContent streaming content={preview} />
-          </div>
+          isEmptyWindow ? (
+            <EmptyState className="border border-line bg-surface-1 p-5">
+              <p className="text-body-sm font-medium text-fg-2">
+                {REFLECTION_EMPTY_WINDOW_OUTPUT}
+              </p>
+              <p className="mt-1 text-meta text-fg-4">
+                No matching fragments fell inside this sample window — switch
+                windows above to test your standing lens against another period.
+              </p>
+            </EmptyState>
+          ) : (
+            <div className="text-body leading-relaxed text-fg-1">
+              <MarkdownContent streaming content={preview} />
+            </div>
+          )
         ) : (
           <p className="text-body-sm text-fg-2">
             {emptyPreviewCopy(started, phase)}

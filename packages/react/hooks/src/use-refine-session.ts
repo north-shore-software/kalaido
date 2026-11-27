@@ -7,6 +7,7 @@ import {
   commitRefinement,
   createRefinement,
   extractHasDraftedLens,
+  extractLatestLensFromMessages,
   extractPreviewFromMessages,
   extractPreviewReady,
   extractRefinePhase,
@@ -167,6 +168,8 @@ export interface RefineSession {
    */
   previewReady: boolean;
   hasDraftedLens: boolean;
+  /** The latest standing lens prompt drafted in the session (empty if none yet). */
+  latestLens: string;
   /** Where the current turn stands: drafting the lens, applying it, or done. */
   phase: RefinePhase;
   /**
@@ -288,6 +291,7 @@ export function useRefineSession({
   const preview = extractPreviewFromMessages(messages);
   const previewReady = extractPreviewReady(messages);
   const hasDraftedLens = extractHasDraftedLens(messages);
+  const latestLens = extractLatestLensFromMessages(messages);
   const phase = extractRefinePhase(messages);
   const suggestedName = extractSuggestedNameFromMessages(messages);
   const creating = createWrite.isPending || control.starting;
@@ -404,6 +408,7 @@ export function useRefineSession({
     preview,
     previewReady,
     hasDraftedLens,
+    latestLens,
     phase,
     suggestedName,
     started: identity.started,

@@ -4,7 +4,24 @@ import { GenerationInFlightError } from "#kalaidoscope/projections";
 import { withActiveClient } from "./_active";
 import type { TimeWindow, WindowSpec } from "./chat";
 
+export const REFLECTION_EMPTY_WINDOW_OUTPUT = "No fragments in this window.";
+export const REFLECTION_MODEL_EMPTY = "empty";
+export const REFLECTION_MODEL_MANUAL = "manual";
+
+export function isReflectionSentinelModel(model: string | undefined): boolean {
+  return model === REFLECTION_MODEL_EMPTY || model === REFLECTION_MODEL_MANUAL;
+}
+
 export interface CreateReflectionResult {
+  readonly id: string;
+}
+
+export interface ReflectionLens {
+  readonly lensId: string;
+  readonly prompt: string;
+}
+
+export interface EditReflectionWindowResult {
   readonly id: string;
 }
 
@@ -49,6 +66,8 @@ export interface ReflectionWindow extends TimeWindow {
   backfilled: boolean;
   /** An approved snapshot exists but the window's context has changed since. */
   stale?: boolean;
+  /** The approved snapshot was produced by a lens other than the current one. */
+  lensOutdated?: boolean;
 }
 
 export interface ReflectionWindowsResult {
@@ -174,4 +193,52 @@ export async function restoreReflection(
       method: "POST",
     });
   });
+}
+
+/** Read a reflection's current standing lens prompt. Mirrors `GET /api/reflections/:id/lens`. */
+export async function getReflectionLens(
+  reflectionId: string,
+): Promise<Result<ReflectionLens, Error>> {
+  return withActiveClient((client) =>
+    client.send<ReflectionLens>(`/api/reflections/${reflectionId}/lens`, {
+      method: "GET",
+      requestKey: null,
+    }),
+  );
+}
+
+/** Save a revised standing lens prompt directly. Mirrors `PUT /api/reflections/:id/lens`. */
+export async function updateReflectionLens(
+  reflectionId: string,
+  prompt: string,
+): Promise<Result<ReflectionLens, Error>> {
+  return withActiveClient((client) =>
+    client.send<ReflectionLens>(`/api/reflections/${reflectionId}/lens`, {
+      method: "PUT",
+      body: { prompt },
+    }),
+  );
+}
+
+/**
+ * Directly edit the markdown/text of a specific reflection window's snapshot.
+ * Appends a new approved revision (`generated_by_model = "manual"`). Mirrors
+ * `POST /api/reflections/:id/windows/:windowId/edit`.
+ */
+export async function editReflectionWindowSnapshot(
+  reflectionId: string,
+  windowId: string,
+  output: string,
+): Promise<Result<EditReflectionWindowResult, Error>> {
+  return (
+    await withActiveClient((client) =>
+      client.send<{ snapshotId: string }>(
+        `/api/reflections/${reflectionId}/windows/${windowId}/edit`,
+        {
+          method: "POST",
+          body: { output },
+        },
+      ),
+    )
+  ).map((r) => ({ id: r.snapshotId }));
 }

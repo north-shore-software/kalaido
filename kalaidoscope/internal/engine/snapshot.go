@@ -291,7 +291,18 @@ const (
 	CurrencyModelChanged   = "model_changed"
 	CurrencyContextChanged = "context_changed"
 	CurrencyNewFragments   = "new_fragments"
+
+	// Sentinel values recorded in reflection_snapshot.generated_by_model for
+	// non-LLM origins (empty-window placeholder and direct manual text edits).
+	SnapshotModelEmpty  = "empty"
+	SnapshotModelManual = "manual"
 )
+
+// IsSentinelModel reports whether model is a non-LLM origin sentinel rather
+// than a real LLM model identifier.
+func IsSentinelModel(model string) bool {
+	return model == SnapshotModelEmpty || model == SnapshotModelManual
+}
 
 // SnapshotCurrency reports whether snap already reflects what a generation of
 // rec would consume, given the entity's context already resolved to pinned
@@ -301,9 +312,9 @@ func SnapshotCurrency(rec, snap *core.Record, pinned llmcontext.PinnedIDs) (bool
 		return false, CurrencyLensChanged
 	}
 	// A model change makes the snapshot non-current — but only when both
-	// sides are known: legacy and empty-lens snapshots carry no model and must
-	// not read as perpetually stale.
-	if snapModel := snap.GetString("generated_by_model"); snapModel != "" {
+	// sides are known: legacy, empty-lens, empty-window, and manual-edit
+	// snapshots do not carry an LLM model and must not read as perpetually stale.
+	if snapModel := snap.GetString("generated_by_model"); snapModel != "" && !IsSentinelModel(snapModel) {
 		if effective, err := llm.ResolveRoleFor(llm.RoleSnapshot, rec.GetString("generate_with_model")); err == nil && effective != snapModel {
 			return false, CurrencyModelChanged
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -81,7 +82,7 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 				Generating:   st.Generating,
 				Backfilled:   st.Backfilled,
 				Stale:        stale[st.ID],
-				LensOutdated: st.HasApproved && st.LensID != currentLens,
+				LensOutdated: st.HasApproved && st.GeneratedByModel != engine.SnapshotModelEmpty && st.LensID != currentLens,
 			})
 		}
 		if win := reflections.DefaultRefinementWindow(rec, time.Now()); win != nil {
@@ -214,6 +215,83 @@ func HandleGeneratePendingReflections(app core.App) func(e *core.RequestEvent) e
 	}
 }
 
+// HandleGetReflectionLens returns a reflection's current standing lens prompt.
+func HandleGetReflectionLens(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		res, err := reflections.ReadLens(app, id)
+		if err != nil {
+			if errors.Is(err, reflections.ErrNotFound) {
+				return e.NotFoundError("reflection not found", err)
+			}
+			return e.InternalServerError("read reflection lens failed", err)
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandleUpdateReflectionLens saves a revised standing lens prompt directly
+// (appending a new lens row chained to the prior lens and updating current_lens_id).
+func HandleUpdateReflectionLens(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		var req api.UpdateReflectionLensRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		if strings.TrimSpace(req.Prompt) == "" {
+			return e.BadRequestError("prompt required", nil)
+		}
+		res, err := reflections.UpdateLens(app, id, req.Prompt)
+		if err != nil {
+			if errors.Is(err, reflections.ErrNotFound) {
+				return e.NotFoundError("reflection not found", err)
+			}
+			return e.InternalServerError("update reflection lens failed", err)
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandleEditReflectionWindow appends a new approved manual revision for a
+// specific reflection window.
+func HandleEditReflectionWindow(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		windowID := e.Request.PathValue("windowId")
+		if id == "" || windowID == "" {
+			return e.BadRequestError("reflection id and windowId required", nil)
+		}
+		var req api.EditReflectionWindowRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		snapID, err := reflections.EditWindowSnapshot(context.WithoutCancel(e.Request.Context()), app, id, windowID, req.Output)
+		if err != nil {
+			switch {
+			case errors.Is(err, reflections.ErrEmptyOutput):
+				return e.BadRequestError(err.Error(), err)
+			case errors.Is(err, reflections.ErrNotFound):
+				return e.NotFoundError("reflection not found", err)
+			case errors.Is(err, reflections.ErrWindowNotFound):
+				return e.NotFoundError("window not found", err)
+			case errors.Is(err, reflections.ErrNoApprovedSnapshot):
+				return e.Error(http.StatusConflict, err.Error(), err)
+			default:
+				logger().Error("edit reflection window failed", "id", id, "window_id", windowID, "error", err)
+				return e.InternalServerError("edit reflection window failed", err)
+			}
+		}
+		return e.JSON(http.StatusOK, api.EditReflectionWindowResponse{SnapshotID: snapID})
+	}
+}
+
 func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
@@ -224,11 +302,6 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 		var req api.GenerateReflectionSnapshotRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
-		}
-
-		status := engine.StatusApproved
-		if req.Preview {
-			status = engine.StatusPending
 		}
 
 		rec, err := reflections.FindLive(app, id)
@@ -250,7 +323,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 		var snapIDs []string
 		var firstErr error
 		if len(windowsToGenerate) == 1 {
-			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, windowsToGenerate[0])
+			snapID, err := reflections.GenerateWindowSnapshot(genCtx, app, id, windowsToGenerate[0])
 			if err != nil {
 				return WriteGenerateError(e, app, err, "reflection")
 			}
@@ -260,7 +333,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			for _, w := range windowsToGenerate {
 				plain = append(plain, *w)
 			}
-			for _, r := range reflections.GenerateWindows(genCtx, app, id, status, plain) {
+			for _, r := range reflections.GenerateWindows(genCtx, app, id, engine.StatusApproved, plain) {
 				if r.Err != nil {
 					if firstErr == nil {
 						firstErr = r.Err

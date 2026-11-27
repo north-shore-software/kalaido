@@ -9,6 +9,23 @@ type ReflectionSnapshotResponse struct {
 	SnapshotIDs []string `json:"snapshotIds"`
 }
 
+type ReflectionLensResponse struct {
+	LensID string `json:"lensId"`
+	Prompt string `json:"prompt"`
+}
+
+type UpdateReflectionLensRequest struct {
+	Prompt string `json:"prompt"`
+}
+
+type EditReflectionWindowRequest struct {
+	Output string `json:"output"`
+}
+
+type EditReflectionWindowResponse struct {
+	SnapshotID string `json:"snapshotId"`
+}
+
 type GenerateReflectionSnapshotRequest struct {
 	SourceID    string      `json:"sourceId"` // ReflectionID
 	ChatID      string      `json:"chatId"`

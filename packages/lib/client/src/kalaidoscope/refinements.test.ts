@@ -8,10 +8,13 @@ import {
 } from "./chat";
 import {
   APPLY_RESULT_TOOL,
+  extractHasDraftedLens,
+  extractLatestLensFromMessages,
   extractPreviewFromMessages,
   extractPreviewReady,
   extractRefinePhase,
   extractSuggestedNameFromMessages,
+  SET_LENS_TOOL,
   UPDATE_DRAFT_TOOL,
   UPDATE_LENS_TOOL,
   WRITE_DRAFT_TOOL,
@@ -402,5 +405,37 @@ describe("projection canvas tools (write_draft / update_draft / full_rewrite_con
         ),
       ]),
     ).toBe("idle");
+  });
+});
+
+describe("reflection standing-lens tool (set_lens)", () => {
+  it("recognizes set_lens live and persisted for latestLens and hasDraftedLens", () => {
+    for (const make of [liveTool, persistedTool]) {
+      const msgs = [
+        assistant(
+          "a1",
+          make(SET_LENS_TOOL, { prompt: "Summarize weekly blockers." }),
+        ),
+      ];
+      expect(extractHasDraftedLens(msgs)).toBe(true);
+      expect(extractLatestLensFromMessages(msgs)).toBe(
+        "Summarize weekly blockers.",
+      );
+      expect(extractRefinePhase(msgs)).toBe("drafting");
+    }
+  });
+
+  it("reports drafting on turn 2+ set_lens before apply_result streams", () => {
+    const msgs = [
+      assistant(
+        "a1",
+        liveTool(SET_LENS_TOOL, { prompt: "Lens v1" }),
+        liveTool(APPLY_RESULT_TOOL, { output: "Preview v1" }),
+      ),
+      user("u2", "make it shorter"),
+      assistant("a2", liveTool(SET_LENS_TOOL, { prompt: "Lens v2" })),
+    ];
+    expect(extractLatestLensFromMessages(msgs)).toBe("Lens v2");
+    expect(extractRefinePhase(msgs)).toBe("drafting");
   });
 });

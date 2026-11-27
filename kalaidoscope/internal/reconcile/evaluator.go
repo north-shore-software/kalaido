@@ -141,6 +141,16 @@ func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, statu
 		if len(diff.FragmentIDs) == 0 {
 			continue
 		}
+		// An empty-window placeholder whose window now contains matching
+		// fragments becomes a pending window so automatic scheduled or manual
+		// pending generation upgrades it with a real LLM snapshot. Non-empty
+		// windows stay stale only and are never silently overwritten by cron.
+		if snap.GetString("generated_by_model") == engine.SnapshotModelEmpty {
+			if !st.Generating {
+				status.PendingWindows = append(status.PendingWindows, st.Window)
+			}
+			continue
+		}
 		status.StaleWindows = append(status.StaleWindows, st.Window)
 		for _, id := range diff.FragmentIDs {
 			if !seen[id] {

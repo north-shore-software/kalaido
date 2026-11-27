@@ -50,9 +50,18 @@ func TestReflectionDomainCRUD(t *testing.T) {
 		t.Errorf("name = %q, want 'Updated Reflection'", updated.GetString("name"))
 	}
 
+	// 1b. Unscheduled / windowless create is rejected.
+	if _, err := reflections.Create(app, reflections.CreateParams{Name: "No Schedule"}); err == nil {
+		t.Fatal("Create without windowSpec succeeded, want ErrInvalidWindowSpec")
+	}
+
 	// 3. Dependent reflection sourcing this one to verify scrub
 	depRec, err := reflections.Create(app, reflections.CreateParams{
 		Name: "Dependent Reflection",
+		WindowSpec: &api.WindowSpec{
+			Period:   "168h",
+			Duration: "168h",
+		},
 	})
 	if err != nil {
 		t.Fatalf("Create dependent failed: %v", err)

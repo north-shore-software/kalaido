@@ -141,8 +141,10 @@ export interface ContextSpec {
  */
 export interface WindowSpec {
   startTime?: string;
+  endTime?: string;
   period: string;
   duration: string;
+  paused?: boolean;
 }
 
 /**
@@ -287,8 +289,10 @@ export function parseWindowSpec(raw: unknown): WindowSpec | null {
     if (typeof o.period === "string" || typeof o.duration === "string") {
       return {
         startTime: typeof o.startTime === "string" ? o.startTime : undefined,
+        endTime: typeof o.endTime === "string" ? o.endTime : undefined,
         period: typeof o.period === "string" ? o.period : "",
         duration: typeof o.duration === "string" ? o.duration : "",
+        ...(typeof o.paused === "boolean" ? { paused: o.paused } : {}),
       };
     }
   }

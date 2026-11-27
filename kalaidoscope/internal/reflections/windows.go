@@ -14,6 +14,7 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm/queue"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -110,10 +111,15 @@ func GridWindows(reflectionID string, spec api.WindowSpec, lowerBound, now time.
 		k = int64(lowerBound.Sub(origin)/period) + 1
 	}
 
+	upper := now
+	if endCap := parseRFC3339(spec.EndTime); !endCap.IsZero() && endCap.Before(upper) {
+		upper = endCap
+	}
+
 	var windows []api.Window
 	for {
 		end := origin.Add(time.Duration(k) * period)
-		if end.After(now) {
+		if end.After(upper) {
 			break
 		}
 		start := end.Add(-duration)
@@ -129,13 +135,20 @@ func GridWindows(reflectionID string, spec api.WindowSpec, lowerBound, now time.
 	return windows
 }
 
+// IsPaused reports whether the reflection's governing window spec at `now` has
+// paused forward scheduling.
+func IsPaused(rec *core.Record, now time.Time) bool {
+	version, ok := GoverningVersion(LoadWindowSpecVersions(rec), now)
+	return ok && version.Spec.Paused
+}
+
 // CurrentGridWindows is the grid of the version governing now, from that
 // version's lower bound: the windows that are materialized by the passage of
 // time alone (spec/model.md §Materialized Windows). Nil for an unscheduled
-// reflection.
+// reflection or one whose governing schedule is paused.
 func CurrentGridWindows(rec *core.Record, now time.Time) []api.Window {
 	version, ok := GoverningVersion(LoadWindowSpecVersions(rec), now)
-	if !ok || version.Spec.Period == "" {
+	if !ok || version.Spec.Period == "" || version.Spec.Paused {
 		return nil
 	}
 	return GridWindows(rec.Id, version.Spec, versionLowerBound(version), now)
@@ -144,9 +157,9 @@ func CurrentGridWindows(rec *core.Record, now time.Time) []api.Window {
 // DefaultRefinementWindow is the window a refinement of this reflection
 // targets when the caller names none: the current window (the most recently
 // completed grid point), or — before the first grid point has passed — the
-// trailing window of one Duration ending now, which is "what this summary
-// looks like today". Nil for an unscheduled reflection, whose snapshots are
-// windowless.
+// trailing window of one Duration ending now (capped at endTime if bounded),
+// which is "what this summary looks like today". Nil for an unscheduled
+// reflection.
 func DefaultRefinementWindow(rec *core.Record, now time.Time) *api.Window {
 	version, ok := GoverningVersion(LoadWindowSpecVersions(rec), now)
 	if !ok || version.Spec.Period == "" {
@@ -162,6 +175,9 @@ func DefaultRefinementWindow(rec *core.Record, now time.Time) *api.Window {
 		return nil
 	}
 	end := now.UTC().Truncate(time.Minute)
+	if endCap := parseRFC3339(version.Spec.EndTime); !endCap.IsZero() && endCap.Before(end) {
+		end = endCap.UTC()
+	}
 	start := end.Add(-duration)
 	if origin := parseRFC3339(version.Spec.StartTime); !origin.IsZero() && origin.After(start) {
 		start = origin
@@ -186,12 +202,13 @@ func ParseWindowPart(w api.Window) *api.Window {
 // holds for it.
 type WindowState struct {
 	api.Window
-	Key         string
-	HasApproved bool
-	Generating  bool
-	Backfilled  bool
-	LensID      string
-	approvedSeq int
+	Key              string
+	HasApproved      bool
+	Generating       bool
+	Backfilled       bool
+	LensID           string
+	GeneratedByModel string
+	approvedSeq      int
 }
 
 // SeriesWindows is a reflection's materialized windows, oldest first
@@ -244,6 +261,7 @@ func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState 
 			if seq := s.GetInt("approval_sequence_number"); seq >= st.approvedSeq {
 				st.approvedSeq = seq
 				st.LensID = s.GetString("lens_id")
+				st.GeneratedByModel = s.GetString("generated_by_model")
 			}
 		case engine.StatusGenerating:
 			st.Generating = true
@@ -263,15 +281,29 @@ func SeriesWindows(app core.App, rec *core.Record, now time.Time) []WindowState 
 }
 
 // PendingWindows are the materialized windows that still need a snapshot:
-// no approved output yet and no generation in flight. Oldest first, so a
-// catch-up (or a backfill) walks history forward.
+// no approved output yet (and no generation in flight), OR a window whose
+// latest approved snapshot is a hardcoded empty placeholder
+// (generated_by_model == "empty") that now has matching fragments. Oldest
+// first, so a catch-up (or a backfill) walks history forward.
 func PendingWindows(app core.App, rec *core.Record, now time.Time) []api.Window {
+	var spec api.ContextSpec
+	_ = rec.UnmarshalJSONField("current_context_spec", &spec)
+
 	var pending []api.Window
 	for _, st := range SeriesWindows(app, rec, now) {
-		if st.HasApproved || st.Generating {
+		if st.Generating {
 			continue
 		}
-		pending = append(pending, st.Window)
+		if !st.HasApproved {
+			pending = append(pending, st.Window)
+			continue
+		}
+		if st.GeneratedByModel == engine.SnapshotModelEmpty {
+			w := st.Window
+			if pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, spec, &w); err == nil && len(pinned.FragmentIDs) > 0 {
+				pending = append(pending, st.Window)
+			}
+		}
 	}
 	return pending
 }
@@ -283,12 +315,13 @@ type WindowResult struct {
 }
 
 // GenerateWindows generates every window at once, one goroutine each, and
-// returns their outcomes in the same order. Concurrency is not throttled
-// here: every model call passes through queue, which caps in-flight calls per
-// provider (one on local Ollama, wide on hosted APIs), so windows run as
-// parallel as the provider allows and no more. A preempted call retries;
-// the retry blocks in the scheduler until a slot frees up.
-func GenerateWindows(ctx context.Context, app core.App, reflectionID, status string, windows []api.Window) []WindowResult {
+// returns their outcomes in the same order. Reflection snapshots are always
+// auto-approved directly via GenerateWindowSnapshot. Concurrency is not
+// throttled here: every model call passes through queue, which caps in-flight
+// calls per provider (one on local Ollama, wide on hosted APIs), so windows run
+// as parallel as the provider allows and no more. A preempted call retries; the
+// retry blocks in the scheduler until a slot frees up.
+func GenerateWindows(ctx context.Context, app core.App, reflectionID, _ string, windows []api.Window) []WindowResult {
 	results := make([]WindowResult, len(windows))
 	var wg sync.WaitGroup
 	for i := range windows {
@@ -297,7 +330,7 @@ func GenerateWindows(ctx context.Context, app core.App, reflectionID, status str
 			defer wg.Done()
 			w := windows[i]
 			for {
-				id, err := engine.GenerateSnapshot(ctx, app, reflectionID, status, Strategy{}, &w)
+				id, err := GenerateWindowSnapshot(ctx, app, reflectionID, &w)
 				if errors.Is(err, queue.ErrPreempted) {
 					continue
 				}
@@ -350,9 +383,12 @@ func WindowsToGenerate(app core.App, rec *core.Record, req api.GenerateReflectio
 		case s.Generating:
 		case !s.HasApproved:
 			add(s.Window)
-		case s.LensID != currentLens:
+		case s.GeneratedByModel != engine.SnapshotModelEmpty && s.LensID != currentLens:
 			add(s.Window)
 		}
+	}
+	for _, w := range st.PendingWindows {
+		add(w)
 	}
 	for _, w := range st.StaleWindows {
 		add(w)

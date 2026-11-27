@@ -1,4 +1,8 @@
-import type { ReflectionWindow } from "@kalaido/client/kalaidoscope/reflections";
+import {
+  REFLECTION_MODEL_EMPTY,
+  REFLECTION_MODEL_MANUAL,
+  type ReflectionWindow,
+} from "@kalaido/client/kalaidoscope/reflections";
 import type {
   ReflectionResponse,
   ReflectionSnapshotResponse,
@@ -13,8 +17,14 @@ export interface ReflectionOutput {
 
 /** One window of the series with what the store holds for it. */
 export interface SeriesWindow extends ReflectionWindow {
-  /** The window's current approved snapshot, if any. */
+  /** The window's current approved snapshot, if any (newest revision). */
   snapshot?: ReflectionSnapshotResponse;
+  /** All approved revisions for this window, newest first. */
+  revisions: ReflectionSnapshotResponse[];
+  /** True when the latest approved snapshot is a hardcoded empty-window entry. */
+  isEmptyWindow: boolean;
+  /** True when the latest approved snapshot is a manual direct text edit. */
+  isManualEdit: boolean;
   /** The snapshot was produced by a lens other than the reflection's current one. */
   olderLens: boolean;
 }
@@ -62,18 +72,20 @@ export function useReflectionSeries(reflectionId: string | undefined) {
   const snapshots = snapshotsQuery.records as ReflectionSnapshotResponse[];
   const served = windowsQuery.windows;
 
-  const approvedByKey = useMemo(() => {
-    const map = new Map<string, ReflectionSnapshotResponse>();
+  const revisionsByKey = useMemo(() => {
+    const map = new Map<string, ReflectionSnapshotResponse[]>();
     for (const s of snapshots) {
       if (s.status && s.status !== "approved") continue;
       const key = windowKey(s.window_start, s.window_end);
-      const prev = map.get(key);
-      if (
-        !prev ||
-        (s.approval_sequence_number ?? 0) > (prev.approval_sequence_number ?? 0)
-      ) {
-        map.set(key, s);
-      }
+      const list = map.get(key) ?? [];
+      list.push(s);
+      map.set(key, list);
+    }
+    for (const list of map.values()) {
+      list.sort(
+        (a, b) =>
+          (b.approval_sequence_number ?? 0) - (a.approval_sequence_number ?? 0),
+      );
     }
     return map;
   }, [snapshots]);
@@ -81,15 +93,27 @@ export function useReflectionSeries(reflectionId: string | undefined) {
   const windows = useMemo<SeriesWindow[]>(() => {
     const currentLens = reflection?.current_lens_id ?? "";
     const join = (w: ReflectionWindow): SeriesWindow => {
-      const snapshot = approvedByKey.get(windowKey(w.start, w.end));
+      const revisions = revisionsByKey.get(windowKey(w.start, w.end)) ?? [];
+      const snapshot = revisions[0];
+      const isEmptyWindow =
+        snapshot?.generated_by_model === REFLECTION_MODEL_EMPTY;
+      const isManualEdit =
+        snapshot?.generated_by_model === REFLECTION_MODEL_MANUAL;
       return {
         ...w,
         snapshot,
-        olderLens: !!snapshot && (snapshot.lens_id ?? "") !== currentLens,
+        revisions,
+        isEmptyWindow,
+        isManualEdit,
+        olderLens:
+          w.lensOutdated ??
+          (!!snapshot &&
+            !isEmptyWindow &&
+            (snapshot.lens_id ?? "") !== currentLens),
       };
     };
     const list = [...served].reverse().map(join);
-    if (list.length === 0 && approvedByKey.has(ALL_TIME_KEY)) {
+    if (list.length === 0 && revisionsByKey.has(ALL_TIME_KEY)) {
       list.push(
         join({
           id: "all-time",
@@ -105,7 +129,7 @@ export function useReflectionSeries(reflectionId: string | undefined) {
       );
     }
     return list;
-  }, [served, approvedByKey, reflection, snapshots]);
+  }, [served, revisionsByKey, reflection, snapshots]);
 
   const loading =
     (reflectionsQuery.isLoading && !reflection) ||

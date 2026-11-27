@@ -112,6 +112,7 @@ export async function commitRefinement(input: {
   ).map((r) => ({ id: r.snapshotId }));
 }
 
+export const SET_LENS_TOOL = "set_lens";
 export const UPDATE_LENS_TOOL = "update_lens";
 export const REGENERATE_FROM_LENS_TOOL = "regenerate_from_lens";
 export const APPLY_RESULT_TOOL = "apply_result";
@@ -293,10 +294,43 @@ function hasToolCall(part: unknown, toolName: string): boolean {
   );
 }
 
+function lensTextFromPart(part: unknown): string | null {
+  const setInput = toolInputFromPart(part, SET_LENS_TOOL);
+  if (setInput && typeof setInput.prompt === "string") {
+    return setInput.prompt;
+  }
+  const p = part as { type?: string; data?: { lens?: unknown } };
+  if (p.type === LENS_PART_TYPE && typeof p.data?.lens === "string") {
+    return p.data.lens;
+  }
+  const legacyInput = toolInputFromPart(part, UPDATE_LENS_TOOL);
+  if (legacyInput && typeof legacyInput.lens === "string") {
+    return legacyInput.lens;
+  }
+  return null;
+}
+
+/**
+ * Pull the most recent non-empty standing lens prompt from a refinement chat
+ * (recognizing `set_lens`, `data-lens`, and seeded/legacy `update_lens`).
+ */
+export function extractLatestLensFromMessages(messages: UIMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "assistant" || !m.parts) continue;
+    for (let j = m.parts.length - 1; j >= 0; j--) {
+      const text = lensTextFromPart(m.parts[j])?.trim();
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
 function messageHasLens(m: UIMessage): boolean {
   if (m.role !== "assistant" || !m.parts) return false;
   return m.parts.some(
     (p) =>
+      hasToolCall(p, SET_LENS_TOOL) ||
       hasToolCall(p, UPDATE_LENS_TOOL) ||
       (p as { type?: string }).type === LENS_PART_TYPE ||
       (p as { type?: string }).type === LENS_SEED_PART_TYPE,
@@ -312,6 +346,7 @@ export function extractHasDraftedLens(messages: UIMessage[]): boolean {
     if (isSeed) continue;
     const hasLens = m.parts.some(
       (p) =>
+        hasToolCall(p, SET_LENS_TOOL) ||
         hasToolCall(p, UPDATE_LENS_TOOL) ||
         (p as { type?: string }).type === LENS_PART_TYPE,
     );
@@ -327,6 +362,7 @@ export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
     const m = messages[i];
     if (m.role !== "assistant" || !m.parts) continue;
     let sawLens = false;
+    let sawSetLens = false;
     let sawRegenerate = false;
     let sawUpdateDraft = false;
     let sawDraftUpdated = false;
@@ -335,6 +371,10 @@ export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
     let applyStreaming = false;
     let applyReady = false;
     for (const part of m.parts) {
+      if (hasToolCall(part, SET_LENS_TOOL)) {
+        sawLens = true;
+        sawSetLens = true;
+      }
       if (
         hasToolCall(part, UPDATE_LENS_TOOL) ||
         (part as { type?: string }).type === LENS_PART_TYPE
@@ -381,7 +421,7 @@ export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
           break;
         }
       }
-      if (sawRegenerate || !earlierHadLens) {
+      if (sawSetLens || sawRegenerate || !earlierHadLens) {
         return "drafting";
       }
       return "idle";

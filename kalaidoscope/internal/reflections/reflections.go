@@ -17,10 +17,18 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
+// EmptyWindowOutput is the hardcoded snapshot text recorded when a reflection
+// window resolves zero matching fragments (skipping the LLM call).
+const EmptyWindowOutput = "No fragments in this window."
+
 var (
 	ErrNotFound = errors.New("reflection not found")
 	// ErrInvalidWindowSpec wraps a schedule the grid could not evaluate.
 	ErrInvalidWindowSpec = errors.New("invalid window spec")
+	// ErrEmptyOutput rejects saving an empty manual edit on a reflection window.
+	ErrEmptyOutput = errors.New("output cannot be empty")
+	// ErrNoApprovedSnapshot is returned when attempting to edit a window with no approved snapshot.
+	ErrNoApprovedSnapshot = errors.New("window has no approved snapshot")
 )
 
 // Strategy implements engine.Strategy for reflections.
@@ -67,10 +75,11 @@ type CreateParams struct {
 
 // Create creates a new reflection in an active state and initializes its window spec versions.
 func Create(app core.App, params CreateParams) (*core.Record, error) {
-	if params.WindowSpec != nil {
-		if err := params.WindowSpec.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrInvalidWindowSpec, err)
-		}
+	if params.WindowSpec == nil {
+		return nil, fmt.Errorf("%w: windowSpec with a positive period is required", ErrInvalidWindowSpec)
+	}
+	if err := params.WindowSpec.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidWindowSpec, err)
 	}
 
 	var target *core.Record
@@ -85,10 +94,7 @@ func Create(app core.App, params CreateParams) (*core.Record, error) {
 		if d := strings.TrimSpace(params.Description); d != "" {
 			rec.Set("description", d)
 		}
-		spec := api.WindowSpec{}
-		if params.WindowSpec != nil {
-			spec = *params.WindowSpec
-		}
+		spec := *params.WindowSpec
 		effective := time.Now()
 		if st, err := time.Parse(time.RFC3339, spec.StartTime); err == nil && st.Before(effective) {
 			effective = st
@@ -124,12 +130,6 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, error) 
 		return nil, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
 
-	if params.WindowSpec != nil {
-		if err := params.WindowSpec.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrInvalidWindowSpec, err)
-		}
-	}
-
 	if params.Name != nil {
 		rec.Set("name", *params.Name)
 	}
@@ -144,6 +144,9 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, error) 
 				spec.StartTime = cur.Spec.StartTime
 			}
 		}
+		if err := spec.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrInvalidWindowSpec, err)
+		}
 		versions = AppendWindowSpecVersion(versions, spec, time.Now())
 		rec.Set("window_spec_versions", pbutil.JSONObject(versions))
 	}
@@ -155,6 +158,36 @@ func Update(app core.App, id string, params UpdateParams) (*core.Record, error) 
 		return nil, err
 	}
 	return rec, nil
+}
+
+// ReadLens returns a live reflection's current standing lens id and prompt text.
+func ReadLens(app core.App, id string) (api.ReflectionLensResponse, error) {
+	rec, err := FindLive(app, id)
+	if err != nil {
+		return api.ReflectionLensResponse{}, fmt.Errorf("%w: %w", ErrNotFound, err)
+	}
+	lensID, prompt := engine.ReadActiveLens(app, Strategy{}, rec)
+	return api.ReflectionLensResponse{
+		LensID: lensID,
+		Prompt: prompt,
+	}, nil
+}
+
+// UpdateLens appends a new lens row chained to the reflection's prior
+// current_lens_id and updates current_lens_id in one transaction.
+func UpdateLens(app core.App, id, prompt string) (api.ReflectionLensResponse, error) {
+	if _, err := FindLive(app, id); err != nil {
+		return api.ReflectionLensResponse{}, fmt.Errorf("%w: %w", ErrNotFound, err)
+	}
+	trimmed := strings.TrimSpace(prompt)
+	newLensID, err := engine.UpdateActiveLens(app, Strategy{}, id, trimmed)
+	if err != nil {
+		return api.ReflectionLensResponse{}, err
+	}
+	return api.ReflectionLensResponse{
+		LensID: newLensID,
+		Prompt: trimmed,
+	}, nil
 }
 
 // Delete soft-deletes a reflection, refusing if a generation is actively running,

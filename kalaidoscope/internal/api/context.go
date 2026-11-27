@@ -39,14 +39,14 @@ type WindowSpec struct {
 	EndTime   string `json:"endTime,omitempty"`
 	Period    string `json:"period"`
 	Duration  string `json:"duration"`
+	Paused    bool   `json:"paused,omitempty"`
 }
 
-// Validate rejects a schedule the grid could not evaluate. An empty
-// spec (unscheduled) is valid.
+// Validate rejects a schedule the grid could not evaluate. Every reflection
+// must define a positive window period; optional startTime/endTime must be
+// valid RFC3339 timestamps with endTime strictly after startTime when both are
+// present.
 func (spec WindowSpec) Validate() error {
-	if spec.Period == "" && spec.Duration == "" && spec.StartTime == "" {
-		return nil
-	}
 	if p, err := time.ParseDuration(spec.Period); err != nil || p <= 0 {
 		return errors.New("windowSpec.period must be a positive duration such as \"168h\"")
 	}
@@ -55,9 +55,21 @@ func (spec WindowSpec) Validate() error {
 			return errors.New("windowSpec.duration must be a positive duration such as \"168h\"")
 		}
 	}
+	var startT time.Time
 	if spec.StartTime != "" {
-		if _, err := time.Parse(time.RFC3339, spec.StartTime); err != nil {
+		t, err := time.Parse(time.RFC3339, spec.StartTime)
+		if err != nil {
 			return errors.New("windowSpec.startTime must be RFC3339")
+		}
+		startT = t
+	}
+	if spec.EndTime != "" {
+		endT, err := time.Parse(time.RFC3339, spec.EndTime)
+		if err != nil {
+			return errors.New("windowSpec.endTime must be RFC3339")
+		}
+		if !startT.IsZero() && !endT.After(startT) {
+			return errors.New("windowSpec.endTime must be after startTime")
 		}
 	}
 	return nil

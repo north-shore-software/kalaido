@@ -107,6 +107,15 @@ func ExtractDraftedLensAndSpec(app core.App, refRec *core.Record) (lens, output 
 				if err := json.Unmarshal(p.Data, &data); err == nil && strings.TrimSpace(data.Lens) != "" {
 					lens = strings.TrimSpace(data.Lens)
 				}
+			case "tool-" + prompts.SetLensToolName:
+				var data struct {
+					Input struct {
+						Prompt string `json:"prompt"`
+					} `json:"input"`
+				}
+				if err := json.Unmarshal(p.Data, &data); err == nil && strings.TrimSpace(data.Input.Prompt) != "" {
+					lens = strings.TrimSpace(data.Input.Prompt)
+				}
 			case "tool-" + prompts.UpdateLensToolName:
 				var data struct {
 					Input struct {

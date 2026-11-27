@@ -478,6 +478,7 @@ function editNoticeFor(msg: UIMessage): SystemEditNotice | null {
 
 // its effect is the preview pane itself.
 const TOOL_MESSAGES: Record<string, string | null> = {
+  set_lens: "Updated the standing lens.",
   update_lens: "Updated the lens.",
   regenerate_from_lens: "Regenerating document from the lens...",
   refine_candidate: null,

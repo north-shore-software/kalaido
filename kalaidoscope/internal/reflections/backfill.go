@@ -54,6 +54,8 @@ func MaterializeBackfill(app core.App, rec *core.Record, from, now time.Time) ([
 	steps := int64(origin.Sub(from)/period) + 1
 	shifted := version.Spec
 	shifted.StartTime = origin.Add(-time.Duration(steps) * period).UTC().Format(time.RFC3339)
+	shifted.EndTime = ""
+	shifted.Paused = false
 
 	windows := GridWindows(rec.Id, shifted, from, covered)
 	if len(windows) == 0 {
