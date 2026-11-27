@@ -122,3 +122,44 @@ func GeneratePendingWindows(ctx context.Context, app core.App, reflectionID stri
 	}
 	logger().Info("backfill completed", "reflection_id", reflectionID, "generated", generated, "count", len(pending))
 }
+
+// GenerateAllPendingWindows synchronously generates every pending window
+// across all live active reflections, at background priority, and returns the
+// IDs of the approved snapshots produced. Already-approved windows (even if
+// stale or lens-outdated) are not regenerated, and projections are untouched.
+func GenerateAllPendingWindows(ctx context.Context, app core.App) ([]string, error) {
+	recs, err := app.FindRecordsByFilter(schema.ColReflection.String(), "status = 'active' && "+engine.LiveFilter, "", 0, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx = queue.WithPriority(ctx, queue.Background)
+	now := time.Now()
+	snapIDs := []string{}
+
+	for _, rec := range recs {
+		pending := PendingWindows(app, rec, now)
+		if len(pending) == 0 {
+			continue
+		}
+		logger().Info("generate pending windows", "reflection_id", rec.Id, "name", rec.GetString("name"), "count", len(pending))
+		results := GenerateWindows(ctx, app, rec.Id, engine.StatusApproved, pending)
+		generated := 0
+		for i, r := range results {
+			switch {
+			case r.Err == nil:
+				generated++
+				snapIDs = append(snapIDs, r.SnapshotID)
+			case errors.Is(r.Err, engine.ErrLensNotReady):
+				logger().Warn("generate pending: no lens yet", "reflection_id", rec.Id)
+			case errors.Is(r.Err, engine.ErrGenerationInFlight):
+				// Someone else is producing this window; leave it to them.
+			default:
+				logger().Error("generate pending window failed", "reflection_id", rec.Id, "window", WindowKey(pending[i]), "error", r.Err)
+			}
+		}
+		logger().Info("generate pending completed", "reflection_id", rec.Id, "generated", generated, "count", len(pending))
+	}
+
+	return snapIDs, nil
+}

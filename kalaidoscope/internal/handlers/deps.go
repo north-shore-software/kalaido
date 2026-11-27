@@ -29,5 +29,5 @@ func (d Deps) statusWorkers() status.Workers {
 	if d.Manager == nil {
 		return status.Workers{}
 	}
-	return status.Workers{Colour: d.Colour, Mapping: d.Mapping, Reconcile: d.Reconcile, Discover: d.Discover}
+	return status.Workers{Colour: d.Colour, Mapping: d.Mapping, Discover: d.Discover}
 }

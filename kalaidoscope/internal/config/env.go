@@ -26,8 +26,6 @@ type Env struct {
 	// UserPassword fixes the seeded local user's password
 	// (KALAIDO_USER_PASSWORD); "" means a random one per run.
 	UserPassword string
-	// AutoWave turns on the automatic reconcile triggers (KALAIDO_AUTO_WAVE).
-	AutoWave bool
 	// LLMTrace logs every provider request body (KALAIDO_LLM_TRACE).
 	LLMTrace bool
 	// LogLevel is the minimum level written to stderr (KALAIDO_LOG_LEVEL:
@@ -56,10 +54,6 @@ func HandEditCreateFragment() bool {
 }
 
 func parseEnv(get func(string) string) (Env, error) {
-	autoWave, err := parseBool("KALAIDO_AUTO_WAVE", get("KALAIDO_AUTO_WAVE"))
-	if err != nil {
-		return Env{}, err
-	}
 	llmTrace, err := parseBool("KALAIDO_LLM_TRACE", get("KALAIDO_LLM_TRACE"))
 	if err != nil {
 		return Env{}, err
@@ -76,7 +70,6 @@ func parseEnv(get func(string) string) (Env, error) {
 	env := Env{
 		ModelSetRaw:            get("KALAIDO_MODEL_SET"),
 		UserPassword:           get("KALAIDO_USER_PASSWORD"),
-		AutoWave:               autoWave,
 		LLMTrace:               llmTrace,
 		HandEditCreateFragment: frag,
 		LogLevel:               slog.LevelInfo,

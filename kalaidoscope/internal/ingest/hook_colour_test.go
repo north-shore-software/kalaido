@@ -9,7 +9,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -21,10 +20,9 @@ func TestIngestRecordWithColourLinksItsFragments(t *testing.T) {
 	app := testutil.NewApp(t)
 	maps := mapping.NewWorker(app)
 	RegisterHooks(app, Deps{
-		Mapping:   maps,
-		Reconcile: reconcile.NewWorker(app, reconcile.Options{}),
-		Discover:  discover.NewWorker(app, maps),
-		Runner:    workerutil.InlineRunner{},
+		Mapping:  maps,
+		Discover: discover.NewWorker(app, maps),
+		Runner:   workerutil.InlineRunner{},
 	})
 	colour := testutil.NewRecord(t, app, "colour", map[string]any{"name": "c"})
 

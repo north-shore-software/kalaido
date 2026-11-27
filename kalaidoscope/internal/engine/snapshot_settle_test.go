@@ -13,8 +13,8 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-func speculative(ctx context.Context) context.Context {
-	return llmcontext.WithGenerationTrigger(ctx, llmcontext.TriggerGenerateAll)
+func settleUnchanged(ctx context.Context) context.Context {
+	return llmcontext.WithSettleUnchanged(ctx)
 }
 
 func allSnapshots(t *testing.T, app core.App, strat Strategy, parentID string) []*core.Record {
@@ -27,10 +27,10 @@ func allSnapshots(t *testing.T, app core.App, strat Strategy, parentID string) [
 	return recs
 }
 
-// A speculative regeneration that reproduces the approved output byte for
+// A settle-unchanged regeneration that reproduces the approved output byte for
 // byte does not park a candidate: the approved row records the context it
 // now reflects, and nothing else is written.
-func TestGenerateSnapshotSpeculativeByteEqualSettlesInPlace(t *testing.T) {
+func TestGenerateSnapshotSettleUnchangedByteEqualSettlesInPlace(t *testing.T) {
 	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
@@ -42,7 +42,7 @@ func TestGenerateSnapshotSpeculativeByteEqualSettlesInPlace(t *testing.T) {
 	}}
 	script.install(t)
 
-	snapID, err := GenerateSnapshot(speculative(context.Background()), app, proj.Id, StatusPending, strat, nil)
+	snapID, err := GenerateSnapshot(settleUnchanged(context.Background()), app, proj.Id, StatusPending, strat, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,13 +64,18 @@ func TestGenerateSnapshotSpeculativeByteEqualSettlesInPlace(t *testing.T) {
 	if n := len(script.transcripts()); n != 1 {
 		t.Errorf("model calls = %d, want 1 (no delta conversation for a byte-equal candidate)", n)
 	}
-	if !SnapshotIsCurrent(speculative(context.Background()), app, strat, proj) {
-		t.Error("entity still reads as not current after settling in place")
+	_, spec := resolveActiveLens(app, strat, proj)
+	pinned, err := llmcontext.ResolveSpecToIDs(context.Background(), app, spec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current, reason := SnapshotCurrency(proj, rows[0], pinned); !current {
+		t.Errorf("entity still reads as not current (%s) after settling in place", reason)
 	}
 }
 
 // The same when the delta conversation is what finds no semantic change.
-func TestGenerateSnapshotSpeculativeNoSemanticChangeSettlesInPlace(t *testing.T) {
+func TestGenerateSnapshotSettleUnchangedNoSemanticChangeSettlesInPlace(t *testing.T) {
 	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
@@ -84,7 +89,7 @@ func TestGenerateSnapshotSpeculativeNoSemanticChangeSettlesInPlace(t *testing.T)
 	}}
 	script.install(t)
 
-	if _, err := GenerateSnapshot(speculative(context.Background()), app, proj.Id, StatusPending, strat, nil); err != nil {
+	if _, err := GenerateSnapshot(settleUnchanged(context.Background()), app, proj.Id, StatusPending, strat, nil); err != nil {
 		t.Fatal(err)
 	}
 	rows := allSnapshots(t, app, strat, proj.Id)
@@ -96,9 +101,9 @@ func TestGenerateSnapshotSpeculativeNoSemanticChangeSettlesInPlace(t *testing.T)
 	}
 }
 
-// A speculative no-change also supersedes an older pending candidate: the
+// A settle-unchanged no-change also supersedes an older pending candidate: the
 // entity is current, so there is nothing left to review.
-func TestGenerateSnapshotSpeculativeNoChangeDiscardsStalePending(t *testing.T) {
+func TestGenerateSnapshotSettleUnchangedNoChangeDiscardsStalePending(t *testing.T) {
 	app := testutil.NewApp(t)
 	strat := ProjectionStrategy{}
 	proj := genFixture(t, app, "projection")
@@ -115,7 +120,7 @@ func TestGenerateSnapshotSpeculativeNoChangeDiscardsStalePending(t *testing.T) {
 	}}
 	script.install(t)
 
-	if _, err := GenerateSnapshot(speculative(context.Background()), app, proj.Id, StatusPending, strat, nil); err != nil {
+	if _, err := GenerateSnapshot(settleUnchanged(context.Background()), app, proj.Id, StatusPending, strat, nil); err != nil {
 		t.Fatal(err)
 	}
 	rec, err := app.FindRecordById(strat.SnapshotCollectionName(), stale.Id)

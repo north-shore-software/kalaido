@@ -28,8 +28,7 @@ func (s ProjectionStrategy) ApplySnapshotWindow(snap *core.Record, win *api.Wind
 func (s ProjectionStrategy) SnapshotWindowFilter(win *api.Window) (string, dbx.Params) {
 	return "", nil
 }
-func (s ProjectionStrategy) InheritsCandidateTrigger() bool { return true }
-func (s ProjectionStrategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, trigger string, refinementID string) (string, error) {
+func (s ProjectionStrategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
 	snapID, err := AppendSnapshot(ctx, tx, s, SnapshotSpec{
 		SourceID:                parentRec.Id,
 		LensID:                  lensRec.Id,
@@ -37,7 +36,6 @@ func (s ProjectionStrategy) CommitRefinementSnapshot(ctx context.Context, tx cor
 		ContextSpec:             spec,
 		ResolvedContext:         pinned,
 		Status:                  StatusApproved,
-		GenerationTrigger:       trigger,
 		CreatedFromRefinementID: refinementID,
 	})
 	if err != nil {
@@ -84,8 +82,7 @@ func (s ReflectionStrategy) SnapshotWindowFilter(win *api.Window) (string, dbx.P
 		"we": end.String(),
 	}
 }
-func (s ReflectionStrategy) InheritsCandidateTrigger() bool { return false }
-func (s ReflectionStrategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, trigger string, refinementID string) (string, error) {
+func (s ReflectionStrategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
 	return "", nil
 }
 func (s ReflectionStrategy) ScrubSpec(spec *api.ContextSpec, id string) {

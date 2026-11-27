@@ -36,9 +36,9 @@ type runtime struct {
 	group  *errgroup.Group
 }
 
-func newRuntime(app core.App, opts Options, backups *backup.Engine) *runtime {
+func newRuntime(app core.App, backups *backup.Engine) *runtime {
 	ctx, cancel := context.WithCancel(context.Background())
-	mgr := workers.New(app, workers.Options{AutoWave: opts.AutoWave})
+	mgr := workers.New(app)
 	rt := &runtime{
 		workers:   mgr,
 		runner:    workerutil.NewTrackedRunner(ctx),

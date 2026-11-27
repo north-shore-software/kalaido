@@ -28,8 +28,7 @@ type Strategy interface {
 	ApplySnapshotWindow(snap *core.Record, win *api.Window)
 	SnapshotWindowFilter(win *api.Window) (string, dbx.Params)
 
-	InheritsCandidateTrigger() bool
-	CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, trigger string, refinementID string) (newSnapID string, err error)
+	CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (newSnapID string, err error)
 
 	ScrubSpec(spec *api.ContextSpec, id string)
 }

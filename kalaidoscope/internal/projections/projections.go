@@ -32,8 +32,7 @@ func (s Strategy) ApplySnapshotWindow(snap *core.Record, win *api.Window) {}
 func (s Strategy) SnapshotWindowFilter(win *api.Window) (string, dbx.Params) {
 	return "", nil
 }
-func (s Strategy) InheritsCandidateTrigger() bool { return true }
-func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, trigger string, refinementID string) (string, error) {
+func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
 	model, _ := llm.ResolveRoleFor(llm.RoleSnapshot, parentRec.GetString("generate_with_model"))
 	newSnapID, err := engine.AppendSnapshot(ctx, tx, s, engine.SnapshotSpec{
 		SourceID:                parentRec.Id,
@@ -45,7 +44,6 @@ func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, par
 		ResolvedContext:         pinned,
 		Status:                  engine.StatusPending,
 		Model:                   model,
-		GenerationTrigger:       trigger,
 		CreatedFromRefinementID: refinementID,
 	})
 	if err != nil {

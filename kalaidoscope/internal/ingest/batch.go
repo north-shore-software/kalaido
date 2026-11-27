@@ -13,7 +13,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/discover"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/ingest/parsers"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/mapping"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -24,9 +23,8 @@ func logger() *slog.Logger {
 
 // Deps are the workers an import hands off to once its fragments are in.
 type Deps struct {
-	Mapping   *mapping.Worker
-	Reconcile *reconcile.Worker
-	Discover  *discover.Worker
+	Mapping  *mapping.Worker
+	Discover *discover.Worker
 	// Runner owns the processing goroutine, so shutdown can cancel and
 	// await an import in progress.
 	Runner workerutil.Runner
@@ -198,12 +196,6 @@ func processIngestRecord(ctx context.Context, app core.App, deps Deps, recID str
 		logger().Error("save status failed", "record_id", recID, "error", err)
 	}
 	logger().Info("completed record", "record_id", recID, "fragments", total, "files", len(files))
-	// The batch is in: every lens over these fragments can now be
-	// regenerated ahead of the user. Colour and map follow-ups re-request
-	// the wave as they change membership; each re-run skips what is current.
-	if total > 0 {
-		deps.Reconcile.EnqueueWave()
-	}
 	if cfg.organizeAfter {
 		startPipeline(deps)
 		return

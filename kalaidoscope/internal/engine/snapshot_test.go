@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -12,10 +11,11 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
-func TestSnapshotIsCurrentConsidersModel(t *testing.T) {
+func TestSnapshotCurrencyConsidersModel(t *testing.T) {
 	app := testutil.NewApp(t)
 	frag := testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "raw notes"})
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
+	pinned := llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt":       "LENS",
 		"context_spec": pbutil.JSONObject(spec),
@@ -28,36 +28,34 @@ func TestSnapshotIsCurrentConsidersModel(t *testing.T) {
 			"generate_with_model":  model,
 		})
 	}
-	newSnap := func(projID, model string) {
-		testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+	newSnap := func(projID, model string) *core.Record {
+		return testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
 			"projection_id":            projID,
 			"status":                   StatusApproved,
 			"output":                   "OUT",
 			"context_spec":             pbutil.JSONObject(spec),
-			"resolved_context":         pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}),
+			"resolved_context":         pbutil.JSONObject(pinned),
 			"lens_id":                  lens.Id,
 			"generated_by_model":       model,
 			"approval_sequence_number": 1,
 		})
 	}
-	ctx := context.Background()
-	strat := ProjectionStrategy{}
 
 	matchingProj := newProj("")
-	newSnap(matchingProj.Id, "gemma4")
-	if !SnapshotIsCurrent(ctx, app, strat, matchingProj) {
-		t.Fatal("matching model should be current")
+	matchingSnap := newSnap(matchingProj.Id, "gemma4")
+	if current, reason := SnapshotCurrency(matchingProj, matchingSnap, pinned); !current {
+		t.Fatalf("matching model should be current, got reason %q", reason)
 	}
 
 	driftedProj := newProj("other-model")
-	newSnap(driftedProj.Id, "gemma4")
-	if SnapshotIsCurrent(ctx, app, strat, driftedProj) {
-		t.Fatal("drifted model should not be current")
+	driftedSnap := newSnap(driftedProj.Id, "gemma4")
+	if current, reason := SnapshotCurrency(driftedProj, driftedSnap, pinned); current || reason != CurrencyModelChanged {
+		t.Fatalf("drifted model = (%v, %q), want (false, %q)", current, reason, CurrencyModelChanged)
 	}
 
 	legacyProj := newProj("other-model")
-	newSnap(legacyProj.Id, "")
-	if !SnapshotIsCurrent(ctx, app, strat, legacyProj) {
-		t.Fatal("legacy snapshot without model must stay current")
+	legacySnap := newSnap(legacyProj.Id, "")
+	if current, reason := SnapshotCurrency(legacyProj, legacySnap, pinned); !current {
+		t.Fatalf("legacy snapshot without model must stay current, got reason %q", reason)
 	}
 }

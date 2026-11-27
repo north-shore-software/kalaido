@@ -137,7 +137,7 @@ func GenerateSnapshot(ctx context.Context, app core.App, targetID, status string
 		return "", fmt.Errorf("%s %s: model returned empty output", strat.TargetType(), rec.Id)
 	}
 
-	if unchanged && (llmcontext.GenerationTriggerFromContext(ctx) != "" || llmcontext.SettleUnchangedFromContext(ctx)) {
+	if unchanged && llmcontext.SettleUnchangedFromContext(ctx) {
 		settledID, err := settleApprovedInPlace(app, strat, rec.Id, window, lensID, SnapshotSpec{
 			ContextSpec:     lensSpec,
 			ResolvedContext: pinnedCtx,
@@ -211,7 +211,7 @@ func settleApprovedInPlace(app core.App, strat Strategy, parentID string, window
 		snap.Set("context_spec", pbutil.JSONObject(s.ContextSpec))
 		snap.Set("resolved_context", pbutil.JSONObject(s.ResolvedContext))
 		// The model that just reproduced the output; without this a model
-		// change would read as perpetually stale (SnapshotIsCurrent).
+		// change would read as perpetually stale.
 		snap.Set("generated_by_model", s.Model)
 		snap.Set("generated_at", types.NowDateTime())
 		if err := tx.Save(snap); err != nil {
@@ -282,38 +282,6 @@ func minimizeAgainstPrevious(ctx context.Context, app core.App, model, lensPromp
 	return strings.TrimSpace(merged), nil
 }
 
-// SnapshotIsCurrent reports whether the entity's newest snapshot — pending or
-// approved — already reflects what a generation under ctx would consume right
-// now: the same active lens and the same resolved context. The reconcile wave
-// uses it as its dedup guard, so a repeated "generate all" (or the wave a
-// refinement re-triggers) skips entities whose speculative candidate is still
-// fresh instead of burning a model call to reproduce it.
-func SnapshotIsCurrent(ctx context.Context, app core.App, strat Strategy, rec *core.Record) bool {
-	// Claim rows and superseded candidates are not output; only pending and
-	// approved snapshots count. `created` has millisecond precision, so two
-	// rows can tie: -approval_sequence_number settles it between approved
-	// rows, and insertion order (rowid) between pending ones — a hand edit
-	// lands its row after the candidate it edited, in the same transaction.
-	var recs []*core.Record
-	err := app.RecordQuery(strat.SnapshotCollectionName()).
-		AndWhere(dbx.HashExp{strat.ForeignKeyCol(): rec.Id}).
-		AndWhere(dbx.In("status", StatusPending, StatusApproved)).
-		OrderBy("created DESC", "approval_sequence_number DESC", "rowid DESC").
-		Limit(1).
-		All(&recs)
-	if err != nil || len(recs) == 0 {
-		return false
-	}
-	latest := recs[0]
-	_, lensSpec := resolveActiveLens(app, strat, rec)
-	pinned, err := llmcontext.ResolveSpecToIDs(ctx, app, lensSpec, nil)
-	if err != nil {
-		return false
-	}
-	current, _ := SnapshotCurrency(rec, latest, pinned)
-	return current
-}
-
 // Why a snapshot is not current, as SnapshotCurrency reports it. The
 // evaluator narrows CurrencyContextChanged to CurrencyNewFragments when the
 // drift is (at least) fragments the candidate never saw, which is the case the
@@ -326,10 +294,8 @@ const (
 )
 
 // SnapshotCurrency reports whether snap already reflects what a generation of
-// rec would consume, given the entity's context already resolved to pinned —
-// the same three checks as SnapshotIsCurrent (lens, effective model, resolved
-// context), split out so a caller that has resolved the spec for its own
-// purposes does not resolve it twice. The reason is "" when current.
+// rec would consume, given the entity's context already resolved to pinned
+// (lens, effective model, resolved context). The reason is "" when current.
 func SnapshotCurrency(rec, snap *core.Record, pinned llmcontext.PinnedIDs) (bool, string) {
 	if snap.GetString("lens_id") != rec.GetString("current_lens_id") {
 		return false, CurrencyLensChanged

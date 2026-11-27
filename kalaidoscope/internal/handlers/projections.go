@@ -11,7 +11,6 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 )
 
@@ -114,7 +113,7 @@ func HandleRestoreProjection(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func HandleGenerateCandidate(app core.App, deps Deps) func(e *core.RequestEvent) error {
+func HandleGenerateCandidate(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 		if id == "" {
@@ -138,21 +137,16 @@ func HandleGenerateCandidate(app core.App, deps Deps) func(e *core.RequestEvent)
 
 		// A generation discards the pending candidate it replaces, so an
 		// engaged one (hand edits, chat proposals, an open refinement) is
-		// only replaced when the client says so explicitly. The evaluator
-		// reports engagement alongside blocking; if it fails, the engagement
-		// check still runs on its own — a warning must not turn into lost
-		// edits.
+		// only replaced when the client says so explicitly.
 		engaged := false
-		st, err := reconcile.EvaluateEntity(e.Request.Context(), app, id)
-		if err != nil {
-			logger().Warn("staleness check failed", "target_type", "projection", "error", err)
-			if cand, cerr := engine.FindPendingCandidate(app, projections.Strategy{}, id, nil); cerr == nil && cand != nil {
-				engaged, _ = engine.CandidateEngaged(app, projections.Strategy{}, cand)
+		if cand, cerr := engine.FindPendingCandidate(app, projections.Strategy{}, id, nil); cerr != nil {
+			logger().Warn("pending candidate check failed", "target_type", "projection", "error", cerr)
+		} else if cand != nil {
+			var eerr error
+			engaged, eerr = engine.CandidateEngaged(app, projections.Strategy{}, cand)
+			if eerr != nil {
+				logger().Warn("candidate engagement check failed", "target_type", "projection", "error", eerr)
 			}
-		} else if len(st.BlockedBy) > 0 {
-			return e.Error(http.StatusConflict, "upstream dependencies are not up to date; approve them first", nil)
-		} else if st.Candidate != nil {
-			engaged = st.Candidate.Engaged
 		}
 		if engaged && !req.DiscardEngaged {
 			return e.Error(http.StatusConflict, "cannot replace engaged candidate; discard it first", map[string]any{"kind": "candidate_engaged"})
@@ -166,9 +160,7 @@ func HandleGenerateCandidate(app core.App, deps Deps) func(e *core.RequestEvent)
 			genCtx = llmcontext.WithSettleUnchanged(genCtx)
 		}
 
-		// The generation outlives the request; only waiting on another run
-		// is bounded by it.
-		snapID, err := deps.GenerateProjectionSnapshot(genCtx, e.Request.Context(), id, status)
+		snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, projections.Strategy{}, nil)
 		if err != nil {
 			return WriteGenerateError(e, app, err, "projection")
 		}
@@ -186,7 +178,7 @@ func HandleGenerateCandidate(app core.App, deps Deps) func(e *core.RequestEvent)
 	}
 }
 
-func HandleApproveCandidate(app core.App, deps Deps) func(e *core.RequestEvent) error {
+func HandleApproveCandidate(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		snapID, herr := resolveCandidate(e, app)
 		if herr != nil {
@@ -199,7 +191,6 @@ func HandleApproveCandidate(app core.App, deps Deps) func(e *core.RequestEvent) 
 			}
 			return e.InternalServerError("approve failed", err)
 		}
-		deps.Reconcile.EnqueueWave()
 		return e.JSON(http.StatusOK, api.ProjectionSnapshotResponse{SnapshotID: snapID})
 	}
 }

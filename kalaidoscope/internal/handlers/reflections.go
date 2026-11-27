@@ -198,7 +198,23 @@ func HandleRestoreReflection(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.RequestEvent) error {
+// HandleGeneratePendingReflections synchronously generates every pending window
+// across all live active reflections and returns the created snapshot IDs.
+func HandleGeneratePendingReflections(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		snapIDs, err := reflections.GenerateAllPendingWindows(context.WithoutCancel(e.Request.Context()), app)
+		if err != nil {
+			logger().Error("generate pending reflections failed", "error", err)
+			return e.InternalServerError("generate pending reflections failed", err)
+		}
+		if snapIDs == nil {
+			snapIDs = []string{}
+		}
+		return e.JSON(http.StatusOK, api.ReflectionSnapshotResponse{SnapshotIDs: snapIDs})
+	}
+}
+
+func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 		if id == "" {
@@ -223,8 +239,6 @@ func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.Requ
 		st, err := reconcile.EvaluateEntity(e.Request.Context(), app, id)
 		if err != nil {
 			logger().Warn("staleness check failed", "target_type", "reflection", "error", err)
-		} else if len(st.BlockedBy) > 0 {
-			return e.Error(http.StatusConflict, "upstream dependencies are not up to date; approve them first", nil)
 		}
 
 		windowsToGenerate, err := reflections.WindowsToGenerate(app, rec, req, st)
@@ -232,13 +246,11 @@ func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.Requ
 			return e.BadRequestError(err.Error(), err)
 		}
 
-		// The generation outlives the request; only waiting on another run
-		// is bounded by it.
 		genCtx := context.WithoutCancel(e.Request.Context())
 		var snapIDs []string
 		var firstErr error
 		if len(windowsToGenerate) == 1 {
-			snapID, err := deps.GenerateReflectionSnapshot(genCtx, e.Request.Context(), id, status, windowsToGenerate[0])
+			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, windowsToGenerate[0])
 			if err != nil {
 				return WriteGenerateError(e, app, err, "reflection")
 			}
@@ -248,7 +260,7 @@ func HandleGenerateReflectionSnapshot(app core.App, deps Deps) func(e *core.Requ
 			for _, w := range windowsToGenerate {
 				plain = append(plain, *w)
 			}
-			for _, r := range deps.GenerateReflectionWindows(genCtx, id, status, plain) {
+			for _, r := range reflections.GenerateWindows(genCtx, app, id, status, plain) {
 				if r.Err != nil {
 					if firstErr == nil {
 						firstErr = r.Err
