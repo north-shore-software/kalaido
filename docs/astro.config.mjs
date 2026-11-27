@@ -7,7 +7,7 @@ export default defineConfig({
   site,
   integrations: [
     starlight({
-      title: "Kalaido",
+      title: "Kalaido Docs",
       logo: {
         light: "@kalaido/brand/kalaido-wordmark-signature-light.svg",
         dark: "@kalaido/brand/kalaido-wordmark-signature-dark.svg",

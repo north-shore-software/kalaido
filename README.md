@@ -15,7 +15,7 @@ It runs a React/Tauri front end over an embedded Go sidecar, and works entirely 
 
 ### Prerequisites
 
-- Node.js `>=22.13.0` and pnpm `>=11`
+- Node.js `>=22.23.4` and pnpm `>=11`
 - Go `1.24.1+`
 - Rust & Cargo (Tauri v2 desktop build)
 - Apple Silicon macOS — `kalaido.sh` builds the sidecar as `GOOS=darwin GOARCH=arm64`

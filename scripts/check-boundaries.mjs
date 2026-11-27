@@ -59,6 +59,7 @@ const ALLOWED_INTERNAL_DEPS = {
     "@kalaido/components",
     "@kalaido/features",
   ],
+  docs: ["@kalaido/brand"],
 };
 
 const BANNED_DEPS_BY_PKG = {
@@ -123,6 +124,7 @@ const BANNED_DEPS_BY_PKG = {
     "better-auth",
   ],
   "apps/web": ["@tauri-apps/*", "swr", "valtio", "better-auth"],
+  docs: ["react", "react-dom", "react-router-dom", "@tauri-apps/*"],
 };
 
 const ALLOWED_LOCALSTORAGE_FILES = new Set([

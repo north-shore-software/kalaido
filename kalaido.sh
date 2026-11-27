@@ -365,7 +365,7 @@ cmd_setup() {
 
 cmd_clean() {
   say "clean"
-  rm -rf "$DESKTOP/dist" "$MOBILE/dist" "$WEB/dist" "$DESKTOP_TAURI/binaries" "$SCHEMA_ROOT"
+  rm -rf "$DESKTOP/dist" "$MOBILE/dist" "$WEB/dist" "$DOCS/dist" "$DOCS/.astro" "$DESKTOP_TAURI/binaries" "$SCHEMA_ROOT"
   echo "removed apps/*/dist apps/desktop/src-tauri/binaries .schema"
 }
 
@@ -379,7 +379,7 @@ cmd_clean_tauri() {
 cmd_clean_npm() {
   cmd_clean_tauri
   say "clean:npm"
-  rm -rf "$ROOT/node_modules" "$ROOT"/apps/*/node_modules "$ROOT"/packages/*/*/node_modules
+  rm -rf "$ROOT/node_modules" "$ROOT"/apps/*/node_modules "$DOCS/node_modules" "$ROOT"/packages/*/*/node_modules
   echo "removed node_modules (run ./kalaido.sh setup)"
 }
 
@@ -589,7 +589,7 @@ usage: ./kalaido.sh <command> [args...]
   setup:ts                           pnpm install --frozen-lockfile
   setup:go                           go mod download
   setup:rust                         cargo fetch
-  clean                              apps/*/dist, binaries, .schema
+  clean                              apps/*/dist, docs/dist, binaries, .schema
   clean:tauri                        clean + target
   clean:npm                          clean:tauri + node_modules
   doctor                             check the toolchain, android and providers

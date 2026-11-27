@@ -1,19 +1,50 @@
 ---
-import Default from "@astrojs/starlight/components/Footer.astro";
+// Replaces Starlight's Footer so the licence notice sits inside the <footer>
+// landmark. Mirrors the default markup (minus the "Built with Starlight"
+// credit, which is disabled) and its styles.
+import EditLink from "@astrojs/starlight/components/EditLink.astro";
+import LastUpdated from "@astrojs/starlight/components/LastUpdated.astro";
+import Pagination from "@astrojs/starlight/components/Pagination.astro";
 ---
 
-<Default />
-<p class="kalaido-legal">
-  Docs © 2026 North Shore Software Ltd., licensed under
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
-  The Kalaido name and logos are not covered by this licence; see
-  <a href="https://github.com/north-shore-software/kalaido/blob/main/TRADEMARKS.md">TRADEMARKS.md</a>.
-</p>
+<footer class="sl-flex">
+  <div class="meta sl-flex">
+    <EditLink />
+    <LastUpdated />
+  </div>
+  <Pagination />
+  <p class="kalaido-legal">
+    Docs © 2026 North Shore Software Ltd., licensed under{" "}
+    <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+    The Kalaido name and logos are not covered by this licence; see{" "}
+    <a href="https://github.com/north-shore-software/kalaido/blob/main/TRADEMARKS.md">TRADEMARKS.md</a>.
+  </p>
+</footer>
 
 <style>
+  @layer starlight.core {
+    footer {
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .meta {
+      gap: 0.75rem 3rem;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-top: 3rem;
+      font-size: var(--sl-text-sm);
+      color: var(--sl-color-gray-3);
+    }
+    .meta > :global(p:only-child) {
+      margin-inline-start: auto;
+    }
+  }
+
   .kalaido-legal {
-    margin-top: 1.5rem;
     font-size: var(--sl-text-xs);
     color: var(--sl-color-gray-3);
+  }
+  .kalaido-legal a {
+    color: var(--sl-color-text-accent);
   }
 </style>
