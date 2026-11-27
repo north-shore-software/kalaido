@@ -20,7 +20,9 @@ export interface ProjectionSideRailProps {
   /** Display names for `info.staleDependencies`, in the same order. */
   staleDependencyNames?: string[];
   regenerating: boolean;
+  revising: boolean;
   onRefresh: () => void;
+  onRevise: () => void;
   onBackToLive: () => void;
   timeline: TimelineItem[];
 }
@@ -35,7 +37,9 @@ export function ProjectionSideRail({
   newSinceCandidate = 0,
   staleDependencyNames,
   regenerating,
+  revising,
   onRefresh,
+  onRevise,
   onBackToLive,
   timeline,
 }: ProjectionSideRailProps) {
@@ -64,7 +68,9 @@ export function ProjectionSideRail({
           newSinceCandidate={newSinceCandidate}
           staleDependencyNames={staleDependencyNames}
           regenerating={regenerating}
+          revising={revising}
           onRefresh={onRefresh}
+          onRevise={onRevise}
         />
       )}
 

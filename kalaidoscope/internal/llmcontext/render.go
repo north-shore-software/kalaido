@@ -108,6 +108,14 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 					}
 					sb.WriteString(prompts.ContextProposalEcho(data.Reason))
 				}
+			case p.Type == prompts.FullRewriteConfirmationPartType:
+				var data prompts.FullRewriteConfirmationData
+				if err := json.Unmarshal(p.Data, &data); err == nil {
+					if sb.Len() > 0 {
+						sb.WriteString("\n\n")
+					}
+					sb.WriteString(prompts.FullRewriteProposalEcho(data.Reason))
+				}
 			}
 		}
 		flushReads()

@@ -54,6 +54,11 @@ export interface ChatPanelProps {
    * but no bar renders.
    */
   onContextChange?: (items: ContextItem[]) => void;
+  /**
+   * When true, editing context via the picker immediately posts the new
+   * `context_spec` to the assistant so it responds conversationally.
+   */
+  notifyOnContextChange?: boolean;
   /** Restricts the bar's pin search (a reflection can only pin fragments). */
   entity?: EntityKind;
   /**
@@ -99,6 +104,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
       context,
       onMention,
       onContextChange,
+      notifyOnContextChange = false,
       entity,
       timeWindow,
       title,
@@ -154,6 +160,16 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
       [chat, onContextChange],
     );
 
+    const handlePickerContextChange = useCallback(
+      (items: ContextItem[]) => {
+        onContextChange?.(items);
+        if (notifyOnContextChange) {
+          chat.notifyContextChange(items);
+        }
+      },
+      [chat, notifyOnContextChange, onContextChange],
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -187,6 +203,8 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
             onUndoEdit={onUndoEdit}
             onConfirmRegenerate={chat.confirmRegenerate}
             onCancelRegenerate={chat.cancelRegenerate}
+            onConfirmFullRewrite={chat.confirmFullRewrite}
+            onCancelFullRewrite={chat.cancelFullRewrite}
             onConfirmContext={handleConfirmContext}
             onCancelContext={chat.cancelContext}
             messageActions={messageActions}
@@ -199,7 +217,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
           <div inert={disabled}>
             <ContextBar
               items={context}
-              onChange={onContextChange}
+              onChange={handlePickerContextChange}
               entity={entity}
               timeWindow={timeWindow}
             />

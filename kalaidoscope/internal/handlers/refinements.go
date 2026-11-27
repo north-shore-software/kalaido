@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -69,8 +70,8 @@ func HandleCreateReflectionRefinement(app core.App) func(e *core.RequestEvent) e
 	}
 }
 
-func HandleCommitProjectionRefinement(app core.App) func(e *core.RequestEvent) error {
-	return handleCommitRefinementGeneric(app, nil, schema.ColProjectionRefinement.String())
+func HandleCommitProjectionRefinement(app core.App, deps Deps) func(e *core.RequestEvent) error {
+	return handleCommitRefinementGeneric(app, deps.Runner, schema.ColProjectionRefinement.String())
 }
 
 func HandleCommitReflectionRefinement(app core.App, deps Deps) func(e *core.RequestEvent) error {
@@ -97,6 +98,8 @@ func handleCommitRefinementGeneric(app core.App, runner workerutil.Runner, refin
 				return e.BadRequestError(err.Error(), nil)
 			case errors.Is(err, refinement.ErrNoPreviewOutput):
 				return e.Error(http.StatusConflict, err.Error(), nil)
+			case errors.Is(err, engine.ErrNotApprovable):
+				return e.Error(http.StatusUnprocessableEntity, err.Error(), nil)
 			case errors.Is(err, refinement.ErrMissingParentID), errors.Is(err, refinement.ErrParentMismatch):
 				return e.BadRequestError(err.Error(), nil)
 			default:

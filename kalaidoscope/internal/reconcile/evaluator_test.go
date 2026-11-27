@@ -441,11 +441,8 @@ func TestCandidateStatusReportsOutdatedReasonAndEngagement(t *testing.T) {
 	}
 
 	got = evaluate(t, app)[proj.Id]
-	if got.Candidate == nil || !got.Candidate.Outdated {
-		t.Fatalf("candidate after a new fragment = %+v, want outdated", got.Candidate)
-	}
-	if got.Candidate.Reason != engine.CurrencyNewFragments {
-		t.Errorf("reason = %q, want %q", got.Candidate.Reason, engine.CurrencyNewFragments)
+	if got.Candidate == nil || got.Candidate.Outdated {
+		t.Fatalf("candidate after a new fragment = %+v, want non-blocking (Outdated=false)", got.Candidate)
 	}
 	if len(got.Candidate.NewFragmentIDs) != 1 || got.Candidate.NewFragmentIDs[0] != f2.Id {
 		t.Errorf("candidate newFragmentIds = %v, want [%s]", got.Candidate.NewFragmentIDs, f2.Id)
@@ -537,11 +534,11 @@ func TestCandidateCurrencyUsesCandidateContextSpec(t *testing.T) {
 	}
 
 	// A new fragment arriving after generation matches the candidate's spec and
-	// marks the candidate outdated with new_fragments.
+	// surfaces in candidate.NewFragmentIDs without blocking (Outdated=false).
 	f3 := addFragment(t, app, "third")
 	got = evaluate(t, app)[proj.Id]
-	if got.Candidate == nil || !got.Candidate.Outdated || got.Candidate.Reason != engine.CurrencyNewFragments {
-		t.Fatalf("candidate after new fragment = %+v, want outdated (%s)", got.Candidate, engine.CurrencyNewFragments)
+	if got.Candidate == nil || got.Candidate.Outdated {
+		t.Fatalf("candidate after new fragment = %+v, want non-blocking (Outdated=false)", got.Candidate)
 	}
 	if len(got.Candidate.NewFragmentIDs) != 1 || got.Candidate.NewFragmentIDs[0] != f3.Id {
 		t.Errorf("candidate newFragmentIds = %v, want [%s]", got.Candidate.NewFragmentIDs, f3.Id)

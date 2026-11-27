@@ -2,6 +2,8 @@ import type { UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 import {
   CONTEXT_CONFIRMATION_PART_TYPE,
+  DRAFT_UPDATED_PART_TYPE,
+  FULL_REWRITE_CONFIRMATION_PART_TYPE,
   REGENERATE_CONFIRMATION_PART_TYPE,
 } from "./chat";
 import {
@@ -10,7 +12,9 @@ import {
   extractPreviewReady,
   extractRefinePhase,
   extractSuggestedNameFromMessages,
+  UPDATE_DRAFT_TOOL,
   UPDATE_LENS_TOOL,
+  WRITE_DRAFT_TOOL,
 } from "./refinements";
 
 /** A live-stream `dynamic-tool` part, as the AI SDK materializes tool calls. */
@@ -338,5 +342,65 @@ describe("extractSuggestedNameFromMessages", () => {
       ),
     ];
     expect(extractPreviewFromMessages(msgs)).toBe("# Body");
+  });
+});
+
+describe("projection canvas tools (write_draft / update_draft / full_rewrite_confirmation)", () => {
+  it("reads write_draft content live and persisted", () => {
+    for (const make of [liveTool, persistedTool]) {
+      const msgs = [
+        assistant("a1", make(WRITE_DRAFT_TOOL, { content: "# Draft Body" })),
+      ];
+      expect(extractPreviewFromMessages(msgs)).toBe("# Draft Body");
+      expect(extractPreviewReady(msgs)).toBe(true);
+      expect(extractRefinePhase(msgs)).toBe("ready");
+    }
+  });
+
+  it("reports applying while write_draft or update_draft is streaming", () => {
+    expect(
+      extractRefinePhase([
+        assistant(
+          "a1",
+          liveTool(
+            WRITE_DRAFT_TOOL,
+            { content: "# Partial" },
+            "input-streaming",
+          ),
+        ),
+      ]),
+    ).toBe("applying");
+    expect(
+      extractRefinePhase([
+        assistant(
+          "a1",
+          liveTool(UPDATE_DRAFT_TOOL, { instructions: "tighten" }),
+        ),
+      ]),
+    ).toBe("applying");
+  });
+
+  it("reports ready after data-draft_updated and idle on full_rewrite_confirmation", () => {
+    expect(
+      extractRefinePhase([
+        assistant(
+          "a1",
+          liveTool(UPDATE_DRAFT_TOOL, { instructions: "tighten" }),
+          { type: DRAFT_UPDATED_PART_TYPE, data: { editsCount: 2 } },
+        ),
+      ]),
+    ).toBe("ready");
+    expect(
+      extractRefinePhase([
+        assistant(
+          "a1",
+          liveTool(UPDATE_DRAFT_TOOL, { instructions: "rewrite" }),
+          {
+            type: FULL_REWRITE_CONFIRMATION_PART_TYPE,
+            data: { reason: "Large change" },
+          },
+        ),
+      ]),
+    ).toBe("idle");
   });
 });

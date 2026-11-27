@@ -7,6 +7,7 @@ import { useFreshnessStatus } from "@kalaido/hooks/use-freshness-status";
 import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { ProjectionBriefDialog } from "./components/projection-brief-dialog";
 import { ProjectionDetailActions } from "./components/projection-detail-actions";
 import { ProjectionDraftEditor } from "./components/projection-draft-editor";
 import { ProjectionSideRail } from "./components/projection-side-rail";
@@ -57,9 +58,16 @@ export function ProjectionDetailScreen({
   const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
 
-  const { regenerating, remove, handleRefresh, handleRename } =
-    useProjectionDetailActions({ id, onBackToList, onReviewCandidate });
+  const {
+    regenerating,
+    revising,
+    remove,
+    handleRefresh,
+    handleRevise,
+    handleRename,
+  } = useProjectionDetailActions({ id, onBackToList, onReviewCandidate });
 
   const pendingCandidate = snapshots.find((s) => s.status === "pending_review");
   const readOnly = !!snapshotId;
@@ -188,6 +196,7 @@ export function ProjectionDetailScreen({
         actions={
           !readOnly && (
             <ProjectionDetailActions
+              onViewBrief={() => setBriefOpen(true)}
               onFork={(mode) =>
                 onFork(
                   buildForkSeed({
@@ -203,6 +212,11 @@ export function ProjectionDetailScreen({
             />
           )
         }
+      />
+      <ProjectionBriefDialog
+        open={briefOpen}
+        onOpenChange={setBriefOpen}
+        projectionId={id}
       />
       <ConfirmDialog
         open={confirmDelete}
@@ -234,7 +248,9 @@ export function ProjectionDetailScreen({
             onReviewCandidate={handleReviewPending}
             newSinceCandidate={freshness.newSinceCandidate}
             regenerating={regenerating}
+            revising={revising}
             onRefresh={() => void handleRefresh()}
+            onRevise={() => void handleRevise()}
             onBackToLive={() => onViewLive(id)}
             timeline={timeline}
           />

@@ -4,6 +4,8 @@ import { withActiveClient } from "./_active";
 import {
   CONTEXT_CONFIRMATION_PART_TYPE,
   type ContextSpec,
+  DRAFT_UPDATED_PART_TYPE,
+  FULL_REWRITE_CONFIRMATION_PART_TYPE,
   REGENERATE_CONFIRMATION_PART_TYPE,
   type TimeWindow,
 } from "./chat";
@@ -113,6 +115,10 @@ export async function commitRefinement(input: {
 export const UPDATE_LENS_TOOL = "update_lens";
 export const REGENERATE_FROM_LENS_TOOL = "regenerate_from_lens";
 export const APPLY_RESULT_TOOL = "apply_result";
+export const WRITE_DRAFT_TOOL = "write_draft";
+export const PROPOSE_EDIT_TOOL = "propose_edit";
+export const UPDATE_DRAFT_TOOL = "update_draft";
+export const REQUEST_FULL_REWRITE_TOOL = "request_full_rewrite";
 export const LENS_PART_TYPE = "data-lens";
 export const LENS_SEED_PART_TYPE = "data-lens_seed";
 const SUGGEST_NAME_TOOL = "suggest_name";
@@ -202,15 +208,22 @@ export function extractSuggestedNameFromMessages(
   return "";
 }
 
-/** One apply_result part's output, or null. Streaming partials included unless `terminalOnly`. */
+/** One apply_result or write_draft part's output, or null. Streaming partials included unless `terminalOnly`. */
 function applyOutputFromPart(
   part: unknown,
   terminalOnly = false,
 ): string | null {
   const input = toolInputFromPart(part, APPLY_RESULT_TOOL, terminalOnly);
-  if (!input) return null;
-  const output = input.output;
-  return typeof output === "string" ? output : null;
+  if (input) {
+    const output = input.output;
+    return typeof output === "string" ? output : null;
+  }
+  const writeInput = toolInputFromPart(part, WRITE_DRAFT_TOOL, terminalOnly);
+  if (writeInput) {
+    const content = writeInput.content;
+    return typeof content === "string" ? content : null;
+  }
+  return null;
 }
 
 /**
@@ -315,6 +328,8 @@ export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
     if (m.role !== "assistant" || !m.parts) continue;
     let sawLens = false;
     let sawRegenerate = false;
+    let sawUpdateDraft = false;
+    let sawDraftUpdated = false;
     let sawError = false;
     let sawConfirmation = false;
     let applyStreaming = false;
@@ -329,28 +344,35 @@ export function extractRefinePhase(messages: UIMessage[]): RefinePhase {
       if (hasToolCall(part, REGENERATE_FROM_LENS_TOOL)) {
         sawRegenerate = true;
       }
+      if (hasToolCall(part, UPDATE_DRAFT_TOOL)) {
+        sawUpdateDraft = true;
+      }
       const output = applyOutputFromPart(part);
       if (output !== null) {
         if (applyOutputFromPart(part, true) !== null) applyReady = true;
         else applyStreaming = true;
       }
-      if ((part as { type?: string }).type === "data-refine_error") {
+      const partType = (part as { type?: string }).type;
+      if (partType === DRAFT_UPDATED_PART_TYPE) {
+        sawDraftUpdated = true;
+      }
+      if (partType === "data-refine_error") {
         sawError = true;
       }
       // A turn that ended by asking the user to confirm something (a gated
-      // regenerate, a proposed context change) applies nothing: no draft is
-      // in flight, whatever the turn's lens parts suggest.
-      const partType = (part as { type?: string }).type;
+      // regenerate, a full rewrite, a proposed context change) applies nothing.
       if (
         partType === REGENERATE_CONFIRMATION_PART_TYPE ||
+        partType === FULL_REWRITE_CONFIRMATION_PART_TYPE ||
         partType === CONTEXT_CONFIRMATION_PART_TYPE
       ) {
         sawConfirmation = true;
       }
     }
-    if (applyReady) return "ready";
+    if (applyReady || sawDraftUpdated) return "ready";
     if (applyStreaming) return "applying";
     if (sawError || sawConfirmation) return "idle";
+    if (sawUpdateDraft) return "applying";
     if (sawLens) {
       let earlierHadLens = false;
       for (let j = 0; j < i; j++) {

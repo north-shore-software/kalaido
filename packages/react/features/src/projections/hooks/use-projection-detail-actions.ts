@@ -3,6 +3,7 @@ import {
   GenerationInFlightError,
   regenerateProjection,
   restoreProjection,
+  startProjectionRevise,
   updateProjection,
 } from "@kalaido/client/kalaidoscope/projections";
 import {
@@ -51,7 +52,16 @@ export function useProjectionDetailActions({
     concurrency: "ignore",
     invalidates: () => [
       kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeCollectionTag(client.baseURL, "projection_refinement"),
       kalaidoscopeEndpointTag(client.baseURL, "reconcile"),
+    ],
+  });
+  const reviseWrite = useExternalWrite<string, { readonly id: string }>({
+    execute: (targetId) => startProjectionRevise(targetId),
+    concurrency: "ignore",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+      kalaidoscopeCollectionTag(client.baseURL, "projection_refinement"),
     ],
   });
   const renameWrite = useExternalWrite<
@@ -93,7 +103,20 @@ export function useProjectionDetailActions({
     const outcome = await regenerateWrite.run(id);
     if (outcome.status === "ignored") return;
     if (outcome.status === "error") {
-      toast.error("Couldn't regenerate", {
+      toast.error("Couldn't update", {
+        description: outcome.error.message,
+      });
+      return;
+    }
+    onReviewCandidate(id, outcome.id);
+  }
+
+  async function handleRevise() {
+    if (!id) return;
+    const outcome = await reviseWrite.run(id);
+    if (outcome.status === "ignored") return;
+    if (outcome.status === "error") {
+      toast.error("Couldn't open revision session", {
         description: outcome.error.message,
       });
       return;
@@ -111,8 +134,10 @@ export function useProjectionDetailActions({
 
   return {
     regenerating: regenerateWrite.isPending,
+    revising: reviseWrite.isPending,
     remove,
     handleRefresh,
+    handleRevise,
     handleRename,
   };
 }

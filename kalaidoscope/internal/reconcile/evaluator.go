@@ -203,17 +203,14 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 				if err != nil {
 					return status, err
 				}
-				current, reason := engine.SnapshotCurrency(n.record, candRec, candPinned)
 				var candRecorded llmcontext.PinnedIDs
 				_ = candRec.UnmarshalJSONField("resolved_context", &candRecorded)
 				newIDs := candPinned.Diff(candRecorded).FragmentIDs
-				if reason == engine.CurrencyContextChanged && len(newIDs) > 0 {
-					reason = engine.CurrencyNewFragments
-				}
+				// Non-blocking: arriving fragments never freeze an open draft
+				// session. Expose NewFragmentIDs only for optional passive notices.
 				status.Candidate = &api.CandidateStatus{
 					ID:             candRec.Id,
-					Outdated:       !current,
-					Reason:         reason,
+					Outdated:       false,
 					Engaged:        engaged,
 					NewFragmentIDs: newIDs,
 				}

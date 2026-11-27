@@ -187,6 +187,13 @@ func CreateProjectionRefinement(app core.App, clientID, targetID, snapshotID str
 			if err := snap.UnmarshalJSONField("context_spec", &fromSnap); err == nil {
 				ctxSpec = &fromSnap
 			}
+		case parent != nil:
+			var fromParent api.ContextSpec
+			if raw := parent.GetString("current_context_spec"); raw != "" && raw != "null" {
+				if err := parent.UnmarshalJSONField("current_context_spec", &fromParent); err == nil {
+					ctxSpec = &fromParent
+				}
+			}
 		}
 
 		var parts []api.UIMessagePart
@@ -209,13 +216,6 @@ func CreateProjectionRefinement(app core.App, clientID, targetID, snapshotID str
 				return err
 			}
 			seeded = append(seeded, msg)
-		}
-
-		if lensMsg, ok := SeedLensTurn(txApp, parent, nil); ok {
-			if _, err := chat.PersistMessage(context.Background(), txApp, rec, lensMsg, ""); err != nil {
-				return err
-			}
-			seeded = append(seeded, lensMsg)
 		}
 
 		return nil
@@ -310,15 +310,10 @@ func CreateReflectionRefinement(app core.App, clientID, targetID string, reqWind
 	return refID, seeded, err
 }
 
-// Commit installs the refinement's latest drafted lens as the plan of record.
+// Commit installs the refinement's latest drafted lens as the plan of record
+// (for reflections) or saves the bound projection draft snapshot and spawns
+// async living editorial brief distillation (for projections).
 func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedParentID string, runner workerutil.Runner) (string, error) {
-	lens, output, pinned, spec, _, err := ExtractDraftedLensAndSpec(app, refRec)
-	if err != nil {
-		return "", err
-	}
-	if lens == "" {
-		return "", ErrNoDraftedLens
-	}
 	strat := strategyFor(refRec)
 	parent := parentID(app, refRec, strat)
 	if parent == "" {
@@ -326,6 +321,31 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 	}
 	if expectedParentID != "" && expectedParentID != parent {
 		return "", ErrParentMismatch
+	}
+
+	// Projection Save path: no drafted lens required; promote the bound pending
+	// candidate immediately and distill the living editorial brief asynchronously.
+	if _, isProjection := strat.(projections.Strategy); isProjection {
+		sourceSnapID := refRec.GetString("projection_snapshot_id")
+		if sourceSnapID != "" {
+			if snap, err := app.FindRecordById(schema.ColProjectionSnapshot.String(), sourceSnapID); err == nil && snap.GetString("status") == engine.StatusPending {
+				newSnapID, err := projections.SaveCandidate(ctx, app, runner, parent, sourceSnapID, refRec)
+				if err != nil {
+					logger().Error("projection save failed", "error", err)
+					return "", err
+				}
+				logger().Info("projection session saved", "id", parent, "refinement_id", refRec.Id, "snapshot_id", newSnapID)
+				return newSnapID, nil
+			}
+		}
+	}
+
+	lens, output, pinned, spec, _, err := ExtractDraftedLensAndSpec(app, refRec)
+	if err != nil {
+		return "", err
+	}
+	if lens == "" {
+		return "", ErrNoDraftedLens
 	}
 
 	sourceSnapID := refRec.GetString(strat.TargetType() + "_snapshot_id")

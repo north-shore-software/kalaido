@@ -6,6 +6,7 @@ import {
 import {
   editProjectionCandidate,
   parseProjectionOutput,
+  resolveAllProjectionEdits,
   type SnapshotEdit,
   type SnapshotEditStatus,
   updateSnapshotEditStatus,
@@ -62,6 +63,8 @@ export interface UseCandidateTriageResult {
     editId: string,
     status: SnapshotEditStatus,
   ) => Promise<void>;
+  resolvingAll: boolean;
+  handleResolveAll: (status: "approved" | "rejected") => Promise<void>;
   handleUndoEdit: (editId: string) => Promise<void>;
   handleHandEdit: (blockPosition: number, newText: string) => Promise<void>;
 }
@@ -180,6 +183,22 @@ export function useCandidateTriage({
         () => undefined,
       ),
     concurrency: "allow",
+    invalidates: () => [
+      kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
+    ],
+  });
+
+  const resolveAllWrite = useExternalWrite<
+    {
+      projectionId: string;
+      pendingId: string;
+      status: "approved" | "rejected";
+    },
+    void
+  >({
+    execute: async ({ projectionId: pId, pendingId: sId, status }) =>
+      (await resolveAllProjectionEdits(pId, sId, status)).map(() => undefined),
+    concurrency: "ignore",
     invalidates: () => [
       kalaidoscopeCollectionTag(client.baseURL, "projection_snapshot"),
     ],
@@ -382,6 +401,27 @@ export function useCandidateTriage({
     [projectionId, pendingId, handEditWrite, scope],
   );
 
+  const handleResolveAll = useCallback(
+    async (status: "approved" | "rejected") => {
+      if (!projectionId || !pendingId) return;
+      const outcome = await resolveAllWrite.run({
+        projectionId,
+        pendingId,
+        status,
+      });
+      if (outcome.status === "ignored") return;
+      if (outcome.status === "error") {
+        toast.error(
+          status === "approved"
+            ? "Failed to accept all edits"
+            : "Failed to reject all edits",
+          { description: outcome.error.message },
+        );
+      }
+    },
+    [projectionId, pendingId, resolveAllWrite],
+  );
+
   const handleUndoEdit = useCallback(
     async (editId: string) => {
       await handleEditStatusChange(editId, "proposed");
@@ -406,6 +446,8 @@ export function useCandidateTriage({
     handleRefinePassage,
     handleRefineEdit,
     handleEditStatusChange,
+    resolvingAll: resolveAllWrite.isPending,
+    handleResolveAll,
     handleUndoEdit,
     handleHandEdit,
   };

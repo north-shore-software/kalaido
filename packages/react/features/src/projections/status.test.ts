@@ -58,13 +58,18 @@ describe("getProjectionStatus", () => {
     expect(info.status).toBe("generating");
   });
 
-  test("a missing lens reads as preparing, not stale", () => {
+  test("a missing lens reads as preparing when otherwise up to date", () => {
+    const info = getProjectionStatus(status({}), false, { lensMissing: true });
+    expect(info.status).toBe("preparing");
+  });
+
+  test("staleness outranks a missing lens", () => {
     const info = getProjectionStatus(
       status({ newFragmentIds: ["f1"], staleDependencies: ["p1"] }),
       false,
       { lensMissing: true },
     );
-    expect(info.status).toBe("preparing");
+    expect(info.status).toBe("stale");
   });
 
   test("a pending candidate outranks a missing lens", () => {
@@ -72,16 +77,20 @@ describe("getProjectionStatus", () => {
     expect(info.status).toBe("pending");
   });
 
-  test("pending untouched outdated candidate resolves to stale", () => {
+  test("pending candidate remains pending even when new fragments arrived", () => {
     const info = getProjectionStatus(
       status({
-        candidate: { id: "c1", outdated: true, engaged: false },
+        candidate: {
+          id: "c1",
+          outdated: false,
+          engaged: false,
+          newFragmentIds: ["f2"],
+        },
       }),
       true,
     );
-    expect(info.status).toBe("stale");
-    expect(info.candidateOutdated).toBe(true);
-    expect(info.candidateEngaged).toBe(false);
+    expect(info.status).toBe("pending");
+    expect(info.candidateOutdated).toBe(false);
   });
 
   test("pending engaged outdated candidate remains pending", () => {

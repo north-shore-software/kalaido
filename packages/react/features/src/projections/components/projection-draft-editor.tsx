@@ -14,7 +14,7 @@ import {
   PaneHeader,
 } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
-import { CheckIcon } from "@phosphor-icons/react";
+import { CheckIcon, XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import {
   useCandidateTriage,
@@ -52,8 +52,8 @@ function approveButtonLabel(
   committing: boolean,
   approveLabel: string | undefined,
 ): string {
-  if (!committing) return approveLabel ?? "Approve";
-  return approveLabel === "Create projection" ? "Creating…" : "Approving…";
+  if (!committing) return approveLabel ?? "Save";
+  return approveLabel === "Create projection" ? "Creating…" : "Saving…";
 }
 
 function DraftPreviewColumn({
@@ -150,8 +150,30 @@ export function ProjectionDraftEditor({
               canNext={triage.canJumpNext}
               canPrev={triage.canJumpPrev}
             />
+            {triage.proposedEditsCount > 0 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="xs"
+                  disabled={busy || triage.resolvingAll}
+                  onClick={() => void triage.handleResolveAll("approved")}
+                >
+                  <CheckIcon />
+                  Accept all
+                </Button>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  disabled={busy || triage.resolvingAll}
+                  onClick={() => void triage.handleResolveAll("rejected")}
+                >
+                  <XIcon />
+                  Reject all
+                </Button>
+              </div>
+            )}
             <Button variant="ghost" onClick={onCancel}>
-              Cancel
+              Discard
             </Button>
             <Button
               variant="commit"
@@ -182,6 +204,7 @@ export function ProjectionDraftEditor({
                 setContext((prev) => withContextItem(prev, item))
               }
               onContextChange={setContext}
+              notifyOnContextChange
               entity="projection"
               highlightedEditId={triage.highlightedEditId}
               edits={triage.edits}

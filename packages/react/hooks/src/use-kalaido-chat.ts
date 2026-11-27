@@ -5,6 +5,8 @@ import {
   type ContextItem,
   type ContextSpec,
   createKalaidoChatTransport,
+  FULL_REWRITE_CANCEL_PART_TYPE,
+  FULL_REWRITE_CONFIRM_PART_TYPE,
   itemsToSpec,
   parseActiveContext,
   parseActiveWindow,
@@ -89,8 +91,15 @@ export interface KalaidoChatController {
   ) => void;
   confirmRegenerate: () => void;
   cancelRegenerate: () => void;
+  confirmFullRewrite: () => void;
+  cancelFullRewrite: () => void;
   confirmContext: (spec: ContextSpec) => void;
   cancelContext: () => void;
+  /**
+   * Immediately emit a `context_spec` system message and trigger an assistant
+   * acknowledgement turn when the user edits context in the picker mid-session.
+   */
+  notifyContextChange: (nextItems: ContextItem[]) => void;
 }
 
 const UNCONFIGURED_CHAT_TRANSPORT: ChatTransport<UIMessage> = {
@@ -445,6 +454,27 @@ export function useKalaidoChat({
     void sendMessage();
   }, [sendMessage, setMessages]);
 
+  const confirmFullRewrite = useCallback(() => {
+    setMessages((prev) => [
+      ...prev,
+      makeSystemMessage([{ type: FULL_REWRITE_CONFIRM_PART_TYPE }]),
+    ]);
+    void sendMessage();
+  }, [sendMessage, setMessages]);
+
+  const cancelFullRewrite = useCallback(() => {
+    setMessages((prev) => [
+      ...prev,
+      makeSystemMessage([
+        {
+          type: FULL_REWRITE_CANCEL_PART_TYPE,
+          text: "The user declined the full-document rewrite and chose to keep the current draft.",
+        },
+      ]),
+    ]);
+    void sendMessage();
+  }, [sendMessage, setMessages]);
+
   const confirmContext = useCallback(
     (spec: ContextSpec) => {
       lastSentSpecRef.current = specKey(spec);
@@ -468,6 +498,22 @@ export function useKalaidoChat({
     void sendMessage();
   }, [sendMessage, setMessages]);
 
+  const notifyContextChange = useCallback(
+    (nextItems: ContextItem[]) => {
+      if (latestRef.current.isLoading || latestRef.current.quotaHit) return;
+      const spec = itemsToSpec(nextItems);
+      const nextKey = specKey(spec);
+      if (nextKey === lastSentSpecRef.current) return;
+      lastSentSpecRef.current = nextKey;
+      setMessages((prev) => [
+        ...prev,
+        makeSystemMessage([{ type: "context_spec", data: spec }]),
+      ]);
+      void sendMessage();
+    },
+    [sendMessage, setMessages],
+  );
+
   return useMemo<KalaidoChatController>(
     () => ({
       chatId,
@@ -482,8 +528,11 @@ export function useKalaidoChat({
       appendSystemNotice,
       confirmRegenerate,
       cancelRegenerate,
+      confirmFullRewrite,
+      cancelFullRewrite,
       confirmContext,
       cancelContext,
+      notifyContextChange,
     }),
     [
       chatId,
@@ -497,8 +546,11 @@ export function useKalaidoChat({
       appendSystemNotice,
       confirmRegenerate,
       cancelRegenerate,
+      confirmFullRewrite,
+      cancelFullRewrite,
       confirmContext,
       cancelContext,
+      notifyContextChange,
     ],
   );
 }

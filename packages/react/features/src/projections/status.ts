@@ -42,20 +42,13 @@ export function getProjectionStatus(
   const candidate = status?.candidate;
   const candidateOutdated = candidate?.outdated ?? false;
   const candidateEngaged = candidate?.engaged ?? false;
-  const isUntouchedOutdated =
-    hasPending && candidateOutdated && !candidateEngaged;
 
   let kind: ProjectionStatus = "stable";
   if (opts?.generating) kind = "generating";
-  else if (hasPending && !isUntouchedOutdated) kind = "pending";
-  else if (opts?.lensMissing) kind = "preparing";
-  else if (
-    entropy > 0 ||
-    dueWindows > 0 ||
-    staleDependencies.length > 0 ||
-    isUntouchedOutdated
-  )
+  else if (hasPending) kind = "pending";
+  else if (entropy > 0 || dueWindows > 0 || staleDependencies.length > 0)
     kind = "stale";
+  else if (opts?.lensMissing) kind = "preparing";
 
   return {
     status: kind,

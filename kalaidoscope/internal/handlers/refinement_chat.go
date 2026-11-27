@@ -13,21 +13,26 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// HandleProjectionRefinementChat drafts one chat turn for a projection
-// refinement under POST /api/projections/{id}/refinements/{rid}/chat.
+// HandleProjectionRefinementChat executes one canvas-aware chat turn for a
+// projection refinement under POST /api/projections/{id}/refinements/{rid}/chat.
 func HandleProjectionRefinementChat(app core.App) func(e *core.RequestEvent) error {
-	return handleRefinementChat(app, schema.ColProjectionRefinement, "projection")
+	return handleRefinementChatWith(app, schema.ColProjectionRefinement, "projection", HandleProjectionChatForRefinement)
 }
 
 // HandleReflectionRefinementChat drafts one chat turn for a reflection
 // refinement under POST /api/reflections/{id}/refinements/{rid}/chat.
 func HandleReflectionRefinementChat(app core.App) func(e *core.RequestEvent) error {
-	return handleRefinementChat(app, schema.ColReflectionRefinement, "reflection")
+	return handleRefinementChatWith(app, schema.ColReflectionRefinement, "reflection", HandleChatForRefinement)
 }
 
-// handleRefinementChat resolves {rid} in refinementCol, checks it belongs to
-// the {id} parent, and streams the turn.
-func handleRefinementChat(app core.App, refinementCol schema.Collection, targetType string) func(e *core.RequestEvent) error {
+// handleRefinementChatWith resolves {rid} in refinementCol, checks it belongs to
+// the {id} parent, and streams the turn via runner.
+func handleRefinementChatWith(
+	app core.App,
+	refinementCol schema.Collection,
+	targetType string,
+	runner func(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error,
+) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		parentID := e.Request.PathValue("id")
 		rid := e.Request.PathValue("rid")
@@ -51,34 +56,45 @@ func handleRefinementChat(app core.App, refinementCol schema.Collection, targetT
 			req.ID = refRec.GetString("external_conversation_id")
 		}
 
-		return HandleChatForRefinement(app, req, refRec)(e)
+		return runner(app, req, refRec)(e)
+	}
+}
+
+// HandleProjectionChatForRefinement executes one canvas-aware chat turn for a
+// resolved projection refinement record.
+func HandleProjectionChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		return mapRefinementStreamError(e, app, refinement.StreamProjectionTurn(e.Request.Context(), app, req, refRec, e.Response))
 	}
 }
 
 // HandleChatForRefinement executes one turn of refinement chat for a resolved refinement record.
 func HandleChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		err := refinement.StreamTurn(e.Request.Context(), app, req, refRec, e.Response)
-		switch {
-		case errors.Is(err, refinement.ErrMessagesRequired):
-			return e.BadRequestError("messages required", nil)
-		case errors.Is(err, refinement.ErrNoModel):
-			return e.InternalServerError("no model configured for refinement", err)
-		case errors.Is(err, usage.ErrExhausted):
-			return usage.WriteExhausted(e, app)
-		case usage.WriteProviderError(e, err):
-			return nil
-		}
+		return mapRefinementStreamError(e, app, refinement.StreamTurn(e.Request.Context(), app, req, refRec, e.Response))
+	}
+}
 
-		var tooLarge *llm.ContextTooLargeError
-		if errors.As(err, &tooLarge) {
-			return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
-		}
-
-		if err != nil {
-			return e.InternalServerError("llm stream failed", err)
-		}
-
+func mapRefinementStreamError(e *core.RequestEvent, app core.App, err error) error {
+	switch {
+	case errors.Is(err, refinement.ErrMessagesRequired):
+		return e.BadRequestError("messages required", nil)
+	case errors.Is(err, refinement.ErrNoModel):
+		return e.InternalServerError("no model configured for refinement", err)
+	case errors.Is(err, usage.ErrExhausted):
+		return usage.WriteExhausted(e, app)
+	case usage.WriteProviderError(e, err):
 		return nil
 	}
+
+	var tooLarge *llm.ContextTooLargeError
+	if errors.As(err, &tooLarge) {
+		return e.Error(http.StatusUnprocessableEntity, err.Error(), err)
+	}
+
+	if err != nil {
+		return e.InternalServerError("llm stream failed", err)
+	}
+
+	return nil
 }

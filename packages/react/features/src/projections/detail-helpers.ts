@@ -174,7 +174,9 @@ export function deriveFreshnessSummary(args: {
 }) {
   return {
     generating: args.generating || args.regenerating,
-    lensMissing: args.hasSnapshots && !args.hasCurrentLens,
+    // Projections can always be updated/revised once a saved snapshot exists,
+    // even while the async editorial brief is still distilling or empty.
+    lensMissing: false,
     newSinceCandidate:
       args.freshnessEntry?.candidate?.newFragmentIds?.length ?? 0,
   };

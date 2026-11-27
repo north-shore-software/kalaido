@@ -11,7 +11,9 @@ export interface ProjectionFreshnessCardProps {
   newSinceCandidate: number;
   staleDependencyNames?: string[];
   regenerating: boolean;
+  revising: boolean;
   onRefresh: () => void;
+  onRevise: () => void;
 }
 
 function describeIdleFreshness({
@@ -49,50 +51,24 @@ function describeIdleFreshness({
 }
 
 function PendingCandidateCard({
-  isEngagedOutdated,
   newSinceCandidate,
-  regenerating,
   onReviewCandidate,
-  onRefresh,
 }: {
-  isEngagedOutdated: boolean;
   newSinceCandidate: number;
-  regenerating: boolean;
   onReviewCandidate: () => void;
-  onRefresh: () => void;
 }) {
   const arrivalSuffix =
     newSinceCandidate > 0
-      ? ` ${newSinceCandidate} new fragment${newSinceCandidate > 1 ? "s" : ""} arrived since it was generated.`
+      ? ` ${newSinceCandidate} new fragment${newSinceCandidate > 1 ? "s" : ""} arrived since it opened.`
       : "";
   return (
     <div className="rounded-none border border-line p-3.5">
       <p className="mb-3 text-body-sm leading-relaxed text-fg-2">
-        {isEngagedOutdated ? (
-          <span className="text-drifting-ink">
-            Your edited candidate is out of date
-            {newSinceCandidate > 0 && ` · ${newSinceCandidate} new`}
-          </span>
-        ) : (
-          `A candidate is awaiting review.${arrivalSuffix}`
-        )}
+        {`An in-progress draft is open.${arrivalSuffix}`}
       </p>
-      <div className="flex flex-col gap-2">
-        <Button size="sm" className="w-full" onClick={onReviewCandidate}>
-          Review candidate
-        </Button>
-        {!isEngagedOutdated && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={onRefresh}
-            disabled={regenerating}
-          >
-            {regenerating ? "Regenerating…" : "Regenerate candidate"}
-          </Button>
-        )}
-      </div>
+      <Button size="sm" className="w-full" onClick={onReviewCandidate}>
+        Resume draft
+      </Button>
     </div>
   );
 }
@@ -105,7 +81,9 @@ export function ProjectionFreshnessCard({
   newSinceCandidate,
   staleDependencyNames,
   regenerating,
+  revising,
   onRefresh,
+  onRevise,
 }: ProjectionFreshnessCardProps) {
   if (freshnessLoading && !info) return null;
 
@@ -114,11 +92,10 @@ export function ProjectionFreshnessCard({
       <div className="rounded-none border border-line p-3.5">
         <div className="mb-2 flex items-center gap-2.5">
           <ArrowsClockwiseIcon className="size-4 animate-spin text-fg-3" />
-          <span className="text-item font-semibold">Generating…</span>
+          <span className="text-item font-semibold">Updating…</span>
         </div>
         <p className="text-body-sm leading-relaxed text-fg-2">
-          A new candidate is being generated. It will appear here for review
-          when it's ready.
+          Preparing an updated draft from your latest sources.
         </p>
       </div>
     );
@@ -127,29 +104,9 @@ export function ProjectionFreshnessCard({
   if (info?.status === "pending" && onReviewCandidate) {
     return (
       <PendingCandidateCard
-        isEngagedOutdated={Boolean(
-          info.candidateEngaged && info.candidateOutdated,
-        )}
         newSinceCandidate={newSinceCandidate}
-        regenerating={regenerating}
         onReviewCandidate={onReviewCandidate}
-        onRefresh={onRefresh}
       />
-    );
-  }
-
-  if (info?.status === "preparing") {
-    return (
-      <div className="rounded-none border border-line p-3.5">
-        <div className="mb-2 flex items-center gap-2.5">
-          <ClockIcon className="size-4 text-fg-3" />
-          <span className="text-item font-semibold">Preparing</span>
-        </div>
-        <p className="text-body-sm leading-relaxed text-fg-2">
-          This projection's lens is still being prepared. Regenerate will be
-          available in a moment.
-        </p>
-      </div>
     );
   }
 
@@ -158,6 +115,8 @@ export function ProjectionFreshnessCard({
     generatedAt,
     staleDependencyNames,
   });
+  const isStale = info?.status === "stale";
+
   return (
     <div className="rounded-none border border-line p-3.5">
       <div className="mb-2 flex items-center gap-2.5">
@@ -165,15 +124,27 @@ export function ProjectionFreshnessCard({
         <span className="text-item font-semibold">{idle.heading}</span>
       </div>
       <p className="mb-3 text-body-sm leading-relaxed text-fg-2">{idle.body}</p>
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full"
-        onClick={onRefresh}
-        disabled={regenerating}
-      >
-        {regenerating ? "Regenerating…" : "Regenerate"}
-      </Button>
+      {isStale ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={onRefresh}
+          disabled={regenerating || revising}
+        >
+          {regenerating ? "Updating…" : "Update"}
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={onRevise}
+          disabled={revising || regenerating}
+        >
+          {revising ? "Opening…" : "Edit / Revise"}
+        </Button>
+      )}
     </div>
   );
 }

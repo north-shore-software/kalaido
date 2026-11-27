@@ -91,6 +91,13 @@ func LoadSnapshotEdits(rec *core.Record) []api.SnapshotEdit {
 	return edits
 }
 
+// CompleteClaimedSnapshot fills the generation claim row with the finished
+// output, in the same transaction discarding any pending siblings so at most
+// one reviewable candidate exists per target (and window).
+func CompleteClaimedSnapshot(ctx context.Context, app core.App, strat Strategy, claimID string, s SnapshotSpec) error {
+	return completeClaimedSnapshot(ctx, app, strat, claimID, s)
+}
+
 // completeClaimedSnapshot fills the generation claim row with the finished
 // output, in the same transaction discarding any pending siblings so at most
 // one reviewable candidate exists per target (and window).

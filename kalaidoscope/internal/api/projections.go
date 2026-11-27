@@ -1,7 +1,30 @@
 package api
 
 type ProjectionSnapshotResponse struct {
-	SnapshotID string `json:"snapshotId"`
+	SnapshotID   string `json:"snapshotId"`
+	RefinementID string `json:"refinementId,omitempty"`
+}
+
+type ProjectionLensResponse struct {
+	LensID   string `json:"lensId"`
+	Prompt   string `json:"prompt"`
+	Updating bool   `json:"updating"`
+}
+
+type UpdateProjectionLensRequest struct {
+	Prompt string `json:"prompt"`
+}
+
+type StartProjectionReviseRequest struct {
+	ClientID string `json:"clientId,omitempty"`
+}
+
+type ResolveAllSnapshotEditsRequest struct {
+	Status SnapshotEditStatus `json:"status"`
+}
+
+type ResolveAllSnapshotEditsResponse struct {
+	Edits []SnapshotEdit `json:"edits"`
 }
 
 type GenerateProjectionSnapshotRequest struct {

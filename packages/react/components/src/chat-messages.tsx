@@ -5,7 +5,12 @@ import {
   type ContextConfirmation,
   type ContextItem,
   type ContextSpec,
+  DRAFT_UPDATED_PART_TYPE,
   diffContextSpecs,
+  FULL_REWRITE_CANCEL_PART_TYPE,
+  FULL_REWRITE_CONFIRM_PART_TYPE,
+  FULL_REWRITE_CONFIRMATION_PART_TYPE,
+  type FullRewriteConfirmation,
   messageContextSpec,
   messageWindow,
   REGENERATE_CANCEL_PART_TYPE,
@@ -29,6 +34,7 @@ import {
   EditNoticeCard,
   type EditNoticeCardProps,
 } from "./chat/edit-notice-card";
+import { FullRewriteConfirmationCard } from "./chat/full-rewrite-confirmation-card";
 import { KIND_ABBREV } from "./context-bar/state";
 import { MarkdownContent } from "./markdown-content";
 
@@ -477,6 +483,10 @@ const TOOL_MESSAGES: Record<string, string | null> = {
   refine_candidate: null,
   apply_result: null,
   suggest_name: null,
+  write_draft: null,
+  propose_edit: null,
+  update_draft: null,
+  request_full_rewrite: null,
   // The confirmation card carries the proposal; nothing else to say.
   update_context: null,
   // The chat's summaries-mode reads narrate themselves (readNoticesFor).
@@ -568,6 +578,21 @@ function dataNoticesFor(msg: UIMessage): string[] {
       notices.push("Confirmed candidate regeneration.");
     } else if (p.type === REGENERATE_CANCEL_PART_TYPE) {
       notices.push("Cancelled candidate regeneration.");
+    } else if (p.type === FULL_REWRITE_CONFIRM_PART_TYPE) {
+      notices.push("Confirmed full draft replacement.");
+    } else if (p.type === FULL_REWRITE_CANCEL_PART_TYPE) {
+      notices.push("Kept the current draft.");
+    } else if (p.type === DRAFT_UPDATED_PART_TYPE) {
+      const d = p.data as { editsCount?: number; summary?: string } | undefined;
+      if (d?.summary) {
+        notices.push(d.summary);
+      } else if (typeof d?.editsCount === "number" && d.editsCount > 0) {
+        notices.push(
+          `Updated the draft with ${d.editsCount} proposed ${d.editsCount === 1 ? "edit" : "edits"}.`,
+        );
+      } else {
+        notices.push("Updated the draft.");
+      }
     }
   }
   return notices;
@@ -578,6 +603,8 @@ const FABRICATED_TURN_PARTS = [
   "data-window_reapply",
   REGENERATE_CONFIRM_PART_TYPE,
   REGENERATE_CONFIRMATION_PART_TYPE,
+  FULL_REWRITE_CONFIRM_PART_TYPE,
+  FULL_REWRITE_CONFIRMATION_PART_TYPE,
   CONTEXT_CONFIRMATION_PART_TYPE,
 ];
 
@@ -676,6 +703,8 @@ export interface ChatMessagesProps {
   onUndoEdit?: (editId: string) => void;
   onConfirmRegenerate?: () => void;
   onCancelRegenerate?: () => void;
+  onConfirmFullRewrite?: () => void;
+  onCancelFullRewrite?: () => void;
   /** The user accepted a proposed context change: `items` are the new selection, labelled. */
   onConfirmContext?: (spec: ContextSpec, items: ContextItem[]) => void;
   onCancelContext?: () => void;
@@ -693,9 +722,11 @@ export interface ChatMessagesProps {
 
 function lastSettledIndices(messages: UIMessage[]): {
   regenerate: number;
+  fullRewrite: number;
   context: number;
 } {
   let regenerate = -1;
+  let fullRewrite = -1;
   let context = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     const parts = messages[i].parts;
@@ -710,6 +741,13 @@ function lastSettledIndices(messages: UIMessage[]): {
         regenerate = i;
       }
       if (
+        fullRewrite === -1 &&
+        (type === FULL_REWRITE_CONFIRM_PART_TYPE ||
+          type === FULL_REWRITE_CANCEL_PART_TYPE)
+      ) {
+        fullRewrite = i;
+      }
+      if (
         context === -1 &&
         (type === CONTEXT_CONFIRM_PART_TYPE ||
           type === CONTEXT_CANCEL_PART_TYPE)
@@ -717,9 +755,9 @@ function lastSettledIndices(messages: UIMessage[]): {
         context = i;
       }
     }
-    if (regenerate !== -1 && context !== -1) break;
+    if (regenerate !== -1 && fullRewrite !== -1 && context !== -1) break;
   }
-  return { regenerate, context };
+  return { regenerate, fullRewrite, context };
 }
 
 export function ChatMessages({
@@ -731,6 +769,8 @@ export function ChatMessages({
   onUndoEdit,
   onConfirmRegenerate,
   onCancelRegenerate,
+  onConfirmFullRewrite,
+  onCancelFullRewrite,
   onConfirmContext,
   onCancelContext,
   messageActions,
@@ -830,6 +870,14 @@ export function ChatMessages({
             (p as { type?: string }).type === REGENERATE_CONFIRMATION_PART_TYPE,
         ) as { data?: { affectedEdits?: SnapshotEdit[] } } | undefined;
 
+        const fullRewriteConfirmation = (
+          msg.parts.find(
+            (p) =>
+              (p as { type?: string }).type ===
+              FULL_REWRITE_CONFIRMATION_PART_TYPE,
+          ) as { data?: FullRewriteConfirmation } | undefined
+        )?.data;
+
         const contextConfirmation = (
           msg.parts.find(
             (p) =>
@@ -839,6 +887,7 @@ export function ChatMessages({
 
         // A card is settled once a later message carries the user's answer.
         const isSettled = settledAfter.regenerate > index;
+        const fullRewriteSettled = settledAfter.fullRewrite > index;
         const contextSettled = settledAfter.context > index;
 
         const cards = (
@@ -850,6 +899,15 @@ export function ChatMessages({
                 onCancel={onCancelRegenerate}
                 isBusy={pending}
                 isSettled={isSettled}
+              />
+            )}
+            {fullRewriteConfirmation && (
+              <FullRewriteConfirmationCard
+                confirmation={fullRewriteConfirmation}
+                onConfirm={onConfirmFullRewrite}
+                onCancel={onCancelFullRewrite}
+                isBusy={pending}
+                isSettled={fullRewriteSettled}
               />
             )}
             {contextConfirmation?.spec && (
@@ -871,6 +929,7 @@ export function ChatMessages({
             !notice &&
             noticeRows.length === 0 &&
             !confirmationPart &&
+            !fullRewriteConfirmation &&
             !contextConfirmation
           )
             return null;
