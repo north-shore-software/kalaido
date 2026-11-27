@@ -3,6 +3,7 @@ package reconcile
 import (
 	stdctx "context"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -69,6 +70,22 @@ func (e *Evaluator) buildNode(rec *core.Record, entityType string) *node {
 		entityType: entityType,
 		spec:       spec,
 	}
+}
+
+// candidateContextSpec returns the pending candidate's own context_spec when
+// populated, falling back to the projection's current_context_spec. Evaluating
+// a candidate against its own spec ensures an uncommitted context change in
+// refinement does not falsely flag the candidate as outdated.
+func candidateContextSpec(candRec *core.Record, fallback api.ContextSpec) api.ContextSpec {
+	raw := strings.TrimSpace(candRec.GetString("context_spec"))
+	if raw == "" || raw == "null" {
+		return fallback
+	}
+	var spec api.ContextSpec
+	if err := candRec.UnmarshalJSONField("context_spec", &spec); err != nil {
+		return fallback
+	}
+	return spec
 }
 
 // evaluateReflectionWindows is the windowed reflection's evaluation: each
@@ -164,9 +181,6 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 		liveSnapID = snapRec.Id
 	}
 
-	var currentPinned llmcontext.PinnedIDs
-	var resolvedSpec bool
-
 	if n.entityType == "projection" {
 		strat := projections.Strategy{}
 		candRec, err := engine.FindPendingCandidate(e.app, strat, n.record.Id, nil)
@@ -178,25 +192,31 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 			if err != nil {
 				return status, err
 			}
-			pinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, nil)
-			if err != nil {
-				return status, err
-			}
-			currentPinned = pinned
-			resolvedSpec = true
-			current, reason := engine.SnapshotCurrency(n.record, candRec, pinned)
-			var candRecorded llmcontext.PinnedIDs
-			_ = candRec.UnmarshalJSONField("resolved_context", &candRecorded)
-			newIDs := pinned.Diff(candRecorded).FragmentIDs
-			if reason == engine.CurrencyContextChanged && len(newIDs) > 0 {
-				reason = engine.CurrencyNewFragments
-			}
-			status.Candidate = &api.CandidateStatus{
-				ID:             candRec.Id,
-				Outdated:       !current,
-				Reason:         reason,
-				Engaged:        engaged,
-				NewFragmentIDs: newIDs,
+			if liveSnapID == "" {
+				status.Candidate = &api.CandidateStatus{
+					ID:      candRec.Id,
+					Engaged: engaged,
+				}
+			} else {
+				candSpec := candidateContextSpec(candRec, n.spec)
+				candPinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, candSpec, nil)
+				if err != nil {
+					return status, err
+				}
+				current, reason := engine.SnapshotCurrency(n.record, candRec, candPinned)
+				var candRecorded llmcontext.PinnedIDs
+				_ = candRec.UnmarshalJSONField("resolved_context", &candRecorded)
+				newIDs := candPinned.Diff(candRecorded).FragmentIDs
+				if reason == engine.CurrencyContextChanged && len(newIDs) > 0 {
+					reason = engine.CurrencyNewFragments
+				}
+				status.Candidate = &api.CandidateStatus{
+					ID:             candRec.Id,
+					Outdated:       !current,
+					Reason:         reason,
+					Engaged:        engaged,
+					NewFragmentIDs: newIDs,
+				}
 			}
 		}
 	}
@@ -215,12 +235,9 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 	var recordedPinned llmcontext.PinnedIDs
 	_ = snapRec.UnmarshalJSONField("resolved_context", &recordedPinned)
 
-	if !resolvedSpec {
-		pinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, nil)
-		if err != nil {
-			return status, err
-		}
-		currentPinned = pinned
+	currentPinned, err := llmcontext.ResolveSpecToIDs(ctx, e.app, n.spec, nil)
+	if err != nil {
+		return status, err
 	}
 
 	// Diff them: what's in current that's not in recorded?

@@ -42,7 +42,7 @@ func regenFixture(t *testing.T, app core.App, draft string, edits []api.Snapshot
 
 func regenerate(t *testing.T, app core.App, refRec *core.Record, output string) *core.Record {
 	t.Helper()
-	snapID, err := refinement.MaterializeCandidateIfNew(context.Background(), app, refRec, "Lens", output, llmcontext.PinnedIDs{}, api.ContextSpec{}, "", "mock-model")
+	snapID, err := refinement.MaterializeCandidateIfNew(context.Background(), app, refRec, output, llmcontext.PinnedIDs{}, api.ContextSpec{}, "", "mock-model")
 	if err != nil {
 		t.Fatalf("MaterializeCandidateIfNew: %v", err)
 	}
