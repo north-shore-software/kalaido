@@ -1,8 +1,10 @@
-import { getHost } from "@kalaido/platform";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import {
+  type FileDialogFilter,
+  getHost,
+  type UnlistenFn,
+} from "@kalaido/platform";
 import type { Result } from "neverthrow";
-import { tauriResult } from "@/api/app/_invoke";
+import { getDesktopHost } from "@/host";
 
 export type { UnlistenFn };
 
@@ -14,20 +16,20 @@ export function writeClipboardHtml(
 }
 
 export function openFilePicker(
-  filters?: { name: string; extensions: string[] }[],
+  filters?: FileDialogFilter[],
 ): Promise<Result<string | null, Error>> {
-  return tauriResult(open({ multiple: false, directory: false, filters }));
+  return getDesktopHost().dialogs.openFile(filters);
 }
 
 export function saveFilePicker(
   defaultPath?: string,
-  filters?: { name: string; extensions: string[] }[],
+  filters?: FileDialogFilter[],
 ): Promise<Result<string | null, Error>> {
-  return tauriResult(save({ defaultPath, filters }));
+  return getDesktopHost().dialogs.saveFile(defaultPath, filters);
 }
 
 export function openDirectoryPicker(): Promise<Result<string | null, Error>> {
-  return tauriResult(open({ directory: true }));
+  return getDesktopHost().dialogs.openDirectory();
 }
 
 export function openSystemBrowser(url: string): Promise<Result<void, Error>> {
@@ -37,19 +39,19 @@ export function openSystemBrowser(url: string): Promise<Result<void, Error>> {
 export function registerMenuNavigateListener(
   cb: (path: string) => void,
 ): Promise<Result<UnlistenFn, Error>> {
-  return tauriResult(listen<string>("menu:navigate", (e) => cb(e.payload)));
+  return getDesktopHost().menu.onNavigate(cb);
 }
 
 export function registerMenuFeedbackListener(
   cb: () => void,
 ): Promise<Result<UnlistenFn, Error>> {
-  return tauriResult(listen("menu:feedback", () => cb()));
+  return getDesktopHost().menu.onFeedback(cb);
 }
 
 export function registerMenuUpdateListener(
   cb: () => void,
 ): Promise<Result<UnlistenFn, Error>> {
-  return tauriResult(listen("menu:check-updates", () => cb()));
+  return getDesktopHost().menu.onCheckUpdates(cb);
 }
 
 export function reloadAppWindow(): void {

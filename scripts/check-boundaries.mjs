@@ -66,7 +66,6 @@ const BANNED_DEPS_BY_PKG = {
     "react",
     "react-dom",
     "react-router-dom",
-    "@tauri-apps/plugin-dialog",
     "@tauri-apps/plugin-shell",
     "@tauri-apps/plugin-updater",
   ],

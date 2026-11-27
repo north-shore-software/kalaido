@@ -17,13 +17,17 @@ export async function checkForUpdatesAndPrompt(
     }
     return;
   }
-  const update = res.value;
-  if (!update) {
+  const outcome = res.value;
+  if (outcome.status === "unsupported") {
+    return;
+  }
+  if (outcome.status === "up_to_date") {
     if (interactive) {
       toast.info("Kalaido is up to date");
     }
     return;
   }
+  const { update } = outcome;
   toast.info(`Kalaido v${update.version} is available`, {
     duration: Number.POSITIVE_INFINITY,
     action: {

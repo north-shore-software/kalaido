@@ -6,10 +6,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./tauri": "./src/tauri.ts",
+    "./tauri-desktop": "./src/tauri-desktop.ts",
     "./web": "./src/web.ts"
   },
   "imports": {
-    "#*": "./src/*.ts"
+    "#index": "./src/index.ts",
+    "#tauri": "./src/tauri.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -20,6 +22,7 @@
   "peerDependencies": {
     "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-opener": "^2.7.3",
     "@tauri-apps/plugin-store": "^2.5.1"
   },
@@ -28,6 +31,9 @@
       "optional": true
     },
     "@tauri-apps/plugin-clipboard-manager": {
+      "optional": true
+    },
+    "@tauri-apps/plugin-dialog": {
       "optional": true
     },
     "@tauri-apps/plugin-opener": {
@@ -40,6 +46,7 @@
   "devDependencies": {
     "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-opener": "^2.7.3",
     "@tauri-apps/plugin-store": "^2.5.1"
   }

@@ -1,26 +1,13 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
-import { err, ok, type Result } from "neverthrow";
-import { tauriResult } from "@/api/app/_invoke.ts";
+import type { UpdateCheckResult, UpdateMetadata } from "@kalaido/platform";
+import type { Result } from "neverthrow";
+import { getDesktopHost } from "@/host";
 
-export interface UpdateMetadata {
-  version: string;
-  currentVersion: string;
-  body: string | null;
-  date: string | null;
+export type { UpdateCheckResult, UpdateMetadata };
+
+export function checkForUpdate(): Promise<Result<UpdateCheckResult, Error>> {
+  return getDesktopHost().updater.check();
 }
 
-export async function checkForUpdate(): Promise<
-  Result<UpdateMetadata | null, Error>
-> {
-  if (!isTauri()) {
-    return ok(null);
-  }
-  return tauriResult(invoke<UpdateMetadata | null>("check_for_update"));
-}
-
-export async function installPendingUpdate(): Promise<Result<void, Error>> {
-  if (!isTauri()) {
-    return err(new Error("Updates are only supported on desktop"));
-  }
-  return tauriResult(invoke<void>("install_pending_update"));
+export function installPendingUpdate(): Promise<Result<void, Error>> {
+  return getDesktopHost().updater.install();
 }
