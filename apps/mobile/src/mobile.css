@@ -3,10 +3,28 @@
 @import "@kalaido/features/styles.css";
 
 :root {
-  --titlebar-height: env(safe-area-inset-top, 0px);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --titlebar-height: var(--safe-area-top);
   --keyboard-inset: 0px;
   --keyboard-offset: 0px;
-  --page-height: calc(100svh - var(--titlebar-height) - var(--keyboard-inset));
+  --bottom-inset: max(
+    0px,
+    calc(var(--safe-area-bottom) - var(--keyboard-inset))
+  );
+  --page-height: calc(
+    100svh -
+    var(--titlebar-height) -
+    max(var(--safe-area-bottom), var(--keyboard-inset))
+  );
+}
+
+body {
+  padding-right: var(--safe-area-right);
+  padding-bottom: var(--bottom-inset);
+  padding-left: var(--safe-area-left);
 }
 
 #root {
