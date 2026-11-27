@@ -5,7 +5,8 @@
 /packages/*/*/node_modules/
 /apps/*/dist/
 /apps/*/src-tauri/target/
-/apps/*/src-tauri/gen/
+/apps/*/src-tauri/gen/schemas/
+/apps/*/src-tauri/gen/apple/
 /apps/desktop/src-tauri/binaries/pocketbase-*
 /apps/*/.env
 /apps/*/.env.local

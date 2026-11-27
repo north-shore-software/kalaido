@@ -126,7 +126,6 @@ jobs:
           workspaces: .
 
       - run: ./kalaido.sh setup:ts
-      - run: ./kalaido.sh init:android
       - run: ./kalaido.sh build:android:release
 
       - name: sign and verify apk

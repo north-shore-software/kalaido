@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.kalaido_mobile" parent="Base.Theme.kalaido_mobile">
+        <item name="android:windowSplashScreenBackground">@color/kalaido_ink</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
+    </style>
+</resources>
