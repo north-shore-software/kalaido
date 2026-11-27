@@ -153,24 +153,27 @@ export function useReflectionRefineActions({
     if (!trimmed || !activeWindow || previewLoading) return;
     const key = previewInputKey(trimmed, contextSpec, activeWindow);
     setPreviewLoading(true);
-    const res = await previewReflection({
-      reflectionId: reflectionId ?? undefined,
-      lensPrompt: trimmed,
-      contextSpec,
-      window: activeWindow,
-    });
-    setPreviewLoading(false);
-    if (res.isErr()) {
-      toast.error("Failed to generate preview", {
-        description: res.error.message,
+    try {
+      const res = await previewReflection({
+        reflectionId: reflectionId ?? undefined,
+        lensPrompt: trimmed,
+        contextSpec,
+        window: activeWindow,
       });
-      return;
+      if (res.isErr()) {
+        toast.error("Failed to generate preview", {
+          description: res.error.message,
+        });
+        return;
+      }
+      onManualPreview({
+        output: res.value.output,
+        inputKey: key,
+        fragmentCount: res.value.fragmentCount,
+      });
+    } finally {
+      setPreviewLoading(false);
     }
-    onManualPreview({
-      output: res.value.output,
-      inputKey: key,
-      fragmentCount: res.value.fragmentCount,
-    });
   }
 
   async function save() {
