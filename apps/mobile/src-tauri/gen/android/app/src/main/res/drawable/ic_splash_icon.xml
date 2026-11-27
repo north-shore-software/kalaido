@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Derived from kalaido-internal/brand/assets/svg/icon/kalaido-app-icon-foreground.svg
+  (viewBox 12x12) sized to Android 12's 288dp splash-icon canvas (192dp safe circle).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="288dp"
     android:height="288dp"

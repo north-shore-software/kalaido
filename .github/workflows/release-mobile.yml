@@ -125,40 +125,58 @@ jobs:
         with:
           workspaces: .
 
+      - uses: gradle/actions/wrapper-validation@v4
       - run: ./kalaido.sh setup:ts
-      - run: ./kalaido.sh build:android:release
 
-      - name: sign and verify apk
+      - name: configure android release signing
         env:
-          VERSION: ${{ needs.bump.outputs.version }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          unsigned_apk="apps/mobile/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
-          aligned_apk="$RUNNER_TEMP/app-aligned.apk"
-          signed_apk="$RUNNER_TEMP/kalaido_android_v${VERSION}.apk"
-          keystore="$RUNNER_TEMP/upload-keystore.jks"
-
           [[ -n "$ANDROID_KEYSTORE_BASE64" ]] || { echo "missing ANDROID_KEYSTORE_BASE64" >&2; exit 1; }
           [[ -n "$ANDROID_KEYSTORE_PASSWORD" ]] || { echo "missing ANDROID_KEYSTORE_PASSWORD" >&2; exit 1; }
           [[ -n "$ANDROID_KEY_ALIAS" ]] || { echo "missing ANDROID_KEY_ALIAS" >&2; exit 1; }
           [[ -n "$ANDROID_KEY_PASSWORD" ]] || { echo "missing ANDROID_KEY_PASSWORD" >&2; exit 1; }
 
+          keystore="$RUNNER_TEMP/upload-keystore.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$keystore"
           chmod 600 "$keystore"
 
-          zipalign -P 16 -f 4 "$unsigned_apk" "$aligned_apk"
-          apksigner sign \
-            --ks "$keystore" \
-            --ks-key-alias "$ANDROID_KEY_ALIAS" \
-            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
-            --key-pass env:ANDROID_KEY_PASSWORD \
-            --out "$signed_apk" \
-            "$aligned_apk"
-          apksigner verify --verbose "$signed_apk"
-          rm -f "$keystore" "$aligned_apk"
+          props="apps/mobile/src-tauri/gen/android/keystore.properties"
+          umask 077
+          python3 - <<'PY' "$props" "$keystore"
+          import os, sys
+          props_path, keystore_path = sys.argv[1], sys.argv[2]
+          def esc(v: str) -> str:
+              return v.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+          entries = [
+              ("storeFile", keystore_path),
+              ("storePassword", os.environ["ANDROID_KEYSTORE_PASSWORD"]),
+              ("keyAlias", os.environ["ANDROID_KEY_ALIAS"]),
+              ("keyPassword", os.environ["ANDROID_KEY_PASSWORD"]),
+          ]
+          with open(props_path, "w", encoding="utf-8") as f:
+              for k, v in entries:
+                  f.write(f"{k}={esc(v)}\n")
+          PY
+
+      - run: ./kalaido.sh build:android:release
+
+      - name: verify and stage apk
+        env:
+          VERSION: ${{ needs.bump.outputs.version }}
+        run: |
+          built_apk="apps/mobile/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
+          signed_apk="$RUNNER_TEMP/kalaido_android_v${VERSION}.apk"
+
+          apksigner verify --verbose "$built_apk"
+          cp "$built_apk" "$signed_apk"
+
+      - name: clean up signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-keystore.jks" apps/mobile/src-tauri/gen/android/keystore.properties
 
       - name: create draft prerelease
         env:
