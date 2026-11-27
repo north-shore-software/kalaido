@@ -14,6 +14,16 @@ import (
 	"strings"
 )
 
+func parseEml(ctx context.Context, src Source, emit Emit) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if len(bytes.TrimSpace(src.Data)) == 0 {
+		return nil
+	}
+	return emit(oneEmail(src.Data))
+}
+
 func parseMbox(ctx context.Context, src Source, emit Emit) error {
 	br := bufio.NewReaderSize(bytes.NewReader(src.Data), 1<<20)
 	var block []byte

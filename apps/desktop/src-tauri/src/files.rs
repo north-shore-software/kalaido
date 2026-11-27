@@ -173,6 +173,9 @@ fn expand_archive<R: Read + Seek>(
                     continue;
                 }
                 let name = entry.name().to_string();
+                if is_macos_metadata(&name) {
+                    continue;
+                }
                 let mut bytes = Vec::new();
                 if entry.read_to_end(&mut bytes).is_err() {
                     continue;
@@ -184,6 +187,19 @@ fn expand_archive<R: Read + Seek>(
         let child = format!("{display}!{name}");
         classify_reader(std::io::Cursor::new(bytes), child, out, depth + 1);
     }
+}
+
+fn is_macos_metadata(name: &str) -> bool {
+    let mut last = "";
+    for seg in name.split(['/', '\\']) {
+        if seg == "__MACOSX" {
+            return true;
+        }
+        if !seg.is_empty() {
+            last = seg;
+        }
+    }
+    last == ".DS_Store" || last.starts_with("._")
 }
 
 /// True for the local-file-header, empty-archive, and spanned-archive zip
@@ -342,6 +358,22 @@ mod tests {
         assert!(out.iter().all(|e| e.kind == FileKind::Text));
         assert!(out.iter().any(|e| e.path.ends_with("top.txt")));
         assert!(out.iter().any(|e| e.path.ends_with("nested.md")));
+    }
+
+    #[test]
+    fn skips_macos_metadata_in_zip() {
+        let archive = build_zip(&[
+            ("mail/one.eml", b"From: a@example.com\r\n\r\nhi" as &[u8]),
+            ("__MACOSX/mail/._one.eml", &[0x00, 0x05, 0x16, 0x07]),
+            ("mail/.DS_Store", b"Bud1"),
+            ("mail/._extra.txt", b"resource fork"),
+            ("notes/readme.txt", b"hello"),
+        ]);
+
+        let out = classify(&archive, ".zip");
+        assert_eq!(out.len(), 2, "macOS metadata entries should be skipped");
+        assert!(out.iter().any(|e| e.path.ends_with("!mail/one.eml")));
+        assert!(out.iter().any(|e| e.path.ends_with("!notes/readme.txt")));
     }
 
     #[test]
