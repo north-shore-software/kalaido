@@ -22,7 +22,6 @@ export const ROUTE_IDS = [
   "refine-reflection",
   "colours",
   "connections",
-  "rotation",
   "explore",
   "map",
   "status",

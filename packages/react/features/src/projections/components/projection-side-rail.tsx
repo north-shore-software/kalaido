@@ -9,7 +9,7 @@ import { ProjectionFreshnessCard } from "./projection-freshness-card";
 
 export interface ProjectionSideRailProps {
   readOnly: boolean;
-  rotLoading: boolean;
+  freshnessLoading: boolean;
   info: ProjectionStatusInfo | undefined;
   /** When the live output was generated; absent if it never has been. */
   generatedAt?: string;
@@ -17,24 +17,23 @@ export interface ProjectionSideRailProps {
   onReviewCandidate?: () => void;
   /** In-scope fragments the pending candidate's resolved context misses. */
   newSinceCandidate?: number;
-  /** Display names for `info.blockedBy`, in the same order. */
-  blockedNames?: string[];
+  /** Display names for `info.staleDependencies`, in the same order. */
+  staleDependencyNames?: string[];
   regenerating: boolean;
   onRefresh: () => void;
   onBackToLive: () => void;
   timeline: TimelineItem[];
 }
 
-/** The right rail: the freshness card (driven by the server's rotation plan)
- *  and the snapshot timeline. */
+/** The right rail: the freshness card and the snapshot timeline. */
 export function ProjectionSideRail({
   readOnly,
-  rotLoading,
+  freshnessLoading,
   info,
   generatedAt,
   onReviewCandidate,
   newSinceCandidate = 0,
-  blockedNames,
+  staleDependencyNames,
   regenerating,
   onRefresh,
   onBackToLive,
@@ -58,12 +57,12 @@ export function ProjectionSideRail({
         </div>
       ) : (
         <ProjectionFreshnessCard
-          rotLoading={rotLoading}
+          freshnessLoading={freshnessLoading}
           info={info}
           generatedAt={generatedAt}
           onReviewCandidate={onReviewCandidate}
           newSinceCandidate={newSinceCandidate}
-          blockedNames={blockedNames}
+          staleDependencyNames={staleDependencyNames}
           regenerating={regenerating}
           onRefresh={onRefresh}
         />

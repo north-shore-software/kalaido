@@ -1,34 +1,29 @@
-import type { EntityStatus } from "@kalaido/client/kalaidoscope/rotation";
+import type { EntityStatus } from "@kalaido/client/kalaidoscope/freshness";
 
 export type ProjectionStatus =
   | "stable"
   | "generating"
   | "pending"
   | "preparing"
-  | "stale"
-  | "blocked";
+  | "stale";
 
 export interface ProjectionStatusInfo {
   status: ProjectionStatus;
   /** New in-context fragments since the live snapshot (the "entropy" count). */
   entropy: number;
-  /** Upstream ids that are not themselves up to date, so this one must wait. */
-  blockedBy: string[];
+  /** Direct upstream ids that have published newer approved output since the live snapshot. */
+  staleDependencies: string[];
   candidateOutdated?: boolean;
   candidateEngaged?: boolean;
 }
 
 /**
- * Resolve a projection's headline status from the server's freshness plan
- * (`EntityStatus` from `GET /api/rotation`) combined with local snapshot state.
+ * Resolve a projection's headline status from the server's freshness status
+ * (`EntityStatus` from `GET /api/reconcile`) combined with local snapshot state.
  * Precedence: a generation running right now (the server's claim row) trumps
  * everything; then a pending candidate to review; then a lens still being
- * distilled (nothing can generate yet); then blocked-on-upstream; then stale
- * (new fragments, due windows, or an upstream that has published since);
- * otherwise stable.
- *
- * Note that `staleDependencies` counts as stale, not blocked — an upstream that
- * has moved on is work this projection can do right now.
+ * prepared (nothing can generate yet); then stale (new fragments, due windows,
+ * or a direct upstream that has published since); otherwise stable.
  */
 export function getProjectionStatus(
   status: EntityStatus | undefined,
@@ -41,8 +36,7 @@ export function getProjectionStatus(
   },
 ): ProjectionStatusInfo {
   const entropy = status?.newFragmentIds?.length ?? 0;
-  const blockedBy = status?.blockedBy ?? [];
-  const staleDeps = status?.staleDependencies?.length ?? 0;
+  const staleDependencies = status?.staleDependencies ?? [];
   const dueWindows =
     (status?.pendingWindows?.length ?? 0) + (status?.staleWindows?.length ?? 0);
   const candidate = status?.candidate;
@@ -55,11 +49,10 @@ export function getProjectionStatus(
   if (opts?.generating) kind = "generating";
   else if (hasPending && !isUntouchedOutdated) kind = "pending";
   else if (opts?.lensMissing) kind = "preparing";
-  else if (blockedBy.length > 0) kind = "blocked";
   else if (
     entropy > 0 ||
     dueWindows > 0 ||
-    staleDeps > 0 ||
+    staleDependencies.length > 0 ||
     isUntouchedOutdated
   )
     kind = "stale";
@@ -67,7 +60,7 @@ export function getProjectionStatus(
   return {
     status: kind,
     entropy,
-    blockedBy,
+    staleDependencies,
     candidateOutdated,
     candidateEngaged,
   };
@@ -85,7 +78,5 @@ export function statusLabel(status: ProjectionStatus): string {
       return "preparing";
     case "stale":
       return "stale";
-    case "blocked":
-      return "blocked";
   }
 }

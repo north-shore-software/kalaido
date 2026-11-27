@@ -56,9 +56,6 @@ export interface OrganizeStatus {
     runs: Partial<Record<DiscoverKind, RunInfo>>;
     proposals: { projections: number; reflections: number };
   };
-  /** Waves start on their own (KALAIDO_AUTO_WAVE) or only from Start. */
-  policy?: { wave: boolean };
-  reconcile: ReconcileStatus;
   colour?: ColourStatus;
 }
 
@@ -67,34 +64,6 @@ export interface ColourStatus {
   totalColoursCount: number;
   unjudgedFragments: number;
   draining: boolean;
-}
-
-export interface CurrentEntityInfo {
-  id: string;
-  type: string;
-}
-
-export interface WaveProgress {
-  completed: number;
-  total: number;
-}
-
-/**
- * The reconcile wave's state. `lastStarted` at or after a Start press, with
- * `running` false, means the wave that press began has ended.
- */
-export interface ReconcileStatus {
-  running: boolean;
-  /** RFC3339; absent until a wave has started. */
-  lastStarted?: string;
-  /** What ended the most recent wave; absent when it ran clean. */
-  lastError?: string;
-  /** RFC3339; absent until a wave has completed without error. */
-  lastCompleted?: string;
-  /** RFC3339; absent unless the most recent wave was cancelled. */
-  lastCancelled?: string;
-  currentEntity?: CurrentEntityInfo;
-  progress?: WaveProgress;
 }
 
 export async function getOrganizeStatus(): Promise<

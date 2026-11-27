@@ -66,12 +66,10 @@ export function deriveReviewViewState({
   previewLength,
   activeDraft,
   busy,
-  advancing,
   sessionPhase,
   hasUnresolvedEdits,
   proposedEditsCount,
   edits,
-  inWave,
   title,
 }: {
   pendingId: string | undefined;
@@ -88,12 +86,10 @@ export function deriveReviewViewState({
   previewLength: number;
   activeDraft: string | undefined;
   busy: boolean;
-  advancing: boolean;
   sessionPhase: string;
   hasUnresolvedEdits: boolean;
   proposedEditsCount: number;
   edits: readonly { type: string }[];
-  inWave: boolean;
   title: string;
 }) {
   const isCandidateOutdated = Boolean(
@@ -111,7 +107,6 @@ export function deriveReviewViewState({
     !pendingId ||
     pendingEmpty ||
     busy ||
-    advancing ||
     sessionPhase === "drafting" ||
     sessionPhase === "applying" ||
     hasUnresolvedEdits;
@@ -134,10 +129,8 @@ export function deriveReviewViewState({
     gateOpen,
     outdatedReason,
     gateDescription,
-    headerTitle: inWave ? "Review snapshot" : "Review update",
-    headerCrumb: inWave
-      ? ["Wave", title, "Review"]
-      : ["Projections", title, "Review update"],
+    headerTitle: "Review update",
+    headerCrumb: ["Projections", title, "Review update"],
     confirmDiscardLabel: busy ? "Refreshing…" : "Start over",
   };
 }

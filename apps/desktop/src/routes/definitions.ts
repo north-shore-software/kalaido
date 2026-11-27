@@ -42,8 +42,6 @@ import ReflectionRefine from "@/features/reflections/pages/ReflectionRefine";
 import { reflectionRefineTransitions } from "@/features/reflections/pages/ReflectionRefine.transitions";
 import Reflections from "@/features/reflections/pages/Reflections";
 import { reflectionsTransitions } from "@/features/reflections/pages/Reflections.transitions";
-import Rotation from "@/features/rotation/pages/Rotation";
-import { rotationTransitions } from "@/features/rotation/pages/Rotation.transitions";
 import Settings from "@/features/settings/pages/Settings";
 import { settingsTransitions } from "@/features/settings/pages/Settings.transitions";
 import StatusPage from "@/features/status/pages/Status";
@@ -230,14 +228,6 @@ export const desktopRoutes: RouteDef[] = [
     featureFlag: "connections",
     transitions: connectionsTransitions,
     Component: Connections,
-  }),
-  defineRoute({
-    id: "rotation",
-    path: "/rotation",
-    feature: "Rotation",
-    requiredScope: ["kalaidoscope"],
-    transitions: rotationTransitions,
-    Component: Rotation,
   }),
   defineRoute({
     id: "explore",

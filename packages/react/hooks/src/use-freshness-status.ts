@@ -1,7 +1,7 @@
 import {
   type EntityStatus,
-  getRotation,
-} from "@kalaido/client/kalaidoscope/rotation";
+  getFreshnessStatus,
+} from "@kalaido/client/kalaidoscope/freshness";
 import { useLiveRead } from "@kalaido/state/live";
 import { useMemo } from "react";
 import {
@@ -21,21 +21,20 @@ const WATCHED: readonly KalaidoscopeCollectionName[] = [
   "reflection_snapshot",
 ];
 
-export interface UseRotationStatusResult {
-  /** All entity statuses, in the server's topological order (deps first). */
+export interface UseFreshnessStatusResult {
   readonly statuses: EntityStatus[];
   readonly byId: Map<string, EntityStatus>;
-  /** True until the first plan has arrived; refetches keep the old plan. */
+  /** True until the first snapshot has arrived; refetches keep the previous one. */
   readonly isLoading: boolean;
   readonly isValidating: boolean;
   readonly error: Error | null;
 }
 
 /**
- * Fetches the live staleness plan from `GET /api/rotation` via `@kalaido/state`,
+ * Fetches live entity freshness from `GET /api/reconcile` via `@kalaido/state`,
  * automatically revalidating when underlying collections change.
  */
-export function useRotationStatus(): UseRotationStatusResult {
+export function useFreshnessStatus(): UseFreshnessStatusResult {
   const client = useKalaidoscopeClient();
 
   const result = useLiveRead(
@@ -43,7 +42,7 @@ export function useRotationStatus(): UseRotationStatusResult {
       client,
       endpoint: "reconcile",
       watch: WATCHED,
-      fetch: getRotation,
+      fetch: getFreshnessStatus,
     }),
   );
 

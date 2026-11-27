@@ -26,8 +26,6 @@ function status(over: {
       proposals: { projections: 0, reflections: 0 },
       ...over.discover,
     },
-    policy: { wave: false },
-    reconcile: { running: false },
   };
 }
 
