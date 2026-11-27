@@ -27,8 +27,8 @@
    - Make it available **even when 0 new fragments are in scope** (for any saved projection, not only stale ones).
 4. **No specific-revision navigation from the list:** Do not provide a separate button on the list screen to jump into a specific candidate/revision.
 
-### Minor Edge Case to Confirm
-- When a projection **already has a draft in progress**, should the list-row **Update / Refresh** action be hidden/disabled (since you already have an active draft), or confirm discarding/resuming it?
+### Edge Case (Resolved)
+- When a projection **already has a draft in progress**, clicking the list-row **Update / Refresh** action prompts to confirm *"Discard existing draft and start fresh?"* and, on confirm, discards the existing draft and navigates straight into the new update session (consistent with Issue 5).
 
 ---
 
@@ -77,3 +77,24 @@
   - **Incremental changes (below threshold):** Show the previous version with **inline accept/reject diffs** on the canvas plus a chat summary of what changed.
   - **Sweeping changes (above the full-rewrite threshold):** **Swap the draft out wholesale** (clean new draft without an unreadable wall of diffs or a confirmation prompt) and **explicitly state in the chat** that the full draft was replaced (and why / what changed).
   - *(The previous saved snapshot remains untouched until Save, and the user can Discard at any time. Mid-session chat requests can still ask for confirmation before a wholesale rewrite.)*
+
+---
+
+## Issue 5 — Draft vs. Projection Lifecycle: Discarding Never-Saved Projections & Starting Fresh Over an Open Draft
+
+**Surface:** Projection detail freshness card (`ProjectionFreshnessCard`), Draft/Review screen Discard button, & Projections list row
+
+### Product Principle
+- Strictly **at most one in-progress draft per projection**. Because sessions are ephemeral and exist only to reach a chronological saved artifact, parallel drafts don't make sense — an abandoned session isn't a historical artifact or a scratchpad to return to later.
+
+### Observed Problems
+1. **Never-saved projections leave zombie rows on Discard:** Clicking a never-saved projection in the list correctly opens its in-progress draft directly (there is no saved artifact to view). However, clicking **Discard** only closes/discards the draft and returns to the list, leaving behind an empty, hollow projection with no snapshot and no draft.
+2. **Saved projections trap you behind "Resume draft":** On a saved projection with an open draft, `ProjectionFreshnessCard` only offers **Resume draft**. To abandon the draft and start a new one, you have to open the old draft, click Discard, navigate back, and then start a new session.
+
+### Desired Product Behavior
+1. **Never-saved projection (no saved snapshot yet):**
+   - The draft session *is* the projection.
+   - Clicking **Discard** deletes the unsaved projection completely (or, if it originated as a Discover proposal, reverts it cleanly back to `proposed`) — never leaving a hollow active projection behind.
+2. **Saved projection with an open draft:**
+   - On `ProjectionFreshnessCard`: offer **Resume draft** (primary) alongside a direct **Discard & start fresh** action (with confirmation that the existing in-progress draft will be discarded, then immediately starting a fresh update/revision session — and/or a direct Discard option without having to enter the old draft first).
+   - On the Projections list row: clicking **Update / Refresh** on a row with an open draft follows the same confirm-discard-and-start-fresh pattern (see Issue 1).
