@@ -4,11 +4,11 @@ import {
   type LlmRole,
   type WorkspaceLlmConfig,
 } from "@kalaido/client/kalaidoscope/llm-config";
-import { invoke } from "@tauri-apps/api/core";
+import type { LlmValidateErrorKind } from "@kalaido/platform";
 import { ok, type Result } from "neverthrow";
-import { tauriCall } from "@/api/app/_invoke.ts";
+import { getDesktopHost } from "@/host";
 
-export type ValidateErrorKind = "auth" | "quota" | "transient" | "other";
+export type ValidateErrorKind = LlmValidateErrorKind;
 
 export interface ValidateResult {
   ok: boolean;
@@ -37,19 +37,18 @@ export interface ValidateKeyInput {
  * A rejected key resolves as `ok({ ok: false, kind })`; an `err` means the
  * check itself could not run.
  */
-export function validateKey(
+export async function validateKey(
   input: ValidateKeyInput,
 ): Promise<Result<ValidateResult, Error>> {
-  return tauriCall(
-    "validate_llm_key",
-    () =>
-      invoke<ValidateResult>("validate_llm_key", {
-        provider: input.provider,
-        apiKey: input.apiKey,
-        model: input.defaultModel,
-      }),
-    { ok: true },
-  );
+  const result = await getDesktopHost().llm.validateKey({
+    provider: input.provider,
+    apiKey: input.apiKey,
+    model: input.defaultModel,
+  });
+  return result.map((res) => ({
+    ...res,
+    provider: res.provider as LlmProvider | undefined,
+  }));
 }
 
 /**

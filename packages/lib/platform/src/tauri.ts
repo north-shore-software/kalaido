@@ -3,20 +3,11 @@ import { writeHtml, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { load, type Store } from "@tauri-apps/plugin-store";
 import { err, ok, type Result } from "neverthrow";
-import type {
-  FeedbackContext,
-  FeedbackDiagnostics,
-  HostAdapter,
-  PersistentAppSetting,
-  SettingsStore,
-} from "#index";
+import type { HostAdapter, PersistentAppSetting, SettingsStore } from "#index";
 
 export interface CreateTauriHostOptions {
   variant: "desktop" | "mobile";
   appVersion?: string;
-  collectDiagnostics?: (
-    context: FeedbackContext,
-  ) => Promise<Result<FeedbackDiagnostics, Error>>;
   onUnsupportedAction?: (action: string) => void;
 }
 
@@ -26,11 +17,19 @@ function toError(e: unknown): Error {
   return e instanceof Error ? e : new Error(String(e));
 }
 
-async function wrapResult<T>(p: Promise<T>): Promise<Result<T, Error>> {
+export async function wrapTauriResult<T>(
+  p: Promise<T>,
+): Promise<Result<T, Error>> {
   try {
     return ok(await p);
   } catch (e) {
     return err(toError(e));
+  }
+}
+
+function reloadWindow(): void {
+  if (typeof window !== "undefined") {
+    window.location.reload();
   }
 }
 
@@ -41,8 +40,8 @@ function createDummyTauriHost(options: CreateTauriHostOptions): HostAdapter {
   };
 
   const settings: SettingsStore = {
-    get: async () => ok(undefined),
-    getAll: async () => ok({}),
+    get: (key) => drop(`settings.get(${key})`, undefined),
+    getAll: () => drop("settings.getAll", {}),
     set: (key) => drop(`settings.set(${key})`, undefined),
     delete: (key) => drop(`settings.delete(${key})`, undefined),
     clear: () => drop("settings.clear", undefined),
@@ -68,9 +67,7 @@ function createDummyTauriHost(options: CreateTauriHostOptions): HostAdapter {
         }),
     },
     openExternalUrl: () => drop("openExternalUrl", undefined),
-    reload: () => {
-      options.onUnsupportedAction?.("reload");
-    },
+    reload: reloadWindow,
   };
 }
 
@@ -86,9 +83,9 @@ export function createTauriHost(options: CreateTauriHostOptions): HostAdapter {
     }));
 
   const settings: SettingsStore = {
-    get: (key) => wrapResult(getStore().then((s) => s.get(key))),
+    get: (key) => wrapTauriResult(getStore().then((s) => s.get(key))),
     getAll: () =>
-      wrapResult(
+      wrapTauriResult(
         getStore()
           .then((s) =>
             s.entries<PersistentAppSetting[keyof PersistentAppSetting]>(),
@@ -99,21 +96,21 @@ export function createTauriHost(options: CreateTauriHostOptions): HostAdapter {
           ),
       ),
     set: (key, value) =>
-      wrapResult(
+      wrapTauriResult(
         getStore().then(async (s) => {
           await s.set(key, value);
           await s.save();
         }),
       ),
     delete: (key) =>
-      wrapResult(
+      wrapTauriResult(
         getStore().then(async (s) => {
           await s.delete(key);
           await s.save();
         }),
       ),
     clear: () =>
-      wrapResult(
+      wrapTauriResult(
         getStore().then(async (s) => {
           await s.clear();
           await s.save();
@@ -126,14 +123,13 @@ export function createTauriHost(options: CreateTauriHostOptions): HostAdapter {
     settings,
     clipboard: {
       writeHtml: (html, altText) =>
-        wrapResult(writeHtml(html, altText).catch(() => writeText(altText))),
+        wrapTauriResult(
+          writeHtml(html, altText).catch(() => writeText(altText)),
+        ),
     },
     diagnostics: {
-      collect: (context) => {
-        if (options.collectDiagnostics) {
-          return options.collectDiagnostics(context);
-        }
-        return Promise.resolve(
+      collect: (context) =>
+        Promise.resolve(
           ok({
             appVersion: options.appVersion ?? "unknown",
             os:
@@ -145,12 +141,9 @@ export function createTauriHost(options: CreateTauriHostOptions): HostAdapter {
             sidecarPhase: null,
             sidecarLog: [],
           }),
-        );
-      },
+        ),
     },
-    openExternalUrl: (url) => wrapResult(openUrl(url)),
-    reload: () => {
-      window.location.reload();
-    },
+    openExternalUrl: (url) => wrapTauriResult(openUrl(url)),
+    reload: reloadWindow,
   };
 }

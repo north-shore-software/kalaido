@@ -1,114 +1,54 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type {
+  SidecarCreationDetails,
+  SidecarPhase,
+  SidecarStatus,
+  UnlistenFn,
+} from "@kalaido/platform";
 import type { Result } from "neverthrow";
-import { tauriCall } from "@/api/app/_invoke.ts";
+import { getDesktopHost } from "@/host";
 
-export type { UnlistenFn };
-
-export type SidecarPhase =
-  | "idle"
-  | "spawning"
-  | "starting"
-  | "running"
-  | "stopping"
-  | "stopped"
-  | "failed";
-
-export interface SidecarStatus {
-  phase: SidecarPhase;
-  id: string | null;
-  message: string | null;
-  port?: number | null;
-}
-
-const NOOP_UNLISTEN: UnlistenFn = () => {};
+export type { SidecarPhase, SidecarStatus, UnlistenFn };
+export type KalaidoscopeCreationDetails = SidecarCreationDetails;
 
 export function registerSidecarStatusChangeListener(
   cb: (status: SidecarStatus) => void,
 ): Promise<Result<UnlistenFn, Error>> {
-  return tauriCall(
-    "listen(sidecar:pocketbase:status)",
-    () =>
-      listen<SidecarStatus>("sidecar:pocketbase:status", (e) => cb(e.payload)),
-    NOOP_UNLISTEN,
-    { silent: true },
-  );
-}
-
-export interface KalaidoscopeCreationDetails {
-  path: string;
+  return getDesktopHost().sidecar.onStatusChange(cb);
 }
 
 export function createLocalKalaidoscope(
   kalaidoscopeId: string,
   dataDir?: string,
 ): Promise<Result<KalaidoscopeCreationDetails, Error>> {
-  return tauriCall(
-    "create_local_kalaidoscope",
-    () =>
-      invoke<KalaidoscopeCreationDetails>("create_local_kalaidoscope", {
-        kalaidoscopeId,
-        dataDir,
-      }),
-    { path: dataDir ?? `/dummy/${kalaidoscopeId}` },
-  );
+  return getDesktopHost().sidecar.create(kalaidoscopeId, dataDir);
 }
 
 export function startLocalKalaidoscope(
   dataDir: string,
 ): Promise<Result<void, Error>> {
-  return tauriCall(
-    "start_local_kalaidoscope",
-    () => invoke<void>("start_local_kalaidoscope", { dataDir }),
-    undefined,
-  );
+  return getDesktopHost().sidecar.start(dataDir);
 }
 
 export function deleteLocalKalaidoscope(
   dataDir: string,
 ): Promise<Result<void, Error>> {
-  return tauriCall(
-    "delete_local_kalaidoscope",
-    () => invoke<void>("delete_local_kalaidoscope", { dataDir }),
-    undefined,
-  );
+  return getDesktopHost().sidecar.delete(dataDir);
 }
 
 export function stopLocalKalaidoscope(
   kalaidoscopeId: string,
 ): Promise<Result<void, Error>> {
-  return tauriCall(
-    "stop_local_kalaidoscope",
-    () => invoke<void>("stop_local_kalaidoscope", { kalaidoscopeId }),
-    undefined,
-  );
+  return getDesktopHost().sidecar.stop(kalaidoscopeId);
 }
 
 export function getLocalKalaidoscopeStatus(
   kalaidoscopeId: string,
 ): Promise<Result<SidecarStatus, Error>> {
-  return tauriCall(
-    "get_local_kalaidoscope_status",
-    () =>
-      invoke<SidecarStatus>("get_local_kalaidoscope_status", {
-        kalaidoscopeId,
-      }),
-    {
-      phase: "failed",
-      id: kalaidoscopeId,
-      message: "Local sidecar is not available outside Tauri",
-      port: null,
-    },
-  );
+  return getDesktopHost().sidecar.getStatus(kalaidoscopeId);
 }
 
 export function getLocalKalaidoscopeAuthToken(
   kalaidoscopeId: string,
 ): Promise<Result<string, Error>> {
-  return tauriCall(
-    "get_local_kalaidoscope_auth_token",
-    () =>
-      invoke<string>("get_local_kalaidoscope_auth_token", { kalaidoscopeId }),
-    "",
-  );
+  return getDesktopHost().sidecar.getAuthToken(kalaidoscopeId);
 }

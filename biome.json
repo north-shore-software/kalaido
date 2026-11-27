@@ -57,6 +57,42 @@
                   "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "swr": "Use @kalaido/state live reads instead of importing swr directly."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@tauri-apps/plugin-dialog",
+                      "@tauri-apps/plugin-shell",
+                      "@tauri-apps/plugin-updater"
+                    ],
+                    "message": "Desktop-only Tauri plugins belong in packages/lib/platform/src/tauri-desktop.ts, not tauri.ts."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/lib/platform/src/tauri-desktop.ts",
+        "packages/lib/platform/src/*.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "packages/lib/* must remain React-free.",
+                  "react-dom": "packages/lib/* must remain React-free.",
+                  "better-auth/react": "Use better-auth/client in packages/lib/*.",
+                  "react-router-dom": "Routing belongs in apps/*, not packages/*.",
+                  "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
+                  "swr": "Use @kalaido/state live reads instead of importing swr directly."
                 }
               }
             }
@@ -87,7 +123,7 @@
                 "patterns": [
                   {
                     "group": ["@tauri-apps/*", "@tauri-apps/**"],
-                    "message": "Only packages/lib/platform/src/tauri.ts may import @tauri-apps/*."
+                    "message": "Only packages/lib/platform/src/{tauri,tauri-desktop}.ts may import @tauri-apps/*."
                   }
                 ]
               }
@@ -110,6 +146,7 @@
                   "better-auth/react": "Use better-auth/client in packages/lib/*.",
                   "react-router-dom": "Routing belongs in apps/*, not packages/*.",
                   "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
+                  "@kalaido/platform/tauri-desktop": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
                   "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "swr": "Use @kalaido/state live reads instead of importing swr directly."
@@ -136,6 +173,7 @@
               "options": {
                 "paths": {
                   "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
+                  "@kalaido/platform/tauri-desktop": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
                   "react-router-dom": "Routing belongs in apps/*, not packages/*.",
                   "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
@@ -170,6 +208,7 @@
                 "paths": {
                   "pocketbase": "Only packages/react/state/src/pocketbase/** may import pocketbase.",
                   "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
+                  "@kalaido/platform/tauri-desktop": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
                   "react-router-dom": "Routing belongs in apps/*, not packages/*.",
                   "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
                 },
@@ -199,6 +238,7 @@
               "options": {
                 "paths": {
                   "@kalaido/platform/tauri": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
+                  "@kalaido/platform/tauri-desktop": "Use @kalaido/platform (HostAdapter) instead of the Tauri adapter in shared packages.",
                   "react-router-dom": "Routing belongs in apps/*, not packages/*.",
                   "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
                 },
@@ -231,7 +271,13 @@
                   "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "swr": "Use @kalaido/state live reads instead of importing swr directly.",
                   "better-auth/react": "Use useCloudSession from @kalaido/hooks instead of importing better-auth/react directly."
-                }
+                },
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                    "message": "Use HostAdapter / DesktopHostAdapter from @kalaido/platform instead of importing @tauri-apps/* outside packages/lib/platform."
+                  }
+                ]
               }
             }
           }
@@ -248,6 +294,7 @@
               "options": {
                 "paths": {
                   "@kalaido/platform/tauri": "apps/web must use @kalaido/platform/web, not the Tauri adapter.",
+                  "@kalaido/platform/tauri-desktop": "apps/web must use @kalaido/platform/web, not the Tauri adapter.",
                   "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "swr": "Use @kalaido/state live reads instead of importing swr directly.",
@@ -274,6 +321,7 @@
               "level": "error",
               "options": {
                 "paths": {
+                  "@kalaido/platform/tauri-desktop": "apps/mobile must use @kalaido/platform/tauri, not the desktop Tauri adapter.",
                   "valtio": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "valtio/react": "Use @kalaido/state scopes instead of importing valtio directly.",
                   "swr": "Use @kalaido/state live reads instead of importing swr directly.",
@@ -281,12 +329,8 @@
                 },
                 "patterns": [
                   {
-                    "group": [
-                      "@tauri-apps/plugin-dialog",
-                      "@tauri-apps/plugin-shell",
-                      "@tauri-apps/plugin-updater"
-                    ],
-                    "message": "Desktop-only Tauri plugins are not available in apps/mobile."
+                    "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                    "message": "Use HostAdapter from @kalaido/platform instead of importing @tauri-apps/* outside packages/lib/platform."
                   }
                 ]
               }

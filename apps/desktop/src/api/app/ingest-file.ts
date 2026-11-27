@@ -1,30 +1,18 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { LocalFileEntry, LocalFileKind } from "@kalaido/platform";
 import type { Result } from "neverthrow";
-import { tauriCall } from "@/api/app/_invoke.ts";
+import { getDesktopHost } from "@/host";
 
-export type FileKind = "text" | "docx" | "other";
-
-export interface FileEntry {
-  path: string;
-  kind: FileKind;
-}
+export type FileKind = LocalFileKind;
+export type FileEntry = LocalFileEntry;
 
 export function classifyPath(
   path: string,
 ): Promise<Result<FileEntry[], Error>> {
-  return tauriCall(
-    "classify_path",
-    () => invoke<FileEntry[]>("classify_path", { path }),
-    [],
-  );
+  return getDesktopHost().files.classifyPath(path);
 }
 
 export function readLocalFileFromDisk(
   path: string,
 ): Promise<Result<ArrayBuffer, Error>> {
-  return tauriCall(
-    "read_file_bytes",
-    () => invoke<ArrayBuffer>("read_file_bytes", { path }),
-    new ArrayBuffer(0),
-  );
+  return getDesktopHost().files.readBytes(path);
 }

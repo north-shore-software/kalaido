@@ -1,10 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { OllamaReachability } from "@kalaido/platform";
 import type { Result } from "neverthrow";
-import { tauriCall } from "@/api/app/_invoke.ts";
+import { getDesktopHost } from "@/host";
 
-export interface OllamaStatus {
-  reachable: boolean;
-}
+export type OllamaStatus = OllamaReachability;
 
 /**
  * Is Ollama serving on this machine?
@@ -19,9 +17,5 @@ export interface OllamaStatus {
  * itself broke.
  */
 export function checkOllamaStatus(): Promise<Result<OllamaStatus, Error>> {
-  return tauriCall(
-    "check_ollama_status",
-    () => invoke<OllamaStatus>("check_ollama_status"),
-    { reachable: false },
-  );
+  return getDesktopHost().llm.checkOllamaStatus();
 }
