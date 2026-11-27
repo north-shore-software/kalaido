@@ -10,10 +10,14 @@
     "includes": [
       "packages/**",
       "apps/**",
+      "docs/**",
       "scripts/**",
       "*.json",
       "*.ts",
       "!**/dist",
+      "!**/.astro",
+      "!docs/**/*.md",
+      "!docs/**/*.mdx",
       "!**/target",
       "!**/gen",
       "!**/src-tauri"
@@ -41,6 +45,17 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["docs/**/*.astro"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": "off",
+            "noUnusedVariables": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["packages/lib/platform/src/tauri.ts"],
       "linter": {

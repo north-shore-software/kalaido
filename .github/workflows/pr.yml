@@ -36,6 +36,7 @@ jobs:
               - 'apps/mobile/src/**'
               - 'apps/mobile/public/**'
               - 'apps/mobile/*.{ts,tsx,js,mjs,cjs,json,html,css}'
+              - 'docs/**'
               - 'scripts/**'
               - '*.json'
               - '*.ts'

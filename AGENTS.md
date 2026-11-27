@@ -16,7 +16,7 @@ Kalaido is a pnpm + Cargo workspace with a Go PocketBase backend (`kalaidoscope/
 
 ```text
 ├── Cargo.toml                  # Rust workspace: apps/desktop/src-tauri, apps/mobile/src-tauri
-├── pnpm-workspace.yaml         # brand, packages/lib/*, packages/react/*, apps/*
+├── pnpm-workspace.yaml         # brand, packages/lib/*, packages/react/*, apps/*, docs
 ├── biome.json                  # Format, lint, and import-boundary rules
 ├── doctor.config.json          # React Doctor config (dual root + package-relative globs)
 ├── kalaido.sh                  # Entrypoint for all dev, build, check, test, and bump commands
@@ -36,6 +36,7 @@ Kalaido is a pnpm + Cargo workspace with a Go PocketBase backend (`kalaidoscope/
 │   ├── desktop/                # @kalaido/desktop (macOS Tauri + Go sidecar, local + cloud, full UI)
 │   ├── mobile/                 # @kalaido/mobile (Android/iOS Tauri, 3 plugins, cloud-only)
 │   └── web/                    # @kalaido/web (Browser SPA, cloud-only, ZERO @tauri-apps/* deps)
+├── docs/                       # @kalaido/docs (public user docs, Astro + Starlight, docs.kalaido.co)
 └── kalaidoscope/               # Go PocketBase backend / sidecar
 ```
 
@@ -77,6 +78,7 @@ Hard invariants (enforced by `biome.json`, `scripts/check-boundaries.mjs`, `scri
 | `apps/desktop` | Any `packages/*` except `@kalaido/platform/web` | Thin platform shell & genuinely desktop-only code: desktop router (`routes/{definitions,registry,app-redirect}.ts*`), component-only `pages/*.tsx` wrappers + co-located `*.transitions.ts`, desktop `state/` (`appState`/`AppStage`), `host.ts` (`@kalaido/platform/tauri-desktop`), desktop `api/app/*` wrappers over `getDesktopHost()`, desktop chrome (`TitleBar`, `NavSidebar`, `UtilityBar`, `PageLayout`), platform-bound desktop features (local sidecar/Ollama/updater flows), macOS `src-tauri/`. | Direct `@tauri-apps/*` imports in `src/`, portable feature UI/hooks that can live in `packages/react/*`, `defineRoute` exports inside `pages/*.tsx`, non-hook state inside `hooks/`, mobile/web entrypoints, `#[cfg(mobile)]`, Android Tauri config. |
 | `apps/mobile` | Any `packages/*` | Mobile router (`<Route Component={...} />` shell around shared cloud views/hooks), cloud-only state, `host.ts` (`@kalaido/platform/tauri`), `keyboard-inset.ts`, `mobile.css`, mobile-only `src-tauri/` (`clipboard-manager`, `opener`, `store` only). | Desktop Tauri plugins (`dialog`, `shell`, `updater`), `macos-private-api`, sidecar/local-workspace code, desktop routes. |
 | `apps/web` | Any `packages/*` except `@kalaido/platform/tauri` | Web router (`<Route Component={...} />` shell around shared cloud views/hooks), cloud-only state, `host.ts` (`@kalaido/platform/web`), `web.css`, web deploy config. | Any `@tauri-apps/*` dep or import, sidecar/local-workspace code, desktop-only screens. |
+| `docs` | `brand` | Public user-facing docs site (Astro + Starlight, static output for `docs.kalaido.co`): Markdown pages in `src/content/docs/`, Kalaido theme in `src/styles/kalaido.css` (values copied by hand from `packages/react/primitives/src/index.css`), Starlight component overrides in `src/components/`, favicon/social assets in `public/brand/`. Not part of the React package rules, React Doctor, or the app version bump. | React, any `packages/*` code, contributor or internal docs (`AGENTS.md`, `kalaidoscope/docs/`), hosting/deploy config, analytics. |
 
 ## Key Architectural Conventions
 
@@ -95,14 +97,14 @@ Hard invariants (enforced by `biome.json`, `scripts/check-boundaries.mjs`, `scri
 
 Always run repo tasks through `./kalaido.sh` (it exports `VITE_BETTER_AUTH_URL` and `VITE_CLOUD_PB_URL`):
 
-- `./kalaido.sh check:ts` — Biome format + lint (including import boundary rules), `check:boundaries`, `check:nav`, `check:design`, `check:routes`, `pnpm -r typecheck`, and production builds for `desktop`, `mobile`, and `web`.
+- `./kalaido.sh check:ts` — Biome format + lint (including import boundary rules), `check:boundaries`, `check:nav`, `check:design`, `check:routes`, `pnpm -r typecheck`, and production builds for `desktop`, `mobile`, `web`, and `docs`.
 - `./kalaido.sh test:ts` — Vitest across `packages/` and `apps/`.
 - `./kalaido.sh doctor:react . --no-cache --verbose --yes` — React Doctor scan across all workspace packages and apps (render purity, effects/data flow, accessibility, performance, and size/complexity; keep at `0` errors and `0` warnings).
 - `./kalaido.sh fmt:ts` — Biome format `--write`.
 - `./kalaido.sh check:go` / `./kalaido.sh test:go` / `./kalaido.sh check:schema-freshness` — Go backend checks and schema typegen freshness.
 - `./kalaido.sh check:rust` / `./kalaido.sh test:rust` — `cargo fmt --check`, `cargo clippy --workspace`, `cargo test --workspace`.
-- `./kalaido.sh dev` / `dev:desktop` / `dev:mobile` / `dev:web` / `dev:android` — Run desktop, mobile, web, or Android dev targets.
-- `./kalaido.sh build:app` / `build:web` / `build:android` / `build:android:release` — Build targets.
+- `./kalaido.sh dev` / `dev:desktop` / `dev:mobile` / `dev:web` / `dev:android` / `dev:docs` — Run desktop, mobile, web, Android, or docs dev targets.
+- `./kalaido.sh build:app` / `build:web` / `build:android` / `build:android:release` / `build:docs` — Build targets.
 
 ## Sub-Project Routing
 

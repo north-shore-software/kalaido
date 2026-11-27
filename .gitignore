@@ -4,6 +4,9 @@
 /apps/*/node_modules/
 /packages/*/*/node_modules/
 /apps/*/dist/
+/docs/node_modules/
+/docs/dist/
+/docs/.astro/
 /apps/*/src-tauri/target/
 /apps/*/src-tauri/gen/schemas/
 /apps/desktop/src-tauri/binaries/pocketbase-*

@@ -1,0 +1,144 @@
+/*
+ * Kalaido theme for Starlight.
+ *
+ * Values are COPIED from packages/react/primitives/src/index.css (light in
+ * `:root`, dark in `.dark`). Keep them in sync by hand; see
+ * apps/desktop/DESIGN.md for the rules behind them.
+ *
+ * Starlight keeps its own styles in cascade layers, so these unlayered rules
+ * win without !important. Dark is Starlight's default theme (`:root`); light
+ * is `:root[data-theme="light"]`.
+ */
+
+/* === Kalaido tokens — DARK (from `.dark`) ============================== */
+:root {
+  --k-bg-0: #1a1b1e;
+  --k-bg-1: #222327;
+  --k-bg-3: #2a2c31;
+
+  --k-fg-1: #f5f6f8;
+  --k-fg-2: #d6d8dd;
+  --k-fg-3: #a3a5ad;
+  --k-fg-4: #84868f;
+
+  --k-border-subtle: #36383e;
+  --k-border-strong: #4b4d55;
+
+  --k-cyan-base: #22d3ee;
+  --k-cyan-wash: rgb(34 211 238 / 0.08);
+  --k-yellow-base: #f5d90a;
+  --k-yellow-wash: rgb(245 217 10 / 0.08);
+  --k-violet-base: #c084fc;
+  --k-violet-wash: rgb(192 132 252 / 0.08);
+  --k-green-base: #4ade80;
+  --k-green-wash: rgb(74 222 128 / 0.08);
+
+  --k-accent-cyan-fg: #121315;
+}
+
+/* === Kalaido tokens — LIGHT (from `:root`) ============================= */
+:root[data-theme="light"] {
+  --k-bg-0: #ffffff;
+  --k-bg-1: #f7f6f3;
+  --k-bg-3: #f1f1ef;
+
+  --k-fg-1: #37352f;
+  --k-fg-2: #5a5853;
+  --k-fg-3: #787774;
+  --k-fg-4: #9b9a97;
+
+  --k-border-subtle: #e9e9e7;
+  --k-border-strong: #d7d6d3;
+
+  --k-cyan-base: #0284c7;
+  --k-cyan-wash: rgb(2 132 199 / 0.08);
+  --k-yellow-base: #ca8a04;
+  --k-yellow-wash: rgb(202 138 4 / 0.1);
+  --k-violet-base: #9333ea;
+  --k-violet-wash: rgb(147 51 234 / 0.08);
+  --k-green-base: #16a34a;
+  --k-green-wash: rgb(22 163 74 / 0.08);
+
+  --k-accent-cyan-fg: #ffffff;
+}
+
+/* Theme-independent (from `:root`). */
+:root {
+  --k-status-critical: #ff3333;
+  --k-status-critical-wash: rgb(255 51 51 / 0.04);
+
+  --k-font-sans:
+    "Archivo Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --k-font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+  --k-font-display: "Source Serif 4 Variable", ui-serif, Georgia, serif;
+}
+
+/* === Map onto Starlight ================================================
+ * Starlight's ramp runs from `white` (most contrast) to `black` (page
+ * ground) in both themes, so one mapping covers light and dark. */
+:root {
+  --sl-color-white: var(--k-fg-1);
+  --sl-color-gray-1: var(--k-fg-1);
+  --sl-color-gray-2: var(--k-fg-2);
+  --sl-color-gray-3: var(--k-fg-3);
+  --sl-color-gray-4: var(--k-fg-4);
+  --sl-color-gray-5: var(--k-border-strong);
+  --sl-color-gray-6: var(--k-bg-1);
+  --sl-color-gray-7: var(--k-bg-1);
+  --sl-color-black: var(--k-bg-0);
+
+  --sl-color-accent-low: var(--k-cyan-wash);
+  --sl-color-accent: var(--k-cyan-base);
+  --sl-color-accent-high: var(--k-cyan-base);
+
+  --sl-color-text: var(--k-fg-2);
+  --sl-color-text-accent: var(--k-cyan-base);
+  --sl-color-text-invert: var(--k-accent-cyan-fg);
+  --sl-color-bg: var(--k-bg-0);
+  --sl-color-bg-nav: var(--k-bg-1);
+  --sl-color-bg-sidebar: var(--k-bg-1);
+  --sl-color-bg-inline-code: var(--k-bg-3);
+  --sl-color-bg-accent: var(--k-cyan-base);
+  --sl-color-hairline-light: var(--k-border-subtle);
+  --sl-color-hairline: var(--k-border-subtle);
+  --sl-color-hairline-shade: var(--k-border-subtle);
+
+  /* Asides: ink is the accent itself — text on a wash is the accent colour. */
+  --sl-color-blue-low: var(--k-cyan-wash);
+  --sl-color-blue: var(--k-cyan-base);
+  --sl-color-blue-high: var(--k-cyan-base);
+  --sl-color-purple-low: var(--k-violet-wash);
+  --sl-color-purple: var(--k-violet-base);
+  --sl-color-purple-high: var(--k-violet-base);
+  --sl-color-orange-low: var(--k-yellow-wash);
+  --sl-color-orange: var(--k-yellow-base);
+  --sl-color-orange-high: var(--k-yellow-base);
+  --sl-color-red-low: var(--k-status-critical-wash);
+  --sl-color-red: var(--k-status-critical);
+  --sl-color-red-high: var(--k-status-critical);
+  --sl-color-green-low: var(--k-green-wash);
+  --sl-color-green: var(--k-green-base);
+  --sl-color-green-high: var(--k-green-base);
+
+  /* Depth comes from flat surfaces, never from shadow. */
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: none;
+
+  --sl-font: var(--k-font-sans);
+  --sl-font-mono: var(--k-font-mono);
+}
+
+/* Nothing is rounded. */
+*,
+*::before,
+*::after {
+  border-radius: 0;
+}
+
+/* Source Serif 4 is for page titles only. */
+h1#_top,
+.hero h1 {
+  font-family: var(--k-font-display);
+  font-weight: 400;
+}
