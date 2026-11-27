@@ -253,8 +253,9 @@ func TestApplyEditCreatesFragmentWhenEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current, reason := engine.SnapshotCurrency(proj, edited, resolved); !current {
-		t.Errorf("edited candidate should read as current (%s): it carries the new fragment the scope now resolves to", reason)
+	added, removed := llmcontext.DiffPinnedIDs(pinned, resolved)
+	if !added.IsEmpty() || !removed.IsEmpty() {
+		t.Errorf("edited candidate resolved_context drifted: added=%+v removed=%+v", added, removed)
 	}
 }
 

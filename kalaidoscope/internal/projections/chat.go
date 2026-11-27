@@ -1,4 +1,4 @@
-package refinement
+package projections
 
 import (
 	"context"
@@ -16,19 +16,17 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
-// StreamProjectionTurn executes one canvas-aware turn for a projection
-// refinement session. Unlike the legacy/reflection lens-writing path, the
+// StreamChatTurn executes one canvas-aware turn for a projection session. The
 // projection assistant sees the live draft directly, edits it via write_draft /
-// propose_edit / update_draft / request_full_rewrite, never calls CompileLens
-// or LensCountPin mid-session, and never creates preview lens rows.
-func StreamProjectionTurn(ctx context.Context, app core.App, req api.RefinementChatRequest, refRec *core.Record, w http.ResponseWriter) error {
+// propose_edit / update_draft / request_full_rewrite, never compiles a lens
+// mid-session, and never creates preview lens rows.
+func StreamChatTurn(ctx context.Context, app core.App, req api.RefinementChatRequest, refRec *core.Record, w http.ResponseWriter) error {
 	dbMsgs, _ := chat.LoadMessages(ctx, app, refRec)
 	newMsgs := chat.ExtractNewMessages(dbMsgs, req.Messages)
 
@@ -43,14 +41,14 @@ func StreamProjectionTurn(ctx context.Context, app core.App, req api.RefinementC
 	allMsgs := append(dbMsgs, newMsgs...)
 	pinned, spec, _ := llmcontext.LatestPinnedAndSpec(allMsgs)
 
-	parent := Parent(app, refRec)
+	parent := SessionParent(app, refRec)
 	parentModel := ""
 	projID := refRec.GetString("projection_id")
 	var standingBrief string
 	isUnnamed := true
 	if parent != nil {
 		parentModel = parent.GetString("generate_with_model")
-		_, standingBrief = engine.ReadActiveLens(app, projections.Strategy{}, parent)
+		_, standingBrief = engine.ReadActiveLens(app, Strategy{}, parent)
 		name := strings.TrimSpace(parent.GetString("name"))
 		isUnnamed = name == "" || strings.HasPrefix(name, "Untitled")
 	}
@@ -58,13 +56,13 @@ func StreamProjectionTurn(ctx context.Context, app core.App, req api.RefinementC
 	// Keep the bound pending candidate's context_spec/resolved_context in sync
 	// whenever context changed via picker or AI confirmation.
 	pickerContextChanged := IsPickerContextChange(newMsgs)
-	if pickerContextChanged || IsContextConfirmed(newMsgs) {
+	if pickerContextChanged || chat.IsContextConfirmed(newMsgs) {
 		syncPendingCandidateContext(app, refRec, spec, pinned)
 	}
 
 	// Declining a proposed context change or full-body rewrite only records the
 	// refusal (already persisted above) and closes the stream cleanly.
-	if IsContextCancelled(newMsgs) || IsFullRewriteCancelled(newMsgs) {
+	if chat.IsContextCancelled(newMsgs) || IsFullRewriteCancelled(newMsgs) {
 		textID := fmt.Sprintf("cancel-%d", time.Now().UnixNano())
 		sse := chat.BeginSSE(w, textID)
 		sse.Finish()
@@ -72,8 +70,7 @@ func StreamProjectionTurn(ctx context.Context, app core.App, req api.RefinementC
 	}
 
 	// Confirming a full-body rewrite that already carries proposedContent
-	// (from update_draft or cross-session Update exceeding threshold) applies
-	// that body directly without an extra LLM call.
+	// applies that body directly without an extra LLM call.
 	fullRewriteConfirmed := IsFullRewriteConfirmed(newMsgs)
 	if fullRewriteConfirmed {
 		if conf, ok := LatestFullRewriteConfirmation(allMsgs); ok && strings.TrimSpace(conf.ProposedContent) != "" {
@@ -104,12 +101,12 @@ func StreamProjectionTurn(ctx context.Context, app core.App, req api.RefinementC
 	}
 
 	if len(hydratedMsgs) == 0 {
-		return ErrMessagesRequired
+		return chat.ErrMessagesRequired
 	}
 
 	assistantModel, err := llm.ResolveRoleFor(llm.RoleRefinement, parentModel)
 	if err != nil {
-		return ErrNoModel
+		return chat.ErrNoModel
 	}
 
 	if err := llm.CheckPromptFits(assistantModel, llm.MessagesChars(hydratedMsgs)); err != nil {
@@ -123,12 +120,12 @@ func StreamProjectionTurn(ctx context.Context, app core.App, req api.RefinementC
 	var tools []llm.Tool
 	if !pickerContextChanged {
 		if !hasDraft || fullRewriteConfirmed {
-			tools = append(tools, WriteDraftTool, UpdateContextTool)
+			tools = append(tools, WriteDraftTool, chat.UpdateContextTool)
 		} else {
-			tools = append(tools, ProposeEditTool, UpdateDraftTool, RequestFullRewriteTool, UpdateContextTool)
+			tools = append(tools, ProposeEditTool, UpdateDraftTool, RequestFullRewriteTool, chat.UpdateContextTool)
 		}
 		if isUnnamed {
-			tools = append(tools, SuggestNameTool)
+			tools = append(tools, chat.SuggestNameTool)
 		}
 	}
 
@@ -165,29 +162,27 @@ func StreamProjectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		turnWriter.Write(parts)
 	}
 
-	suggestedName := extractSuggestedName(turn.ToolCalls)
+	suggestedName := chat.ExtractSuggestedName(turn.ToolCalls)
 	if suggestedName != "" && parent != nil && isUnnamed {
 		parent.Set("name", suggestedName)
 		_ = app.Save(parent)
 	}
 
-	// If the model emitted only suggest_name with no text and no other tool,
-	// run one continuation turn so the user sees a reply.
 	if turn.Text == "" && len(turn.ToolCalls) > 0 &&
 		LatestWriteDraftArg(turn.ToolCalls) == nil &&
 		!HasProposeEditCall(turn.ToolCalls) &&
 		LatestUpdateDraftArg(turn.ToolCalls) == nil &&
 		LatestRequestFullRewriteArg(turn.ToolCalls) == nil &&
-		LatestUpdateContextArg(turn.ToolCalls) == nil {
-		if text := StreamNameOnlyContinuation(ctx, app, sse, assistantModel, hydratedMsgs, turn, textID); text != "" {
+		chat.LatestUpdateContextArg(turn.ToolCalls) == nil {
+		if text := chat.StreamNameOnlyContinuation(ctx, app, sse, assistantModel, hydratedMsgs, turn, textID); text != "" {
 			parts = append(parts, api.UIMessagePart{Type: "text", Text: text})
 			turnWriter.Write(parts)
 		}
 	}
 
 	// 1. update_context confirmation card (ends turn; waits for user decision).
-	if ctxArgs := LatestUpdateContextArg(turn.ToolCalls); ctxArgs != nil {
-		proposed := ApplyContextOps(spec, *ctxArgs)
+	if ctxArgs := chat.LatestUpdateContextArg(turn.ToolCalls); ctxArgs != nil {
+		proposed := chat.ApplyContextOps(spec, *ctxArgs)
 		if confData, err := json.Marshal(prompts.ContextConfirmationData{Spec: proposed, Reason: strings.TrimSpace(ctxArgs.Reason)}); err == nil {
 			sse.DataPart(strings.TrimPrefix(prompts.ContextConfirmationPartType, "data-"), json.RawMessage(confData), false)
 			parts = append(parts, api.UIMessagePart{Type: prompts.ContextConfirmationPartType, Data: confData})
@@ -270,7 +265,7 @@ func executeProposeEdit(
 	latestNotice RefineTargetNoticeData,
 	args prompts.ProposeEditArgs,
 ) {
-	var res projections.EditResult
+	var res EditResult
 	var proposeErr error
 
 	var edits []api.SnapshotEdit
@@ -280,11 +275,11 @@ func executeProposeEdit(
 
 	targetID := ResolveNoticeEditID(edits, latestNotice.EditID)
 	if targetID != "" && (strings.TrimSpace(args.Target) == "" || strings.TrimSpace(args.Target) == strings.TrimSpace(latestNotice.Passage)) {
-		res, proposeErr = projections.ReviseProposalEdit(ctx, app, projID, snapID, targetID, args.Replacement)
+		res, proposeErr = ReviseProposalEdit(ctx, app, projID, snapID, targetID, args.Replacement)
 	} else if strings.TrimSpace(args.Target) != "" {
-		res, proposeErr = projections.ProposeRefineEdit(ctx, app, projID, snapID, args.Target, args.Replacement)
+		res, proposeErr = ProposeRefineEdit(ctx, app, projID, snapID, args.Target, args.Replacement)
 	} else {
-		proposeErr = projections.ErrTargetNotFound
+		proposeErr = ErrTargetNotFound
 	}
 
 	var resultPayload map[string]any
@@ -369,8 +364,9 @@ func executeAnchoredUpdateDraft(
 		return
 	}
 
-	// Threshold gate: if the rewrite replaces > 60% of a multi-block draft,
-	// hold the body and ask the user to confirm before replacing it cleanly.
+	// Threshold gate: if a mid-session chat rewrite replaces > 60% of a
+	// multi-block draft, hold the body and ask the user to confirm before
+	// replacing it cleanly.
 	if engine.ExceedsFullRewriteThreshold(baseline, updated) {
 		ratio := engine.ChangedBlockRatio(baseline, updated)
 		conf := prompts.FullRewriteConfirmationData{
@@ -432,8 +428,6 @@ func applyConfirmedFullRewrite(
 	return nil
 }
 
-// writeDraftToCandidate writes clean content onto the bound pending candidate
-// (or creates and binds a fresh pending candidate if none exists yet).
 func writeDraftToCandidate(
 	ctx context.Context,
 	app core.App,
@@ -482,7 +476,7 @@ func writeDraftToCandidate(
 		if err != nil {
 			return err
 		}
-		strat := projections.Strategy{}
+		strat := Strategy{}
 		sID, err := engine.AppendSnapshot(ctx, tx, strat, engine.SnapshotSpec{
 			SourceID:                parentRec.Id,
 			LensID:                  parentRec.GetString("current_lens_id"),
@@ -607,16 +601,9 @@ func syncPendingCandidateContext(app core.App, refRec *core.Record, spec api.Con
 	}
 }
 
-// formatLiveDraftForModel renders output_draft for the system prompt, expanding
-// any unresolved <<<edit:id>>> markers into readable inline annotations so the
-// model sees both the baseline text and any pending proposals without raw IDs.
 func formatLiveDraftForModel(draft string, edits []api.SnapshotEdit) string {
 	if !engine.HasUnresolvedEditMarkers(draft) {
 		return draft
-	}
-	byID := make(map[string]api.SnapshotEdit, len(edits))
-	for _, e := range edits {
-		byID[e.ID] = e
 	}
 	out := draft
 	for _, e := range edits {

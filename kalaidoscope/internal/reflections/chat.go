@@ -1,4 +1,4 @@
-package refinement
+package reflections
 
 import (
 	"context"
@@ -16,25 +16,33 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
-// StreamReflectionTurn executes one turn of reflection standing-lens authoring.
-//
-// Compared to the legacy shared StreamTurn:
-//   - Offers only set_lens { prompt }, update_context (fragments/colours only),
-//     and suggest_name (when unnamed). No refine_candidate, no
-//     regenerate_from_lens, no CompileLens, and no LensCountPin.
-//   - When set_lens is called (or on a window-switch re-apply), runs a strictly
-//     isolated ApplyPrompt against the sample window's fragments with zero chat
-//     history — or skips the LLM call and returns the hardcoded empty-window
-//     text when zero fragments match that window.
-//   - On subsequent turns, injects the single latest preview output (and its
-//     window bounds) into the system prompt as read-only context so the model
-//     can diagnose and tighten the standing lens accurately.
-func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementChatRequest, refRec *core.Record, w http.ResponseWriter) error {
+// ApplyDraftLens executes a drafted standing lens against hydrated sample
+// window sources (zero chat history), streaming chunks through onDelta.
+func ApplyDraftLens(ctx context.Context, app core.App, model, lensPrompt, sourceBlock string, win *api.Window, onDelta func(string)) (string, error) {
+	start, end := engine.WindowBounds(win)
+	prompt := prompts.ApplyPrompt(lensPrompt, sourceBlock, start, end)
+	if err := llm.CheckPromptFits(model, len(prompt)); err != nil {
+		return "", fmt.Errorf("apply lens: %w", err)
+	}
+	candidate, err := usage.GenerateStreamMsgs(ctx, app,
+		[]llm.Message{{Role: "user", Content: prompt}},
+		llm.RoleSnapshot, model, onDelta)
+	if err != nil {
+		return "", fmt.Errorf("apply lens: %w", err)
+	}
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return "", fmt.Errorf("apply lens: model returned empty output")
+	}
+	return candidate, nil
+}
+
+// StreamChatTurn executes one turn of reflection standing-lens authoring.
+func StreamChatTurn(ctx context.Context, app core.App, req api.RefinementChatRequest, refRec *core.Record, w http.ResponseWriter) error {
 	dbMsgs, _ := chat.LoadMessages(ctx, app, refRec)
 	newMsgs := chat.ExtractNewMessages(dbMsgs, req.Messages)
 
@@ -48,7 +56,7 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 
 	allMsgs := append(dbMsgs, newMsgs...)
 
-	parent := Parent(app, refRec)
+	parent := SessionParent(app, refRec)
 	parentModel := ""
 	isUnnamed := true
 	if parent != nil {
@@ -59,13 +67,11 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 
 	// Window-switch re-apply: re-run the standing lens in isolation against the
 	// newly selected sample window without consulting the chat assistant.
-	if win := ReapplyWindow(newMsgs); win != nil {
+	if win := reapplyWindow(newMsgs); win != nil {
 		return streamReflectionWindowReapply(ctx, app, refRec, parent, allMsgs, win, parentModel, w)
 	}
 
-	// Declining a proposed context change only records the refusal (already
-	// persisted above) and closes the stream cleanly.
-	if IsContextCancelled(newMsgs) {
+	if chat.IsContextCancelled(newMsgs) {
 		textID := fmt.Sprintf("ctx-cancel-%d", time.Now().UnixNano())
 		sse := chat.BeginSSE(w, textID)
 		sse.Finish()
@@ -77,7 +83,7 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		_, currentLens = LatestReflectionLens(allMsgs)
 	}
 	if currentLens == "" && parent != nil {
-		_, currentLens = engine.ReadActiveLens(app, reflections.Strategy{}, parent)
+		_, currentLens = engine.ReadActiveLens(app, Strategy{}, parent)
 		currentLens = strings.TrimSpace(currentLens)
 	}
 	hasLens := currentLens != ""
@@ -89,15 +95,15 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		activeWin = &wCopy
 		needsReResolve = true
 	} else if activeWin == nil && parent != nil {
-		activeWin = reflections.DefaultRefinementWindow(parent, time.Now())
+		activeWin = DefaultRefinementWindow(parent, time.Now())
 		needsReResolve = true
 	}
 	if req.ContextSpec != nil {
-		spec = reflections.StripUpstreamSources(*req.ContextSpec)
+		spec = StripUpstreamSources(*req.ContextSpec)
 		needsReResolve = true
 	}
 	if needsReResolve {
-		if resolved, rerr := llmcontext.ResolveSpecToIDs(ctx, app, reflections.StripUpstreamSources(spec), activeWin); rerr == nil {
+		if resolved, rerr := llmcontext.ResolveSpecToIDs(ctx, app, StripUpstreamSources(spec), activeWin); rerr == nil {
 			pinned = resolved
 		}
 	}
@@ -112,12 +118,12 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 	hydratedMsgs = append([]llm.Message{{Role: "system", Content: sysPrompt}}, hydratedMsgs...)
 
 	if len(hydratedMsgs) == 0 {
-		return ErrMessagesRequired
+		return chat.ErrMessagesRequired
 	}
 
 	assistantModel, err := llm.ResolveRoleFor(llm.RoleRefinement, parentModel)
 	if err != nil {
-		return ErrNoModel
+		return chat.ErrNoModel
 	}
 
 	if err := llm.CheckPromptFits(assistantModel, llm.MessagesChars(hydratedMsgs)); err != nil {
@@ -125,9 +131,9 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		return err
 	}
 
-	tools := []llm.Tool{SetLensTool, UpdateContextTool}
+	tools := []llm.Tool{SetLensTool, chat.UpdateContextTool}
 	if isUnnamed {
-		tools = append(tools, SuggestNameTool)
+		tools = append(tools, chat.SuggestNameTool)
 	}
 
 	comp, err := usage.Stream(ctx, app, llm.RoleRefinement, assistantModel, hydratedMsgs, tools)
@@ -163,13 +169,13 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		turnWriter.Write(parts)
 	}
 
-	if suggestedName := extractSuggestedName(turn.ToolCalls); suggestedName != "" && parent != nil && isUnnamed {
+	if suggestedName := chat.ExtractSuggestedName(turn.ToolCalls); suggestedName != "" && parent != nil && isUnnamed {
 		parent.Set("name", suggestedName)
 		_ = app.Save(parent)
 	}
 
-	if turn.Text == "" && len(turn.ToolCalls) > 0 && LatestSetLensArg(turn.ToolCalls) == nil && LatestUpdateContextArg(turn.ToolCalls) == nil {
-		if text := StreamNameOnlyContinuation(ctx, app, sse, assistantModel, hydratedMsgs, turn, textID); text != "" {
+	if turn.Text == "" && len(turn.ToolCalls) > 0 && LatestSetLensArg(turn.ToolCalls) == nil && chat.LatestUpdateContextArg(turn.ToolCalls) == nil {
+		if text := chat.StreamNameOnlyContinuation(ctx, app, sse, assistantModel, hydratedMsgs, turn, textID); text != "" {
 			parts = append(parts, api.UIMessagePart{Type: "text", Text: text})
 			turnWriter.Write(parts)
 		} else {
@@ -177,10 +183,8 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		}
 	}
 
-	// Proposed context change ends the turn and awaits user confirmation.
-	// Reflections consume fragments and colours only.
-	if ctxArgs := LatestUpdateContextArg(turn.ToolCalls); ctxArgs != nil {
-		proposed := ApplyContextOps(spec, *ctxArgs)
+	if ctxArgs := chat.LatestUpdateContextArg(turn.ToolCalls); ctxArgs != nil {
+		proposed := chat.ApplyContextOps(spec, *ctxArgs)
 		proposed.SourceProjectionIDs = nil
 		proposed.SourceReflectionIDs = nil
 		if confData, err := json.Marshal(prompts.ContextConfirmationData{Spec: proposed, Reason: strings.TrimSpace(ctxArgs.Reason)}); err == nil {
@@ -192,7 +196,6 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 		return nil
 	}
 
-	// 1-step standing lens update + strictly isolated sample-window preview.
 	if setArgs := LatestSetLensArg(turn.ToolCalls); setArgs != nil {
 		if lensData, err := json.Marshal(prompts.LensPartData{Lens: setArgs.Prompt}); err == nil {
 			sse.DataPart("lens", json.RawMessage(lensData), false)
@@ -204,6 +207,27 @@ func StreamReflectionTurn(ctx context.Context, app core.App, req api.RefinementC
 
 	sse.Finish()
 	return nil
+}
+
+func reapplyWindow(newMsgs []api.UIMessage) *api.Window {
+	var win *api.Window
+	for _, m := range newMsgs {
+		if m.Role == "user" {
+			return nil
+		}
+		if m.Role != "system" {
+			continue
+		}
+		for _, p := range m.Parts {
+			if p.Type == "window" && len(p.Data) > 0 {
+				var w api.Window
+				if json.Unmarshal(p.Data, &w) == nil && w.Start != "" && w.End != "" {
+					win = &w
+				}
+			}
+		}
+	}
+	return win
 }
 
 func streamReflectionWindowReapply(
@@ -220,7 +244,7 @@ func streamReflectionWindowReapply(
 
 	_, lens := LatestReflectionLens(allMsgs)
 	if lens == "" && parent != nil {
-		_, lens = engine.ReadActiveLens(app, reflections.Strategy{}, parent)
+		_, lens = engine.ReadActiveLens(app, Strategy{}, parent)
 		lens = strings.TrimSpace(lens)
 	}
 	if lens == "" {
@@ -247,10 +271,6 @@ func streamReflectionWindowReapply(
 	return nil
 }
 
-// streamReflectionApplyLeg runs a reflection's standing lens strictly in
-// isolation against the sample window's fragments (zero chat history). When
-// zero fragments match that sample window, it skips the LLM call and emits the
-// hardcoded empty-window preview text.
 func streamReflectionApplyLeg(
 	ctx context.Context,
 	app core.App,
@@ -275,11 +295,10 @@ func streamReflectionApplyLeg(
 
 	applyID := fmt.Sprintf("apply-%d", time.Now().UnixNano())
 
-	// Empty sample window: skip the LLM call and return hardcoded empty text.
 	if len(pinned.FragmentIDs) == 0 {
-		final := reflections.EmptyWindowOutput
+		final := EmptyWindowOutput
 		sse.ToolInputStart(applyID, prompts.ApplyResultToolName)
-		sse.ToolInputDelta(applyID, `{"output":"`+JSONStringChunk(final)+`"}`)
+		sse.ToolInputDelta(applyID, `{"output":"`+chat.JSONStringChunk(final)+`"}`)
 		sse.ToolInputAvailable(applyID, prompts.ApplyResultToolName, map[string]string{"output": final})
 		if args, err := json.Marshal(map[string]string{"output": final}); err == nil {
 			if part, ok := chat.ToolCallPart(llm.ToolCall{ID: applyID, Name: prompts.ApplyResultToolName, Args: args}); ok {
@@ -290,7 +309,6 @@ func streamReflectionApplyLeg(
 		return
 	}
 
-	// Reflections hydrate fragments only (never upstream snapshots).
 	fragOnly := llmcontext.PinnedIDs{FragmentIDs: pinned.FragmentIDs}
 	sourceBlock, _ := llmcontext.HydrateIDsToText(ctx, app, fragOnly)
 
@@ -304,7 +322,7 @@ func streamReflectionApplyLeg(
 	sse.ToolInputDelta(applyID, `{"output":"`)
 
 	final, err := ApplyDraftLens(ctx, app, applyModel, lens, sourceBlock, win, func(chunk string) {
-		sse.ToolInputDelta(applyID, JSONStringChunk(chunk))
+		sse.ToolInputDelta(applyID, chat.JSONStringChunk(chunk))
 	})
 	if err != nil {
 		logger().Error("reflection chat apply failed", "refinement_id", refRec.Id, "error", err)

@@ -342,9 +342,15 @@ func TestDirectPerWindowSnapshotEditing(t *testing.T) {
 			editedSnap.GetString("generated_by_model"), editedSnap.GetString("lens_id"))
 	}
 
-	// Must not flag lensOutdated, stale, or model mismatch.
-	if cur, reason := engine.SnapshotCurrency(refl, editedSnap, llmcontext.PinnedIDs{FragmentIDs: []string{frag.Id}}); !cur {
-		t.Errorf("manual edit snapshot flagged non-current: %q", reason)
+	// Must carry sentinel model and preserve resolved_context so neither
+	// lensOutdated nor stale is falsely flagged.
+	if !engine.IsSentinelModel(editedSnap.GetString("generated_by_model")) {
+		t.Errorf("manual edit model = %q, want sentinel", editedSnap.GetString("generated_by_model"))
+	}
+	var editedPinned llmcontext.PinnedIDs
+	_ = editedSnap.UnmarshalJSONField("resolved_context", &editedPinned)
+	if len(editedPinned.FragmentIDs) != 1 || editedPinned.FragmentIDs[0] != frag.Id {
+		t.Errorf("manual edit resolved_context = %+v, want [%s]", editedPinned, frag.Id)
 	}
 	rec, err = callJSON(t, app, HandleListReflectionWindows(app), http.MethodGet, "/api/reflections/x/windows", "", map[string]string{"id": refl.Id})
 	if err != nil {
@@ -428,7 +434,7 @@ func TestReflectionChatOneStepSetLensAndPreviewVisibility(t *testing.T) {
 	if !toolSet[prompts.SetLensToolName] || !toolSet[prompts.UpdateContextToolName] || !toolSet[prompts.SuggestNameToolName] {
 		t.Fatalf("turn 1 tools = %v, want set_lens, update_context, suggest_name", t1Tools)
 	}
-	for _, forbidden := range []string{prompts.UpdateLensToolName, prompts.RefineCandidateToolName, prompts.RegenerateFromLensToolName, prompts.WriteDraftToolName} {
+	for _, forbidden := range []string{prompts.UpdateLensToolName, "refine_candidate", "regenerate_from_lens", prompts.WriteDraftToolName, prompts.ProposeEditToolName, prompts.UpdateDraftToolName} {
 		if toolSet[forbidden] {
 			t.Errorf("forbidden tool %q advertised on reflection chat", forbidden)
 		}

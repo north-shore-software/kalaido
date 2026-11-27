@@ -1,7 +1,6 @@
 package reflections
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
@@ -42,7 +40,6 @@ func (s Strategy) LensCollectionName() string      { return schema.ColLens.Strin
 func (s Strategy) SnapshotCollectionName() string  { return schema.ColReflectionSnapshot.String() }
 func (s Strategy) ForeignKeyCol() string           { return "reflection_id" }
 func (s Strategy) RefinementForeignKeyCol() string { return "created_from_reflection_refinement_id" }
-func (s Strategy) EnsureFragmentsOnly() bool       { return true }
 func (s Strategy) ApplySnapshotWindow(snap *core.Record, win *api.Window) {
 	engine.SetSnapshotWindow(snap, win)
 }
@@ -55,9 +52,6 @@ func (s Strategy) SnapshotWindowFilter(win *api.Window) (string, dbx.Params) {
 		"ws": start.String(),
 		"we": end.String(),
 	}
-}
-func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
-	return "", nil
 }
 func (s Strategy) ScrubSpec(spec *api.ContextSpec, id string) {
 	spec.SourceReflectionIDs = engine.RemoveID(spec.SourceReflectionIDs, id)

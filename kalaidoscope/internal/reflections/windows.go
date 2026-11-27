@@ -189,15 +189,6 @@ func DefaultRefinementWindow(rec *core.Record, now time.Time) *api.Window {
 	return &w
 }
 
-// ParseWindowPart reads a transcript "window" part into an api.Window, nil
-// when it names no bounds.
-func ParseWindowPart(w api.Window) *api.Window {
-	if w.Start == "" || w.End == "" {
-		return nil
-	}
-	return &w
-}
-
 // WindowState is one window of a reflection's series with what the store
 // holds for it.
 type WindowState struct {

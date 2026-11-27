@@ -11,9 +11,9 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
@@ -432,7 +432,7 @@ func HandleSaveReflection(app core.App, deps Deps) func(e *core.RequestEvent) er
 			if err != nil {
 				return e.NotFoundError("refinement not found", err)
 			}
-			lensID, err := refinement.CommitReflection(ctx, app, refRec, id, req, deps.Runner)
+			lensID, err := reflections.CommitSession(ctx, app, refRec, id, req, deps.Runner)
 			if err != nil {
 				return writeSaveReflectionError(e, err)
 			}
@@ -478,11 +478,11 @@ func writeSaveReflectionError(e *core.RequestEvent, err error) error {
 		return e.NotFoundError("reflection not found", err)
 	case errors.Is(err, reflections.ErrInvalidWindowSpec),
 		errors.Is(err, reflections.ErrEmptyLensPrompt),
-		errors.Is(err, refinement.ErrNoDraftedLens),
-		errors.Is(err, refinement.ErrMissingParentID),
-		errors.Is(err, refinement.ErrParentMismatch):
+		errors.Is(err, chat.ErrNoDraftedLens),
+		errors.Is(err, chat.ErrMissingParentID),
+		errors.Is(err, chat.ErrParentMismatch):
 		return e.BadRequestError(err.Error(), nil)
-	case errors.Is(err, refinement.ErrNoPreviewOutput):
+	case errors.Is(err, chat.ErrNoPreviewOutput):
 		return e.Error(http.StatusConflict, err.Error(), nil)
 	default:
 		logger().Error("save reflection failed", "error", err)

@@ -168,12 +168,6 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 							}
 						}
 					}
-				case prompts.RegenerateCancelPartType:
-					if p.Text != "" {
-						notices = append(notices, p.Text)
-					} else {
-						notices = append(notices, prompts.RegenerateCancelledNotice())
-					}
 				case prompts.ContextConfirmPartType:
 					if p.Text != "" {
 						notices = append(notices, p.Text)

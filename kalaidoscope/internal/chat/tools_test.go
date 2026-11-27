@@ -1,4 +1,4 @@
-package refinement_test
+package chat_test
 
 import (
 	"encoding/json"
@@ -6,17 +6,17 @@ import (
 	"testing"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
 
 func TestUpdateContextToolSchemaIsValidJSON(t *testing.T) {
-	if !json.Valid(refinement.UpdateContextTool.Parameters) {
-		t.Fatalf("UpdateContextTool.Parameters is not valid JSON: %s", refinement.UpdateContextTool.Parameters)
+	if !json.Valid(chat.UpdateContextTool.Parameters) {
+		t.Fatalf("UpdateContextTool.Parameters is not valid JSON: %s", chat.UpdateContextTool.Parameters)
 	}
-	if refinement.UpdateContextTool.Name != prompts.UpdateContextToolName {
-		t.Fatalf("tool name %q", refinement.UpdateContextTool.Name)
+	if chat.UpdateContextTool.Name != prompts.UpdateContextToolName {
+		t.Fatalf("tool name %q", chat.UpdateContextTool.Name)
 	}
 }
 
@@ -30,7 +30,7 @@ func TestApplyContextOps(t *testing.T) {
 	}
 
 	t.Run("pins and unpins are set operations", func(t *testing.T) {
-		got := refinement.ApplyContextOps(current, prompts.UpdateContextArgs{
+		got := chat.ApplyContextOps(current, prompts.UpdateContextArgs{
 			PinFragmentIDs:     []string{"f2", "f3", "f3"},
 			UnpinFragmentIDs:   []string{"f1", "missing"},
 			PinFragmentTypes:   []string{"note"},
@@ -51,7 +51,7 @@ func TestApplyContextOps(t *testing.T) {
 	})
 
 	t.Run("an item pinned and unpinned at once ends up unpinned", func(t *testing.T) {
-		got := refinement.ApplyContextOps(current, prompts.UpdateContextArgs{
+		got := chat.ApplyContextOps(current, prompts.UpdateContextArgs{
 			PinFragmentIDs:   []string{"f9"},
 			UnpinFragmentIDs: []string{"f9"},
 		})
@@ -61,21 +61,21 @@ func TestApplyContextOps(t *testing.T) {
 	})
 
 	t.Run("whole scope switches", func(t *testing.T) {
-		if got := refinement.ApplyContextOps(current, prompts.UpdateContextArgs{WholeScope: "pins"}); got.WholeScope != "" {
+		if got := chat.ApplyContextOps(current, prompts.UpdateContextArgs{WholeScope: "pins"}); got.WholeScope != "" {
 			t.Errorf("pins: WholeScope = %q", got.WholeScope)
 		}
 		narrow := api.ContextSpec{FragmentIDs: []string{"f1"}}
-		if got := refinement.ApplyContextOps(narrow, prompts.UpdateContextArgs{WholeScope: "full"}); got.WholeScope != api.WholeScopeFull {
+		if got := chat.ApplyContextOps(narrow, prompts.UpdateContextArgs{WholeScope: "full"}); got.WholeScope != api.WholeScopeFull {
 			t.Errorf("full: WholeScope = %q", got.WholeScope)
 		}
-		if got := refinement.ApplyContextOps(narrow, prompts.UpdateContextArgs{WholeScope: "bogus"}); got.WholeScope != "" {
+		if got := chat.ApplyContextOps(narrow, prompts.UpdateContextArgs{WholeScope: "bogus"}); got.WholeScope != "" {
 			t.Errorf("unknown mode should be ignored, got %q", got.WholeScope)
 		}
 	})
 
 	t.Run("does not alias the input slices", func(t *testing.T) {
 		before := append([]string{}, current.FragmentIDs...)
-		_ = refinement.ApplyContextOps(current, prompts.UpdateContextArgs{PinFragmentIDs: []string{"f3"}})
+		_ = chat.ApplyContextOps(current, prompts.UpdateContextArgs{PinFragmentIDs: []string{"f3"}})
 		if !reflect.DeepEqual(current.FragmentIDs, before) {
 			t.Errorf("input mutated: %v", current.FragmentIDs)
 		}
@@ -84,15 +84,15 @@ func TestApplyContextOps(t *testing.T) {
 
 func TestLatestUpdateContextArg(t *testing.T) {
 	calls := []llm.ToolCall{
-		{Name: prompts.UpdateLensToolName, Args: json.RawMessage(`{"directive":"x"}`)},
+		{Name: prompts.SuggestNameToolName, Args: json.RawMessage(`{"name":"x"}`)},
 		{Name: prompts.UpdateContextToolName, Args: json.RawMessage(`{"reason":"first","pin_fragment_ids":["a"]}`)},
 		{Name: prompts.UpdateContextToolName, Args: json.RawMessage(`{"reason":"second","whole_scope":"pins"}`)},
 	}
-	got := refinement.LatestUpdateContextArg(calls)
+	got := chat.LatestUpdateContextArg(calls)
 	if got == nil || got.Reason != "second" || got.WholeScope != "pins" {
 		t.Fatalf("got %+v", got)
 	}
-	if refinement.LatestUpdateContextArg(calls[:1]) != nil {
+	if chat.LatestUpdateContextArg(calls[:1]) != nil {
 		t.Fatal("expected nil without an update_context call")
 	}
 }
@@ -102,16 +102,15 @@ func TestContextConfirmAndCancelSends(t *testing.T) {
 		{Type: "context_spec", Data: json.RawMessage(`{"wholeScope":"full"}`)},
 		{Type: prompts.ContextConfirmPartType},
 	}}}
-	if !refinement.IsContextConfirmed(confirm) || refinement.IsContextCancelled(confirm) {
+	if !chat.IsContextConfirmed(confirm) || chat.IsContextCancelled(confirm) {
 		t.Fatal("confirm send misread")
 	}
 	cancel := []api.UIMessage{{Role: "system", Parts: []api.UIMessagePart{{Type: prompts.ContextCancelPartType}}}}
-	if refinement.IsContextConfirmed(cancel) || !refinement.IsContextCancelled(cancel) {
+	if chat.IsContextConfirmed(cancel) || !chat.IsContextCancelled(cancel) {
 		t.Fatal("cancel send misread")
 	}
-	// A user message on the same send makes it an ordinary turn.
 	withUser := append(append([]api.UIMessage{}, confirm...), api.UIMessage{Role: "user", Parts: []api.UIMessagePart{{Type: "text", Text: "hi"}}})
-	if refinement.IsContextConfirmed(withUser) {
+	if chat.IsContextConfirmed(withUser) {
 		t.Fatal("a send with user text is not a confirm")
 	}
 }

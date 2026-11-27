@@ -1,4 +1,4 @@
-package refinement
+package projections
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
@@ -125,13 +126,13 @@ func HasProposeEditCall(toolCalls []llm.ToolCall) bool {
 // IsFullRewriteConfirmed reports a system-only send confirming a pending
 // full-document rewrite card.
 func IsFullRewriteConfirmed(newMsgs []api.UIMessage) bool {
-	return hasSystemOnlyPart(newMsgs, prompts.FullRewriteConfirmPartType)
+	return chat.HasSystemOnlyPart(newMsgs, prompts.FullRewriteConfirmPartType)
 }
 
 // IsFullRewriteCancelled reports a system-only send declining a pending
 // full-document rewrite card.
 func IsFullRewriteCancelled(newMsgs []api.UIMessage) bool {
-	return hasSystemOnlyPart(newMsgs, prompts.FullRewriteCancelPartType)
+	return chat.HasSystemOnlyPart(newMsgs, prompts.FullRewriteCancelPartType)
 }
 
 // IsPickerContextChange reports a system-only send carrying a new context_spec
@@ -149,8 +150,7 @@ func IsPickerContextChange(newMsgs []api.UIMessage) bool {
 		for _, p := range m.Parts {
 			switch p.Type {
 			case prompts.ContextConfirmPartType, prompts.ContextCancelPartType,
-				prompts.FullRewriteConfirmPartType, prompts.FullRewriteCancelPartType,
-				prompts.RegenerateConfirmPartType, prompts.RegenerateCancelPartType:
+				prompts.FullRewriteConfirmPartType, prompts.FullRewriteCancelPartType:
 				return false
 			case "context_spec":
 				hasSpec = true
@@ -178,4 +178,64 @@ func LatestFullRewriteConfirmation(msgs []api.UIMessage) (*prompts.FullRewriteCo
 		}
 	}
 	return nil, false
+}
+
+type RefineTargetNoticeData struct {
+	Passage string `json:"passage"`
+	EditID  string `json:"editId,omitempty"`
+}
+
+func LatestRefineTargetNotice(msgs []api.UIMessage) (RefineTargetNoticeData, bool) {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
+		if m.Role != "system" {
+			continue
+		}
+		for _, p := range m.Parts {
+			if p.Type == prompts.RefineTargetPartType && len(p.Data) > 0 {
+				var d RefineTargetNoticeData
+				if err := json.Unmarshal(p.Data, &d); err == nil {
+					return d, true
+				}
+			}
+		}
+	}
+	return RefineTargetNoticeData{}, false
+}
+
+func ResolveNoticeEditID(edits []api.SnapshotEdit, noticeEditID string) string {
+	if noticeEditID == "" {
+		return ""
+	}
+	lookup := make(map[string]api.SnapshotEdit, len(edits))
+	for _, e := range edits {
+		lookup[e.ID] = e
+	}
+	curr, ok := lookup[noticeEditID]
+	if !ok {
+		return ""
+	}
+	if curr.Status == api.EditStatusProposed {
+		return curr.ID
+	}
+	if curr.Status != api.EditStatusSuperseded {
+		return ""
+	}
+	seen := make(map[string]bool, len(edits))
+	seen[curr.ID] = true
+	for curr.SupersededBy != "" && !seen[curr.SupersededBy] {
+		next, ok := lookup[curr.SupersededBy]
+		if !ok {
+			return ""
+		}
+		seen[next.ID] = true
+		if next.Status == api.EditStatusProposed {
+			return next.ID
+		}
+		if next.Status != api.EditStatusSuperseded {
+			return ""
+		}
+		curr = next
+	}
+	return ""
 }

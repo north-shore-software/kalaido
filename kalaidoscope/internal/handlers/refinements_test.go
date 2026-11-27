@@ -10,7 +10,7 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
 )
 
@@ -73,7 +73,7 @@ func TestExtractPairsLensWithItsOwnApply(t *testing.T) {
 	persist(t, app, ref, lensTurn(t, "turn-1", "LENS V1", "OUTPUT V1"))
 	persist(t, app, ref, lensTurn(t, "turn-2", "LENS V2", "OUTPUT V2"))
 
-	lens, output, _, _, _, err := refinement.ExtractDraftedLensAndSpec(app, ref)
+	lens, output, _, _, _, err := reflections.ExtractDraftedLensAndSpec(app, ref)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestExtractSkipsClarifyTurns(t *testing.T) {
 		{Type: "text", Text: "Cut the third bullet — do you mean the invoice material?"},
 	}})
 
-	lens, output, _, _, _, err := refinement.ExtractDraftedLensAndSpec(app, ref)
+	lens, output, _, _, _, err := reflections.ExtractDraftedLensAndSpec(app, ref)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestExtractLensWithFailedApplyHasNoOutput(t *testing.T) {
 	persist(t, app, ref, lensTurn(t, "turn-1", "LENS V1", "OUTPUT V1"))
 	persist(t, app, ref, lensTurn(t, "turn-2", "LENS V2", ""))
 
-	lens, output, _, _, _, err := refinement.ExtractDraftedLensAndSpec(app, ref)
+	lens, output, _, _, _, err := reflections.ExtractDraftedLensAndSpec(app, ref)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestExtractSeededContextOnlyHasNoLens(t *testing.T) {
 		},
 	})
 
-	lens, output, pinned, gotSpec, _, err := refinement.ExtractDraftedLensAndSpec(app, ref)
+	lens, output, pinned, gotSpec, _, err := reflections.ExtractDraftedLensAndSpec(app, ref)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}

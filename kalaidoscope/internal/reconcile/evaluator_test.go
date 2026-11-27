@@ -447,9 +447,6 @@ func TestCandidateStatusReportsOutdatedReasonAndEngagement(t *testing.T) {
 	if len(got.Candidate.NewFragmentIDs) != 1 || got.Candidate.NewFragmentIDs[0] != f2.Id {
 		t.Errorf("candidate newFragmentIds = %v, want [%s]", got.Candidate.NewFragmentIDs, f2.Id)
 	}
-	if !got.Candidate.Engaged {
-		t.Error("a hand-edited candidate must report engaged")
-	}
 }
 
 func TestDraftProjectionCandidateIsNeverOutdated(t *testing.T) {
@@ -483,9 +480,6 @@ func TestDraftProjectionCandidateIsNeverOutdated(t *testing.T) {
 	}
 	if got.Candidate.Outdated || got.Candidate.Reason != "" {
 		t.Errorf("draft projection candidate must not be outdated, got %+v", got.Candidate)
-	}
-	if !got.Candidate.Engaged {
-		t.Error("draft projection candidate with open refinement must report engaged")
 	}
 }
 

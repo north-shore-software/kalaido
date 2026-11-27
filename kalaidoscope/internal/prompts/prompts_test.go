@@ -11,8 +11,9 @@ import (
 // blocks carry the quoted name a projection/reflection mention joins on.
 func TestMentionLegendComposition(t *testing.T) {
 	for name, prompt := range map[string]string{
-		"ChatSystemPrompt":         ChatSystemPrompt,
-		"RefinementCreationPrompt": RefinementCreationPrompt,
+		"ChatSystemPrompt":           ChatSystemPrompt,
+		"ProjectionChatSystemPrompt": ProjectionChatSystemPrompt(false, true, false, "", ""),
+		"ReflectionChatSystemPrompt": ReflectionChatSystemPrompt(false, true, "", "", nil),
 	} {
 		if !strings.Contains(prompt, MentionLegend) {
 			t.Errorf("%s does not include MentionLegend", name)
@@ -33,53 +34,41 @@ func TestMentionLegendComposition(t *testing.T) {
 	}
 }
 
-// The snapshot delta turn is checked by the engine with trimmed equality
-// against SnapshotNoChanges, so the prompt must quote that exact sentinel and
-// carry the previous output it asks to be compared against.
-func TestSnapshotDeltaPromptContract(t *testing.T) {
-	p := SnapshotDeltaPrompt("PREV DOC")
+// Anchored projection updates quote the exact SnapshotNoChanges sentinel and
+// carry the previous snapshot text.
+func TestAnchoredUpdatePromptContract(t *testing.T) {
+	p := AnchoredUpdatePrompt("PREV DOC", "BRIEF", "", "NEW NOTE")
 	if !strings.Contains(p, "PREV DOC") {
-		t.Error("SnapshotDeltaPrompt does not carry the previous output")
+		t.Error("AnchoredUpdatePrompt does not carry the previous output")
 	}
-	if !strings.Contains(p, `"`+SnapshotNoChanges+`"`) {
-		t.Errorf("SnapshotDeltaPrompt does not quote the sentinel %q", SnapshotNoChanges)
-	}
-	if !strings.Contains(SnapshotMergePrompt(), "verbatim") {
-		t.Error("SnapshotMergePrompt lost the verbatim-reproduction instruction")
+	if !strings.Contains(p, "NO_CHANGES") {
+		t.Error("AnchoredUpdatePrompt does not quote the NO_CHANGES sentinel")
 	}
 }
 
-// The refinement prompt's instructions must quote the exact tool names the
-// handler advertises — the constants are wire identifiers, so a drifted quote
-// silently detaches the instruction from the tool it governs.
-func TestRefinementToolInstructions(t *testing.T) {
-	for _, name := range []string{UpdateLensToolName, SuggestNameToolName} {
-		if !strings.Contains(RefinementCreationPrompt, `"`+name+`"`) {
-			t.Errorf("RefinementCreationPrompt does not quote tool %q", name)
+// Projection and reflection chat prompts must quote the exact tool names their
+// handlers advertise.
+func TestChatPromptToolInstructions(t *testing.T) {
+	projDraft := ProjectionChatSystemPrompt(false, true, false, "", "")
+	for _, name := range []string{WriteDraftToolName, SuggestNameToolName, UpdateContextToolName} {
+		if !strings.Contains(projDraft, `"`+name+`"`) {
+			t.Errorf("ProjectionChatSystemPrompt (no draft) does not quote tool %q", name)
 		}
 	}
-}
-
-// The blindness guard: apply_result is a wire identifier the chat model must
-// never learn about — its output must not be solicited, and the prompt must
-// state the model's epistemic position and the data-agnosticism hard rules
-// carried over from the distillation generator.
-func TestRefinementPromptEpistemics(t *testing.T) {
-	if strings.Contains(RefinementCreationPrompt, ApplyResultToolName) {
-		t.Errorf("RefinementCreationPrompt mentions %q — the model must not know the apply channel exists", ApplyResultToolName)
-	}
-	for _, marker := range []string{
-		"NEVER see the document",         // epistemic position
-		"data-agnostic",                  // hard rule 1
-		"8 in total",                     // the count-pin worked example
-		"The lens must stand alone",      // hard rule 3
-		"Never encode a guessed reading", // clarify-with-a-guess
-		"Interview first",                // no lens until the essentials are settled
-		"Before the first lens exists",   // the confidence gate is first-lens scoped
-	} {
-		if !strings.Contains(RefinementCreationPrompt, marker) {
-			t.Errorf("RefinementCreationPrompt lost the %q contract", marker)
+	projRevise := ProjectionChatSystemPrompt(true, false, false, "", "existing draft")
+	for _, name := range []string{ProposeEditToolName, UpdateDraftToolName, RequestFullRewriteToolName} {
+		if !strings.Contains(projRevise, `"`+name+`"`) {
+			t.Errorf("ProjectionChatSystemPrompt (has draft) does not quote tool %q", name)
 		}
+	}
+	refl := ReflectionChatSystemPrompt(false, true, "", "", nil)
+	for _, name := range []string{SetLensToolName, SuggestNameToolName, UpdateContextToolName} {
+		if !strings.Contains(refl, `"`+name+`"`) {
+			t.Errorf("ReflectionChatSystemPrompt does not quote tool %q", name)
+		}
+	}
+	if strings.Contains(refl, ApplyResultToolName) {
+		t.Errorf("ReflectionChatSystemPrompt mentions internal %q", ApplyResultToolName)
 	}
 }
 

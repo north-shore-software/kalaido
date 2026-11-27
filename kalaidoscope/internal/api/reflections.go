@@ -88,14 +88,8 @@ type DiscardReflectionDraftResponse struct {
 }
 
 type GenerateReflectionSnapshotRequest struct {
-	SourceID    string      `json:"sourceId"` // ReflectionID
-	ChatID      string      `json:"chatId"`
-	FragmentIDs []string    `json:"fragmentIds"`
-	ColourIDs   []string    `json:"colourIds"`
-	Messages    []UIMessage `json:"messages"`
-	Preview     bool        `json:"preview"`
-	WindowID    string      `json:"windowId,omitempty"`
-	AllWindows  bool        `json:"allWindows,omitempty"`
+	WindowID   string `json:"windowId,omitempty"`
+	AllWindows bool   `json:"allWindows,omitempty"`
 }
 
 func (r GenerateReflectionSnapshotRequest) Validate() error {

@@ -5,13 +5,12 @@ import (
 	"testing"
 )
 
-// Both refinement prompts advertise update_context and carry the shared
-// rules; the tool is a proposal the app puts to the user, and the prompts
-// must say so.
+// Both projection and reflection chat prompts advertise update_context and
+// carry the shared confirmation rules.
 func TestUpdateContextToolInstructions(t *testing.T) {
 	for name, prompt := range map[string]string{
-		"RefinementCreationPrompt": RefinementCreationPrompt,
-		"RefinementRevisionPrompt": RefinementRevisionPrompt,
+		"ProjectionChatSystemPrompt": ProjectionChatSystemPrompt(false, true, false, "", ""),
+		"ReflectionChatSystemPrompt": ReflectionChatSystemPrompt(false, true, "", "", nil),
 	} {
 		if !strings.Contains(prompt, `"`+UpdateContextToolName+`"`) {
 			t.Errorf("%s does not quote tool %q", name, UpdateContextToolName)
@@ -24,23 +23,6 @@ func TestUpdateContextToolInstructions(t *testing.T) {
 			if !strings.Contains(prompt, marker) {
 				t.Errorf("%s lost the %q rule", name, marker)
 			}
-		}
-	}
-}
-
-// Length is an essential the interview must settle explicitly and the lens
-// must carry, so the applying model never chooses it.
-func TestLengthIsSettledAndCarried(t *testing.T) {
-	if !strings.Contains(RefinementCreationPrompt, "never assume a length") {
-		t.Error("RefinementCreationPrompt no longer asks for the target length")
-	}
-	for name, prompt := range map[string]string{
-		"RefinementCreationPrompt": RefinementCreationPrompt,
-		"RefinementRevisionPrompt": RefinementRevisionPrompt,
-		"LensCompilerSystemPrompt": LensCompilerSystemPrompt,
-	} {
-		if !strings.Contains(prompt, "target length") {
-			t.Errorf("%s does not require the lens to state the target length", name)
 		}
 	}
 }

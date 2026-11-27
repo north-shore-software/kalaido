@@ -198,14 +198,9 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 			return status, err
 		}
 		if candRec != nil {
-			engaged, err := engine.CandidateEngaged(e.app, strat, candRec)
-			if err != nil {
-				return status, err
-			}
 			if liveSnapID == "" {
 				status.Candidate = &api.CandidateStatus{
-					ID:      candRec.Id,
-					Engaged: engaged,
+					ID: candRec.Id,
 				}
 			} else {
 				candSpec := candidateContextSpec(candRec, n.spec)
@@ -221,7 +216,6 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 				status.Candidate = &api.CandidateStatus{
 					ID:             candRec.Id,
 					Outdated:       false,
-					Engaged:        engaged,
 					NewFragmentIDs: newIDs,
 				}
 			}

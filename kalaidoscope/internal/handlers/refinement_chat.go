@@ -7,30 +7,43 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/projections"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // HandleProjectionRefinementChat executes one canvas-aware chat turn for a
-// projection refinement under POST /api/projections/{id}/refinements/{rid}/chat.
+// projection session under POST /api/projections/{id}/refinements/{rid}/chat.
 func HandleProjectionRefinementChat(app core.App) func(e *core.RequestEvent) error {
-	return handleRefinementChatWith(app, schema.ColProjectionRefinement, "projection", HandleProjectionChatForRefinement)
+	return handleRefinementChatWith(
+		app,
+		schema.ColProjectionRefinement,
+		"projection",
+		projections.SessionParent,
+		HandleProjectionChatForRefinement,
+	)
 }
 
-// HandleReflectionRefinementChat drafts one chat turn for a reflection
-// refinement under POST /api/reflections/{id}/refinements/{rid}/chat.
+// HandleReflectionRefinementChat executes one standing-lens authoring chat turn
+// for a reflection under POST /api/reflections/{id}/refinements/{rid}/chat.
 func HandleReflectionRefinementChat(app core.App) func(e *core.RequestEvent) error {
-	return handleRefinementChatWith(app, schema.ColReflectionRefinement, "reflection", HandleReflectionChatForRefinement)
+	return handleRefinementChatWith(
+		app,
+		schema.ColReflectionRefinement,
+		"reflection",
+		reflections.SessionParent,
+		HandleReflectionChatForRefinement,
+	)
 }
 
-// handleRefinementChatWith resolves {rid} in refinementCol, checks it belongs to
-// the {id} parent, and streams the turn via runner.
 func handleRefinementChatWith(
 	app core.App,
 	refinementCol schema.Collection,
 	targetType string,
+	resolveParent func(app core.App, refRec *core.Record) *core.Record,
 	runner func(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error,
 ) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
@@ -44,7 +57,7 @@ func handleRefinementChatWith(
 		if err != nil {
 			return e.NotFoundError(targetType+" refinement not found", err)
 		}
-		if parent := refinement.Parent(app, refRec); parent == nil || parent.Id != parentID {
+		if parent := resolveParent(app, refRec); parent == nil || parent.Id != parentID {
 			return e.BadRequestError("refinement does not belong to specified "+targetType, nil)
 		}
 
@@ -64,7 +77,7 @@ func handleRefinementChatWith(
 // resolved projection refinement record.
 func HandleProjectionChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		return mapRefinementStreamError(e, app, refinement.StreamProjectionTurn(e.Request.Context(), app, req, refRec, e.Response))
+		return mapRefinementStreamError(e, app, projections.StreamChatTurn(e.Request.Context(), app, req, refRec, e.Response))
 	}
 }
 
@@ -72,22 +85,15 @@ func HandleProjectionChatForRefinement(app core.App, req api.RefinementChatReque
 // chat turn for a resolved reflection refinement record.
 func HandleReflectionChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
-		return mapRefinementStreamError(e, app, refinement.StreamReflectionTurn(e.Request.Context(), app, req, refRec, e.Response))
-	}
-}
-
-// HandleChatForRefinement executes one turn of refinement chat for a resolved refinement record.
-func HandleChatForRefinement(app core.App, req api.RefinementChatRequest, refRec *core.Record) func(e *core.RequestEvent) error {
-	return func(e *core.RequestEvent) error {
-		return mapRefinementStreamError(e, app, refinement.StreamTurn(e.Request.Context(), app, req, refRec, e.Response))
+		return mapRefinementStreamError(e, app, reflections.StreamChatTurn(e.Request.Context(), app, req, refRec, e.Response))
 	}
 }
 
 func mapRefinementStreamError(e *core.RequestEvent, app core.App, err error) error {
 	switch {
-	case errors.Is(err, refinement.ErrMessagesRequired):
+	case errors.Is(err, chat.ErrMessagesRequired):
 		return e.BadRequestError("messages required", nil)
-	case errors.Is(err, refinement.ErrNoModel):
+	case errors.Is(err, chat.ErrNoModel):
 		return e.InternalServerError("no model configured for refinement", err)
 	case errors.Is(err, usage.ErrExhausted):
 		return usage.WriteExhausted(e, app)
