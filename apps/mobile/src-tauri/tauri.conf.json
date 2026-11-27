@@ -14,7 +14,7 @@
       {
         "title": "Kalaido",
         "url": "index.html",
-        "backgroundColor": "#252628",
+        "backgroundColor": "#1A1B1E",
         "theme": "Dark",
         "useHttpsScheme": true
       }
@@ -30,12 +30,9 @@
     "publisher": "North Shore Software Ltd.",
     "copyright": "Copyright (C) 2026 North Shore Software Ltd.",
     "licenseFile": "../../../LICENSE",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+    "icon": ["icons/icon.png"],
+    "android": {
+      "debugApplicationIdSuffix": ".dev"
+    }
   }
 }

@@ -1,0 +1,10 @@
+<resources>
+    <style name="Base.Theme.kalaido_mobile" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/kalaido_cyan</item>
+        <item name="colorOnPrimary">@color/kalaido_ink</item>
+        <item name="android:colorBackground">@color/kalaido_ink</item>
+        <item name="android:windowBackground">@color/kalaido_ink</item>
+    </style>
+
+    <style name="Theme.kalaido_mobile" parent="Base.Theme.kalaido_mobile" />
+</resources>

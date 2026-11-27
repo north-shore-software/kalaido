@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Derived from kalaido-internal/brand/assets/svg/icon/kalaido-app-icon-foreground.svg
+  (viewBox 12x12) sized to Android 12's 288dp splash-icon canvas (192dp safe circle).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="12"
+    android:viewportHeight="12">
+    <path
+        android:fillColor="#22D3EE"
+        android:fillType="evenOdd"
+        android:pathData="M3.389 8.584L3.389 3.184L4.885 3.184L4.885 5.198L5.487 5.198L6.39 3.184L8.033 3.184L6.783 5.73L8.148 8.584L6.49 8.584L5.541 6.494L4.885 6.494L4.885 8.584Z" />
+    <path
+        android:fillColor="#FF2E93"
+        android:fillType="evenOdd"
+        android:pathData="M3.852 8.584L3.852 3.184L5.348 3.184L5.348 5.198L5.95 5.198L6.852 3.184L8.496 3.184L7.246 5.73L8.611 8.584L6.953 8.584L6.004 6.494L5.348 6.494L5.348 8.584Z" />
+    <path
+        android:fillColor="#F5D90A"
+        android:fillType="evenOdd"
+        android:pathData="M3.62 8.816L3.62 3.416L5.117 3.416L5.117 5.429L5.718 5.429L6.621 3.416L8.264 3.416L7.014 5.961L8.38 8.816L6.721 8.816L5.772 6.725L5.117 6.725L5.117 8.816Z" />
+    <path
+        android:fillColor="#FFDBF8"
+        android:fillType="evenOdd"
+        android:pathData="M3.852 3.184L3.852 8.584L4.885 8.584L4.885 6.494L5.348 6.494L5.541 6.494L6.004 6.494L6.953 8.584L8.148 8.584L6.783 5.73L8.033 3.184L6.852 3.184L5.95 5.198L5.487 5.198L5.348 5.198L4.885 5.198L4.885 3.184Z" />
+    <path
+        android:fillColor="#F6F8EF"
+        android:fillType="evenOdd"
+        android:pathData="M4.885 5.198L4.885 3.416L3.62 3.416L3.62 8.584L4.885 8.584L4.885 6.494L5.541 6.494L5.646 6.725L5.772 6.725L6.616 8.584L8.148 8.584L6.783 5.73L7.919 3.416L6.621 3.416L5.718 5.429L5.117 5.429L5.117 5.198Z" />
+    <path
+        android:fillColor="#FFE097"
+        android:fillType="evenOdd"
+        android:pathData="M3.852 8.584L5.117 8.584L5.117 6.725L5.348 6.725L5.348 6.494L6.004 6.494L6.953 8.584L8.269 8.584L7.014 5.961L8.264 3.416L6.749 3.416L5.95 5.198L5.822 5.198L5.718 5.429L5.117 5.429L5.117 3.416L3.852 3.416Z" />
+    <path
+        android:fillColor="#FFFAF8"
+        android:fillType="evenOdd"
+        android:pathData="M3.852 8.584L4.885 8.584L4.885 6.494L5.348 6.494L5.541 6.494L6.004 6.494L6.953 8.584L8.148 8.584L6.783 5.73L7.919 3.416L6.749 3.416L5.95 5.198L5.822 5.198L5.718 5.429L5.117 5.429L5.117 5.198L4.885 5.198L4.885 3.416L3.852 3.416Z" />
+</vector>
