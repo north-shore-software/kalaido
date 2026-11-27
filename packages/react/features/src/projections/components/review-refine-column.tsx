@@ -21,7 +21,6 @@ export interface ReviewCanvasColumnProps {
   frozen: boolean;
   snapshotId: string;
   foldingIn: boolean;
-  advancing: boolean;
 }
 
 export function ReviewCanvasColumn({
@@ -32,7 +31,6 @@ export function ReviewCanvasColumn({
   frozen,
   snapshotId,
   foldingIn,
-  advancing,
 }: ReviewCanvasColumnProps) {
   if (hasPending) {
     return (
@@ -50,13 +48,12 @@ export function ReviewCanvasColumn({
 
   return (
     <div className="flex min-w-0 flex-[1.1] flex-col border-r border-line">
-      {foldingIn || advancing ? (
+      {foldingIn ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2">
           <p className="text-body-sm text-fg-2">Approved.</p>
           <p className="text-meta text-fg-3">
-            {foldingIn
-              ? "Folding the new context into a fresh candidate. Your conversation carries over to it."
-              : "Working out what's next and generating its candidate…"}
+            Folding the new context into a fresh candidate. Your conversation
+            carries over to it.
           </p>
         </div>
       ) : (

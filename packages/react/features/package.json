@@ -15,7 +15,6 @@
     "./map": "./src/map/index.ts",
     "./projections": "./src/projections/index.ts",
     "./reflections": "./src/reflections/index.ts",
-    "./rotation": "./src/rotation/index.ts",
     "./*": "./src/*.tsx"
   },
   "imports": {
@@ -29,7 +28,6 @@
     "#map": "./src/map/index.ts",
     "#projections": "./src/projections/index.ts",
     "#reflections": "./src/reflections/index.ts",
-    "#rotation": "./src/rotation/index.ts",
     "#*": "./src/*.tsx"
   },
   "scripts": {

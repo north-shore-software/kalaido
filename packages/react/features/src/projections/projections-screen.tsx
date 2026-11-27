@@ -8,7 +8,7 @@ import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import { PageHeader } from "@kalaido/components";
 import { useContextSources } from "@kalaido/hooks/use-context-sources";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
+import { useFreshnessStatus } from "@kalaido/hooks/use-freshness-status";
 import { EmptyState, Mono } from "@kalaido/primitives/kalaido";
 import { PageBody } from "@kalaido/primitives/layout/page-primitives";
 import { Button } from "@kalaido/primitives/shadcn/button";
@@ -104,7 +104,7 @@ export function ProjectionsScreen({
     [pending.records],
   );
 
-  const { byId: statusById } = useRotationStatus();
+  const { byId: statusById } = useFreshnessStatus();
   const contextSources = useContextSources();
 
   // When each projection's live output was generated: the newest approved

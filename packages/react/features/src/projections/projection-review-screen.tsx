@@ -11,7 +11,7 @@ import {
   type ContextItem,
   PageHeader,
 } from "@kalaido/components";
-import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
+import { useFreshnessStatus } from "@kalaido/hooks/use-freshness-status";
 import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import {
@@ -36,14 +36,12 @@ import {
 } from "./outdated-reason";
 
 interface ReviewWorkflowState {
-  advancing: boolean;
   foldingIn: boolean;
   context: ContextItem[];
   refineInput: string;
 }
 
 type ReviewWorkflowEvent =
-  | { readonly type: "setAdvancing"; readonly advancing: boolean }
   | { readonly type: "startFoldIn" }
   | { readonly type: "clearFoldIn" }
   | { readonly type: "setContext"; readonly context: ContextItem[] }
@@ -53,29 +51,18 @@ type ReviewWorkflowEvent =
 export interface ProjectionReviewScreenProps {
   id: string;
   snapshotId: string;
-  inWave?: boolean;
   onViewReview: (
     id: string,
     snapshotId: string,
-    opts?: { wave?: boolean; replace?: boolean },
+    opts?: { replace?: boolean },
   ) => void;
-  renderCandidateRedirect?: (
-    id: string,
-    snapshotId: string,
-    opts: { wave: boolean },
-  ) => ReactNode;
+  renderCandidateRedirect?: (id: string, snapshotId: string) => ReactNode;
   onApproveSuccess: (id: string) => void;
   onBackToDetail: (id: string) => void;
-  onExitWave: () => void;
-  onCaughtUp: () => void;
-  onReviewNext: (id: string, snapshotId: string) => void;
 }
 
 const REVIEW_HANDLERS: ScopeHandlers<ReviewWorkflowState, ReviewWorkflowEvent> =
   {
-    setAdvancing: (s, e) => {
-      s.advancing = e.advancing;
-    },
     startFoldIn: (s) => {
       s.foldingIn = true;
     },
@@ -94,10 +81,9 @@ const REVIEW_HANDLERS: ScopeHandlers<ReviewWorkflowState, ReviewWorkflowEvent> =
   };
 
 /**
- * "Approve & next" moves between projections, and a fold-in ("Approve & fold
- * in" on the outdated-candidate card) moves between candidates of the same
- * projection, without leaving this route — key the page on the candidate to
- * force a clean mount.
+ * A fold-in ("Approve & fold in" on the outdated-candidate card) moves between
+ * candidates of the same projection without leaving this route — key the page
+ * on the candidate to force a clean mount.
  */
 export function ProjectionReviewScreen(props: ProjectionReviewScreenProps) {
   return (
@@ -111,20 +97,15 @@ export function ProjectionReviewScreen(props: ProjectionReviewScreenProps) {
 function ProjectionReviewScreenInner({
   id,
   snapshotId,
-  inWave = false,
   onViewReview,
   renderCandidateRedirect,
   onApproveSuccess,
   onBackToDetail,
-  onExitWave,
-  onCaughtUp,
-  onReviewNext,
 }: ProjectionReviewScreenProps) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const scope = useScope({
     initial: (): ReviewWorkflowState => ({
-      advancing: false,
       foldingIn: false,
       context: [WHOLE_SCOPE_ITEM],
       refineInput: "",
@@ -132,13 +113,13 @@ function ProjectionReviewScreenInner({
     handlers: REVIEW_HANDLERS,
   });
 
-  const { advancing, foldingIn, context, refineInput } = useScopeState(scope);
+  const { foldingIn, context, refineInput } = useScopeState(scope);
   const { projection, snapshots, liveSnapshot } = useProjectionSnapshot(id);
 
   const pending = snapshots.find((s) => s.status === "pending_review");
   const pendingId = pending?.id;
 
-  const { byId: statusById } = useRotationStatus();
+  const { byId: statusById } = useFreshnessStatus();
   const candStatus = id ? statusById.get(id)?.candidate : undefined;
 
   const ctxInitedFor = useRef<string | null>(null);
@@ -179,27 +160,15 @@ function ProjectionReviewScreenInner({
     chatPanelRef,
   });
 
-  const isCandidateOutdated = Boolean(
-    pendingId && candStatus?.id === pendingId && candStatus.outdated,
-  );
-
   const actions = useProjectionReviewActions({
     id,
     pendingId,
-    inWave,
-    isCandidateOutdated,
-    advancing,
     session,
-    setAdvancing: (next) =>
-      scope.dispatch({ type: "setAdvancing", advancing: next }),
     startFoldIn: () => scope.dispatch({ type: "startFoldIn" }),
     clearFoldIn: () => scope.dispatch({ type: "clearFoldIn" }),
     onCloseConfirmDiscard: () => setConfirmDiscard(false),
     onViewReview,
     onApproveSuccess,
-    onExitWave,
-    onCaughtUp,
-    onReviewNext,
   });
 
   async function startRefine() {
@@ -224,21 +193,18 @@ function ProjectionReviewScreenInner({
     previewLength: session.preview.length,
     activeDraft: triage.activeDraft,
     busy: actions.busy,
-    advancing,
     sessionPhase: session.phase,
     hasUnresolvedEdits: triage.hasUnresolvedEdits,
     proposedEditsCount: triage.proposedEditsCount,
     edits: triage.edits,
-    inWave,
     title,
   });
   const currentContent = liveSnapshot
     ? parseProjectionOutput(liveSnapshot.output).content
     : undefined;
-  const anyBusy = actions.busy || advancing;
 
   if (pendingId && pendingId !== snapshotId && renderCandidateRedirect) {
-    return renderCandidateRedirect(id, pendingId, { wave: inWave });
+    return renderCandidateRedirect(id, pendingId);
   }
 
   return (
@@ -248,23 +214,17 @@ function ProjectionReviewScreenInner({
         crumb={view.headerCrumb}
         actions={
           <ReviewHeaderActions
-            inWave={inWave}
             pendingEmpty={view.pendingEmpty}
             edits={triage.edits}
             canJumpNext={triage.canJumpNext}
             canJumpPrev={triage.canJumpPrev}
             onJumpNext={triage.jumpToNextEdit}
             onJumpPrev={triage.jumpToPrevEdit}
-            busy={actions.busy}
-            advancing={advancing}
             gateOpen={view.gateOpen}
             approveBlocked={view.approveBlocked}
             hasDraftedLens={session.hasDraftedLens}
-            onSkip={() => void actions.skipCurrent()}
-            onExitWave={onExitWave}
             onBackToDetail={() => onBackToDetail(id)}
             onApprove={() => void actions.approve()}
-            onApproveAndNext={() => void actions.approveAndNext()}
           />
         }
       />
@@ -285,11 +245,10 @@ function ProjectionReviewScreenInner({
             hasPending={!!pending}
             currentContent={currentContent}
             triage={triage}
-            busy={anyBusy}
+            busy={actions.busy}
             frozen={view.gateOpen}
             snapshotId={snapshotId}
             foldingIn={foldingIn}
-            advancing={advancing}
           />
           <ReviewRefineColumn
             chatPanelRef={chatPanelRef}
@@ -301,7 +260,7 @@ function ProjectionReviewScreenInner({
             gateDescription={view.gateDescription}
             isCandidateEngaged={view.isCandidateEngaged}
             foldingIn={foldingIn}
-            busy={anyBusy}
+            busy={actions.busy}
             approveBlocked={view.approveBlocked}
             highlightedEditId={triage.highlightedEditId}
             edits={triage.edits}
@@ -316,11 +275,7 @@ function ProjectionReviewScreenInner({
               void scope.dispatch({ type: "setRefineInput", input: next })
             }
             onStartRefine={() => void startRefine()}
-            onFoldIn={() =>
-              void (inWave
-                ? actions.approveAndNext()
-                : actions.handleApproveAndRefresh())
-            }
+            onFoldIn={() => void actions.handleApproveAndRefresh()}
             onRequestStartOver={() => setConfirmDiscard(true)}
             onRefresh={() => void actions.handleRefresh()}
           />

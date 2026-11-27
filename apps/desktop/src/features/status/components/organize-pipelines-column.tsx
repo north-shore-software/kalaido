@@ -4,7 +4,6 @@ import { Pill, SurfaceCard } from "@kalaido/primitives/kalaido";
 import { Button } from "@kalaido/primitives/shadcn/button";
 import { Spinner } from "@kalaido/primitives/shadcn/spinner";
 import {
-  ArrowsClockwiseIcon,
   CompassIcon,
   PaletteIcon,
   PlayIcon,
@@ -133,76 +132,20 @@ function ColourStatusCard({ organize }: { organize: MaybeOrganizeStatus }) {
   );
 }
 
-function ReconcileStatusCard({
-  organize,
-  startingReconcile,
-  onStartReconcile,
-}: {
-  organize: MaybeOrganizeStatus;
-  startingReconcile: boolean;
-  onStartReconcile: () => void;
-}) {
-  const running = Boolean(organize?.reconcile.running);
-  const startedLabel = organize?.reconcile.lastStarted
-    ? new Date(organize.reconcile.lastStarted).toLocaleTimeString()
-    : "never";
-
-  return (
-    <SurfaceCard className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-meta font-medium text-fg-3">
-          <ArrowsClockwiseIcon className="size-4" />
-          Reconcile
-        </span>
-        <Pill tone={running ? "primary" : "muted"}>
-          {running ? "running" : "idle"}
-        </Pill>
-      </div>
-      <div className="mt-1 flex flex-col gap-1 font-mono text-mono-sm text-fg-4">
-        <span>Wave: {running ? "active" : "dormant"}</span>
-        <span>Started: {startedLabel}</span>
-      </div>
-      {organize?.reconcile.lastError && (
-        <p className="truncate font-mono text-mono-sm text-critical-ink">
-          {organize.reconcile.lastError}
-        </p>
-      )}
-      <Button
-        size="sm"
-        variant="outline"
-        className="mt-auto justify-center"
-        disabled={startingReconcile || running}
-        onClick={onStartReconcile}
-      >
-        {startingReconcile ? (
-          <Spinner />
-        ) : (
-          <ArrowsClockwiseIcon className="mr-1.5 size-3.5" />
-        )}
-        Reconcile
-      </Button>
-    </SurfaceCard>
-  );
-}
-
 export interface OrganizePipelinesColumnProps {
   organize: MaybeOrganizeStatus;
   startingMap: boolean;
   startingDiscover: DiscoverKind | null;
-  startingReconcile: boolean;
   onStartMap: () => void;
   onStartDiscover: (kind: DiscoverKind) => void;
-  onStartReconcile: () => void;
 }
 
 export function OrganizePipelinesColumn({
   organize,
   startingMap,
   startingDiscover,
-  startingReconcile,
   onStartMap,
   onStartDiscover,
-  onStartReconcile,
 }: OrganizePipelinesColumnProps) {
   return (
     <div className="flex w-80 shrink-0 flex-col gap-3 overflow-y-auto pr-0.5">
@@ -217,11 +160,6 @@ export function OrganizePipelinesColumn({
         onStartDiscover={onStartDiscover}
       />
       <ColourStatusCard organize={organize} />
-      <ReconcileStatusCard
-        organize={organize}
-        startingReconcile={startingReconcile}
-        onStartReconcile={onStartReconcile}
-      />
     </div>
   );
 }

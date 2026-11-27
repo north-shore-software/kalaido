@@ -52,7 +52,6 @@ export function sectionForRoute(id: RouteId): SectionId {
     case "projection-detail":
     case "projection-review":
     case "new-projection":
-    case "rotation":
       return "projections";
     case "reflections":
     case "new-reflection":

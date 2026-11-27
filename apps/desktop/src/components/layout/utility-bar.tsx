@@ -1,5 +1,4 @@
 import {
-  ArrowsClockwiseIcon,
   CompassIcon,
   MoonIcon,
   PaletteIcon,
@@ -157,7 +156,6 @@ function WorkerCluster() {
     organize?.map.state === "annotating";
   const isDiscoverActive = organize?.discover.state === "running";
   const isColourActive = Boolean(organize?.colour?.draining);
-  const isReconcileActive = Boolean(organize?.reconcile.running);
 
   const mapTitle = `Mapping: ${organize?.map.state ?? "idle"}${
     organize?.map.annotated !== undefined
@@ -175,10 +173,6 @@ function WorkerCluster() {
     organize?.colour?.unjudgedFragments !== undefined
       ? ` (${organize.colour.unjudgedFragments} unjudged)`
       : ""
-  }`;
-
-  const reconcileTitle = `Reconcile: ${
-    organize?.reconcile.running ? "running" : "idle"
   }`;
 
   return (
@@ -214,15 +208,6 @@ function WorkerCluster() {
         )}
       >
         <PaletteIcon className="size-3.5" />
-      </span>
-      <span
-        title={reconcileTitle}
-        className={cn(
-          "flex items-center transition-colors",
-          isReconcileActive ? "text-fg-1 animate-spin" : "text-fg-5",
-        )}
-      >
-        <ArrowsClockwiseIcon className="size-3.5" />
       </span>
     </button>
   );

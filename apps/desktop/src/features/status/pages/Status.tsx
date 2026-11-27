@@ -3,7 +3,6 @@ import {
   startDiscover,
 } from "@kalaido/client/kalaidoscope/discover";
 import { startMap } from "@kalaido/client/kalaidoscope/map";
-import { startReconcile } from "@kalaido/client/kalaidoscope/reconcile";
 import { useScopeContext } from "@kalaido/hooks/create-scope-context";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
 import { useOrganizeStatus } from "@kalaido/hooks/use-organize-status";
@@ -43,14 +42,8 @@ export default function StatusPage() {
     concurrency: "ignore",
   });
 
-  const reconcileWrite = useExternalWrite<void, void>({
-    execute: () => startReconcile(),
-    concurrency: "ignore",
-  });
-
   const startingMap = mapWrite.isPending;
   const startingDiscover = discoverWrite.isPending ? activeDiscoverKind : null;
-  const startingReconcile = reconcileWrite.isPending;
 
   async function handleStartMap() {
     const outcome = await mapWrite.run();
@@ -69,13 +62,6 @@ export default function StatusPage() {
     }
   }
 
-  async function handleStartReconcile() {
-    const outcome = await reconcileWrite.run();
-    if (outcome.status === "error") {
-      toast.error(`Reconcile failed to start: ${outcome.error.message}`);
-    }
-  }
-
   return (
     <PageLayout>
       <PageHeader title="Status" crumb={["Status"]} />
@@ -85,10 +71,8 @@ export default function StatusPage() {
             organize={organize}
             startingMap={startingMap}
             startingDiscover={startingDiscover}
-            startingReconcile={startingReconcile}
             onStartMap={handleStartMap}
             onStartDiscover={handleStartDiscover}
-            onStartReconcile={handleStartReconcile}
           />
           <div className="flex flex-1 min-w-0 min-h-0 flex-col gap-4 overflow-hidden">
             <LlmQueueCard

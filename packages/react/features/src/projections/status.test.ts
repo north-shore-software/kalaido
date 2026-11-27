@@ -1,4 +1,4 @@
-import type { EntityStatus } from "@kalaido/client/kalaidoscope/rotation";
+import type { EntityStatus } from "@kalaido/client/kalaidoscope/freshness";
 import { getProjectionStatus } from "./status";
 
 function status(partial: Partial<EntityStatus>): EntityStatus {
@@ -6,33 +6,25 @@ function status(partial: Partial<EntityStatus>): EntityStatus {
 }
 
 describe("getProjectionStatus", () => {
-  test("stable when the plan reports no delta", () => {
+  test("stable when freshness reports no delta", () => {
     expect(getProjectionStatus(status({}), false).status).toBe("stable");
   });
 
-  test("a pending candidate outranks everything", () => {
+  test("a pending candidate outranks staleness", () => {
     const info = getProjectionStatus(
-      status({ newFragmentIds: ["f1"], blockedBy: ["p1"] }),
+      status({ newFragmentIds: ["f1"], staleDependencies: ["p1"] }),
       true,
     );
     expect(info.status).toBe("pending");
   });
 
-  test("blocked when an upstream is not itself up to date", () => {
-    const info = getProjectionStatus(status({ blockedBy: ["p1"] }), false);
-    expect(info.status).toBe("blocked");
-    expect(info.blockedBy).toEqual(["p1"]);
-  });
-
-  // The bug: an approved upstream leaves staleDependencies set. That used to
-  // read as blocked; it means this projection is ready to regenerate.
-  test("stale, not blocked, when an upstream has published", () => {
+  test("stale with staleDependencies when an upstream has published", () => {
     const info = getProjectionStatus(
       status({ staleDependencies: ["p1"] }),
       false,
     );
     expect(info.status).toBe("stale");
-    expect(info.blockedBy).toEqual([]);
+    expect(info.staleDependencies).toEqual(["p1"]);
   });
 
   test("stale on new fragments, carrying the entropy count", () => {
@@ -42,6 +34,7 @@ describe("getProjectionStatus", () => {
     );
     expect(info.status).toBe("stale");
     expect(info.entropy).toBe(2);
+    expect(info.staleDependencies).toEqual([]);
   });
 
   test("stale on a due window", () => {
@@ -52,22 +45,22 @@ describe("getProjectionStatus", () => {
     expect(info.status).toBe("stale");
   });
 
-  test("no plan entry reads as stable", () => {
+  test("no status entry reads as stable", () => {
     expect(getProjectionStatus(undefined, false).status).toBe("stable");
   });
 
   test("a running generation outranks even a pending candidate", () => {
     const info = getProjectionStatus(
-      status({ newFragmentIds: ["f1"], blockedBy: ["p1"] }),
+      status({ newFragmentIds: ["f1"], staleDependencies: ["p1"] }),
       true,
       { generating: true },
     );
     expect(info.status).toBe("generating");
   });
 
-  test("a missing lens reads as preparing, not stale or blocked", () => {
+  test("a missing lens reads as preparing, not stale", () => {
     const info = getProjectionStatus(
-      status({ newFragmentIds: ["f1"], blockedBy: ["p1"] }),
+      status({ newFragmentIds: ["f1"], staleDependencies: ["p1"] }),
       false,
       { lensMissing: true },
     );

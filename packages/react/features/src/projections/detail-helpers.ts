@@ -91,15 +91,15 @@ export function buildSnapshotTimeline({
   return { timeline, historicalVersion };
 }
 
-export function resolveBlockedNames(
-  blockedBy: readonly string[] | undefined,
+export function resolveUpstreamNames(
+  depIds: readonly string[] | undefined,
   sources: Pick<ContextSources, "projections" | "reflections">,
 ): string[] {
-  if (!blockedBy?.length) return [];
+  if (!depIds?.length) return [];
   const byId = new Map(
     [...sources.projections, ...sources.reflections].map((o) => [o.id, o.name]),
   );
-  return blockedBy.map((dep) => byId.get(dep) ?? "an upstream input");
+  return depIds.map((dep) => byId.get(dep) ?? "an upstream input");
 }
 
 export function buildDetailCrumb(
@@ -161,8 +161,8 @@ export function deriveHistoricalSnapshot(
   return { historical, historicalContent };
 }
 
-export function deriveRotationSummary(args: {
-  rotationEntry:
+export function deriveFreshnessSummary(args: {
+  freshnessEntry:
     | {
         candidate?: { newFragmentIds?: readonly string[] };
       }
@@ -176,7 +176,7 @@ export function deriveRotationSummary(args: {
     generating: args.generating || args.regenerating,
     lensMissing: args.hasSnapshots && !args.hasCurrentLens,
     newSinceCandidate:
-      args.rotationEntry?.candidate?.newFragmentIds?.length ?? 0,
+      args.freshnessEntry?.candidate?.newFragmentIds?.length ?? 0,
   };
 }
 

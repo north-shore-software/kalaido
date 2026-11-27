@@ -3,7 +3,7 @@ import { PageHeader, PanelErrorBoundary } from "@kalaido/components";
 import { useContextSources } from "@kalaido/hooks/use-context-sources";
 import { useDraftName } from "@kalaido/hooks/use-draft-name";
 import { useLiveCollection } from "@kalaido/hooks/use-live-collection";
-import { useRotationStatus } from "@kalaido/hooks/use-rotation-status";
+import { useFreshnessStatus } from "@kalaido/hooks/use-freshness-status";
 import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
@@ -16,9 +16,9 @@ import {
   buildForkSeed,
   buildSnapshotTimeline,
   deriveDetailHeaderState,
+  deriveFreshnessSummary,
   deriveHistoricalSnapshot,
-  deriveRotationSummary,
-  resolveBlockedNames,
+  resolveUpstreamNames,
   shouldRedirectToPendingReview,
 } from "./detail-helpers";
 import { useProjectionDetailActions } from "./hooks/use-projection-detail-actions";
@@ -106,24 +106,25 @@ export function ProjectionDetailScreen({
     seed: draftNameSeed,
   });
 
-  const { byId: statusById, isLoading: rotLoading } = useRotationStatus();
-  const rotationEntry = statusById.get(id);
-  const rotation = deriveRotationSummary({
-    rotationEntry,
+  const { byId: statusById, isLoading: freshnessLoading } =
+    useFreshnessStatus();
+  const freshnessEntry = statusById.get(id);
+  const freshness = deriveFreshnessSummary({
+    freshnessEntry,
     generating,
     regenerating,
     hasSnapshots: snapshots.length > 0,
     hasCurrentLens: Boolean(projection?.current_lens_id),
   });
-  const info = getProjectionStatus(rotationEntry, Boolean(pendingCandidate), {
-    generating: rotation.generating,
-    lensMissing: rotation.lensMissing,
+  const info = getProjectionStatus(freshnessEntry, Boolean(pendingCandidate), {
+    generating: freshness.generating,
+    lensMissing: freshness.lensMissing,
   });
 
   const sources = useContextSources();
-  const blockedNames = useMemo(
-    () => resolveBlockedNames(info.blockedBy, sources),
-    [info.blockedBy, sources],
+  const staleDependencyNames = useMemo(
+    () => resolveUpstreamNames(info.staleDependencies, sources),
+    [info.staleDependencies, sources],
   );
 
   const { timeline, historicalVersion } = buildSnapshotTimeline({
@@ -226,12 +227,12 @@ export function ProjectionDetailScreen({
           </PanelErrorBoundary>
           <ProjectionSideRail
             readOnly={readOnly}
-            rotLoading={rotLoading}
+            freshnessLoading={freshnessLoading}
             info={info}
             generatedAt={header.generatedAt}
-            blockedNames={blockedNames}
+            staleDependencyNames={staleDependencyNames}
             onReviewCandidate={handleReviewPending}
-            newSinceCandidate={rotation.newSinceCandidate}
+            newSinceCandidate={freshness.newSinceCandidate}
             regenerating={regenerating}
             onRefresh={() => void handleRefresh()}
             onBackToLive={() => onViewLive(id)}

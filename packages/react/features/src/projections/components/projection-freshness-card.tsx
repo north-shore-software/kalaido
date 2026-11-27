@@ -4,12 +4,12 @@ import { ArrowsClockwiseIcon, ClockIcon } from "@phosphor-icons/react";
 import type { ProjectionStatusInfo } from "../status";
 
 export interface ProjectionFreshnessCardProps {
-  rotLoading: boolean;
+  freshnessLoading: boolean;
   info: ProjectionStatusInfo | undefined;
   generatedAt?: string;
   onReviewCandidate?: () => void;
   newSinceCandidate: number;
-  blockedNames?: string[];
+  staleDependencyNames?: string[];
   regenerating: boolean;
   onRefresh: () => void;
 }
@@ -17,35 +17,35 @@ export interface ProjectionFreshnessCardProps {
 function describeIdleFreshness({
   info,
   generatedAt,
-  blockedNames,
+  staleDependencyNames,
 }: {
   info: ProjectionStatusInfo | undefined;
   generatedAt?: string;
-  blockedNames?: string[];
+  staleDependencyNames?: string[];
 }) {
-  const blocked = info?.status === "blocked";
-  const waitingOn =
-    blockedNames && blockedNames.length > 0
-      ? blockedNames.join(", ")
-      : "an upstream input";
   const entropy = info?.entropy ?? 0;
-  let since: string;
-  if (entropy > 0) {
-    since = `${entropy} new fragment${entropy === 1 ? "" : "s"} in scope since.`;
+  const hasStaleDeps = Boolean(staleDependencyNames?.length);
+  const updatedList = staleDependencyNames?.join(", ") ?? "";
+  const verb =
+    staleDependencyNames && staleDependencyNames.length > 1 ? "have" : "has";
+
+  let body: string;
+  if (entropy > 0 && hasStaleDeps) {
+    body = `${entropy} new fragment${entropy === 1 ? "" : "s"} in scope, and ${updatedList} ${verb} been updated since.`;
+  } else if (entropy > 0) {
+    body = `${entropy} new fragment${entropy === 1 ? "" : "s"} in scope since.`;
+  } else if (hasStaleDeps) {
+    body = `${updatedList} ${verb} been updated since.`;
   } else if (info?.status === "stale") {
-    since = "Its sources have changed since.";
+    body = "Its sources have changed since.";
   } else {
-    since = "Nothing new in scope since.";
+    body = "Nothing new in scope since.";
   }
-  const blockedSuffix = blocked
-    ? ` It builds on ${waitingOn}, which ${
-        blockedNames && blockedNames.length > 1 ? "need" : "needs"
-      } regenerating first.`
-    : "";
+
   const heading = generatedAt
     ? `Generated ${formatShortDateTime(generatedAt)}`
     : "Not generated yet";
-  return { blocked, heading, body: `${since}${blockedSuffix}` };
+  return { heading, body };
 }
 
 function PendingCandidateCard({
@@ -98,16 +98,16 @@ function PendingCandidateCard({
 }
 
 export function ProjectionFreshnessCard({
-  rotLoading,
+  freshnessLoading,
   info,
   generatedAt,
   onReviewCandidate,
   newSinceCandidate,
-  blockedNames,
+  staleDependencyNames,
   regenerating,
   onRefresh,
 }: ProjectionFreshnessCardProps) {
-  if (rotLoading && !info) return null;
+  if (freshnessLoading && !info) return null;
 
   if (info?.status === "generating") {
     return (
@@ -153,7 +153,11 @@ export function ProjectionFreshnessCard({
     );
   }
 
-  const idle = describeIdleFreshness({ info, generatedAt, blockedNames });
+  const idle = describeIdleFreshness({
+    info,
+    generatedAt,
+    staleDependencyNames,
+  });
   return (
     <div className="rounded-none border border-line p-3.5">
       <div className="mb-2 flex items-center gap-2.5">
@@ -166,7 +170,7 @@ export function ProjectionFreshnessCard({
         variant="outline"
         className="w-full"
         onClick={onRefresh}
-        disabled={regenerating || idle.blocked}
+        disabled={regenerating}
       >
         {regenerating ? "Regenerating…" : "Regenerate"}
       </Button>
