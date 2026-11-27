@@ -128,7 +128,7 @@ jobs:
       - uses: gradle/actions/wrapper-validation@v4
       - run: ./kalaido.sh setup:ts
 
-      - name: configure android release signing
+      - name: decode android release keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -144,25 +144,13 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$keystore"
           chmod 600 "$keystore"
 
-          props="apps/mobile/src-tauri/gen/android/keystore.properties"
-          umask 077
-          python3 - <<'PY' "$props" "$keystore"
-          import os, sys
-          props_path, keystore_path = sys.argv[1], sys.argv[2]
-          def esc(v: str) -> str:
-              return v.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
-          entries = [
-              ("storeFile", keystore_path),
-              ("storePassword", os.environ["ANDROID_KEYSTORE_PASSWORD"]),
-              ("keyAlias", os.environ["ANDROID_KEY_ALIAS"]),
-              ("keyPassword", os.environ["ANDROID_KEY_PASSWORD"]),
-          ]
-          with open(props_path, "w", encoding="utf-8") as f:
-              for k, v in entries:
-                  f.write(f"{k}={esc(v)}\n")
-          PY
-
-      - run: ./kalaido.sh build:android:release
+      - name: build signed android release apk
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./kalaido.sh build:android:release
 
       - name: verify and stage apk
         env:
@@ -174,9 +162,9 @@ jobs:
           apksigner verify --verbose "$built_apk"
           cp "$built_apk" "$signed_apk"
 
-      - name: clean up signing material
+      - name: clean up keystore
         if: always()
-        run: rm -f "$RUNNER_TEMP/upload-keystore.jks" apps/mobile/src-tauri/gen/android/keystore.properties
+        run: rm -f "$RUNNER_TEMP/upload-keystore.jks"
 
       - name: create draft prerelease
         env:

@@ -10,16 +10,32 @@ plugins {
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
-        propFile.inputStream().use { load(it) }
+        propFile.bufferedReader(Charsets.UTF_8).use { load(it) }
     }
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
-        keystorePropertiesFile.inputStream().use { load(it) }
+        keystorePropertiesFile.bufferedReader(Charsets.UTF_8).use { load(it) }
     }
 }
+
+fun signingProp(propKey: String, envKey: String): String? =
+    keystoreProperties.getProperty(propKey)?.takeIf { it.isNotEmpty() }
+        ?: providers.environmentVariable(envKey).orNull?.takeIf { it.isNotEmpty() }
+
+val releaseStoreFile = signingProp("storeFile", "ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = signingProp("storePassword", "ANDROID_KEYSTORE_PASSWORD")
+    ?: keystoreProperties.getProperty("password")?.takeIf { it.isNotEmpty() }
+val releaseKeyAlias = signingProp("keyAlias", "ANDROID_KEY_ALIAS")
+val releaseKeyPassword = signingProp("keyPassword", "ANDROID_KEY_PASSWORD")
+    ?: releaseStorePassword
+val hasReleaseSigning =
+    releaseStoreFile != null &&
+        releaseStorePassword != null &&
+        releaseKeyAlias != null &&
+        releaseKeyPassword != null
 
 android {
     compileSdk = 37
@@ -33,18 +49,17 @@ android {
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
+        if (hasReleaseSigning) {
             create("release") {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                    ?: keystoreProperties.getProperty("password")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-                    ?: keystoreProperties.getProperty("password")
+                storeFile = rootProject.file(checkNotNull(releaseStoreFile))
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
     buildTypes {
+        // `applicationIdSuffix` is synced by `@tauri-apps/cli` from `bundle.android.debugApplicationIdSuffix`.
         getByName("debug") {
             applicationIdSuffix = ".dev"
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -59,7 +74,7 @@ android {
             }
         }
         getByName("release") {
-            if (keystorePropertiesFile.exists()) {
+            if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
             optimization {

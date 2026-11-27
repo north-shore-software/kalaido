@@ -542,7 +542,7 @@ usage: ./kalaido.sh <command> [args...]
   dev:android                        tauri android dev (mobile, no sidecar)
   dev:mobile                         vite dev, mobile target (http://localhost:1422)
   build:android                      debug-signed apk, sideloadable
-  build:android:release              release aarch64 apk (signed if keystore.properties exists)
+  build:android:release              release aarch64 apk (signed via keystore.properties or ANDROID_KEYSTORE_* env)
   dev:web                            vite dev, web target (http://localhost:1424)
   build:web                          web build (apps/web/dist)
 
