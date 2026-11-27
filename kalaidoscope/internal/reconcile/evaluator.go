@@ -141,6 +141,16 @@ func (e *Evaluator) evaluateReflectionWindows(ctx stdctx.Context, n *node, statu
 		if len(diff.FragmentIDs) == 0 {
 			continue
 		}
+		// An empty-window placeholder whose window now contains matching
+		// fragments becomes a pending window so automatic scheduled or manual
+		// pending generation upgrades it with a real LLM snapshot. Non-empty
+		// windows stay stale only and are never silently overwritten by cron.
+		if snap.GetString("generated_by_model") == engine.SnapshotModelEmpty {
+			if !st.Generating {
+				status.PendingWindows = append(status.PendingWindows, st.Window)
+			}
+			continue
+		}
 		status.StaleWindows = append(status.StaleWindows, st.Window)
 		for _, id := range diff.FragmentIDs {
 			if !seen[id] {
@@ -188,14 +198,9 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 			return status, err
 		}
 		if candRec != nil {
-			engaged, err := engine.CandidateEngaged(e.app, strat, candRec)
-			if err != nil {
-				return status, err
-			}
 			if liveSnapID == "" {
 				status.Candidate = &api.CandidateStatus{
-					ID:      candRec.Id,
-					Engaged: engaged,
+					ID: candRec.Id,
 				}
 			} else {
 				candSpec := candidateContextSpec(candRec, n.spec)
@@ -203,18 +208,14 @@ func (e *Evaluator) evaluateNode(ctx stdctx.Context, n *node) (api.EntityStatus,
 				if err != nil {
 					return status, err
 				}
-				current, reason := engine.SnapshotCurrency(n.record, candRec, candPinned)
 				var candRecorded llmcontext.PinnedIDs
 				_ = candRec.UnmarshalJSONField("resolved_context", &candRecorded)
 				newIDs := candPinned.Diff(candRecorded).FragmentIDs
-				if reason == engine.CurrencyContextChanged && len(newIDs) > 0 {
-					reason = engine.CurrencyNewFragments
-				}
+				// Non-blocking: arriving fragments never freeze an open draft
+				// session. Expose NewFragmentIDs only for optional passive notices.
 				status.Candidate = &api.CandidateStatus{
 					ID:             candRec.Id,
-					Outdated:       !current,
-					Reason:         reason,
-					Engaged:        engaged,
+					Outdated:       false,
 					NewFragmentIDs: newIDs,
 				}
 			}

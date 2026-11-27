@@ -3,16 +3,20 @@ package handlers
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/chat"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/workerutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
 // HandleBackfillReflection materializes the grid windows between `from` and
@@ -81,7 +85,7 @@ func HandleListReflectionWindows(app core.App) func(e *core.RequestEvent) error 
 				Generating:   st.Generating,
 				Backfilled:   st.Backfilled,
 				Stale:        stale[st.ID],
-				LensOutdated: st.HasApproved && st.LensID != currentLens,
+				LensOutdated: st.HasApproved && st.GeneratedByModel != engine.SnapshotModelEmpty && st.LensID != currentLens,
 			})
 		}
 		if win := reflections.DefaultRefinementWindow(rec, time.Now()); win != nil {
@@ -214,6 +218,83 @@ func HandleGeneratePendingReflections(app core.App) func(e *core.RequestEvent) e
 	}
 }
 
+// HandleGetReflectionLens returns a reflection's current standing lens prompt.
+func HandleGetReflectionLens(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		res, err := reflections.ReadLens(app, id)
+		if err != nil {
+			if errors.Is(err, reflections.ErrNotFound) {
+				return e.NotFoundError("reflection not found", err)
+			}
+			return e.InternalServerError("read reflection lens failed", err)
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandleUpdateReflectionLens saves a revised standing lens prompt directly
+// (appending a new lens row chained to the prior lens and updating current_lens_id).
+func HandleUpdateReflectionLens(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		var req api.UpdateReflectionLensRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		if strings.TrimSpace(req.Prompt) == "" {
+			return e.BadRequestError("prompt required", nil)
+		}
+		res, err := reflections.UpdateLens(app, id, req.Prompt)
+		if err != nil {
+			if errors.Is(err, reflections.ErrNotFound) {
+				return e.NotFoundError("reflection not found", err)
+			}
+			return e.InternalServerError("update reflection lens failed", err)
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandleEditReflectionWindow appends a new approved manual revision for a
+// specific reflection window.
+func HandleEditReflectionWindow(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		windowID := e.Request.PathValue("windowId")
+		if id == "" || windowID == "" {
+			return e.BadRequestError("reflection id and windowId required", nil)
+		}
+		var req api.EditReflectionWindowRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		snapID, err := reflections.EditWindowSnapshot(context.WithoutCancel(e.Request.Context()), app, id, windowID, req.Output)
+		if err != nil {
+			switch {
+			case errors.Is(err, reflections.ErrEmptyOutput):
+				return e.BadRequestError(err.Error(), err)
+			case errors.Is(err, reflections.ErrNotFound):
+				return e.NotFoundError("reflection not found", err)
+			case errors.Is(err, reflections.ErrWindowNotFound):
+				return e.NotFoundError("window not found", err)
+			case errors.Is(err, reflections.ErrNoApprovedSnapshot):
+				return e.Error(http.StatusConflict, err.Error(), err)
+			default:
+				logger().Error("edit reflection window failed", "id", id, "window_id", windowID, "error", err)
+				return e.InternalServerError("edit reflection window failed", err)
+			}
+		}
+		return e.JSON(http.StatusOK, api.EditReflectionWindowResponse{SnapshotID: snapID})
+	}
+}
+
 func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
@@ -224,11 +305,6 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 		var req api.GenerateReflectionSnapshotRequest
 		if err := e.BindBody(&req); err != nil {
 			return e.BadRequestError("invalid request body", err)
-		}
-
-		status := engine.StatusApproved
-		if req.Preview {
-			status = engine.StatusPending
 		}
 
 		rec, err := reflections.FindLive(app, id)
@@ -250,7 +326,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 		var snapIDs []string
 		var firstErr error
 		if len(windowsToGenerate) == 1 {
-			snapID, err := engine.GenerateSnapshot(genCtx, app, id, status, reflections.Strategy{}, windowsToGenerate[0])
+			snapID, err := reflections.GenerateWindowSnapshot(genCtx, app, id, windowsToGenerate[0])
 			if err != nil {
 				return WriteGenerateError(e, app, err, "reflection")
 			}
@@ -260,7 +336,7 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 			for _, w := range windowsToGenerate {
 				plain = append(plain, *w)
 			}
-			for _, r := range reflections.GenerateWindows(genCtx, app, id, status, plain) {
+			for _, r := range reflections.GenerateWindows(genCtx, app, id, engine.StatusApproved, plain) {
 				if r.Err != nil {
 					if firstErr == nil {
 						firstErr = r.Err
@@ -281,5 +357,167 @@ func HandleGenerateReflectionSnapshot(app core.App) func(e *core.RequestEvent) e
 		}
 
 		return e.JSON(http.StatusOK, api.ReflectionSnapshotResponse{SnapshotIDs: snapIDs})
+	}
+}
+
+// HandlePreviewReflectionWindows enumerates candidate sample windows and
+// matching fragment counts for a staged schedule + context without mutating
+// any reflection record or invoking an LLM.
+func HandlePreviewReflectionWindows(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		var req api.PreviewReflectionWindowsRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		res, err := reflections.PreviewWindows(
+			e.Request.Context(),
+			app,
+			req.ReflectionID,
+			req.WindowSpec,
+			req.ContextSpec,
+			time.Now(),
+		)
+		if err != nil {
+			if errors.Is(err, reflections.ErrInvalidWindowSpec) {
+				return e.BadRequestError(err.Error(), err)
+			}
+			logger().Error("preview reflection windows failed", "error", err)
+			return e.InternalServerError("preview reflection windows failed", err)
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandlePreviewReflection executes a staged standing lens strictly in isolation
+// against one sample window's fragments (zero chat history, zero database
+// mutations).
+func HandlePreviewReflection(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		var req api.PreviewReflectionRequest
+		if err := e.BindBody(&req); err != nil {
+			return e.BadRequestError("invalid request body", err)
+		}
+		res, err := reflections.RunStagedPreview(e.Request.Context(), app, req)
+		if err != nil {
+			switch {
+			case errors.Is(err, reflections.ErrEmptyLensPrompt), errors.Is(err, reflections.ErrInvalidPreviewWindow):
+				return e.BadRequestError(err.Error(), err)
+			default:
+				return WriteGenerateError(e, app, err, "reflection")
+			}
+		}
+		return e.JSON(http.StatusOK, res)
+	}
+}
+
+// HandleSaveReflection atomically saves staged schedule, context sources,
+// standing lens, and optional name in a single transaction, then kicks
+// RunPendingWindows. Works with or without an open refinement chat session.
+func HandleSaveReflection(app core.App, deps Deps) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		var req api.SaveReflectionRequest
+		if e.Request != nil && e.Request.Body != nil && e.Request.ContentLength != 0 {
+			if err := e.BindBody(&req); err != nil && !errors.Is(err, io.EOF) {
+				return e.BadRequestError("invalid request body", err)
+			}
+		}
+
+		ctx := context.WithoutCancel(e.Request.Context())
+		if req.RefinementID != "" {
+			refRec, err := app.FindRecordById(schema.ColReflectionRefinement.String(), req.RefinementID)
+			if err != nil {
+				return e.NotFoundError("refinement not found", err)
+			}
+			lensID, err := reflections.CommitSession(ctx, app, refRec, id, req, deps.Runner)
+			if err != nil {
+				return writeSaveReflectionError(e, err)
+			}
+			return e.JSON(http.StatusOK, api.SaveReflectionResponse{
+				ID:     id,
+				LensID: lensID,
+			})
+		}
+
+		rec, err := reflections.FindLive(app, id)
+		if err != nil {
+			return e.NotFoundError("reflection not found", err)
+		}
+		lensPrompt := ""
+		if req.LensPrompt != nil && strings.TrimSpace(*req.LensPrompt) != "" {
+			lensPrompt = strings.TrimSpace(*req.LensPrompt)
+		} else {
+			_, existingPrompt := engine.ReadActiveLens(app, reflections.Strategy{}, rec)
+			lensPrompt = strings.TrimSpace(existingPrompt)
+		}
+		lensID, err := reflections.SaveTuning(app, id, reflections.SaveTuningParams{
+			WindowSpec:  req.WindowSpec,
+			ContextSpec: req.ContextSpec,
+			LensPrompt:  lensPrompt,
+			Name:        req.Name,
+		})
+		if err != nil {
+			return writeSaveReflectionError(e, err)
+		}
+		if deps.Runner != nil {
+			reflections.RunPendingWindows(deps.Runner, app, id)
+		}
+		return e.JSON(http.StatusOK, api.SaveReflectionResponse{
+			ID:     id,
+			LensID: lensID,
+		})
+	}
+}
+
+func writeSaveReflectionError(e *core.RequestEvent, err error) error {
+	switch {
+	case errors.Is(err, reflections.ErrNotFound):
+		return e.NotFoundError("reflection not found", err)
+	case errors.Is(err, reflections.ErrInvalidWindowSpec),
+		errors.Is(err, reflections.ErrEmptyLensPrompt),
+		errors.Is(err, chat.ErrNoDraftedLens),
+		errors.Is(err, chat.ErrMissingParentID),
+		errors.Is(err, chat.ErrParentMismatch):
+		return e.BadRequestError(err.Error(), nil)
+	case errors.Is(err, chat.ErrNoPreviewOutput):
+		return e.Error(http.StatusConflict, err.Error(), nil)
+	default:
+		logger().Error("save reflection failed", "error", err)
+		return e.InternalServerError("save reflection failed", err)
+	}
+}
+
+// HandleDiscardReflectionDraft cleans up a never-saved reflection
+// (current_lens_id == ""): hard-deletes user-created drafts or reverts
+// Discover proposals to status="proposed". Refuses established reflections
+// with 409 Conflict.
+func HandleDiscardReflectionDraft(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.BadRequestError("id required", nil)
+		}
+		res, err := reflections.DiscardDraft(app, id)
+		if err != nil {
+			switch {
+			case errors.Is(err, reflections.ErrNotFound):
+				return e.NotFoundError("reflection not found", err)
+			case errors.Is(err, reflections.ErrAlreadySaved):
+				return e.Error(http.StatusConflict, err.Error(), nil)
+			case errors.Is(err, engine.ErrGenerationInFlight):
+				return e.Error(http.StatusConflict, "a generation is running for this reflection", nil)
+			default:
+				logger().Error("discard reflection draft failed", "id", id, "error", err)
+				return e.InternalServerError("discard reflection draft failed", err)
+			}
+		}
+		return e.JSON(http.StatusOK, api.DiscardReflectionDraftResponse{
+			ID:                 id,
+			DeletedReflection:  res.DeletedReflection,
+			RevertedToProposed: res.RevertedToProposed,
+		})
 	}
 }

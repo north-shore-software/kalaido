@@ -5,19 +5,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@kalaido/primitives/shadcn/dropdown-menu";
-import { DotsThreeIcon, GitForkIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  DotsThreeIcon,
+  FileTextIcon,
+  GitForkIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 
 export interface ProjectionDetailActionsProps {
+  onViewBrief: () => void;
   onFork: (mode: "refine" | "orthogonal") => void;
   onRequestDelete: () => void;
 }
 
 export function ProjectionDetailActions({
+  onViewBrief,
   onFork,
   onRequestDelete,
 }: ProjectionDetailActionsProps) {
   return (
     <div className="flex items-center gap-2">
+      <Button size="sm" variant="ghost" onClick={onViewBrief}>
+        <FileTextIcon />
+        View brief
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

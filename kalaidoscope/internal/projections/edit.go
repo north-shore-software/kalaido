@@ -802,3 +802,121 @@ func UpdateSnapshotEditStatus(ctx context.Context, app core.App, parentID, sourc
 	}
 	return updated, nil
 }
+
+// ResolveAllSnapshotEdits resolves every currently proposed edit on a pending
+// candidate to status ("approved" or "rejected") in a single transaction,
+// recomputing undoability and recording one summary notice in the bound
+// refinement session.
+func ResolveAllSnapshotEdits(ctx context.Context, app core.App, parentID, sourceSnapshotID string, status api.SnapshotEditStatus) ([]api.SnapshotEdit, error) {
+	if status != api.EditStatusApproved && status != api.EditStatusRejected {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidEditStatus, status)
+	}
+
+	var result []api.SnapshotEdit
+	err := app.RunInTransaction(func(tx core.App) error {
+		_, src, err := loadPendingCandidate(tx, parentID, sourceSnapshotID, "resolve all edits")
+		if err != nil {
+			return err
+		}
+
+		edits := engine.LoadSnapshotEdits(src)
+		draft := src.GetString("output_draft")
+		now := time.Now().UTC().Format(time.RFC3339)
+		resolvedCount := 0
+
+		for i := range edits {
+			if edits[i].Status != api.EditStatusProposed {
+				continue
+			}
+			marker := engine.FormatEditMarker(edits[i].ID)
+			if !strings.Contains(draft, marker) {
+				continue
+			}
+
+			replacement := edits[i].ContentAfter
+			if status == api.EditStatusRejected {
+				replacement = edits[i].ContentBefore
+			}
+
+			blocks := engine.SegmentMarkdownBlocks(draft)
+			markerIdx := -1
+			for bi, b := range blocks {
+				if strings.Contains(b, marker) {
+					markerIdx = bi
+					break
+				}
+			}
+			if markerIdx == -1 {
+				continue
+			}
+
+			var anchorPrev, anchorNext string
+			if markerIdx == 0 {
+				anchorPrev = api.AnchorStartSentinel
+			} else {
+				anchorPrev = blocks[markerIdx-1]
+			}
+			if markerIdx == len(blocks)-1 {
+				anchorNext = api.AnchorEndSentinel
+			} else {
+				anchorNext = blocks[markerIdx+1]
+			}
+
+			tVal := true
+			edits[i].InlinedText = replacement
+			edits[i].AnchorPrev = anchorPrev
+			edits[i].AnchorNext = anchorNext
+			edits[i].BlockIndex = markerIdx
+			edits[i].Undoable = &tVal
+			edits[i].UndoReason = ""
+			edits[i].Status = status
+			edits[i].UpdatedAt = now
+
+			var newBlocks []string
+			for bi, b := range blocks {
+				if bi == markerIdx {
+					if strings.TrimSpace(b) == marker {
+						newBlocks = append(newBlocks, replacement)
+					} else {
+						newBlocks = append(newBlocks, strings.Replace(b, marker, replacement, 1))
+					}
+				} else {
+					newBlocks = append(newBlocks, b)
+				}
+			}
+			draft = joinMarkdownBlocks(newBlocks)
+			resolvedCount++
+		}
+
+		edits = recomputeUndoable(draft, edits)
+		src.Set("output_draft", draft)
+		src.Set("edits", pbutil.JSONObject(edits))
+		if err := tx.Save(src); err != nil {
+			return err
+		}
+
+		if resolvedCount > 0 {
+			verb := "accepted"
+			if status == api.EditStatusRejected {
+				verb = "rejected"
+			}
+			_ = recordRefinementNotice(
+				ctx, tx, parentID, sourceSnapshotID,
+				fmt.Sprintf("triage-all-%s-%d", status, time.Now().UnixNano()),
+				prompts.EditTriagePartType,
+				fmt.Sprintf("The user %s all %d proposed edits.", verb, resolvedCount),
+				map[string]any{
+					"status": status,
+					"count":  resolvedCount,
+				},
+			)
+		}
+
+		result = edits
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}

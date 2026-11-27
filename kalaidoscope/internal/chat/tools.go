@@ -1,13 +1,46 @@
-package refinement
+package chat
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"strconv"
+	"strings"
+
+	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
+	"github.com/north-shore-software/kalaido/kalaidoscope/internal/usage"
 	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
+
+var (
+	// ErrMessagesRequired indicates no messages were provided or generated for the prompt.
+	ErrMessagesRequired = errors.New("messages required")
+	// ErrNoModel indicates no model was configured for refinement chat.
+	ErrNoModel         = errors.New("no model configured for refinement")
+	ErrNoDraftedLens   = errors.New("no drafted lens found in chat")
+	ErrNoPreviewOutput = errors.New("the latest lens has no generated preview — send another message to regenerate")
+	ErrMissingParentID = errors.New("refinement missing parent target id")
+	ErrParentMismatch  = errors.New("refinement parent target id mismatch")
+)
+
+var SuggestNameTool = llm.Tool{
+	Name:        prompts.SuggestNameToolName,
+	Description: prompts.SuggestNameToolDescription,
+	Parameters: json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string",
+				"description": ` + strconv.Quote(prompts.SuggestNameParamDescription) + `
+			}
+		},
+		"required": ["name"]
+	}`),
+}
 
 // UpdateContextTool lets the model propose a context change. The handler
 // never applies the call itself: it streams the resulting spec back as a
@@ -105,21 +138,20 @@ func applyPins(current, pin, unpin []string) []string {
 }
 
 // IsContextConfirmed reports a send that carries the user's acceptance of a
-// proposed context change and no user text. The accepting message also
-// carries the new `context_spec`, which the ordinary spec machinery
-// resolves and announces; the turn then continues to the model so it can
-// act on the context it asked for.
+// proposed context change and no user text.
 func IsContextConfirmed(newMsgs []api.UIMessage) bool {
-	return hasSystemOnlyPart(newMsgs, prompts.ContextConfirmPartType)
+	return HasSystemOnlyPart(newMsgs, prompts.ContextConfirmPartType)
 }
 
 // IsContextCancelled reports a send that carries the user's refusal of a
 // proposed context change and no user text.
 func IsContextCancelled(newMsgs []api.UIMessage) bool {
-	return hasSystemOnlyPart(newMsgs, prompts.ContextCancelPartType)
+	return HasSystemOnlyPart(newMsgs, prompts.ContextCancelPartType)
 }
 
-func hasSystemOnlyPart(newMsgs []api.UIMessage, partType string) bool {
+// HasSystemOnlyPart reports whether newMsgs contains no user turn and at least
+// one system message carrying a part of type partType.
+func HasSystemOnlyPart(newMsgs []api.UIMessage, partType string) bool {
 	found := false
 	for _, m := range newMsgs {
 		if m.Role == "user" {
@@ -135,4 +167,49 @@ func hasSystemOnlyPart(newMsgs []api.UIMessage, partType string) bool {
 		}
 	}
 	return found
+}
+
+// ExtractSuggestedName returns the first non-blank suggest_name call argument.
+func ExtractSuggestedName(toolCalls []llm.ToolCall) string {
+	for _, tc := range toolCalls {
+		if tc.Name == prompts.SuggestNameToolName {
+			var args struct {
+				Name string `json:"name"`
+			}
+			if json.Unmarshal(tc.Args, &args) == nil && strings.TrimSpace(args.Name) != "" {
+				return strings.TrimSpace(args.Name)
+			}
+		}
+	}
+	return ""
+}
+
+// JSONStringChunk escapes one streamed text chunk for insertion into an
+// in-progress JSON string literal (e.g. fabricated apply_result args stream).
+func JSONStringChunk(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b[1 : len(b)-1])
+}
+
+// StreamNameOnlyContinuation makes the follow-up model call for a turn that
+// called suggest_name and nothing else, streaming its text into the open SSE
+// response. Returns the text, or "" if the call failed or stayed silent.
+func StreamNameOnlyContinuation(ctx context.Context, app core.App, sse *SSE, model string, msgs []llm.Message, turn AssistantTurn, textID string) string {
+	names := make([]string, 0, len(turn.ToolCalls))
+	for _, tc := range turn.ToolCalls {
+		names = append(names, tc.Name)
+	}
+	msgs = append(msgs,
+		llm.Message{Role: "assistant", Content: strings.TrimSpace(prompts.DiscoverEchoToolCalls(names))},
+		llm.Message{Role: "user", Content: prompts.NameRecordedContinue})
+	if err := llm.CheckPromptFits(model, llm.MessagesChars(msgs)); err != nil {
+		slog.Default().With("component", "chat").Warn("continuation prompt too large", "error", err)
+		return ""
+	}
+	comp, err := usage.Stream(ctx, app, llm.RoleRefinement, model, msgs, nil)
+	if err != nil {
+		slog.Default().With("component", "chat").Error("continuation failed", "error", err)
+		return ""
+	}
+	return sse.StreamTurn(comp, textID+"-c1", nil).Text
 }

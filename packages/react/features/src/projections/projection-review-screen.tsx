@@ -4,7 +4,6 @@ import {
 } from "@kalaido/client/kalaidoscope/chat";
 import { WHOLE_SCOPE_ITEM } from "@kalaido/client/kalaidoscope/context-items";
 import { parseProjectionOutput } from "@kalaido/client/kalaidoscope/projections";
-import { formatShortDateTime } from "@kalaido/client/lib/datetime";
 import { withContextItem } from "@kalaido/client/lib/mentions";
 import {
   type ChatPanelHandle,
@@ -19,7 +18,7 @@ import {
   useScope,
   useScopeState,
 } from "@kalaido/state/scope";
-import { WarningIcon } from "@phosphor-icons/react";
+import { InfoIcon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ReviewHeaderActions } from "./components/review-header-actions";
 import {
@@ -30,20 +29,15 @@ import { useCandidateTriage } from "./hooks/use-candidate-triage";
 import { useProjectionRefinement } from "./hooks/use-projection-refinement";
 import { useProjectionReviewActions } from "./hooks/use-projection-review-actions";
 import { useProjectionSnapshot } from "./hooks/use-projection-snapshot";
-import {
-  deriveReviewViewState,
-  formatDiscardDescription,
-} from "./outdated-reason";
+import { useUpdateCandidateStatus } from "./hooks/use-update-candidate-status";
+import { deriveReviewViewState } from "./outdated-reason";
 
 interface ReviewWorkflowState {
-  foldingIn: boolean;
   context: ContextItem[];
   refineInput: string;
 }
 
 type ReviewWorkflowEvent =
-  | { readonly type: "startFoldIn" }
-  | { readonly type: "clearFoldIn" }
   | { readonly type: "setContext"; readonly context: ContextItem[] }
   | { readonly type: "mentionContext"; readonly item: ContextItem }
   | { readonly type: "setRefineInput"; readonly input: string };
@@ -59,16 +53,11 @@ export interface ProjectionReviewScreenProps {
   renderCandidateRedirect?: (id: string, snapshotId: string) => ReactNode;
   onApproveSuccess: (id: string) => void;
   onBackToDetail: (id: string) => void;
+  onBackToList: (opts?: { replace?: boolean }) => void;
 }
 
 const REVIEW_HANDLERS: ScopeHandlers<ReviewWorkflowState, ReviewWorkflowEvent> =
   {
-    startFoldIn: (s) => {
-      s.foldingIn = true;
-    },
-    clearFoldIn: (s) => {
-      s.foldingIn = false;
-    },
     setContext: (s, e) => {
       s.context = e.context;
     },
@@ -80,11 +69,6 @@ const REVIEW_HANDLERS: ScopeHandlers<ReviewWorkflowState, ReviewWorkflowEvent> =
     },
   };
 
-/**
- * A fold-in ("Approve & fold in" on the outdated-candidate card) moves between
- * candidates of the same projection without leaving this route — key the page
- * on the candidate to force a clean mount.
- */
 export function ProjectionReviewScreen(props: ProjectionReviewScreenProps) {
   return (
     <ProjectionReviewScreenInner
@@ -101,26 +85,47 @@ function ProjectionReviewScreenInner({
   renderCandidateRedirect,
   onApproveSuccess,
   onBackToDetail,
+  onBackToList,
 }: ProjectionReviewScreenProps) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const scope = useScope({
     initial: (): ReviewWorkflowState => ({
-      foldingIn: false,
       context: [WHOLE_SCOPE_ITEM],
       refineInput: "",
     }),
     handlers: REVIEW_HANDLERS,
   });
 
-  const { foldingIn, context, refineInput } = useScopeState(scope);
-  const { projection, snapshots, liveSnapshot } = useProjectionSnapshot(id);
+  const { context, refineInput } = useScopeState(scope);
+  const {
+    projection,
+    snapshots,
+    liveSnapshot,
+    generatingSnapshotId,
+    isLoading,
+  } = useProjectionSnapshot(id);
 
   const pending = snapshots.find((s) => s.status === "pending_review");
   const pendingId = pending?.id;
+  const isGeneratingClaim = generatingSnapshotId === snapshotId;
+  const hasSnapshotRecord = snapshots.some((s) => s.id === snapshotId);
+  const isNeverSaved = !liveSnapshot;
+
+  const { isGenerating, updateError, retrying, retryUpdate } =
+    useUpdateCandidateStatus({
+      id,
+      snapshotId,
+      isLoading,
+      hasPending: Boolean(pending),
+      isGeneratingClaim,
+      hasSnapshotRecord,
+      onViewReview,
+    });
 
   const { byId: statusById } = useFreshnessStatus();
   const candStatus = id ? statusById.get(id)?.candidate : undefined;
+  const newSinceCandidate = candStatus?.newFragmentIds?.length ?? 0;
 
   const ctxInitedFor = useRef<string | null>(null);
   useEffect(() => {
@@ -164,12 +169,15 @@ function ProjectionReviewScreenInner({
     id,
     pendingId,
     session,
-    startFoldIn: () => scope.dispatch({ type: "startFoldIn" }),
-    clearFoldIn: () => scope.dispatch({ type: "clearFoldIn" }),
     onCloseConfirmDiscard: () => setConfirmDiscard(false),
-    onViewReview,
     onApproveSuccess,
+    onBackToDetail,
+    onBackToList,
   });
+
+  const handleLeaveDraft = isNeverSaved
+    ? () => onBackToList()
+    : () => onBackToDetail(id);
 
   async function startRefine() {
     const text = refineInput.trim();
@@ -182,28 +190,28 @@ function ProjectionReviewScreenInner({
     });
   }
 
-  const generatedAt = pending
-    ? formatShortDateTime(pending.generated_at || pending.created)
-    : "";
   const title = projection?.name || "Projection";
+  const busy = actions.busy || isGenerating;
   const view = deriveReviewViewState({
     pendingId,
-    pendingGeneratedAt: generatedAt,
-    candStatus,
+    snapshotId,
+    isGeneratingClaim,
+    hasRedirect: Boolean(renderCandidateRedirect),
+    isNeverSaved,
+    discarding: actions.discarding,
+    newSinceCandidate,
     previewLength: session.preview.length,
     activeDraft: triage.activeDraft,
-    busy: actions.busy,
+    busy,
     sessionPhase: session.phase,
     hasUnresolvedEdits: triage.hasUnresolvedEdits,
-    proposedEditsCount: triage.proposedEditsCount,
-    edits: triage.edits,
     title,
   });
   const currentContent = liveSnapshot
     ? parseProjectionOutput(liveSnapshot.output).content
     : undefined;
 
-  if (pendingId && pendingId !== snapshotId && renderCandidateRedirect) {
+  if (view.shouldRedirectToPending && pendingId && renderCandidateRedirect) {
     return renderCandidateRedirect(id, pendingId);
   }
 
@@ -215,53 +223,52 @@ function ProjectionReviewScreenInner({
         actions={
           <ReviewHeaderActions
             pendingEmpty={view.pendingEmpty}
+            hasPending={Boolean(pending)}
             edits={triage.edits}
+            proposedEditsCount={triage.proposedEditsCount}
+            resolvingAll={triage.resolvingAll}
             canJumpNext={triage.canJumpNext}
             canJumpPrev={triage.canJumpPrev}
             onJumpNext={triage.jumpToNextEdit}
             onJumpPrev={triage.jumpToPrevEdit}
-            gateOpen={view.gateOpen}
+            onAcceptAll={() => void triage.handleResolveAll("approved")}
+            onRejectAll={() => void triage.handleResolveAll("rejected")}
             approveBlocked={view.approveBlocked}
-            hasDraftedLens={session.hasDraftedLens}
-            onBackToDetail={() => onBackToDetail(id)}
-            onApprove={() => void actions.approve()}
+            saving={actions.saving}
+            busy={busy}
+            onBackToDetail={handleLeaveDraft}
+            onRequestDiscard={() => setConfirmDiscard(true)}
+            onApprove={() => void actions.save()}
           />
         }
       />
       <PageCard>
-        {view.gateOpen && (
-          <div className="flex shrink-0 items-center justify-between border-b border-line bg-surface-2 px-4 py-2.5 text-body-sm">
-            <div className="flex items-center gap-2 text-fg-2">
-              <WarningIcon className="size-4 shrink-0 text-drifting-ink" />
-              <span>
-                Candidate is out of date ({view.outdatedReason}) · Generated{" "}
-                {generatedAt}
-              </span>
-            </div>
+        {view.newSinceBanner && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface-2 px-4 py-2 text-body-sm text-fg-3">
+            <InfoIcon className="size-4 shrink-0 text-fg-4" />
+            <span>{view.newSinceBanner}</span>
           </div>
         )}
         <div className="flex min-h-0 flex-1">
           <ReviewCanvasColumn
-            hasPending={!!pending}
+            hasPending={Boolean(pending)}
+            isGenerating={isGenerating}
+            updateError={updateError}
+            retrying={retrying}
+            onRetryUpdate={() => void retryUpdate()}
+            onBackToProjection={handleLeaveDraft}
             currentContent={currentContent}
             triage={triage}
-            busy={actions.busy}
-            frozen={view.gateOpen}
+            busy={busy}
             snapshotId={snapshotId}
-            foldingIn={foldingIn}
           />
           <ReviewRefineColumn
             chatPanelRef={chatPanelRef}
             session={session}
             context={context as ContextItem[]}
             refineInput={refineInput}
-            hasPending={!!pending}
-            gateOpen={view.gateOpen}
-            gateDescription={view.gateDescription}
-            isCandidateEngaged={view.isCandidateEngaged}
-            foldingIn={foldingIn}
-            busy={actions.busy}
-            approveBlocked={view.approveBlocked}
+            hasPending={Boolean(pending)}
+            isGenerating={isGenerating}
             highlightedEditId={triage.highlightedEditId}
             edits={triage.edits}
             onUndoEdit={triage.handleUndoEdit}
@@ -275,21 +282,18 @@ function ProjectionReviewScreenInner({
               void scope.dispatch({ type: "setRefineInput", input: next })
             }
             onStartRefine={() => void startRefine()}
-            onFoldIn={() => void actions.handleApproveAndRefresh()}
-            onRequestStartOver={() => setConfirmDiscard(true)}
-            onRefresh={() => void actions.handleRefresh()}
           />
         </div>
       </PageCard>
       <ConfirmDialog
         open={confirmDiscard}
         onOpenChange={setConfirmDiscard}
-        title="Start over from a fresh candidate?"
-        description={formatDiscardDescription(view.engagedEditsCount)}
-        confirmLabel={view.confirmDiscardLabel}
+        title={view.discardTitle}
+        description={view.discardDescription}
+        confirmLabel={view.discardConfirmLabel}
         variant="destructive"
         busy={actions.busy}
-        onConfirm={() => void actions.handleDiscardAndRefresh()}
+        onConfirm={() => void actions.discard()}
       />
     </>
   );

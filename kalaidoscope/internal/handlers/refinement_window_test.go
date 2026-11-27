@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,10 +19,47 @@ import (
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/prompts"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reconcile"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/refinement"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/reflections"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/testutil"
+	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 )
+
+type refineScript struct {
+	lens     string
+	applyOut string
+
+	mu         sync.Mutex
+	applyCalls []string
+}
+
+func (s *refineScript) ContextWindow() int { return 256_000 }
+
+func (s *refineScript) Stream(_ context.Context, msgs []llm.Message, tools []llm.Tool, _ llm.GenOptions) (*llm.Completion, error) {
+	ch := make(chan llm.StreamEvent, 4)
+	if len(tools) > 0 {
+		args, _ := json.Marshal(prompts.SetLensArgs{Prompt: s.lens})
+		ch <- llm.StreamEvent{Kind: llm.EventToolStart, ToolCallID: "tc-1", ToolName: prompts.SetLensToolName}
+		ch <- llm.StreamEvent{Kind: llm.EventToolEnd, ToolCallID: "tc-1", ToolName: prompts.SetLensToolName, Args: args}
+		close(ch)
+		return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
+	}
+	s.mu.Lock()
+	if len(msgs) > 0 {
+		s.applyCalls = append(s.applyCalls, msgs[len(msgs)-1].Content)
+	}
+	s.mu.Unlock()
+	ch <- llm.StreamEvent{Kind: llm.EventText, Text: s.applyOut}
+	close(ch)
+	return &llm.Completion{Events: ch, Wait: func() *llm.Usage { return nil }}, nil
+}
+
+func (s *refineScript) install(t *testing.T) {
+	t.Helper()
+	llm.SetActiveModelSet(llm.SetLocal)
+	llm.SetProviderFactory(func(model string, cfg llm.WorkspaceConfig) llm.Provider {
+		return s
+	})
+}
 
 // A reflection refinement is bound to a target window: the session is seeded
 // with the reflection's current window, the apply leg sees only fragments
@@ -91,7 +129,7 @@ func TestReflectionRefinementIsScopedToItsWindow(t *testing.T) {
 	e = &core.RequestEvent{App: app}
 	e.Request = httptest.NewRequest("POST", "/api/chat", nil)
 	e.Response = rec
-	if err := HandleChatForRefinement(app, req, refRec)(e); err != nil {
+	if err := HandleReflectionChatForRefinement(app, req, refRec)(e); err != nil {
 		t.Fatalf("chat turn: %v", err)
 	}
 
@@ -170,7 +208,7 @@ func TestRefinementRefusesContextTooLarge(t *testing.T) {
 	e := &core.RequestEvent{App: app}
 	e.Request = httptest.NewRequest("POST", "/api/chat", nil)
 	e.Response = rec
-	err := HandleChatForRefinement(app, req, refRec(t, app, ref))(e)
+	err := HandleProjectionChatForRefinement(app, req, refRec(t, app, ref))(e)
 	if err == nil {
 		t.Fatalf("expected a refusal, got 200:\n%.200s", rec.Body.String())
 	}
@@ -310,7 +348,7 @@ func TestReflectionRefinementSeedsCurrentLens(t *testing.T) {
 	for _, p := range assistant.Parts {
 		parts[p.Type] = p.Data
 	}
-	if _, ok := parts[refinement.LensSeedPartType]; !ok {
+	if _, ok := parts[reflections.LensSeedPartType]; !ok {
 		t.Error("seed turn lacks the lens_seed marker")
 	}
 	var lensCall struct {
@@ -384,7 +422,7 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 	e := &core.RequestEvent{App: app}
 	e.Request = httptest.NewRequest("POST", "/api/chat", nil)
 	e.Response = rec
-	if err := HandleChatForRefinement(app, req, refRec)(e); err != nil {
+	if err := HandleReflectionChatForRefinement(app, req, refRec)(e); err != nil {
 		t.Fatalf("re-apply turn: %v", err)
 	}
 
@@ -413,7 +451,7 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 	for _, p := range last.Parts {
 		types[p.Type] = true
 	}
-	if !types[llmcontext.WindowReapplyPartType] || !types["tool-"+prompts.UpdateLensToolName] || !types["tool-"+prompts.ApplyResultToolName] {
+	if !types[llmcontext.WindowReapplyPartType] || !types[prompts.LensPartType] || !types["tool-"+prompts.ApplyResultToolName] {
 		t.Errorf("re-apply turn parts = %v, want marker + lens + apply", types)
 	}
 	for _, m := range llmcontext.Flatten(msgs) {
@@ -432,7 +470,7 @@ func TestReflectionRefinementReappliesOnWindowChange(t *testing.T) {
 	}
 
 	// A commit now installs the lens; the re-applied window's output is not published.
-	lens, output, _, _, win, err := refinement.ExtractDraftedLensAndSpec(app, refRec)
+	lens, output, _, _, win, err := reflections.ExtractDraftedLensAndSpec(app, refRec)
 	if err != nil || lens != "THE CURRENT LENS" || output != "LAST WEEK'S PREVIEW" || win == nil || win.ID != previous.ID {
 		t.Errorf("commit payload = lens %q output %q win %+v (err %v)", lens, output, win, err)
 	}

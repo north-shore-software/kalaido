@@ -2,9 +2,26 @@ import type { Result } from "neverthrow";
 import { ClientResponseError } from "pocketbase";
 import { GenerationInFlightError } from "#kalaidoscope/projections";
 import { withActiveClient } from "./_active";
-import type { TimeWindow, WindowSpec } from "./chat";
+import type { ContextSpec, TimeWindow, WindowSpec } from "./chat";
+
+export const REFLECTION_EMPTY_WINDOW_OUTPUT = "No fragments in this window.";
+export const REFLECTION_MODEL_EMPTY = "empty";
+export const REFLECTION_MODEL_MANUAL = "manual";
+
+export function isReflectionSentinelModel(model: string | undefined): boolean {
+  return model === REFLECTION_MODEL_EMPTY || model === REFLECTION_MODEL_MANUAL;
+}
 
 export interface CreateReflectionResult {
+  readonly id: string;
+}
+
+export interface ReflectionLens {
+  readonly lensId: string;
+  readonly prompt: string;
+}
+
+export interface EditReflectionWindowResult {
   readonly id: string;
 }
 
@@ -49,6 +66,8 @@ export interface ReflectionWindow extends TimeWindow {
   backfilled: boolean;
   /** An approved snapshot exists but the window's context has changed since. */
   stale?: boolean;
+  /** The approved snapshot was produced by a lens other than the current one. */
+  lensOutdated?: boolean;
 }
 
 export interface ReflectionWindowsResult {
@@ -174,4 +193,192 @@ export async function restoreReflection(
       method: "POST",
     });
   });
+}
+
+/** Read a reflection's current standing lens prompt. Mirrors `GET /api/reflections/:id/lens`. */
+export async function getReflectionLens(
+  reflectionId: string,
+): Promise<Result<ReflectionLens, Error>> {
+  return withActiveClient((client) =>
+    client.send<ReflectionLens>(`/api/reflections/${reflectionId}/lens`, {
+      method: "GET",
+      requestKey: null,
+    }),
+  );
+}
+
+/** Save a revised standing lens prompt directly. Mirrors `PUT /api/reflections/:id/lens`. */
+export async function updateReflectionLens(
+  reflectionId: string,
+  prompt: string,
+): Promise<Result<ReflectionLens, Error>> {
+  return withActiveClient((client) =>
+    client.send<ReflectionLens>(`/api/reflections/${reflectionId}/lens`, {
+      method: "PUT",
+      body: { prompt },
+    }),
+  );
+}
+
+/**
+ * Directly edit the markdown/text of a specific reflection window's snapshot.
+ * Appends a new approved revision (`generated_by_model = "manual"`). Mirrors
+ * `POST /api/reflections/:id/windows/:windowId/edit`.
+ */
+export async function editReflectionWindowSnapshot(
+  reflectionId: string,
+  windowId: string,
+  output: string,
+): Promise<Result<EditReflectionWindowResult, Error>> {
+  return (
+    await withActiveClient((client) =>
+      client.send<{ snapshotId: string }>(
+        `/api/reflections/${reflectionId}/windows/${windowId}/edit`,
+        {
+          method: "POST",
+          body: { output },
+        },
+      ),
+    )
+  ).map((r) => ({ id: r.snapshotId }));
+}
+
+/** Candidate sample window returned by `POST /api/reflections/preview-windows`. */
+export interface PreviewReflectionWindow extends TimeWindow {
+  id: string;
+  key: string;
+  fragmentCount: number;
+}
+
+export interface PreviewReflectionWindowsResult {
+  windows: PreviewReflectionWindow[];
+  defaultWindowId?: string;
+}
+
+export interface PreviewReflectionResult {
+  output: string;
+  empty: boolean;
+  fragmentCount: number;
+}
+
+export interface SaveReflectionTuningInput {
+  refinementId?: string;
+  windowSpec?: WindowSpec;
+  contextSpec?: ContextSpec;
+  lensPrompt?: string;
+  name?: string;
+}
+
+export interface SaveReflectionTuningResult {
+  readonly id: string;
+  readonly lensId: string;
+}
+
+export interface DiscardReflectionDraftResult {
+  readonly id: string;
+  readonly deletedReflection?: boolean;
+  readonly revertedToProposed?: boolean;
+}
+
+/**
+ * Enumerate sample windows and matching fragment counts for a staged
+ * `(windowSpec, contextSpec)` without mutating any reflection record or making
+ * any LLM call. Mirrors `POST /api/reflections/preview-windows`.
+ */
+export async function previewReflectionWindows(
+  windowSpec: WindowSpec,
+  contextSpec: ContextSpec,
+  reflectionId?: string,
+): Promise<Result<PreviewReflectionWindowsResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<PreviewReflectionWindowsResult>(
+      "/api/reflections/preview-windows",
+      {
+        method: "POST",
+        requestKey: null,
+        body: {
+          ...(reflectionId ? { reflectionId } : {}),
+          windowSpec,
+          contextSpec,
+        },
+      },
+    ),
+  );
+}
+
+/**
+ * Run a staged standing lens strictly in isolation against one sample window's
+ * fragments (zero chat history, zero database writes). Mirrors
+ * `POST /api/reflections/preview`.
+ */
+export async function previewReflection(input: {
+  reflectionId?: string;
+  lensPrompt: string;
+  contextSpec: ContextSpec;
+  window: TimeWindow;
+  generateWithModel?: string;
+}): Promise<Result<PreviewReflectionResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<PreviewReflectionResult>("/api/reflections/preview", {
+      method: "POST",
+      requestKey: null,
+      body: {
+        ...(input.reflectionId ? { reflectionId: input.reflectionId } : {}),
+        lensPrompt: input.lensPrompt,
+        contextSpec: input.contextSpec,
+        window: {
+          id: input.window.id ?? "",
+          start: input.window.start,
+          end: input.window.end,
+        },
+        ...(input.generateWithModel
+          ? { generateWithModel: input.generateWithModel }
+          : {}),
+      },
+    }),
+  );
+}
+
+/**
+ * Atomically persist staged schedule, sources, standing lens, and optional name
+ * on Save. Uses the refinement commit endpoint when `refinementId` is present,
+ * or `POST /api/reflections/:id/save` when no chat session was opened.
+ */
+export async function saveReflectionTuning(
+  reflectionId: string,
+  input: SaveReflectionTuningInput,
+): Promise<Result<SaveReflectionTuningResult, Error>> {
+  const path = input.refinementId
+    ? `/api/reflections/${reflectionId}/refinements/${input.refinementId}/commit`
+    : `/api/reflections/${reflectionId}/save`;
+  const body = {
+    ...(input.windowSpec ? { windowSpec: input.windowSpec } : {}),
+    ...(input.contextSpec ? { contextSpec: input.contextSpec } : {}),
+    ...(input.lensPrompt !== undefined ? { lensPrompt: input.lensPrompt } : {}),
+    ...(input.name !== undefined ? { name: input.name } : {}),
+  };
+  return (
+    await withActiveClient((client) =>
+      client.send<{ id?: string; lensId?: string }>(path, {
+        method: "POST",
+        body,
+      }),
+    )
+  ).map((r) => ({ id: r.id || reflectionId, lensId: r.lensId ?? "" }));
+}
+
+/**
+ * Discard an unsaved reflection draft (`current_lens_id == ""`): hard-deletes
+ * user-created drafts or reverts Discover proposals back to `proposed`.
+ * Mirrors `POST /api/reflections/:id/draft/discard`.
+ */
+export async function discardReflectionDraft(
+  reflectionId: string,
+): Promise<Result<DiscardReflectionDraftResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<DiscardReflectionDraftResult>(
+      `/api/reflections/${reflectionId}/draft/discard`,
+      { method: "POST", body: {} },
+    ),
+  );
 }

@@ -3,9 +3,12 @@ import {
   buildWindowSpec,
   CADENCE_DAYS,
   cadenceFromSpec,
+  countGridWindows,
   DEFAULT_CADENCE,
+  dateInputToEndTime,
   dateInputToStartTime,
   describeRecurrence,
+  describeWindow,
   toDateInputValue,
 } from "./schedule";
 
@@ -83,5 +86,52 @@ describe("describeRecurrence", () => {
     expect(describeRecurrence(2, undefined, now)).toBe(
       "New summary every 30 days, covering the previous 30 days.",
     );
+  });
+
+  it("describes bounded endTime and paused schedules", () => {
+    const end = dateInputToEndTime("2026-10-20");
+    expect(describeRecurrence(1, start, now, end, false)).toContain(
+      "Bounded summary",
+    );
+    expect(describeRecurrence(1, start, now, undefined, true)).toContain(
+      "Schedule paused",
+    );
+  });
+});
+
+describe("bounded and paused window specs", () => {
+  it("round-trips endTime and paused through buildWindowSpec and cadenceFromSpec", () => {
+    const spec = buildWindowSpec({
+      cadenceDays: 7,
+      lookbackDays: 7,
+      startTime: "2026-09-01T00:00:00.000Z",
+      endTime: "2026-10-01T23:59:59.000Z",
+      paused: true,
+    });
+    expect(cadenceFromSpec(spec)).toEqual({
+      cadence: 1,
+      startTime: "2026-09-01T00:00:00.000Z",
+      endTime: "2026-10-01T23:59:59.000Z",
+      paused: true,
+    });
+    expect(describeWindow(spec)).toMatchObject({
+      freq: "paused",
+      win: "7d",
+      scheduled: true,
+      paused: true,
+      endTime: "2026-10-01T23:59:59.000Z",
+    });
+  });
+
+  it("caps countGridWindows at endTime when bounded", () => {
+    const now = new Date("2026-10-30T00:00:00.000Z");
+    expect(
+      countGridWindows(
+        "2026-10-01T00:00:00.000Z",
+        7,
+        now,
+        "2026-10-16T00:00:00.000Z",
+      ),
+    ).toBe(2);
   });
 });

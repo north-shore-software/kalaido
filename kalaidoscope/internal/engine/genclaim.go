@@ -83,8 +83,12 @@ func ClaimGeneration(app core.App, strat Strategy, parentID string, window *api.
 	return claimID, nil
 }
 
-// releaseClaim deletes an unfilled claim row after a failed generation. A row
+// ReleaseClaim deletes an unfilled claim row after a failed generation. A row
 // that already advanced past StatusGenerating is left alone.
+func ReleaseClaim(app core.App, strat Strategy, claimID string) {
+	releaseClaim(app, strat, claimID)
+}
+
 func releaseClaim(app core.App, strat Strategy, claimID string) {
 	rec, err := app.FindRecordById(strat.SnapshotCollectionName(), claimID)
 	if err != nil {
@@ -97,6 +101,12 @@ func releaseClaim(app core.App, strat Strategy, claimID string) {
 		logger().Error("generation claim release failed", "claim_id", claimID, "error", err)
 		return
 	}
+}
+
+// DiscardOtherPending supersedes every other pending candidate for the same
+// parent (and window), leaving exceptID as the single reviewable one.
+func DiscardOtherPending(tx core.App, strat Strategy, parentID string, window *api.Window, exceptID string) error {
+	return discardOtherPending(tx, strat, parentID, window, exceptID)
 }
 
 // discardOtherPending supersedes every other pending candidate for the same

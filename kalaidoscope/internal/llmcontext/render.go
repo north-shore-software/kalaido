@@ -83,6 +83,23 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 					}
 					sb.WriteString(prompts.LensEcho(prompts.UpdateLensToolName, data.Lens))
 				}
+			case p.Type == "tool-"+prompts.SetLensToolName:
+				var data struct {
+					ToolName string `json:"toolName"`
+					Input    struct {
+						Prompt string `json:"prompt"`
+					} `json:"input"`
+				}
+				if err := json.Unmarshal(p.Data, &data); err == nil && strings.TrimSpace(data.Input.Prompt) != "" {
+					if sb.Len() > 0 {
+						sb.WriteString("\n\n")
+					}
+					name := data.ToolName
+					if name == "" {
+						name = prompts.SetLensToolName
+					}
+					sb.WriteString(prompts.LensEcho(name, strings.TrimSpace(data.Input.Prompt)))
+				}
 			case p.Type == "tool-"+prompts.UpdateLensToolName:
 				var data struct {
 					ToolName string `json:"toolName"`
@@ -107,6 +124,14 @@ func Flatten(uiMsgs []api.UIMessage) []llm.Message {
 						sb.WriteString("\n\n")
 					}
 					sb.WriteString(prompts.ContextProposalEcho(data.Reason))
+				}
+			case p.Type == prompts.FullRewriteConfirmationPartType:
+				var data prompts.FullRewriteConfirmationData
+				if err := json.Unmarshal(p.Data, &data); err == nil {
+					if sb.Len() > 0 {
+						sb.WriteString("\n\n")
+					}
+					sb.WriteString(prompts.FullRewriteProposalEcho(data.Reason))
 				}
 			}
 		}

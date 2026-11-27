@@ -1,14 +1,12 @@
 package engine
 
 import (
-	"context"
 	"log/slog"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
 )
 
 func logger() *slog.Logger {
@@ -23,12 +21,8 @@ type Strategy interface {
 	ForeignKeyCol() string
 	RefinementForeignKeyCol() string
 
-	EnsureFragmentsOnly() bool
-
 	ApplySnapshotWindow(snap *core.Record, win *api.Window)
 	SnapshotWindowFilter(win *api.Window) (string, dbx.Params)
-
-	CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (newSnapID string, err error)
 
 	ScrubSpec(spec *api.ContextSpec, id string)
 }

@@ -257,3 +257,50 @@ func DiffAndMarkBlocks(before, after string, origin api.SnapshotEditType) (strin
 
 	return strings.Join(draftBlocks, "\n\n"), edits
 }
+
+// FullRewriteThreshold is the fraction of markdown blocks changed above which
+// a projection update asks the user to confirm replacing the full body rather
+// than emitting noisy whole-document diff hunks.
+const FullRewriteThreshold = 0.60
+
+// ChangedBlockRatio returns the proportion of blocks (in [0, 1]) that changed
+// between before and after, measured against max(len(blocksBefore), len(blocksAfter)).
+func ChangedBlockRatio(before, after string) float64 {
+	if before == after {
+		return 0
+	}
+	blocksA := SegmentMarkdownBlocks(before)
+	blocksB := SegmentMarkdownBlocks(after)
+	denom := len(blocksA)
+	if len(blocksB) > denom {
+		denom = len(blocksB)
+	}
+	if denom == 0 {
+		return 0
+	}
+	ops := myersDiff(blocksA, blocksB)
+	equal := 0
+	for _, op := range ops {
+		if op.tag == opEqual {
+			equal++
+		}
+	}
+	ratio := 1.0 - float64(equal)/float64(denom)
+	if ratio < 0 {
+		return 0
+	}
+	if ratio > 1 {
+		return 1
+	}
+	return ratio
+}
+
+// ExceedsFullRewriteThreshold reports whether rewriting before into after
+// replaces more than FullRewriteThreshold of a multi-block document.
+func ExceedsFullRewriteThreshold(before, after string) bool {
+	blocksA := SegmentMarkdownBlocks(before)
+	if len(blocksA) < 2 {
+		return false
+	}
+	return ChangedBlockRatio(before, after) > FullRewriteThreshold
+}

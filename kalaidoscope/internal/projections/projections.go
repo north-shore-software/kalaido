@@ -11,8 +11,6 @@ import (
 
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
-	"github.com/north-shore-software/kalaido/kalaidoscope/internal/llmcontext"
-	"github.com/north-shore-software/kalaido/kalaidoscope/llm"
 	"github.com/north-shore-software/kalaido/kalaidoscope/schema"
 )
 
@@ -27,32 +25,9 @@ func (s Strategy) LensCollectionName() string                             { retu
 func (s Strategy) SnapshotCollectionName() string                         { return schema.ColProjectionSnapshot.String() }
 func (s Strategy) ForeignKeyCol() string                                  { return "projection_id" }
 func (s Strategy) RefinementForeignKeyCol() string                        { return "created_from_projection_refinement_id" }
-func (s Strategy) EnsureFragmentsOnly() bool                              { return false }
 func (s Strategy) ApplySnapshotWindow(snap *core.Record, win *api.Window) {}
 func (s Strategy) SnapshotWindowFilter(win *api.Window) (string, dbx.Params) {
 	return "", nil
-}
-func (s Strategy) CommitRefinementSnapshot(ctx context.Context, tx core.App, parentRec *core.Record, lensRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, refinementID string) (string, error) {
-	model, _ := llm.ResolveRoleFor(llm.RoleSnapshot, parentRec.GetString("generate_with_model"))
-	newSnapID, err := engine.AppendSnapshot(ctx, tx, s, engine.SnapshotSpec{
-		SourceID:                parentRec.Id,
-		LensID:                  lensRec.Id,
-		Output:                  "",
-		OutputDraft:             output,
-		OutputRaw:               output,
-		ContextSpec:             spec,
-		ResolvedContext:         pinned,
-		Status:                  engine.StatusPending,
-		Model:                   model,
-		CreatedFromRefinementID: refinementID,
-	})
-	if err != nil {
-		return "", err
-	}
-	if err := engine.ApproveSnapshot(ctx, tx, s, newSnapID); err != nil {
-		return "", err
-	}
-	return newSnapID, nil
 }
 func (s Strategy) ScrubSpec(spec *api.ContextSpec, id string) {
 	spec.SourceProjectionIDs = engine.RemoveID(spec.SourceProjectionIDs, id)

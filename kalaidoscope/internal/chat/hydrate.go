@@ -168,12 +168,6 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 							}
 						}
 					}
-				case prompts.RegenerateCancelPartType:
-					if p.Text != "" {
-						notices = append(notices, p.Text)
-					} else {
-						notices = append(notices, prompts.RegenerateCancelledNotice())
-					}
 				case prompts.ContextConfirmPartType:
 					if p.Text != "" {
 						notices = append(notices, p.Text)
@@ -185,6 +179,18 @@ func HydrateDeltaHistory(ctx context.Context, app core.App, allMsgs []api.UIMess
 						notices = append(notices, p.Text)
 					} else {
 						notices = append(notices, prompts.ContextCancelledNotice())
+					}
+				case prompts.FullRewriteConfirmPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else {
+						notices = append(notices, prompts.FullRewriteConfirmedNotice())
+					}
+				case prompts.FullRewriteCancelPartType:
+					if p.Text != "" {
+						notices = append(notices, p.Text)
+					} else {
+						notices = append(notices, prompts.FullRewriteCancelledNotice())
 					}
 				case prompts.RefineProposalResultPartType:
 					if p.Text != "" {

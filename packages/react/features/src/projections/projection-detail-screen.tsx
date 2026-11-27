@@ -7,6 +7,7 @@ import { useFreshnessStatus } from "@kalaido/hooks/use-freshness-status";
 import { ConfirmDialog } from "@kalaido/primitives/kalaido";
 import { PageCard } from "@kalaido/primitives/layout/page-primitives";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { ProjectionBriefDialog } from "./components/projection-brief-dialog";
 import { ProjectionDetailActions } from "./components/projection-detail-actions";
 import { ProjectionDraftEditor } from "./components/projection-draft-editor";
 import { ProjectionSideRail } from "./components/projection-side-rail";
@@ -20,6 +21,7 @@ import {
   deriveHistoricalSnapshot,
   resolveUpstreamNames,
   shouldRedirectToPendingReview,
+  shouldStartFreshWithUpdate,
 } from "./detail-helpers";
 import { useProjectionDetailActions } from "./hooks/use-projection-detail-actions";
 import { useProjectionRefinement } from "./hooks/use-projection-refinement";
@@ -57,9 +59,19 @@ export function ProjectionDetailScreen({
   const { state, projection, snapshots, liveSnapshot, generating } =
     useProjectionSnapshot(id);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDiscardDraft, setConfirmDiscardDraft] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
 
-  const { regenerating, remove, handleRefresh, handleRename } =
-    useProjectionDetailActions({ id, onBackToList, onReviewCandidate });
+  const {
+    regenerating,
+    revising,
+    discardingDraft,
+    remove,
+    handleRefresh,
+    handleRevise,
+    handleDiscardDraft,
+    handleRename,
+  } = useProjectionDetailActions({ id, onBackToList, onReviewCandidate });
 
   const pendingCandidate = snapshots.find((s) => s.status === "pending_review");
   const readOnly = !!snapshotId;
@@ -160,14 +172,16 @@ export function ProjectionDetailScreen({
 
   if (resumed) {
     return (
-      <ProjectionDraftEditor
+      <ResumedDraftView
         session={authoringSession}
         projectionId={id}
         title={header.draftTitle}
-        crumb={["Projections", header.draftTitle, "Draft"]}
         initialContext={authoringRefineContext}
+        confirmDiscard={confirmDiscardDraft}
+        discarding={discardingDraft}
+        onConfirmDiscardChange={setConfirmDiscardDraft}
         onTitleCommit={draftName.rename}
-        onCancel={() => onBackToList()}
+        onDiscard={() => void handleDiscardDraft()}
         onApproveSuccess={onOpenDetail}
       />
     );
@@ -175,6 +189,17 @@ export function ProjectionDetailScreen({
 
   const handleReviewPending = header.pendingCandidateId
     ? () => onReviewCandidate(id, header.pendingCandidateId as string)
+    : undefined;
+  const startFreshIsUpdate = shouldStartFreshWithUpdate({
+    newSinceCandidate: freshness.newSinceCandidate,
+    entropy: info.entropy,
+    staleDependenciesCount: info.staleDependencies.length,
+  });
+  const handleDiscardAndStartFresh = header.pendingCandidateId
+    ? () =>
+        void (startFreshIsUpdate
+          ? handleRefresh({ discardExisting: true })
+          : handleRevise())
     : undefined;
 
   return (
@@ -188,6 +213,7 @@ export function ProjectionDetailScreen({
         actions={
           !readOnly && (
             <ProjectionDetailActions
+              onViewBrief={() => setBriefOpen(true)}
               onFork={(mode) =>
                 onFork(
                   buildForkSeed({
@@ -203,6 +229,11 @@ export function ProjectionDetailScreen({
             />
           )
         }
+      />
+      <ProjectionBriefDialog
+        open={briefOpen}
+        onOpenChange={setBriefOpen}
+        projectionId={id}
       />
       <ConfirmDialog
         open={confirmDelete}
@@ -232,14 +263,70 @@ export function ProjectionDetailScreen({
             generatedAt={header.generatedAt}
             staleDependencyNames={staleDependencyNames}
             onReviewCandidate={handleReviewPending}
+            onDiscardAndStartFresh={handleDiscardAndStartFresh}
+            startFreshIsUpdate={startFreshIsUpdate}
             newSinceCandidate={freshness.newSinceCandidate}
             regenerating={regenerating}
+            revising={revising}
             onRefresh={() => void handleRefresh()}
+            onRevise={() => void handleRevise()}
             onBackToLive={() => onViewLive(id)}
             timeline={timeline}
           />
         </div>
       </PageCard>
+    </>
+  );
+}
+
+function ResumedDraftView({
+  session,
+  projectionId,
+  title,
+  initialContext,
+  confirmDiscard,
+  discarding,
+  onConfirmDiscardChange,
+  onTitleCommit,
+  onDiscard,
+  onApproveSuccess,
+}: {
+  session: ReturnType<typeof useProjectionRefinement>["session"];
+  projectionId: string;
+  title: string;
+  initialContext: ReturnType<typeof useProjectionRefinement>["context"];
+  confirmDiscard: boolean;
+  discarding: boolean;
+  onConfirmDiscardChange: (open: boolean) => void;
+  onTitleCommit: (next: string) => void;
+  onDiscard: () => void;
+  onApproveSuccess: (id: string) => void;
+}) {
+  return (
+    <>
+      <ProjectionDraftEditor
+        session={session}
+        projectionId={projectionId}
+        title={title}
+        crumb={["Projections", title, "Draft"]}
+        initialContext={initialContext}
+        onTitleCommit={onTitleCommit}
+        onCancel={() => onConfirmDiscardChange(true)}
+        onApproveSuccess={onApproveSuccess}
+      />
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={onConfirmDiscardChange}
+        title="Discard this unsaved projection?"
+        description="This projection hasn't been saved yet. Discarding will remove it."
+        confirmLabel={discarding ? "Discarding…" : "Discard"}
+        variant="destructive"
+        busy={discarding}
+        onConfirm={() => {
+          onConfirmDiscardChange(false);
+          onDiscard();
+        }}
+      />
     </>
   );
 }

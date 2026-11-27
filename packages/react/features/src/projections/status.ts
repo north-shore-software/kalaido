@@ -27,7 +27,7 @@ export interface ProjectionStatusInfo {
  */
 export function getProjectionStatus(
   status: EntityStatus | undefined,
-  hasPending: boolean,
+  hasDraftInProgress: boolean,
   opts?: {
     /** A status='generating' claim row exists — a generation is in flight. */
     generating?: boolean;
@@ -42,20 +42,13 @@ export function getProjectionStatus(
   const candidate = status?.candidate;
   const candidateOutdated = candidate?.outdated ?? false;
   const candidateEngaged = candidate?.engaged ?? false;
-  const isUntouchedOutdated =
-    hasPending && candidateOutdated && !candidateEngaged;
 
   let kind: ProjectionStatus = "stable";
   if (opts?.generating) kind = "generating";
-  else if (hasPending && !isUntouchedOutdated) kind = "pending";
-  else if (opts?.lensMissing) kind = "preparing";
-  else if (
-    entropy > 0 ||
-    dueWindows > 0 ||
-    staleDependencies.length > 0 ||
-    isUntouchedOutdated
-  )
+  else if (hasDraftInProgress) kind = "pending";
+  else if (entropy > 0 || dueWindows > 0 || staleDependencies.length > 0)
     kind = "stale";
+  else if (opts?.lensMissing) kind = "preparing";
 
   return {
     status: kind,
@@ -73,7 +66,7 @@ export function statusLabel(status: ProjectionStatus): string {
     case "generating":
       return "generating";
     case "pending":
-      return "review candidate";
+      return "draft in progress";
     case "preparing":
       return "preparing";
     case "stale":

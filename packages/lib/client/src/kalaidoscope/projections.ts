@@ -33,13 +33,29 @@ export interface CreateProjectionResult {
 
 export interface RegenerateProjectionResult {
   readonly id: string;
+  readonly refinementId?: string;
+}
+
+export interface ProjectionCandidateStatus {
+  readonly status: "generating" | "ready" | "error";
+  readonly error?: string;
+}
+
+export interface DiscardProjectionResult {
+  readonly snapshotId?: string;
+  readonly deletedProjection?: boolean;
+  readonly revertedToProposed?: boolean;
+}
+
+export interface ProjectionLens {
+  readonly lensId: string;
+  readonly prompt: string;
+  readonly updating: boolean;
 }
 
 /**
  * Create a new projection container. Authoring then proceeds through a
- * refinement session over the projection's initial snapshot (see
- * `api/kalaidoscope/refinements.ts`); the lens is born when that refinement is
- * committed with `updateLensAndContext`.
+ * unified interactive projection session.
  */
 export async function createProjection(
   name: string,
@@ -61,22 +77,18 @@ export async function createProjection(
 }
 
 /**
- * Regenerate a projection's snapshot by re-applying its lens to freshly resolved
- * context. Defaults to producing a *pending* candidate for review; pass
- * `autoApprove` to promote straight to live. The backend derives the status from
- * `preview` (preview=true → pending candidate, preview=false → approved/live).
+ * Run a 1-call anchored cross-session update on a saved projection, always
+ * opening a pending draft and attached interactive session.
+ * When `opts.async` is true, returns the claimed `snapshotId` immediately while
+ * generation runs in the background.
  */
 export async function regenerateProjection(
   projectionId: string,
-  autoApprove = false,
-  opts?: {
-    discardEngaged?: boolean;
-    foldIn?: boolean;
-  },
+  opts?: { async?: boolean; discardExisting?: boolean },
 ): Promise<Result<RegenerateProjectionResult, Error>> {
   return (
     await withActiveClient((client) =>
-      client.send<{ snapshotId: string }>(
+      client.send<{ snapshotId: string; refinementId?: string }>(
         `/api/projections/${projectionId}/candidates`,
         // requestKey: null opts out of the SDK's auto-cancellation — without it
         // a second generate call aborts the first client-side while the server
@@ -84,15 +96,124 @@ export async function regenerateProjection(
         {
           method: "POST",
           body: {
-            preview: !autoApprove,
-            discardEngaged: opts?.discardEngaged,
-            foldIn: opts?.foldIn,
+            preview: true,
+            ...(opts?.async ? { async: true } : {}),
+            ...(opts?.discardExisting ? { discardExisting: true } : {}),
           },
           requestKey: null,
         },
       ),
     )
-  ).map((r) => ({ id: r.snapshotId }));
+  ).map((r) => ({ id: r.snapshotId, refinementId: r.refinementId }));
+}
+
+/** Check the live status of an async Update candidate claim. */
+export async function getProjectionCandidateStatus(
+  projectionId: string,
+  snapshotId: string,
+): Promise<Result<ProjectionCandidateStatus, Error>> {
+  return withActiveClient((client) =>
+    client.send<ProjectionCandidateStatus>(
+      `/api/projections/${projectionId}/candidates/${snapshotId}/status`,
+      { method: "GET", requestKey: null },
+    ),
+  );
+}
+
+/**
+ * Start a revision session for an up-to-date saved projection, seeding a fresh
+ * pending draft from the current approved snapshot and binding a new chat session.
+ */
+export async function startProjectionRevise(
+  projectionId: string,
+  clientId?: string,
+): Promise<
+  Result<{ readonly id: string; readonly refinementId: string }, Error>
+> {
+  return (
+    await withActiveClient((client) =>
+      client.send<{ snapshotId: string; refinementId: string }>(
+        `/api/projections/${projectionId}/sessions/revise`,
+        {
+          method: "POST",
+          body: clientId ? { clientId } : {},
+          requestKey: null,
+        },
+      ),
+    )
+  ).map((r) => ({ id: r.snapshotId, refinementId: r.refinementId }));
+}
+
+/** Read the projection's living editorial brief (`GET /api/projections/:id/lens`). */
+export async function getProjectionLens(
+  projectionId: string,
+): Promise<Result<ProjectionLens, Error>> {
+  return withActiveClient((client) =>
+    client.send<ProjectionLens>(`/api/projections/${projectionId}/lens`, {
+      method: "GET",
+      requestKey: null,
+    }),
+  );
+}
+
+/** Directly update the projection's living editorial brief (`PUT /api/projections/:id/lens`). */
+export async function updateProjectionLens(
+  projectionId: string,
+  prompt: string,
+): Promise<Result<ProjectionLens, Error>> {
+  return withActiveClient((client) =>
+    client.send<ProjectionLens>(`/api/projections/${projectionId}/lens`, {
+      method: "PUT",
+      body: { prompt },
+      requestKey: null,
+    }),
+  );
+}
+
+/**
+ * Discard a pending projection draft. On a never-saved projection, either
+ * hard-deletes a user-created projection or reverts a Discover proposal back to
+ * `proposed`.
+ */
+export async function discardProjectionCandidate(
+  projectionId: string,
+  snapshotId: string,
+): Promise<Result<DiscardProjectionResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<DiscardProjectionResult>(
+      `/api/projections/${projectionId}/candidates/${snapshotId}/discard`,
+      { method: "POST", body: {}, requestKey: null },
+    ),
+  );
+}
+
+/**
+ * Discard an open projection draft session even before any snapshot row exists
+ * (e.g. an unbound authoring session on a never-saved projection).
+ */
+export async function discardProjectionDraft(
+  projectionId: string,
+): Promise<Result<DiscardProjectionResult, Error>> {
+  return withActiveClient((client) =>
+    client.send<DiscardProjectionResult>(
+      `/api/projections/${projectionId}/draft/discard`,
+      { method: "POST", body: {}, requestKey: null },
+    ),
+  );
+}
+
+/** Bulk-resolve every proposed edit hunk on a pending candidate. */
+export async function resolveAllProjectionEdits(
+  projectionId: string,
+  snapshotId: string,
+  status: "approved" | "rejected",
+): Promise<Result<{ edits: SnapshotEdit[] }, Error>> {
+  return withActiveClient((client) =>
+    client.send<{ edits: SnapshotEdit[] }>(
+      `/api/projections/${projectionId}/candidates/${snapshotId}/edits/resolve-all`,
+      { method: "POST", body: { status }, requestKey: null },
+    ),
+  );
 }
 
 /**

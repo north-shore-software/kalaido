@@ -174,10 +174,24 @@ export function deriveFreshnessSummary(args: {
 }) {
   return {
     generating: args.generating || args.regenerating,
-    lensMissing: args.hasSnapshots && !args.hasCurrentLens,
+    // Projections can always be updated/revised once a saved snapshot exists,
+    // even while the async editorial brief is still distilling or empty.
+    lensMissing: false,
     newSinceCandidate:
       args.freshnessEntry?.candidate?.newFragmentIds?.length ?? 0,
   };
+}
+
+export function shouldStartFreshWithUpdate(args: {
+  newSinceCandidate: number;
+  entropy: number;
+  staleDependenciesCount: number;
+}): boolean {
+  return (
+    args.newSinceCandidate > 0 ||
+    args.entropy > 0 ||
+    args.staleDependenciesCount > 0
+  );
 }
 
 export function deriveDetailHeaderState({

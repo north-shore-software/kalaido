@@ -76,10 +76,22 @@ export const CONTEXT_CONFIRMATION_PART_TYPE = "data-context_confirmation";
 /** Marks the system message that accepts it; travels with the `context_spec`. */
 export const CONTEXT_CONFIRM_PART_TYPE = "data-context_confirm";
 export const CONTEXT_CANCEL_PART_TYPE = "data-context_cancel";
+/** Rides an assistant turn requesting confirmation before replacing the full draft. */
+export const FULL_REWRITE_CONFIRMATION_PART_TYPE =
+  "data-full_rewrite_confirmation";
+export const FULL_REWRITE_CONFIRM_PART_TYPE = "data-full_rewrite_confirm";
+export const FULL_REWRITE_CANCEL_PART_TYPE = "data-full_rewrite_cancel";
+export const DRAFT_UPDATED_PART_TYPE = "data-draft_updated";
 
 export interface ContextConfirmation {
   spec: ContextSpec;
   reason?: string;
+}
+
+export interface FullRewriteConfirmation {
+  reason?: string;
+  changedPercent?: number;
+  proposedContent?: string;
 }
 
 // A persisted assistant thread. Backed by the `chat_conversation` collection,
@@ -129,8 +141,10 @@ export interface ContextSpec {
  */
 export interface WindowSpec {
   startTime?: string;
+  endTime?: string;
   period: string;
   duration: string;
+  paused?: boolean;
 }
 
 /**
@@ -275,8 +289,10 @@ export function parseWindowSpec(raw: unknown): WindowSpec | null {
     if (typeof o.period === "string" || typeof o.duration === "string") {
       return {
         startTime: typeof o.startTime === "string" ? o.startTime : undefined,
+        endTime: typeof o.endTime === "string" ? o.endTime : undefined,
         period: typeof o.period === "string" ? o.period : "",
         duration: typeof o.duration === "string" ? o.duration : "",
+        ...(typeof o.paused === "boolean" ? { paused: o.paused } : {}),
       };
     }
   }

@@ -16,31 +16,9 @@ func ApplyPrompt(lensPrompt, sourceBlock string, windowStart, windowEnd types.Da
 		"Instruction:\n" + lensPrompt + "\n\nOutput:"
 }
 
-// SnapshotNoChanges is the exact reply the delta turn gives when the fresh
-// candidate differs from the previously published output only in wording. The
-// engine checks it by trimmed equality, so the prompt must keep demanding it
-// appear alone.
+// SnapshotNoChanges is the sentinel reply when an anchored projection update
+// determines the new sources warrant no text changes.
 const SnapshotNoChanges = "NO CHANGES"
-
-// SnapshotDeltaPrompt continues the generation conversation ApplyPrompt opened
-// — the fresh candidate is the assistant turn directly above. Even at
-// temperature 0 a regeneration rewords lines whose information did not change,
-// so the candidate is never published directly when a predecessor exists;
-// instead this turn names what actually changed, and those bullets become the
-// only channel through which the candidate can alter the published text.
-func SnapshotDeltaPrompt(previous string) string {
-	return "Previously published version:\n" + previous + "\n\n" +
-		"Task: List, as bullet points, the semantic delta between the previously published version above and the version you just produced — information that was added, updated, or removed. Only actual information counts: ignore differences that are purely wording, phrasing, ordering, or formatting. If there is no semantic difference, reply with exactly \"" + SnapshotNoChanges + "\" and nothing else.\n\n" +
-		"Semantic delta:"
-}
-
-// SnapshotMergePrompt closes the delta conversation: the previous text with
-// only the bullets integrated, so unchanged information keeps its published
-// wording and a regeneration diffs quietly.
-func SnapshotMergePrompt() string {
-	return "Task: Produce the final document. Take the previously published version and integrate the new or updated information from your bullet points into it. Reproduce everything else verbatim — do not rephrase, reorder, or reformat content whose meaning is unchanged — so that as few lines as possible differ from the previously published version. Output only the final document.\n\n" +
-		"Final document:"
-}
 
 // ParseYesNo reads a YES/NO reply by its first word, so "NO, not a YES case"
 // is a no.
@@ -94,19 +72,9 @@ func BuildPrefix(sourceBlock string, windowStart, windowEnd types.DateTime) stri
 	return sb.String()
 }
 
-// UpdateLensToolName is the tool a refinement emits its drafted lens through.
-// It is model-facing three ways — the advertised tool name, quoted throughout
-// the refinement prompts, and echoed back via LensEcho — and it is also a wire
-// identifier: drafted lenses persist as parts of type "tool-"+UpdateLensToolName,
-// which the commit-time extraction and the client all have to agree on.
-// Renaming it is therefore never just a prompt change.
+// UpdateLensToolName is retained as a wire identifier for reading legacy seeded
+// and historical persisted "tool-update_lens" parts in reflection transcripts.
 const UpdateLensToolName = "update_lens"
-
-type UpdateLensArgs struct {
-	Directive string `json:"directive"`
-}
-
-const RegenerateFromLensToolName = "regenerate_from_lens"
 
 const LensPartType = "data-lens"
 
@@ -114,19 +82,10 @@ type LensPartData struct {
 	Lens string `json:"lens"`
 }
 
-const RefineCandidateToolName = "refine_candidate"
-
-type RefineCandidateArgs struct {
-	Target      string `json:"target"`
-	Replacement string `json:"replacement"`
-}
-
 // ApplyResultToolName is a wire identifier only — never advertised to any
-// model. The refinement handler fabricates AI-SDK tool events under this name
-// to stream each turn's applied output (the lens executed against the sources)
-// into the client's preview, and persists it as a "tool-"+ApplyResultToolName
-// part on the assistant message. llmcontext.Flatten must never echo it back
-// into the transcript: the lens-writing model stays blind to its lens's output.
+// model. The reflection chat handler fabricates AI-SDK tool events under this
+// name to stream each turn's isolated sample-window preview into the client,
+// and persists it as a "tool-"+ApplyResultToolName part on the assistant message.
 const ApplyResultToolName = "apply_result"
 
 // SuggestNameToolName carries the model's name suggestion on turns before the
@@ -171,116 +130,20 @@ const GroundingRules = `Use your general knowledge to understand, interpret, and
 const ChatSystemPrompt = "You are the assistant inside Kalaido. Help the user explore, question, and work with the documents in the active context. Be direct and concrete, and quote or cite the documents when it helps.\n\n" +
 	ProductBrief + "\n\n" + ContextLegend + "\n\n" + MentionLegend + "\n\n" + GroundingRules
 
-const RefinementCreationPrompt = `You are a professional assistant helping the user create and shape a living document. Your goal is to guide the user to an output they are happy with by establishing its foundation: the "lens".
-
-` + ProductBrief + "\n\n" + ContextLegend + "\n\n" + MentionLegend + "\n\n" + GroundingRules + `
-
-Your tools:
-1. "update_lens": Compiles and updates the standing instruction (the lens) that generates the document. Does not re-execute the document.
-2. "regenerate_from_lens": Executes the current standing lens against the workspace sources to generate a fresh candidate draft.
-3. "suggest_name": Proposes a display name for the document before the first lens exists.
-4. "refine_candidate": Proposes a targeted edit to a specific passage in a draft. Only callable when a target passage is in scope via a notice.
-5. "update_context": Proposes a change to the active context — the documents the lens is applied to. The user confirms or declines it in the app before it takes effect.
-6. Plain conversation: Interview the user, explore source material, discuss trade-offs, and clarify intent without modifying the document.
-
-Your epistemic position — internalize this:
-- You see the source documents and your own lens. You NEVER see the document your lens produces in full.
-- The sources will keep changing after this conversation ends, and your lens will be re-executed against them. A good lens produces the document the user wants from whatever the sources contain then, not just now.
-- Because you do not see the document, never guess what unquoted output references mean. Never encode a guessed reading into the lens or a refinement.
-
-Workflow — Initial creation (before the first lens exists):
-- Do not call "update_lens" until the conversation has settled the essentials: what the document is for and who will read it, what it should cover and what it should leave out, the shape it takes (sections, list, table, prose), and how long it should be. Interview first; draft once you are confident.
-- Ask about what is missing, at most two questions per turn, the most consequential first. Each question must carry a concrete proposal drawn from the source documents so the user can answer in a word.
-- Target length is settled only when the user has stated it or handed you a document whose length is to be kept. Otherwise ask for it explicitly before compiling the first lens, with a concrete proposal (for example "about a page", "under 300 words", or "three to five bullets per section") — never assume a length.
-- Never ask about a preference the user has already stated, and never re-ask a settled point. When the essentials are settled, or the user tells you to just go ahead, call "update_lens" with "directive" to compile the lens, and call "regenerate_from_lens" to produce the draft.
-- Some opening requests settle the essentials on their own: one that hands you an existing document and asks for its format and emphasis to be kept, or a brief that already names the purpose, the coverage, the shape, and the length. Compile the lens and regenerate on that first turn — asking there would only be ceremony.
-
-` + UpdateContextRules + `
-
-Hard rules for every lens:
-- The lens must be data-agnostic: it describes HOW to transform source documents into an output. It must not contain facts, names, dates, numbers, or verbatim sentences copied from the source documents.
-- The lens must not pin the output to specific content: write "capture each distinct use case", never "capture 8 use cases (8 in total)".
-- The lens must stand alone: the model applying it sees only the lens and the source documents, never this conversation.
-- The lens must state the target length and shape of the output, so the model applying it never has to choose.
-
-The document display name:
-- Before the first lens exists, if you ask a clarifying question instead of calling "update_lens", call "suggest_name" with your best current name given what you know so far.
-- Once any lens has been produced, never call "suggest_name" again.`
-
-const RefinementRevisionPrompt = `You are a professional assistant helping the user review, edit, and refine a living document. The initial lens and draft already exist. Your goal is to guide the user to an output they are happy with, balancing fine-grained adjustments with standing lens maintenance.
-
-` + ProductBrief + "\n\n" + ContextLegend + "\n\n" + MentionLegend + "\n\n" + GroundingRules + `
-
-How the document is shaped:
-1. "refine_candidate": Proposes a surgical edit to a specific passage in the current draft. Use this for localized rewrites, wording adjustments, or section polish.
-2. "update_lens": Compiles and updates the standing instruction (the lens) that generates the document from workspace sources. Does not re-execute the document.
-3. "regenerate_from_lens": Executes the current standing lens against all source documents in context to generate a fresh draft.
-4. "update_context": Proposes a change to the active context — the documents the lens is applied to. The user confirms or declines it in the app before it takes effect.
-5. Direct edits by the user: The user can edit any block directly in the preview pane.
-6. Plain conversation: Answer questions, discuss trade-offs, and explain choices without modifying the document.
-
-Your epistemic position — internalize this:
-- You see the workspace sources and the standing lens.
-- You NEVER see the document your lens produces in full. The user is looking at that document in their preview pane.
-- You only see candidate text when the user explicitly shares an excerpt:
-  - When the user selects a passage to refine in the UI, a system notice provides the excerpt: "The user selected this passage from the candidate document to refine: <<<...>>>".
-  - When the user edits a passage by hand, a system notice provides the "Before:" and "After:" excerpts.
-- Because you do not see the full document, never guess what unquoted output references mean ("cut the third bullet", "shorten paragraph 2"). Never encode a guessed reading into the lens or a refinement. Either reply with a concrete hypothesis phrased as a question drawing on the sources, or ask the user to select the passage in the preview.
-
-Workflow — Review and refinement:
-- Let the user review the draft, ask questions, and make edits.
-- Direct edits: The user can edit any block directly in the preview pane. For quick fixes, typos, or specific wording the user already knows, suggest that they can make a direct edit in the preview.
-- Targeted refinements: When the user targets a passage in the UI (announced via a notice) and asks for revisions, call "refine_candidate" with "target" and "replacement" to create a proposed edit card for them to accept or reject. Never call "refine_candidate" without an active target notice in scope.
-- Do not call "update_lens" on the same turn you call "refine_candidate".
-- Lens confirmation gate: Do not update the lens without first confirming the user wants you to.
-- Proactively suggest updating the lens if the user has made many edits and the lens now seems out of date or out of sync with their changes. Explain the general rule or instruction you would add to the lens to preserve their preferences on future background regenerations. Only call "update_lens" once the user confirms.
-- Regenerating: Only call "regenerate_from_lens" when the user asks to re-run or regenerate the document from the lens.
-
-` + UpdateContextRules + `
-
-Hard rules for every lens:
-- The lens must be data-agnostic: no verbatim facts, dates, names, or numbers copied from sources into the lens.
-- The lens must not pin fixed item counts: write "capture each distinct use case", never "capture 8 use cases (8 in total)".
-- The lens must stand alone: the model applying it sees only the lens and source documents, never this chat.
-- The lens must state the target length and shape of the output, so the model applying it never has to choose.`
-
-// UpdateContextRules is the shared guidance on the update_context tool. It is
-// composed into both refinement prompts: the tool is available before and
-// after the first lens exists.
+// UpdateContextRules is the shared guidance on the update_context tool.
 const UpdateContextRules = `Changing the context ("update_context"):
 - The context is the set of workspace documents the lens is applied to. The user controls it from a bar in the app; you may propose a change when the document would be better served by different sources — a document the user mentions that is missing, one that is clearly off-topic, or a switch between the whole workspace and a hand-picked set.
 - Identify fragments by the ID in their header, and kinds by the kind word in their header (such as email or note). You cannot see documents outside the context, so you can only add ones the user has named or that appear in a notice. Do not invent IDs.
 - Explain the change in "reason" in one plain sentence for the user; refer to documents by source or name, never by ID.
 - The change is a proposal: the app asks the user to confirm it, and nothing changes until they do. Call "update_context" on its own, on a turn with no other tool, and wait for the notice before drafting or regenerating against the new context. If the user declines, do not propose the same change again.`
 
-const LensCompilerSystemPrompt = `You are an expert prompt engineer and instruction compiler inside Kalaido.
-
-Your job is to write a single, comprehensive, standalone "lens" instruction that transforms a workspace's raw source documents into the document the user wants.
-
-Hard rules for the lens you produce:
-- The lens must be data-agnostic: it describes HOW to transform source documents into an output. It must not contain facts, names, dates, numbers, or verbatim sentences copied from the source documents.
-- The lens must not pin the output to specific content: write "capture each distinct use case", never "capture 8 use cases (8 in total)".
-- The lens must stand alone: the model applying it sees only the lens and the source documents, never the chat conversation.
-- The lens must state the target length and shape of the output (for example "about one page", "under 300 words", "five to eight bullets per section"), taken from the conversation. If the conversation never settled length, state the length that best fits the stated purpose and audience rather than leaving it to the model applying the lens.
-- Output format: Output ONLY the complete lens instruction text. Do not wrap in markdown code blocks, and do not include conversational filler, preamble, or sign-offs.`
-
-func RefinementPrompt(hasLens bool) string {
-	if hasLens {
-		return RefinementRevisionPrompt
-	}
-	return RefinementCreationPrompt
-}
-
 const (
-	HandEditPartType               = "data-hand_edit"
-	RefineTargetPartType           = "data-refine_target"
-	EditTriagePartType             = "data-edit_triage"
-	RefineResultPartType           = "data-refine_result"
-	RegenerateSupersededPartType   = "data-regenerate_superseded"
-	RegenerateConfirmationPartType = "data-regenerate_confirmation"
-	RegenerateConfirmPartType      = "data-regenerate_confirm"
-	RegenerateCancelPartType       = "data-regenerate_cancel"
-	RefineProposalResultPartType   = "data-refine_proposal_result"
+	HandEditPartType             = "data-hand_edit"
+	RefineTargetPartType         = "data-refine_target"
+	EditTriagePartType           = "data-edit_triage"
+	RefineResultPartType         = "data-refine_result"
+	RegenerateSupersededPartType = "data-regenerate_superseded"
+	RefineProposalResultPartType = "data-refine_proposal_result"
 	// ContextConfirmationPartType rides the assistant turn that called
 	// update_context: the proposed spec for the client to put to the user.
 	ContextConfirmationPartType = "data-context_confirmation"
@@ -351,14 +214,6 @@ func RefineProposalFailureNotice(reason string) string {
 	return fmt.Sprintf("Refinement proposal failed: %s.", reason)
 }
 
-type RegenerateConfirmationData struct {
-	AffectedEdits []api.SnapshotEdit `json:"affectedEdits"`
-}
-
-func RegenerateCancelledNotice() string {
-	return "The user cancelled the requested document regeneration."
-}
-
 // RegenerateSupersededData is the payload of a RegenerateSupersededPartType
 // notice: which edits a regeneration superseded, and which accepted edits
 // survived it because the regenerated text still carries their passage.
@@ -423,17 +278,8 @@ func RefineTargetNotice(passage string) string {
 const NameRecordedContinue = "Name recorded. The user has not seen a reply yet — write your message to them now, in plain text."
 
 const (
-	UpdateLensToolDescription      = "Compiles and updates the standing lens instruction based on the conversation history and a directive. Does not re-execute the document or replace the candidate draft."
-	UpdateLensDirectiveDescription = "High-level summary of intent, rules, or changes for the lens compiler."
-
-	RegenerateFromLensToolDescription = "Executes the current standing lens against the workspace sources to regenerate the candidate document draft from scratch."
-
-	SuggestNameToolDescription  = "Suggests a display name for the document being shaped. Only for turns before the first lens exists; afterwards the name rides update_lens."
+	SuggestNameToolDescription  = "Suggests a display name for the document being shaped when it is still unnamed."
 	SuggestNameParamDescription = "The suggested display name: at most 6 words, plain text, no markdown, quotes, or trailing punctuation."
-
-	RefineCandidateToolDescription        = "Proposes an edit to a passage in the candidate document that the user explicitly selected in the UI. Only callable when a target passage is in scope."
-	RefineCandidateTargetDescription      = "The exact passage from the candidate document that the user selected for refinement."
-	RefineCandidateReplacementDescription = "The rewritten markdown text to replace the target passage."
 
 	UpdateContextToolDescription       = "Proposes a change to the active context: the workspace documents the lens is applied to. Nothing changes until the user confirms in the app. Call it on its own, with no other tool on the same turn."
 	UpdateContextWholeScopeDescription = "\"full\" puts the whole workspace in scope; \"pins\" narrows the context to the pinned items only. Omit to leave the mode as it is."

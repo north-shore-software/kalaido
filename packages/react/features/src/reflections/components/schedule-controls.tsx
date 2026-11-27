@@ -1,8 +1,8 @@
-import { ClockIcon } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
 import { Chip, Label, Mono } from "@kalaido/primitives/kalaido";
-import { CADENCES, FREQ, WIN } from "../schedule";
 import { cn } from "@kalaido/primitives/lib/css-utils";
+import { ClockIcon, PauseIcon, PlayIcon } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
+import { CADENCES, FREQ, WIN } from "../schedule";
 
 export interface ScheduleChipsProps {
   freq: number;
@@ -71,6 +71,32 @@ export function CadenceChips({
             {c}
           </Chip>
         ))}
+      </div>
+    </div>
+  );
+}
+
+export interface PauseScheduleControlProps {
+  paused: boolean;
+  onChange: (paused: boolean) => void;
+}
+
+export function PauseScheduleControl({
+  paused,
+  onChange,
+}: PauseScheduleControlProps) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Schedule status</Label>
+      <div className="flex items-center gap-2">
+        <Chip active={!paused} onClick={() => onChange(false)}>
+          <PlayIcon className="mr-1 inline size-3" />
+          Active
+        </Chip>
+        <Chip active={paused} onClick={() => onChange(true)}>
+          <PauseIcon className="mr-1 inline size-3" />
+          Paused
+        </Chip>
       </div>
     </div>
   );

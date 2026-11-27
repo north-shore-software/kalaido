@@ -9,7 +9,12 @@ import { useExternalWrite } from "@kalaido/state/live";
 import { ClockIcon, PlusIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { ReflectionSeriesPanel } from "./components/reflection-series-panel";
-import { currentWindowSpec, describeWindow } from "./schedule";
+import {
+  CADENCES,
+  cadenceFromSpec,
+  currentWindowSpec,
+  describeWindow,
+} from "./schedule";
 
 export interface ReflectionsScreenProps {
   id?: string;
@@ -18,6 +23,7 @@ export interface ReflectionsScreenProps {
   onSelectReflection: (id: string) => void;
   onSelectWindow: (id: string, windowId: string) => void;
   onRefine: (id: string) => void;
+  onDiscarded?: () => void;
 }
 
 export function ReflectionsScreen({
@@ -27,6 +33,7 @@ export function ReflectionsScreen({
   onSelectReflection,
   onSelectWindow,
   onRefine,
+  onDiscarded,
 }: ReflectionsScreenProps) {
   const { records: reflections, isLoading } = useLiveCollection("reflection", {
     filter: 'name != "" && status = "active" && deleted_at = ""',
@@ -73,9 +80,10 @@ export function ReflectionsScreen({
               </EmptyState>
             ) : (
               reflections.map((r) => {
-                const { freq, win } = describeWindow(
-                  currentWindowSpec(r.window_spec_versions),
-                );
+                const rawSpec = currentWindowSpec(r.window_spec_versions);
+                const { freq, win } = describeWindow(rawSpec);
+                const isDraft = !r.current_lens_id;
+                const cadenceLabel = CADENCES[cadenceFromSpec(rawSpec).cadence];
                 return (
                   <ListRow
                     key={r.id}
@@ -90,7 +98,11 @@ export function ReflectionsScreen({
                       </>
                     }
                     title={r.name || "Untitled reflection"}
-                    subtitle={`${freq} · last ${win}`}
+                    subtitle={
+                      isDraft
+                        ? `${cadenceLabel} · draft in progress`
+                        : `${freq} · last ${win}`
+                    }
                     trailing={
                       <PinToggle
                         pinned={Boolean(r.pinned)}
@@ -110,6 +122,7 @@ export function ReflectionsScreen({
                 onSelectWindow(activeId, nextWindowId)
               }
               onRefine={() => onRefine(activeId)}
+              onDiscarded={onDiscarded}
             />
           ) : (
             <EmptyState centered>Select a reflection</EmptyState>

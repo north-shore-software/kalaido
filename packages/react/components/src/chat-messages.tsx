@@ -5,14 +5,17 @@ import {
   type ContextConfirmation,
   type ContextItem,
   type ContextSpec,
+  DRAFT_UPDATED_PART_TYPE,
   diffContextSpecs,
+  FULL_REWRITE_CANCEL_PART_TYPE,
+  FULL_REWRITE_CONFIRM_PART_TYPE,
+  FULL_REWRITE_CONFIRMATION_PART_TYPE,
+  type FullRewriteConfirmation,
   messageContextSpec,
-  messageWindow,
   REGENERATE_CANCEL_PART_TYPE,
   REGENERATE_CONFIRM_PART_TYPE,
   REGENERATE_CONFIRMATION_PART_TYPE,
   specToItems,
-  type TimeWindow,
 } from "@kalaido/client/kalaidoscope/chat";
 import type { SnapshotEdit } from "@kalaido/client/kalaidoscope/projections";
 import { formatWindowRange } from "@kalaido/client/lib/datetime";
@@ -29,6 +32,7 @@ import {
   EditNoticeCard,
   type EditNoticeCardProps,
 } from "./chat/edit-notice-card";
+import { FullRewriteConfirmationCard } from "./chat/full-rewrite-confirmation-card";
 import { KIND_ABBREV } from "./context-bar/state";
 import { MarkdownContent } from "./markdown-content";
 
@@ -387,32 +391,6 @@ function ContextConfirmationCard({
   );
 }
 
-/**
- * Marks where a reflection refinement's target window was set or moved. The
- * first one states the window; later ones show it changing.
- */
-function WindowDivider({
-  window: win,
-  isFirst,
-}: {
-  window: TimeWindow;
-  isFirst: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 py-0.5">
-      <div className="h-px flex-1 bg-line" />
-      <div className="flex max-w-[80%] flex-wrap items-center justify-center gap-x-2 gap-y-0.5 font-mono text-mono-sm text-fg-4">
-        <span className="font-bold uppercase text-fg-5">Window</span>
-        <span className="whitespace-nowrap">
-          {isFirst ? "" : "→ "}
-          {formatWindowRange(win.start, win.end)}
-        </span>
-      </div>
-      <div className="h-px flex-1 bg-line" />
-    </div>
-  );
-}
-
 // The server-written notice naming which accepted edits a regeneration
 // superseded (and which still stand); rendered as a plain notice row.
 function supersededNoticeFor(msg: UIMessage): string | null {
@@ -472,11 +450,16 @@ function editNoticeFor(msg: UIMessage): SystemEditNotice | null {
 
 // its effect is the preview pane itself.
 const TOOL_MESSAGES: Record<string, string | null> = {
+  set_lens: "Updated the standing lens.",
   update_lens: "Updated the lens.",
   regenerate_from_lens: "Regenerating document from the lens...",
   refine_candidate: null,
   apply_result: null,
   suggest_name: null,
+  write_draft: null,
+  propose_edit: null,
+  update_draft: null,
+  request_full_rewrite: null,
   // The confirmation card carries the proposal; nothing else to say.
   update_context: null,
   // The chat's summaries-mode reads narrate themselves (readNoticesFor).
@@ -568,6 +551,21 @@ function dataNoticesFor(msg: UIMessage): string[] {
       notices.push("Confirmed candidate regeneration.");
     } else if (p.type === REGENERATE_CANCEL_PART_TYPE) {
       notices.push("Cancelled candidate regeneration.");
+    } else if (p.type === FULL_REWRITE_CONFIRM_PART_TYPE) {
+      notices.push("Confirmed full draft replacement.");
+    } else if (p.type === FULL_REWRITE_CANCEL_PART_TYPE) {
+      notices.push("Kept the current draft.");
+    } else if (p.type === DRAFT_UPDATED_PART_TYPE) {
+      const d = p.data as { editsCount?: number; summary?: string } | undefined;
+      if (d?.summary) {
+        notices.push(d.summary);
+      } else if (typeof d?.editsCount === "number" && d.editsCount > 0) {
+        notices.push(
+          `Updated the draft with ${d.editsCount} proposed ${d.editsCount === 1 ? "edit" : "edits"}.`,
+        );
+      } else {
+        notices.push("Updated the draft.");
+      }
     }
   }
   return notices;
@@ -578,6 +576,8 @@ const FABRICATED_TURN_PARTS = [
   "data-window_reapply",
   REGENERATE_CONFIRM_PART_TYPE,
   REGENERATE_CONFIRMATION_PART_TYPE,
+  FULL_REWRITE_CONFIRM_PART_TYPE,
+  FULL_REWRITE_CONFIRMATION_PART_TYPE,
   CONTEXT_CONFIRMATION_PART_TYPE,
 ];
 
@@ -676,6 +676,8 @@ export interface ChatMessagesProps {
   onUndoEdit?: (editId: string) => void;
   onConfirmRegenerate?: () => void;
   onCancelRegenerate?: () => void;
+  onConfirmFullRewrite?: () => void;
+  onCancelFullRewrite?: () => void;
   /** The user accepted a proposed context change: `items` are the new selection, labelled. */
   onConfirmContext?: (spec: ContextSpec, items: ContextItem[]) => void;
   onCancelContext?: () => void;
@@ -693,9 +695,11 @@ export interface ChatMessagesProps {
 
 function lastSettledIndices(messages: UIMessage[]): {
   regenerate: number;
+  fullRewrite: number;
   context: number;
 } {
   let regenerate = -1;
+  let fullRewrite = -1;
   let context = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     const parts = messages[i].parts;
@@ -710,6 +714,13 @@ function lastSettledIndices(messages: UIMessage[]): {
         regenerate = i;
       }
       if (
+        fullRewrite === -1 &&
+        (type === FULL_REWRITE_CONFIRM_PART_TYPE ||
+          type === FULL_REWRITE_CANCEL_PART_TYPE)
+      ) {
+        fullRewrite = i;
+      }
+      if (
         context === -1 &&
         (type === CONTEXT_CONFIRM_PART_TYPE ||
           type === CONTEXT_CANCEL_PART_TYPE)
@@ -717,9 +728,9 @@ function lastSettledIndices(messages: UIMessage[]): {
         context = i;
       }
     }
-    if (regenerate !== -1 && context !== -1) break;
+    if (regenerate !== -1 && fullRewrite !== -1 && context !== -1) break;
   }
-  return { regenerate, context };
+  return { regenerate, fullRewrite, context };
 }
 
 export function ChatMessages({
@@ -731,6 +742,8 @@ export function ChatMessages({
   onUndoEdit,
   onConfirmRegenerate,
   onCancelRegenerate,
+  onConfirmFullRewrite,
+  onCancelFullRewrite,
   onConfirmContext,
   onCancelContext,
   messageActions,
@@ -738,12 +751,11 @@ export function ChatMessages({
 }: ChatMessagesProps) {
   const contentElements = useRef(new Map<string, HTMLElement>());
   const settledAfter = useMemo(() => lastSettledIndices(messages), [messages]);
-  // System messages carry no chat text. Those with a `context_spec` or
-  // `window` part mark where the context / target window changed and render
-  // as dividers at that position; the rest (`pinned_ids`) stay unrendered.
+  // System messages carry no chat text. Those with a `context_spec` part mark
+  // where the context changed and render as dividers at that position; the
+  // rest (`pinned_ids`, legacy `window`) stay unrendered.
   const chatMessageCount = messages.filter((m) => m.role !== "system").length;
   let prevSpec: ContextSpec | null = null;
-  let prevWindow: TimeWindow | null = null;
   // While a turn is in flight, everything from the user message that started
   // it onward has no row on the server yet.
   let inFlightFrom = -1;
@@ -768,19 +780,13 @@ export function ChatMessages({
       {messages.map((msg, index) => {
         if (msg.role === "system") {
           const spec = messageContextSpec(msg);
-          const win = messageWindow(msg);
           const editNotice = editNoticeFor(msg);
           const supersededNotice = supersededNoticeFor(msg);
-          if (!spec && !win && !editNotice && !supersededNotice) return null;
+          if (!spec && !editNotice && !supersededNotice) return null;
           const before = prevSpec;
           if (spec) prevSpec = spec;
-          const windowBefore = prevWindow;
-          if (win) prevWindow = win;
           return (
             <Fragment key={msg.id}>
-              {win && (
-                <WindowDivider window={win} isFirst={windowBefore === null} />
-              )}
               {spec && <ContextSpecDivider spec={spec} prevSpec={before} />}
               {editNotice && (
                 <EditNoticeCard
@@ -830,6 +836,14 @@ export function ChatMessages({
             (p as { type?: string }).type === REGENERATE_CONFIRMATION_PART_TYPE,
         ) as { data?: { affectedEdits?: SnapshotEdit[] } } | undefined;
 
+        const fullRewriteConfirmation = (
+          msg.parts.find(
+            (p) =>
+              (p as { type?: string }).type ===
+              FULL_REWRITE_CONFIRMATION_PART_TYPE,
+          ) as { data?: FullRewriteConfirmation } | undefined
+        )?.data;
+
         const contextConfirmation = (
           msg.parts.find(
             (p) =>
@@ -839,6 +853,7 @@ export function ChatMessages({
 
         // A card is settled once a later message carries the user's answer.
         const isSettled = settledAfter.regenerate > index;
+        const fullRewriteSettled = settledAfter.fullRewrite > index;
         const contextSettled = settledAfter.context > index;
 
         const cards = (
@@ -850,6 +865,15 @@ export function ChatMessages({
                 onCancel={onCancelRegenerate}
                 isBusy={pending}
                 isSettled={isSettled}
+              />
+            )}
+            {fullRewriteConfirmation && (
+              <FullRewriteConfirmationCard
+                confirmation={fullRewriteConfirmation}
+                onConfirm={onConfirmFullRewrite}
+                onCancel={onCancelFullRewrite}
+                isBusy={pending}
+                isSettled={fullRewriteSettled}
               />
             )}
             {contextConfirmation?.spec && (
@@ -871,6 +895,7 @@ export function ChatMessages({
             !notice &&
             noticeRows.length === 0 &&
             !confirmationPart &&
+            !fullRewriteConfirmation &&
             !contextConfirmation
           )
             return null;

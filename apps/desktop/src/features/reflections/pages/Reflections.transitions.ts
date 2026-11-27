@@ -15,6 +15,10 @@ export const reflectionsTransitions = defineTransitions({
   },
   refine: {
     to: "refine-reflection",
-    trigger: "Click ‘Refine’ to edit the reflection’s lens",
+    trigger: "Click ‘Update’ or ‘Resume draft’ to tune the reflection",
+  },
+  clearSelection: {
+    to: "reflections",
+    trigger: "Discard an unsaved reflection draft",
   },
 });

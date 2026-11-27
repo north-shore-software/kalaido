@@ -13,4 +13,9 @@ export const projectionReviewTransitions = defineTransitions({
     to: "projection-detail",
     trigger: "Click ‘Come back later’ to return to projection detail",
   },
+  backToList: {
+    to: "projections",
+    trigger:
+      "Return to projections list after discarding an unsaved projection",
+  },
 });

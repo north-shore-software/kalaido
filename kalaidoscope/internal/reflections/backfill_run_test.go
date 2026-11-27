@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pocketbase/pocketbase/tools/types"
+
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/api"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/engine"
 	"github.com/north-shore-software/kalaido/kalaidoscope/internal/pbutil"
@@ -57,12 +59,14 @@ func (p backfillScriptProvider) Stream(ctx context.Context, msgs []llm.Message, 
 func TestGeneratePendingWindowsFillsTheSeries(t *testing.T) {
 	app := testutil.NewApp(t)
 	day := 24 * time.Hour
-	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
+	eff := time.Now().Add(-16 * day).UTC()
+	dt := func(tm time.Time) types.DateTime { d, _ := types.ParseDateTime(tm); return d }
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "week 1 notes", "occurred_at": dt(eff.Add(2 * day))})
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "week 2 notes", "occurred_at": dt(eff.Add(9 * day))})
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": "LENS",
 	})
-	eff := time.Now().Add(-16 * day).UTC()
 	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "weekly", "status": engine.EntityActive,
@@ -138,12 +142,14 @@ func TestGeneratePendingWindowsWaitsForLens(t *testing.T) {
 func TestGenerateWindowsRunsInParallel(t *testing.T) {
 	app := testutil.NewApp(t)
 	day := 24 * time.Hour
-	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "notes"})
+	eff := time.Now().Add(-16 * day).UTC()
+	dt := func(tm time.Time) types.DateTime { d, _ := types.ParseDateTime(tm); return d }
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "week 1 notes", "occurred_at": dt(eff.Add(2 * day))})
+	testutil.NewRecord(t, app, "fragment", map[string]any{"type": "note", "content": "week 2 notes", "occurred_at": dt(eff.Add(9 * day))})
 	spec := api.ContextSpec{WholeScope: api.WholeScopeFull}
 	lens := testutil.NewRecord(t, app, "lens", map[string]any{
 		"prompt": "LENS",
 	})
-	eff := time.Now().Add(-16 * day).UTC()
 	versions := reflections.AppendWindowSpecVersion(nil, api.WindowSpec{Period: "168h", Duration: "168h"}, eff)
 	refl := testutil.NewRecord(t, app, "reflection", map[string]any{
 		"name": "weekly", "status": engine.EntityActive,
