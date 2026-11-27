@@ -1,6 +1,8 @@
 package ingest
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -146,5 +148,39 @@ func TestRunTagsCreatedFragmentsWithColour(t *testing.T) {
 	}
 	if got, _ := app.CountRecords("colour_fragment"); got != 1 {
 		t.Fatalf("colour rows after a duplicate run = %d, want 1", got)
+	}
+}
+
+func TestRunZipOfEmlFilesWithEmptyExtensions(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, body := range map[string]string{
+		"a.eml":            "From: alice@example.com\r\nSubject: One\r\n\r\nBody one",
+		"b.eml":            "From: bob@example.com\r\nSubject: Two\r\n\r\nBody two",
+		"__MACOSX/._a.eml": "\x00\x05\x16\x07appledouble",
+	} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := run(context.Background(), app, options{
+		SourceName: "mail.zip",
+		Data:       buf.Bytes(),
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 || countFragments(t, app) != 2 {
+		t.Fatalf("run wrote %d (rows %d), want 2", n, countFragments(t, app))
 	}
 }

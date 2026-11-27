@@ -67,8 +67,6 @@ type options struct {
 
 var errBudget = errors.New("ingest: write budget reached")
 
-var defaultExtensions = []string{".txt", ".md", ".docx"}
-
 type uploadedFile struct {
 	name string
 	data []byte
@@ -97,11 +95,6 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 		}
 	}
 
-	exts := opts.Extensions
-	if len(exts) == 0 {
-		exts = defaultExtensions
-	}
-
 	sink := func(fr parsers.Fragment) error {
 		if w.full() {
 			return errBudget
@@ -116,7 +109,7 @@ func run(ctx context.Context, app core.App, opts options, progress func(ingested
 	}
 
 	src := parsers.Source{Name: opts.SourceName, Format: opts.Format, Data: opts.Data}
-	err = parsers.Parse(ctx, src, exts, sink)
+	err = parsers.Parse(ctx, src, opts.Extensions, sink)
 	// Whatever ended the parse, the fragments it did yield are good.
 	if ferr := w.flush(); ferr != nil {
 		return w.count, ferr
