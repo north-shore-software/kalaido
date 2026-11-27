@@ -611,7 +611,7 @@ func StreamApplyLeg(ctx context.Context, app core.App, sse *chat.SSE, refRec *co
 		}
 	}
 
-	_, _ = MaterializeCandidateIfNew(ctx, app, refRec, lens, final, pinned, spec, suggestedName, applyModel)
+	_, _ = MaterializeCandidateIfNew(ctx, app, refRec, final, pinned, spec, suggestedName, applyModel)
 }
 
 func extractSuggestedName(toolCalls []llm.ToolCall) string {

@@ -360,7 +360,7 @@ func Commit(ctx context.Context, app core.App, refRec *core.Record, expectedPare
 	return newSnapID, nil
 }
 
-func MaterializeCandidateIfNew(ctx context.Context, app core.App, refRec *core.Record, lens string, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, suggestedName string, model string) (string, error) {
+func MaterializeCandidateIfNew(ctx context.Context, app core.App, refRec *core.Record, output string, pinned llmcontext.PinnedIDs, spec api.ContextSpec, suggestedName string, model string) (string, error) {
 	if refRec.Collection().Name != schema.ColProjectionRefinement.String() {
 		return "", nil
 	}
@@ -433,15 +433,6 @@ func MaterializeCandidateIfNew(ctx context.Context, app core.App, refRec *core.R
 
 			combinedEdits := append(priorEdits, newEdits...)
 
-			if lensCol, err := app.FindCollectionByNameOrId(strat.LensCollectionName()); err == nil {
-				lensRec := core.NewRecord(lensCol)
-				lensRec.Set("prompt", lens)
-				lensRec.Set(strat.RefinementForeignKeyCol(), refRec.Id)
-				if err := app.Save(lensRec); err == nil {
-					snapRec.Set("lens_id", lensRec.Id)
-				}
-			}
-
 			snapRec.Set("output_draft", newDraft)
 			snapRec.Set("output_raw", output)
 			snapRec.Set("edits", pbutil.JSONObject(combinedEdits))
@@ -484,20 +475,10 @@ func MaterializeCandidateIfNew(ctx context.Context, app core.App, refRec *core.R
 		}
 
 		strat := projections.Strategy{}
-		lensCol, err := tx.FindCollectionByNameOrId(strat.LensCollectionName())
-		if err != nil {
-			return err
-		}
-		lensRec := core.NewRecord(lensCol)
-		lensRec.Set("prompt", lens)
-		lensRec.Set(strat.RefinementForeignKeyCol(), refRec.Id)
-		if err := tx.Save(lensRec); err != nil {
-			return err
-		}
 
 		sID, err := engine.AppendSnapshot(ctx, tx, strat, engine.SnapshotSpec{
 			SourceID:                parentRec.Id,
-			LensID:                  lensRec.Id,
+			LensID:                  parentRec.GetString("current_lens_id"),
 			Output:                  "",
 			OutputDraft:             output,
 			OutputRaw:               output,

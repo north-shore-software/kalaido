@@ -454,3 +454,96 @@ func TestCandidateStatusReportsOutdatedReasonAndEngagement(t *testing.T) {
 		t.Error("a hand-edited candidate must report engaged")
 	}
 }
+
+func TestDraftProjectionCandidateIsNeverOutdated(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	f1 := addFragment(t, app, "first")
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name": "brand new draft",
+	})
+	// Simulate both a new-projection candidate whose context_spec/resolved_context
+	// are populated before current_context_spec is committed, and a legacy preview
+	// lens_id stamped before commit.
+	previewLens := testutil.NewRecord(t, app, "lens", map[string]any{"prompt": "draft lens"})
+	cand := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":    proj.Id,
+		"status":           engine.StatusPending,
+		"lens_id":          previewLens.Id,
+		"context_spec":     pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
+		"resolved_context": pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{f1.Id}}),
+		"output_draft":     "Draft output",
+	})
+	testutil.NewRecord(t, app, "projection_refinement", map[string]any{
+		"projection_id":            proj.Id,
+		"projection_snapshot_id":   cand.Id,
+		"external_conversation_id": "conv-draft",
+	})
+
+	got := evaluate(t, app)[proj.Id]
+	if got.Candidate == nil || got.Candidate.ID != cand.Id {
+		t.Fatalf("candidate = %+v, want %s", got.Candidate, cand.Id)
+	}
+	if got.Candidate.Outdated || got.Candidate.Reason != "" {
+		t.Errorf("draft projection candidate must not be outdated, got %+v", got.Candidate)
+	}
+	if !got.Candidate.Engaged {
+		t.Error("draft projection candidate with open refinement must report engaged")
+	}
+}
+
+func TestCandidateCurrencyUsesCandidateContextSpec(t *testing.T) {
+	app := testutil.NewApp(t)
+
+	f1 := addFragment(t, app, "first")
+	f2 := addFragment(t, app, "second")
+	lens := testutil.NewRecord(t, app, "lens", map[string]any{"prompt": "installed"})
+	proj := testutil.NewRecord(t, app, "projection", map[string]any{
+		"name":                 "existing",
+		"current_lens_id":      lens.Id,
+		"current_context_spec": pbutil.JSONObject(api.ContextSpec{FragmentIDs: []string{f1.Id}}),
+	})
+	testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":            proj.Id,
+		"status":                   engine.StatusApproved,
+		"approval_sequence_number": 1,
+		"lens_id":                  lens.Id,
+		"context_spec":             pbutil.JSONObject(api.ContextSpec{FragmentIDs: []string{f1.Id}}),
+		"resolved_context":         pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{f1.Id}}),
+		"output":                   "live output",
+	})
+
+	// Candidate regenerated during refinement with a broader uncommitted spec
+	// (WholeScopeFull) — should read as current right after generation, not
+	// context_changed against the projection's older current_context_spec.
+	cand := testutil.NewRecord(t, app, "projection_snapshot", map[string]any{
+		"projection_id":    proj.Id,
+		"status":           engine.StatusPending,
+		"lens_id":          lens.Id,
+		"context_spec":     pbutil.JSONObject(api.ContextSpec{WholeScope: api.WholeScopeFull}),
+		"resolved_context": pbutil.JSONObject(llmcontext.PinnedIDs{FragmentIDs: []string{f1.Id, f2.Id}}),
+		"output_draft":     "refined output",
+	})
+
+	got := evaluate(t, app)[proj.Id]
+	if got.Candidate == nil || got.Candidate.ID != cand.Id {
+		t.Fatalf("candidate = %+v, want %s", got.Candidate, cand.Id)
+	}
+	if got.Candidate.Outdated || got.Candidate.Reason != "" {
+		t.Fatalf("candidate with uncommitted context change should be current, got %+v", got.Candidate)
+	}
+	if got.UpToDateSnapshotID == "" {
+		t.Errorf("live approved snapshot should stay up to date against current_context_spec, got %+v", got)
+	}
+
+	// A new fragment arriving after generation matches the candidate's spec and
+	// marks the candidate outdated with new_fragments.
+	f3 := addFragment(t, app, "third")
+	got = evaluate(t, app)[proj.Id]
+	if got.Candidate == nil || !got.Candidate.Outdated || got.Candidate.Reason != engine.CurrencyNewFragments {
+		t.Fatalf("candidate after new fragment = %+v, want outdated (%s)", got.Candidate, engine.CurrencyNewFragments)
+	}
+	if len(got.Candidate.NewFragmentIDs) != 1 || got.Candidate.NewFragmentIDs[0] != f3.Id {
+		t.Errorf("candidate newFragmentIds = %v, want [%s]", got.Candidate.NewFragmentIDs, f3.Id)
+	}
+}
